@@ -102,7 +102,8 @@ export function addDungeon(world, x, y, opts) {
     } catch (_) {}
   }
 
-  // For tower-type dungeons, derive a deterministic floor count (3–5 floors) if not provided.
+  // For tower-type dungeons, derive a deterministic floor count (3–5 floors) if not provided,
+  // and optionally assign a towerType based on data/worldgen/towers.json when available.
   if (dungeon.kind === "tower") {
     const hasFloors = typeof dungeon.towerFloors === "number" && dungeon.towerFloors >= 2;
     if (!hasFloors) {
@@ -110,6 +111,56 @@ export function addDungeon(world, x, y, opts) {
       const floors = 3 + Math.floor(rFloors * 3); // 3..5
       dungeon.towerFloors = floors;
     }
+
+    // Determine towerType via GameData.towers.defaults.typeWeights when present.
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const towersCfg = GD && GD.towers;
+      let towerTypeId = null;
+
+      if (towersCfg && towersCfg.types && typeof towersCfg.types === "object") {
+        const defaults = (towersCfg.defaults && typeof towersCfg.defaults === "object") ? towersCfg.defaults : null;
+        const weights = defaults && defaults.typeWeights && typeof defaults.typeWeights === "object"
+          ? defaults.typeWeights
+          : null;
+        const entries = weights ? Object.entries(weights) : [];
+        const filtered = entries.filter(([id, w]) =>
+          towersCfg.types[id] &&
+          typeof w === "number" &&
+          w > 0
+        );
+        if (filtered.length) {
+          let total = 0;
+          for (let i = 0; i < filtered.length; i++) {
+            total += filtered[i][1];
+          }
+          if (total > 0) {
+            const rType = h2(x + 313, y - 97) * total;
+            let acc = 0;
+            for (let i = 0; i < filtered.length; i++) {
+              const id = filtered[i][0];
+              const w = filtered[i][1];
+              acc += w;
+              if (rType < acc) {
+                towerTypeId = id;
+                break;
+              }
+            }
+          }
+        }
+        if (!towerTypeId && defaults && typeof defaults.defaultTowerType === "string") {
+          const defId = defaults.defaultTowerType;
+          if (towersCfg.types[defId]) {
+            towerTypeId = defId;
+          }
+        }
+      }
+
+      if (!towerTypeId) {
+        towerTypeId = "bandit_tower";
+      }
+      dungeon.towerType = towerTypeId;
+    } catch (_) {}
   }
 
   world.dungeons.push(dungeon);

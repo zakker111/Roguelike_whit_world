@@ -12,7 +12,7 @@
  * - enter(ctx, info)
  */
 
-import { getMod } from "../../utils/access.js";
+import { getMod, getGameData } from "../../utils/access.js";
 import { keyFromWorldPos as keyFromWorldPosExt, save as saveExt, load as loadExt } from "./state.js";
 import { generate as generateExt } from "./generate.js";
 import { generateLoot as generateLootExt, lootHere as lootHereExt } from "./loot.js";
@@ -103,15 +103,46 @@ function ensureTowerMeta(ctx, info) {
   if (!ctx) return null;
   const dinfo = info || ctx.dungeonInfo || ctx.dungeon || null;
   if (!dinfo || !isTowerInfo(dinfo)) return null;
+
   const floors = (() => {
     try {
       const n = Number(dinfo.towerFloors);
       if (Number.isFinite(n) && n >= 2 && n <= 10) return Math.floor(n);
     } catch (_) {}
-    // Fallback: at least 3 floors for towers
+    // Fallback: at least 3 floors for towers when metadata is missing.
     return 3;
   })();
+
   const baseLevel = Math.max(1, (dinfo.level | 0) || 1);
+
+  // Resolve tower type and optional config from GameData.towers. This is
+  // advisory only for now; existing hard-coded behavior remains functional
+  // when config is absent.
+  let towerTypeId = null;
+  let towerConfig = null;
+  try {
+    const GD = getGameData(ctx);
+    const towersCfg = GD && GD.towers;
+    const explicitType = dinfo.towerType ? String(dinfo.towerType) : null;
+    if (towersCfg && towersCfg.types && typeof towersCfg.types === "object") {
+      if (explicitType && towersCfg.types[explicitType]) {
+        towerTypeId = explicitType;
+        towerConfig = towersCfg.types[explicitType];
+      } else {
+        const defaults = (towersCfg.defaults && typeof towersCfg.defaults === "object") ? towersCfg.defaults : null;
+        const defId = defaults && typeof defaults.defaultTowerType === "string" ? defaults.defaultTowerType : null;
+        if (defId && towersCfg.types[defId]) {
+          towerTypeId = defId;
+          towerConfig = towersCfg.types[defId];
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (!towerTypeId) {
+    towerTypeId = dinfo.towerType ? String(dinfo.towerType) : "bandit_tower";
+  }
+
   if (!ctx.towerRun) {
     ctx.towerRun = {
       kind: "tower",
@@ -120,6 +151,8 @@ function ensureTowerMeta(ctx, info) {
       baseLevel,
       currentFloor: 0,
       floors: Object.create(null),
+      typeId: towerTypeId,
+      config: towerConfig || null,
     };
   } else {
     // Keep base settings but ensure totals/levels are sane
@@ -127,6 +160,10 @@ function ensureTowerMeta(ctx, info) {
     ctx.towerRun.entrance = { x: dinfo.x | 0, y: dinfo.y | 0 };
     ctx.towerRun.totalFloors = floors;
     ctx.towerRun.baseLevel = baseLevel;
+    ctx.towerRun.typeId = towerTypeId;
+    if (towerConfig) {
+      ctx.towerRun.config = towerConfig;
+    }
   }
   return ctx.towerRun;
 }

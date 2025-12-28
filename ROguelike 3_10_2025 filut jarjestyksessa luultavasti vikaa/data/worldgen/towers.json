@@ -1,0 +1,101 @@
+{
+  "jcdocs": {
+    "description": "Tower configuration: per-tower types, floors, difficulty, prefabs, and random selection on the overworld.",
+    "howRandomTowerTypesWork": [
+      "When world generation finds a TOWER tile, it creates a dungeon record with kind = 'tower'.",
+      "core/world/scan_pois.js calls addDungeon(world, x, y, { kind: 'tower' }).",
+      "addDungeon(world, x, y, opts) in core/world/poi.js chooses a towerType using defaults.typeWeights in this file.",
+      "If no towerType is explicitly chosen or config is missing, defaults.defaultTowerType is used.",
+      "At runtime, DungeonRuntime/ensureTowerMeta use dungeon.kind === 'tower' plus any towerType/towerFloors metadata to initialize ctx.towerRun."
+    ],
+    "howToAddNewTowerType": [
+      "1. Pick a new type id, e.g. 'undead_tower'.",
+      "2. Add a matching theme with enemy/boss/loot config into data/worldgen/tower_themes.json under the same id (e.g., 'undead_tower').",
+      "3. In this file, add a new entry under 'types' with your desired settings (floors, difficulty, prefabs, chests, themeId).",
+      "4. Add your new type to defaults.typeWeights with a weight > 0 so worldgen can randomly pick it.",
+      "5. (Optional) For special hand-crafted towers, set 'towerType' explicitly on that tower's dungeon record so it always uses your new type instead of random.",
+      "6. Keep at least one valid type id and one non-zero weight so there is always a selectable tower type."
+    ],
+    "notes": [
+      "For now, only 'bandit_tower' is defined; defaults.typeWeights chooses it 100% of the time.",
+      "Once additional tower types exist, adjusting defaults.typeWeights changes how often each type appears on the overworld.",
+      "If a towerType is missing or invalid at runtime, the system falls back to defaults.defaultTowerType or 'bandit_tower'.",
+      "Floors/difficulty/prefabs/chests are read optionally by DungeonRuntime; when absent, existing hard-coded tower behavior remains in effect for backward compatibility."
+    ]
+  },
+
+  "defaults": {
+    "defaultTowerType": "bandit_tower",
+
+    "typeWeights": {
+      "bandit_tower": 1
+    },
+
+    "floors": { "min": 3, "max": 5 },
+
+    "difficulty": {
+      "baseLevelOffset": 0,
+      "levelPerFloor": 1,
+      "enemyHpPerFloor": 0.15,
+      "enemyAtkPerFloor": 0.10
+    },
+
+    "chests": {
+      "lowerFloors": {
+        "maxChests": 1,
+        "lockedChance": 0.2
+      },
+      "topFloor": {
+        "bossChestTier": 3,
+        "extraChests": 1,
+        "lockedBossChest": true
+      }
+    },
+
+    "prefabs": {
+      "base": { "tags": ["hall", "connector", "barracks"], "maxRooms": 3 },
+      "mid":  { "tags": ["hall", "barracks", "storage", "prison"], "maxRooms": 4 },
+      "top":  { "tags": ["boss"], "maxRooms": 1 }
+    }
+  },
+
+  "types": {
+    "bandit_tower": {
+      "label": "Bandit Tower",
+
+      "floors": { "min": 3, "max": 5 },
+
+      "difficulty": {
+        "baseLevelOffset": 0,
+        "levelPerFloor": 1,
+        "enemyHpPerFloor": 0.20,
+        "enemyAtkPerFloor": 0.15
+      },
+
+      "themeId": "bandit_tower",
+
+      "boss": {
+        "typeId": "bandit_captain",
+        "floor": "top"
+      },
+
+      "chests": {
+        "lowerFloors": {
+          "maxChests": 2,
+          "lockedChance": 0.3
+        },
+        "topFloor": {
+          "bossChestTier": 3,
+          "extraChests": 1,
+          "lockedBossChest": true
+        }
+      },
+
+      "prefabs": {
+        "base": { "tags": ["hall", "barracks"], "maxRooms": 3 },
+        "mid":  { "tags": ["hall", "barracks", "storage", "prison"], "maxRooms": 4 },
+        "top":  { "tags": ["boss"], "maxRooms": 1 }
+      }
+    }
+  }
+}

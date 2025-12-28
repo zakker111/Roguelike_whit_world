@@ -60,7 +60,13 @@ const DATA_FILES = {
   overworldGen: "data/worldgen/overworld.json",
 
   // Visual weather configuration (non-gameplay)
-  weatherConfig: "data/config/weather.json"
+  weatherConfig: "data/config/weather.json",
+
+  // Tower runtime configuration:
+  // - towers: high-level tower types (floors, difficulty, prefab tags, chest rules, themeId)
+  // - towerThemes: enemy/loot themes keyed by themeId
+  towers: "data/worldgen/towers.json",
+  towerThemes: "data/worldgen/tower_themes.json"
 };
 
 function fetchJson(url) {
@@ -246,7 +252,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, combatBalance, animals, prefabs,
-      overworldGen, weatherConfig, towerPrefabs
+      overworldGen, weatherConfig, towerPrefabs, towersConfig, towerThemes
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -279,7 +285,9 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.prefabs).catch(() => null),
       fetchJson(DATA_FILES.overworldGen).catch(() => null),
       fetchJson(DATA_FILES.weatherConfig).catch(() => null),
-      fetchJson(DATA_FILES.towerPrefabs).catch(() => null)
+      fetchJson(DATA_FILES.towerPrefabs).catch(() => null),
+      fetchJson(DATA_FILES.towers).catch(() => null),
+      fetchJson(DATA_FILES.towerThemes).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -324,6 +332,10 @@ GameData.ready = (async function loadAll() {
     GameData.prefabs = (prefabs && typeof prefabs === "object") ? prefabs : null;
     // Tower interior room prefabs (dungeon rooms for towers)
     GameData.towerPrefabs = (towerPrefabs && typeof towerPrefabs === "object") ? towerPrefabs : null;
+    // Tower runtime configuration (types and themes). Optional; tower runtime will
+    // fall back to hard-coded defaults when these are missing.
+    GameData.towers = (towersConfig && typeof towersConfig === "object") ? towersConfig : null;
+    GameData.towerThemes = (towerThemes && typeof towerThemes === "object") ? towerThemes : null;
 
     // Overworld generation config
     GameData.worldgenOverworld = (overworldGen && typeof overworldGen === "object") ? overworldGen : null;
