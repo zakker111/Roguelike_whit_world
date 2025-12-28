@@ -505,6 +505,10 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
       spawnTowerChestsOnFloor(ctx, meta, f, total);
     } catch (_) {}
 
+    // Ensure ctx.dungeonProps reflects the full set of props (torches + prefab props)
+    // so they render immediately on first visit.
+    ctx.dungeonProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : [];
+
     tr.floors[f] = meta;
   } else {
     // Revisit existing floor: restore state references.
@@ -660,7 +664,11 @@ export function enter(ctx, info) {
     try {
       const loaded = loadExt(ctx, info.x, info.y);
       if (loaded && ctx.towerRun && ctx.towerRun.kind === "tower") {
-        return true;
+        const tr = ctx.towerRun;
+        const f = tr.currentFloor && tr.currentFloor >= 1 ? tr.currentFloor : 1;
+        // Re-enter the tower via tower runtime so per-floor meta, props,
+        // and spawn positions are applied consistently.
+        return gotoTowerFloor(ctx, f, "fromWorld");
       }
     } catch (_) {}
 
