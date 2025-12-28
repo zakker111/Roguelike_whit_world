@@ -78,10 +78,16 @@ function cloneForStorage(st) {
   };
 
   // Towers: persist the full multi-floor towerRun structure when present so
-  // bandits, corpses, and loot remain consistent across re-entry.
+  // bandits, corpses, and loot remain consistent across re-entry. Deep clone
+  // to avoid aliasing live ctx.towerRun/meta arrays so that clearing enemies/
+  // corpses on exit does not mutate the stored snapshot.
   if (st.towerRun && st.towerRun.kind === "tower") {
-    // towerRun is already JSON-safe (plain objects/arrays); keep as-is.
-    out.towerRun = st.towerRun;
+    try {
+      out.towerRun = JSON.parse(JSON.stringify(st.towerRun));
+    } catch (_) {
+      // Fallback: keep as-is if JSON cloning fails for some reason.
+      out.towerRun = st.towerRun;
+    }
   }
 
   return out;
