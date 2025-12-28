@@ -34,8 +34,8 @@
         ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","BED","WALL"],
         ["WALL","CRATE","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","BARREL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL","WALL"]
       ]
     },
     {

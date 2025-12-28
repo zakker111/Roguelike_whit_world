@@ -363,6 +363,22 @@ function spawnTowerEnemiesOnFloor(ctx, meta, floorIndex, totalFloors) {
     if (!rows || !cols) return;
     const T = ctx.TILES;
 
+    const isInBounds = (x, y) => y >= 0 && x >= 0 && y < rows && x < cols;
+
+    const isBlocked = (x, y) => {
+      if (!isInBounds(x, y)) return true;
+      const tile = ctx.map[y][x];
+      // Only spawn on regular floor tiles; avoid walls, doors, stairs, etc.
+      if (tile !== T.FLOOR) return true;
+      if (meta.exitToWorldPos && meta.exitToWorldPos.x === x && meta.exitToWorldPos.y === y) return true;
+      if (meta.stairsUpPos && meta.stairsUpPos.x === x && meta.stairsUpPos.y === y) return true;
+      if (meta.stairsDownPos && meta.stairsDownPos.x === x && meta.stairsDownPos.y === y) return true;
+      if (ctx.player && ctx.player.x === x && ctx.player.y === y) return true;
+      if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
+      if (Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y)) return true;
+      return false;
+    };
+
     const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
     const rng = (RU && typeof RU.getRng === "function")
       ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
