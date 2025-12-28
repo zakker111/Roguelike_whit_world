@@ -175,18 +175,11 @@ function applyState(ctx, st, x, y) {
   ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
   ctx.floor = st.level || 1;
 
-  // Deep references for classic single-floor dungeons
-  ctx.map = st.map;
-  ctx.seen = st.seen;
-  ctx.visible = st.visible;
-  ctx.enemies = st.enemies || [];
-  ctx.corpses = st.corpses || [];
-  ctx.decals = st.decals || [];
+  // For towers, prefer the multi-floor towerRun snapshot first. Only if that
+  // is missing or malformed do we fall back to the flat single-floor arrays.
+  let usedTowerMeta = false;
+  ctx.towerRun = null;
 
-  // Towers: if a multi-floor towerRun is present, prefer its current floor
-  // snapshot over the flat map/enemy arrays above so towers behave like
-  // persistent multi-floor dungeons. Only fall back to the flat snapshot
-  // when the per-floor meta is missing or malformed.
   try {
     if (st.towerRun && st.towerRun.kind === "tower") {
       ctx.towerRun = st.towerRun;
@@ -197,23 +190,35 @@ function applyState(ctx, st, x, y) {
       if (meta && meta.map) {
         // Base map/visibility and per-floor entities/props come from meta for towers.
         ctx.map = meta.map;
-        ctx.seen = meta.seen || ctx.seen;
-        ctx.visible = meta.visible || ctx.visible;
+        ctx.seen = meta.seen || st.seen;
+        ctx.visible = meta.visible || st.visible;
 
-        if (Array.isArray(meta.enemies)) ctx.enemies = meta.enemies;
-        if (Array.isArray(meta.corpses)) ctx.corpses = meta.corpses;
-        if (Array.isArray(meta.decals)) ctx.decals = meta.decals;
+        ctx.enemies = Array.isArray(meta.enemies) ? meta.enemies : (st.enemies || []);
+        ctx.corpses = Array.isArray(meta.corpses) ? meta.corpses : (st.corpses || []);
+        ctx.decals = Array.isArray(meta.decals) ? meta.decals : (st.decals || []);
         if (Array.isArray(meta.dungeonProps)) ctx.dungeonProps = meta.dungeonProps;
         if (typeof meta.floorLevel === "number") {
           ctx.floor = meta.floorLevel;
         }
+        usedTowerMeta = true;
       } else {
-        // Meta missing or malformed: keep the flat snapshot arrays but drop
-        // towerRun to avoid half-restored towers.
+        // Meta missing or malformed: drop towerRun to avoid half-restored towers.
         ctx.towerRun = null;
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    ctx.towerRun = null;
+  }
+
+  if (!usedTowerMeta) {
+    // Classic single-floor dungeon restore path.
+    ctx.map = st.map;
+    ctx.seen = st.seen;
+    ctx.visible = st.visible;
+    ctx.enemies = st.enemies || [];
+    ctx.corpses = st.corpses || [];
+    ctx.decals = st.decals || [];
+  }
 
   // Exit tile from saved state or fallback to world entrance
   let ex, ey;
