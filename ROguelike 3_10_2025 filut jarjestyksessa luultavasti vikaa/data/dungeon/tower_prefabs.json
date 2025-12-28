@@ -12,7 +12,8 @@
       "EmbeddedPropCodes inside tiles become dungeon props or chest spawn points.",
       "CHEST marks a logical chest spot; loot and chest entity are created by DungeonItems.",
       "Other codes (CRATE/BARREL/CAMPFIRE/CAPTIVE/BED/TABLE/CHAIR/RUG) become props in ctx.dungeonProps.",
-      "Rooms are stamped into existing tower floors; stamping avoids stairs/entrance tiles."
+      "Rooms are stamped into existing tower floors; stamping avoids stairs/entrance tiles.",
+      "Optional per-room metadata (towerTypes, minFloor, maxFloor, role, weight, maxPerTower) guides which tower types and floors can use each room and how often."
     ]
   },
   "rooms": [
@@ -21,6 +22,12 @@
       "name": "Tower Barracks (Small)",
       "category": "tower_room",
       "tags": ["barracks", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "combat",
+      "weight": 1.0,
+      "maxPerTower": 3,
       "size": { "w": 9, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
@@ -36,6 +43,12 @@
       "name": "Tower Storage (Small)",
       "category": "tower_room",
       "tags": ["storage", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "storage",
+      "weight": 0.8,
+      "maxPerTower": 2,
       "size": { "w": 7, "h": 5 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
@@ -50,6 +63,12 @@
       "name": "Tower Boss Arena",
       "category": "tower_room",
       "tags": ["boss", "arena", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 3,
+      "maxFloor": 6,
+      "role": "boss",
+      "weight": 1.0,
+      "maxPerTower": 1,
       "size": { "w": 11, "h": 7 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL","WALL","WALL"],
@@ -66,6 +85,12 @@
       "name": "Tower Cross Hall",
       "category": "tower_room",
       "tags": ["hall", "cross", "connector"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "connector",
+      "weight": 1.2,
+      "maxPerTower": 2,
       "size": { "w": 7, "h": 7 },
       "tiles": [
         ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"],
@@ -82,6 +107,12 @@
       "name": "Tower Prison (Three Doors)",
       "category": "tower_room",
       "tags": ["prison", "cells", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 2,
+      "maxFloor": 4,
+      "role": "prison",
+      "weight": 0.8,
+      "maxPerTower": 2,
       "size": { "w": 9, "h": 5 },
       "tiles": [
         ["WALL","WALL","DOOR","WALL","WALL","DOOR","WALL","WALL","WALL"],
@@ -96,6 +127,12 @@
       "name": "Tower Side Cell",
       "category": "tower_room",
       "tags": ["cell", "side_room"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 2,
+      "maxFloor": 4,
+      "role": "prison",
+      "weight": 0.7,
+      "maxPerTower": 3,
       "size": { "w": 7, "h": 5 },
       "tiles": [
         ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"],

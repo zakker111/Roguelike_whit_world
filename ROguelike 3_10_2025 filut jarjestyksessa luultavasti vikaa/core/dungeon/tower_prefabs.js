@@ -198,7 +198,7 @@ function sampleWithoutReplacement(arr, count, rng) {
   const src = arr.slice();
   const r = typeof rng === "function" ? rng : () => 0.5;
   const n = Math.min(src.length, count);
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i &lt; n; i++) {
     const idx = Math.floor(r() * src.length) % src.length;
     out.push(src[idx]);
     src.splice(idx, 1);
@@ -206,9 +206,104 @@ function sampleWithoutReplacement(arr, count, rng) {
   return out;
 }
 
+// Compute a coarse role for a prefab based on its explicit `role` field or tags.
+function getRoomRole(prefab) {
+  try {
+    if (!prefab) return "combat";
+    if (typeof prefab.role === "string" && prefab.role.length) {
+      return String(prefab.role).toLowerCase();
+    }
+    if (hasTag(prefab, "boss")) return "boss";
+    if (hasTag(prefab, "connector") || hasTag(prefab, "hall")) return "connector";
+    if (hasTag(prefab, "prison") || hasTag(prefab, "cells") || hasTag(prefab, "cell")) return "prison";
+    if (hasTag(prefab, "storage")) return "storage";
+    return "combat";
+  } catch (_) {
+    return "combat";
+  }
+}
+
+function getRoomUsageMap(towerRun) {
+  if (!towerRun || typeof towerRun !== "object") {
+    return Object.create(null);
+  }
+  if (!towerRun._roomUsage || typeof towerRun._roomUsage !== "object") {
+    towerRun._roomUsage = Object.create(null);
+  }
+  return towerRun._roomUsage;
+}
+
+function isPrefabAllowedForTower(prefab, typeId, floorIndex, usageMap) {
+  try {
+    const f = Math.max(1, floorIndex | 0);
+
+    // Tower type gating: if prefab.towerTypes is present and non-empty, it must
+    // contain the current tower type id.
+    if (Array.isArray(prefab.towerTypes) && prefab.towerTypes.length) {
+      if (!typeId || !prefab.towerTypes.some(t => String(t || "").toLowerCase() === String(typeId || "").toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Floor range gating.
+    if (typeof prefab.minFloor === "number" && f < (prefab.minFloor | 0)) return false;
+    if (typeof prefab.maxFloor === "number" && f > (prefab.maxFloor | 0)) return false;
+
+    // Per-tower cap.
+    const id = prefab.id;
+    if (id && usageMap && Object.prototype.hasOwnProperty.call(usageMap, id)) {
+      const maxPerTower = typeof prefab.maxPerTower === "number" ? (prefab.maxPerTower | 0) : null;
+      if (maxPerTower != null && maxPerTower >= 0 && usageMap[id] >= maxPerTower) {
+        return false;
+      }
+    }
+  } catch (_) {
+    // On any error, allow the prefab so towers don't break.
+  }
+  return true;
+}
+
+function weightedSampleWithoutReplacement(arr, count, rng, weightFn) {
+  const out = [];
+  if (!Array.isArray(arr) || !arr.length || count <= 0) return out;
+  const r = typeof rng === "function" ? rng : () => 0.5;
+  const pool = arr.slice();
+  const n = Math.min(pool.length, count);
+
+  for (let k = 0; k < n; k++) {
+    let total = 0;
+    const weights = new Array(pool.length);
+    for (let i = 0; i < pool.length; i++) {
+      const w = Math.max(0, Number(weightFn(pool[i])) || 0);
+      weights[i] = w;
+      total += w;
+    }
+    if (!(total > 0)) {
+      // Fallback: uniform when all weights are zero.
+      const idx = Math.floor(r() * pool.length) % pool.length;
+      out.push(pool.splice(idx, 1)[0]);
+      continue;
+    }
+    let roll = r() * total;
+    let chosenIndex = 0;
+    for (let i = 0; i < pool.length; i++) {
+      if (roll < weights[i]) {
+        chosenIndex = i;
+        break;
+      }
+      roll -= weights[i];
+    }
+    out.push(pool.splice(chosenIndex, 1)[0]);
+  }
+
+  return out;
+}
+
 // Config-aware room selection. When data/worldgen/towers.json is present and
 // ctx.towerRun.typeId has a matching type, we use its prefabs[role] settings
-// (tags + maxRooms) to pick rooms for base/mid/top floors. When config is
+// (tags + maxRooms) together with per-prefab metadata from
+// data/dungeon/tower_prefabs.json (towerTypes, minFloor/maxFloor, role,
+// weight, maxPerTower) to pick rooms for base/mid/top floors. When config is
 // missing or incomplete, we fall back to the legacy bandit-tower behavior.
 function pickTowerRoomsForFloor(ctx, towerRun, floorIndex, totalFloors) {
   const reg = towerRegistry(ctx);
@@ -218,12 +313,13 @@ function pickTowerRoomsForFloor(ctx, towerRun, floorIndex, totalFloors) {
   const total = Math.max(1, totalFloors | 0);
   const f = Math.max(1, floorIndex | 0);
   const isTop = f === total;
+  const typeId = towerRun && towerRun.typeId;
+  const roomUsage = getRoomUsageMap(towerRun);
 
   // Attempt config-driven selection first.
   try {
     const GD = getGameData(ctx);
     const towersCfg = GD && GD.towers;
-    const typeId = towerRun && towerRun.typeId;
     const types = towersCfg && towersCfg.types && typeof towersCfg.types === "object"
       ? towersCfg.types
       : null;
@@ -250,22 +346,63 @@ function pickTowerRoomsForFloor(ctx, towerRun, floorIndex, totalFloors) {
       const tagsFilter = Array.isArray(prefCfg.tags) ? prefCfg.tags : [];
       const maxRooms = Math.max(1, (prefCfg.maxRooms | 0) || (isTop ? 1 : 3));
 
-      let candidatePool = rooms;
+      // First, filter by tower type, floor range, and per-tower caps.
+      let basePool = rooms.filter(r => isPrefabAllowedForTower(r, typeId, f, roomUsage));
+      if (!basePool.length) {
+        // If constraints are too strict, fall back to all rooms so towers remain playable.
+        basePool = rooms.slice();
+      }
+      if (!basePool.length) return [];
+
+      // Then apply tag-based filtering when configured; if that yields nothing,
+      // fall back to the unconstrained base pool.
+      let candidatePool = basePool;
       if (tagsFilter.length) {
-        candidatePool = rooms.filter(r =>
+        const byTags = basePool.filter(r =>
           tagsFilter.some(tag => hasTag(r, tag))
         );
-      }
-
-      // If no rooms match the configured tags, fall back to the full pool so
-      // towers remain playable even with aggressive or mismatched tags.
-      if (!candidatePool.length) {
-        candidatePool = rooms;
+        if (byTags.length) candidatePool = byTags;
       }
       if (!candidatePool.length) return [];
 
       const count = Math.min(maxRooms, candidatePool.length);
-      return sampleWithoutReplacement(candidatePool, count, rng);
+
+      const chosen = weightedSampleWithoutReplacement(
+        candidatePool,
+        count,
+        rng,
+        (prefab) => {
+          let w = 1;
+          if (typeof prefab.weight === "number" && prefab.weight > 0) {
+            w = prefab.weight;
+          }
+          const rRole = getRoomRole(prefab);
+
+          // Mild role-based tweaks so base/mid/top floors favour appropriate rooms.
+          if (role === "top") {
+            if (rRole === "boss" || hasTag(prefab, "boss")) {
+              w *= 4;
+            } else {
+              w *= 0.2;
+            }
+          } else if (role === "base") {
+            if (rRole === "connector" || hasTag(prefab, "hall") || hasTag(prefab, "connector")) {
+              w *= 2;
+            }
+          }
+          return w > 0 ? w : 0;
+        }
+      );
+
+      // Update per-tower usage counts so maxPerTower constraints hold across floors.
+      for (let i = 0; i < chosen.length; i++) {
+        const pf = chosen[i];
+        const id = pf && pf.id;
+        if (!id) continue;
+        roomUsage[id] = (roomUsage[id] | 0) + 1;
+      }
+
+      return chosen;
     }
   } catch (_) {
     // Ignore config errors; fall back to legacy behavior.
