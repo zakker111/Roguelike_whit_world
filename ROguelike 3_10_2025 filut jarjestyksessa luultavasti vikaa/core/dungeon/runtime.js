@@ -323,17 +323,29 @@ function towerEnemyFactoryLocal(ctx, x, y, depth, rng) {
   }
 }
 
-function scaleTowerEnemyForDifficulty(ctx, enemy, depth) {
+function scaleTowerEnemyForDifficulty(ctx, enemy, depth, floorIndex, hpMultCfg, atkMultCfg) {
   try {
     if (!ctx || !enemy) return;
     const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
     const eLevel = (typeof enemy.level === "number" ? (enemy.level | 0) : ((depth | 0) || 1));
+    const f = Math.max(1, floorIndex | 0);
+
+    // Base multipliers from configuration (per-floor scaling).
+    let hpMult = (typeof hpMultCfg === "number" && hpMultCfg > 0) ? hpMultCfg : 1;
+    let atkMult = (typeof atkMultCfg === "number" && atkMultCfg > 0) ? atkMultCfg : 1;
+
+    // Additional boost when player significantly outlevels the enemy, to keep
+    // tower fights relevant if player overlevels content.
     const diff = pl - eLevel;
-    if (diff <= 1) return;
-    const boost = Math.min(3, Math.max(1, diff - 1));
-    const hpMult = 1 + 0.20 * boost;
-    const atkMult = 1 + 0.15 * boost;
-    enemy.level = Math.max(1, eLevel + boost);
+    if (diff > 1) {
+      const boost = Math.min(3, Math.max(1, diff - 1));
+      const boostHp = 1 + 0.20 * boost;
+      const boostAtk = 1 + 0.15 * boost;
+      hpMult *= boostHp;
+      atkMult *= boostAtk;
+      enemy.level = Math.max(1, eLevel + boost);
+    }
+
     if (typeof enemy.hp === "number") {
       enemy.hp = Math.max(1, Math.round(enemy.hp * hpMult));
     }
@@ -359,7 +371,33 @@ function spawnTowerEnemiesOnFloor(ctx, meta, floorIndex, totalFloors) {
     const f = Math.max(1, floorIndex | 0);
     const total = Math.max(1, totalFloors | 0);
     const isTop = f === total;
-    const baseDepth = Math.max(1, (ctx.floor | 0) || 1);
+
+    // Difficulty config (optional): derive depth and per-floor HP/ATK scaling.
+    let baseDepth = Math.max(1, (ctx.floor | 0) || 1);
+    let hpMultCfg = 1;
+    let atkMultCfg = 1;
+    try {
+      const tr = ctx.towerRun;
+      const GD = getGameData(ctx);
+      const towersCfg = GD && GD.towers;
+      const tType = tr && tr.config;
+      const defaults = towersCfg && towersCfg.defaults && typeof towersCfg.defaults === "object"
+        ? towersCfg.defaults
+        : null;
+      const diffCfg = (tType && tType.difficulty) || (defaults && defaults.difficulty) || null;
+      if (diffCfg) {
+        const baseOffset = Number.isFinite(diffCfg.baseLevelOffset) ? diffCfg.baseLevelOffset : 0;
+        const levelPerFloor = Number.isFinite(diffCfg.levelPerFloor) && diffCfg.levelPerFloor > 0
+          ? diffCfg.levelPerFloor
+          : 1;
+        const hpPerFloor = Number.isFinite(diffCfg.enemyHpPerFloor) ? diffCfg.enemyHpPerFloor : 0.15;
+        const atkPerFloor = Number.isFinite(diffCfg.enemyAtkPerFloor) ? diffCfg.enemyAtkPerFloor : 0.10;
+        const baseLevel = tr && typeof tr.baseLevel === "number" ? Math.max(1, tr.baseLevel | 0) : baseDepth;
+        baseDepth = Math.max(1, Math.round(baseLevel + baseOffset + (f - 1) * levelPerFloor));
+        hpMultCfg = 1 + (f - 1) * hpPerFloor;
+        atkMultCfg = 1 + (f - 1) * atkPerFloor;
+      }
+    } catch (_) {}
 
     let enemyCount = 6 + Math.floor(baseDepth * 1.5);
     enemyCount = Math.max(3, Math.min(enemyCount, Math.floor((rows * cols) / 20)));
@@ -418,7 +456,7 @@ function spawnTowerEnemiesOnFloor(ctx, meta, floorIndex, totalFloors) {
         } catch (_) {}
       }
       if (!enemy) continue;
-      scaleTowerEnemyForDifficulty(ctx, enemy, depthForEnemy);
+      scaleTowerEnemyForDifficulty(ctx, enemy, depthForEnemy, f, hpMultCfg, atkMultCfg);
       ctx.enemies.push(enemy);
     }
   } catch (_) {}
@@ -543,7 +581,8 @@ function spawnTowerBossOnFloor(ctx, meta) {
 
 // Spawn tower chests on a given floor using JSON-defined chest spots when
 // available; falls back to heuristic placement. Top floor always gets a
-// high-tier "boss" chest near the Bandit Captain when possible.
+// high-tier \"boss\" chest near the boss when possible. Chest counts and
+// tiers are configurable via data/worldgen/towers.json (types[*].chests).
 function spawnTowerChestsOnFloor(ctx, meta, floorIndex, totalFloors) {
   try {
     const DI = ctx && (ctx.DungeonItems || (typeof window !== "undefined" ? window.DungeonItems : null));
@@ -601,84 +640,144 @@ function spawnTowerChestsOnFloor(ctx, meta, floorIndex, totalFloors) {
       return null;
     };
 
+    // Read chest config (with defaults) from towers.json when available.
+    let lowerMaxChests = 1;
+    let lowerLockedChance = 0.2;
+    let topBossTier = 3;
+    let topExtra = 1;
+    try {
+      const GD = getGameData(ctx);
+      const towersCfg = GD && GD.towers;
+      const tr = ctx.towerRun;
+      const tType = tr && tr.config;
+      const defaults = towersCfg && towersCfg.defaults && typeof towersCfg.defaults === "object"
+        ? towersCfg.defaults
+        : null;
+      const chestCfg = (tType && tType.chests) || (defaults && defaults.chests) || null;
+      if (chestCfg) {
+        if (chestCfg.lowerFloors) {
+          if (Number.isFinite(chestCfg.lowerFloors.maxChests) && chestCfg.lowerFloors.maxChests >= 0) {
+            lowerMaxChests = chestCfg.lowerFloors.maxChests;
+          }
+          if (Number.isFinite(chestCfg.lowerFloors.lockedChance) && chestCfg.lowerFloors.lockedChance >= 0) {
+            lowerLockedChance = chestCfg.lowerFloors.lockedChance;
+          }
+        }
+        if (chestCfg.topFloor) {
+          if (Number.isFinite(chestCfg.topFloor.bossChestTier) && chestCfg.topFloor.bossChestTier >= 1) {
+            topBossTier = chestCfg.topFloor.bossChestTier | 0;
+          }
+          if (Number.isFinite(chestCfg.topFloor.extraChests) && chestCfg.topFloor.extraChests >= 0) {
+            topExtra = chestCfg.topFloor.extraChests | 0;
+          }
+          // lockedBossChest reserved for future lockpicking integration; currently ignored.
+        }
+      }
+    } catch (_) {}
+
     if (isTop) {
       // Always try to spawn a boss chest on the top floor.
       const boss = Array.isArray(ctx.enemies)
-        ? ctx.enemies.find(e => e && String(e.type || "").toLowerCase() === "bandit_captain")
+        ? ctx.enemies.find(e => e && typeof e.type === "string")
         : null;
 
-      let bestSpot = null;
-      if (chestSpots.length) {
-        let bestD = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < chestSpots.length; i++) {
-          const s = chestSpots[i];
-          const x = s.x | 0;
-          const y = s.y | 0;
-          if (isBlockedForChest(x, y)) continue;
-          let d = 0;
-          if (boss) d = manhattan(x, y, boss.x | 0, boss.y | 0);
-          else if (meta.stairsDownPos) d = manhattan(x, y, meta.stairsDownPos.x, meta.stairsDownPos.y);
-          else d = 0;
-          if (d < bestD) {
-            bestD = d;
-            bestSpot = { x, y };
+      const ref = boss || meta.stairsDownPos || meta.exitToWorldPos || { x: ctx.player.x | 0, y: ctx.player.y | 0 };
+
+      const pickBestSpot = () => {
+        let bestSpot = null;
+        if (chestSpots.length) {
+          let bestD = Number.POSITIVE_INFINITY;
+          for (let i = 0; i < chestSpots.length; i++) {
+            const s = chestSpots[i];
+            const x = s.x | 0;
+            const y = s.y | 0;
+            if (isBlockedForChest(x, y)) continue;
+            const d = manhattan(x, y, ref.x | 0, ref.y | 0);
+            if (d < bestD) {
+              bestD = d;
+              bestSpot = { x, y };
+            }
           }
         }
-      }
-      if (!bestSpot) {
-        bestSpot = findFallbackChestTile();
-      }
-      if (bestSpot) {
+        if (!bestSpot) bestSpot = findFallbackChestTile();
+        return bestSpot;
+      };
+
+      const bossSpot = pickBestSpot();
+      if (bossSpot) {
         DI.spawnChest(ctx, {
-          where: { x: bestSpot.x, y: bestSpot.y },
-          tier: 3,
+          where: { x: bossSpot.x, y: bossSpot.y },
+          tier: topBossTier,
           decayAll: 99,
           loot: ["anyEquipment", "anyEquipment", "potion"],
           announce: true
         });
       }
+
+      // Optional extra chests on top floor (smaller rewards).
+      const extraCount = Math.max(0, topExtra | 0);
+      if (extraCount > 0 && chestSpots.length > 0) {
+        const shuffled = chestSpots.slice();
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          const tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
+        }
+        let placed = 0;
+        for (let i = 0; i < shuffled.length && placed < extraCount; i++) {
+          const s = shuffled[i];
+          const x = s.x | 0;
+          const y = s.y | 0;
+          if (isBlockedForChest(x, y)) continue;
+          DI.spawnChest(ctx, {
+            where: { x, y },
+            tier: topBossTier,
+            decayAll: 99,
+            loot: ["anyEquipment", "potion"],
+            announce: false
+          });
+          placed++;
+        }
+      }
       return;
     }
 
-    // Lower floors: small chance of 0–1 smaller chests.
-    if (!chestSpots.length) {
-      // No JSON-defined chest spots; keep lower floors simple for now.
+    // Lower floors: up to lowerMaxChests chests, with an overall chance derived
+    // from lowerLockedChance for now (lockedChance is reserved for future
+    // lockpicking integration; currently used only as a density hint).
+    if (!chestSpots.length || lowerMaxChests <= 0) {
       return;
     }
-    const roll = rng();
-    const baseChance = 0.4;
-    const floorBias = 0.1 * (f - 1);
-    if (roll >= baseChance + floorBias) return;
 
-    // Pick a random chest spot that is still valid.
     const shuffled = chestSpots.slice();
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       const tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
     }
-    let picked = null;
-    for (let i = 0; i < shuffled.length; i++) {
+
+    const maxToPlace = Math.min(lowerMaxChests | 0, shuffled.length);
+    let placed = 0;
+    for (let i = 0; i < shuffled.length && placed < maxToPlace; i++) {
       const s = shuffled[i];
       const x = s.x | 0;
       const y = s.y | 0;
-      if (!isBlockedForChest(x, y)) {
-        picked = { x, y };
-        break;
-      }
-    }
-    if (!picked) {
-      picked = findFallbackChestTile();
-    }
-    if (!picked) return;
+      if (isBlockedForChest(x, y)) continue;
 
-    const tier = (f >= total - 1) ? 3 : 2;
-    DI.spawnChest(ctx, {
-      where: { x: picked.x, y: picked.y },
-      tier,
-      decayAll: 99,
-      loot: ["anyEquipment", "potion"],
-      announce: false
-    });
+      // Use lockedChance as a simple probability gate for whether this spot
+      // gets a chest at all. Locking behavior is not yet wired to the
+      // lockpicking mini-game; all tower chests are still normal for now.
+      const roll = rng();
+      if (roll > lowerLockedChance) continue;
+
+      const tier = (f >= total - 1) ? 3 : 2;
+      DI.spawnChest(ctx, {
+        where: { x, y },
+        tier,
+        decayAll: 99,
+        loot: ["anyEquipment", "potion"],
+        announce: false
+      });
+      placed++;
+    }
   } catch (_) {}
 }
 
