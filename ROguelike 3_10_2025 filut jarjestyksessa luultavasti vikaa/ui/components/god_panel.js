@@ -652,10 +652,15 @@ export function init(UI) {
   }
 
   // Teleport helpers
-  const tpTowerBtn = byId("god-teleport-tower-btn");
-  if (tpTowerBtn) {
-    tpTowerBtn.addEventListener("click", () => {
-      if (typeof UI.handlers.onGodTeleportToTower === "function") {
+  const tpSelect = byId("god-teleport-target");
+  const tpBtn = byId("god-teleport-btn");
+  if (tpBtn) {
+    tpBtn.addEventListener("click", () => {
+      const sel = tpSelect ? (tpSelect.value || "tower") : "tower";
+      if (typeof UI.handlers.onGodTeleport === "function") {
+        UI.handlers.onGodTeleport(sel);
+      } else if (sel === "tower" && typeof UI.handlers.onGodTeleportToTower === "function") {
+        // Back-compat: fall back to old tower-only helper
         UI.handlers.onGodTeleportToTower();
       }
     });

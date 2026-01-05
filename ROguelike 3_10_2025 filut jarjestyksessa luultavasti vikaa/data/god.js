@@ -12,6 +12,7 @@
  *   rerollSeed(ctx)
  *   clearGameStorage(ctx)
  *   teleportToNearestTower(ctx)
+ *   teleportToTarget(ctx, target)
  *   toggleInvincible(ctx, enabled)
  */
 import { attachGlobal } from "../utils/global.js";
@@ -453,6 +454,95 @@ export function teleportToNearestTower(ctx) {
   }
 }
 
+/**
+ * Generic teleport helper for the GOD panel.
+ * target: "tower" | "town" | "dungeon" | "ruins" | "castle"
+ */
+export function teleportToTarget(ctx, target) {
+  try {
+    const mode = ctx && ctx.mode;
+    if (mode !== "world") {
+      ctx && ctx.log && ctx.log("GOD: Teleport works in overworld mode only.", "warn");
+      return;
+    }
+    const t = String(target || "tower").toLowerCase();
+    if (t === "tower") {
+      teleportToNearestTower(ctx);
+      return;
+    }
+
+    const world = ctx.world || (ctx.getWorld ? ctx.getWorld() : null);
+    if (!world) {
+      ctx && ctx.log && ctx.log("GOD: World data not available for teleport.", "warn");
+      return;
+    }
+
+    function nearestFrom(list) {
+      if (!Array.isArray(list) || !list.length) return null;
+      const p = ctx.player || (ctx.getPlayer && ctx.getPlayer()) || { x: 0, y: 0 };
+      let best = null;
+      let bestD = Infinity;
+      for (const rec of list) {
+        if (!rec) continue;
+        const x = (rec.x | 0);
+        const y = (rec.y | 0);
+        const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
+        if (d < bestD) {
+          bestD = d;
+          best = { x, y };
+        }
+      }
+      return best;
+    }
+
+    let dest = null;
+    if (t === "town") {
+      dest = nearestFrom(world.towns || []);
+    } else if (t === "dungeon") {
+      dest = nearestFrom(world.dungeons || []);
+    } else if (t === "ruins") {
+      dest = nearestFrom(world.ruins || []);
+    } else if (t === "castle") {
+      const castles = world.castles || [];
+      if (castles.length) dest = nearestFrom(castles);
+      else {
+        const castlesFromTowns = Array.isArray(world.towns)
+          ? world.towns.filter(tt => String(tt.kind || "").toLowerCase() === "castle")
+          : [];
+        dest = nearestFrom(castlesFromTowns);
+      }
+    }
+
+    if (!dest) {
+      const lbl = t.charAt(0).toUpperCase() + t.slice(1);
+      ctx && ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found to teleport to.`, "warn");
+      return;
+    }
+
+    const GAPI = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.teleportTo === "function")
+      ? window.GameAPI
+      : null;
+    if (!GAPI) {
+      ctx && ctx.log && ctx.log("GOD: GameAPI.teleportTo not available; cannot teleport.", "warn");
+      return;
+    }
+
+    const ok = !!GAPI.teleportTo(dest.x, dest.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+    const label = (t === "town" ? "town/castle" : t);
+    if (ok) {
+      ctx && ctx.log && ctx.log(`GOD: Teleported to nearest ${label} at (${dest.x},${dest.y}).`, "notice");
+    } else {
+      ctx && ctx.log && ctx.log(`GOD: Teleport to nearest ${label} failed.`, "warn");
+    }
+  } catch (e) {
+    try {
+      ctx && ctx.log && ctx.log("GOD: Teleport helper failed; see console for details.", "warn");
+      // eslint-disable-next-line no-console
+      console.error(e);
+    } catch (_) {}
+  }
+}
+
 // Back-compat: attach to window via helper
 attachGlobal("God", {
   heal,
@@ -466,4 +556,5 @@ attachGlobal("God", {
   rerollSeed,
   clearGameStorage,
   teleportToNearestTower,
+  teleportToTarget,
 });

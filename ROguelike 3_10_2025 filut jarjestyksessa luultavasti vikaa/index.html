@@ -175,7 +175,15 @@
         <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
         <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
         <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD">Perf: On</button>
-        <button id="god-teleport-tower-btn" class="btn" title="Teleport to the nearest tower (overworld only)">Teleport to Tower</button>
+        <label class="help" style="font-size:12px; color:#8a98b0;">Teleport:</label>
+        <select id="god-teleport-target" style="min-width:130px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="tower">Nearest Tower</option>
+          <option value="town">Nearest Town/Castle</option>
+          <option value="dungeon">Nearest Dungeon</option>
+          <option value="ruins">Nearest Ruins</option>
+          <option value="castle">Nearest Castle</option>
+        </select>
+        <button id="god-teleport-btn" class="btn" title="Teleport to the selected overworld destination (world mode only)">Teleport</button>
       </div>
     </div>
 
