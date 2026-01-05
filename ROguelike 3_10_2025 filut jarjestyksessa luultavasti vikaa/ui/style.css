@@ -310,3 +310,17 @@ html, body {
   max-height: 80vh;
   overflow: auto;
 }
+
+/* GOD panel layout helpers */
+.god-section {
+  padding-top: 6px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(15,23,42,0.9);
+}
+
+.god-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
