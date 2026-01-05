@@ -471,45 +471,61 @@ export function teleportToTarget(ctx, target) {
       return;
     }
 
-    const world = ctx.world || (ctx.getWorld ? ctx.getWorld() : null);
-    if (!world) {
-      ctx && ctx.log && ctx.log("GOD: World data not available for teleport.", "warn");
+    const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+    if (!GAPI) {
+      ctx && ctx.log && ctx.log("GOD: GameAPI not available; cannot teleport.", "warn");
       return;
     }
 
-    function nearestFrom(list) {
-      if (!Array.isArray(list) || !list.length) return null;
-      const p = ctx.player || (ctx.getPlayer && ctx.getPlayer()) || { x: 0, y: 0 };
-      let best = null;
-      let bestD = Infinity;
-      for (const rec of list) {
-        if (!rec) continue;
-        const x = (rec.x | 0);
-        const y = (rec.y | 0);
-        const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
-        if (d < bestD) {
-          bestD = d;
-          best = { x, y };
-        }
-      }
-      return best;
-    }
-
+    // Prefer GameAPI helpers where available; they know about current world/POIs.
     let dest = null;
     if (t === "town") {
-      dest = nearestFrom(world.towns || []);
+      if (typeof GAPI.nearestTown === "function") dest = GAPI.nearestTown();
     } else if (t === "dungeon") {
-      dest = nearestFrom(world.dungeons || []);
-    } else if (t === "ruins") {
-      dest = nearestFrom(world.ruins || []);
-    } else if (t === "castle") {
-      const castles = world.castles || [];
-      if (castles.length) dest = nearestFrom(castles);
-      else {
-        const castlesFromTowns = Array.isArray(world.towns)
-          ? world.towns.filter(tt => String(tt.kind || "").toLowerCase() === "castle")
-          : [];
-        dest = nearestFrom(castlesFromTowns);
+      if (typeof GAPI.nearestDungeon === "function") dest = GAPI.nearestDungeon();
+    }
+
+    // Ruins and castles don't have direct helpers; fall back to world.*.
+    if (!dest && (t === "ruins" || t === "castle" || t === "town" || t === "dungeon")) {
+      const world = ctx.world || (ctx.getWorld ? ctx.getWorld() : null);
+      if (!world) {
+        ctx && ctx.log && ctx.log("GOD: World data not available for teleport.", "warn");
+        return;
+      }
+
+      function nearestFrom(list) {
+        if (!Array.isArray(list) || !list.length) return null;
+        const p = ctx.player || (ctx.getPlayer && ctx.getPlayer()) || { x: 0, y: 0 };
+        let best = null;
+        let bestD = Infinity;
+        for (const rec of list) {
+          if (!rec) continue;
+          const x = (rec.x | 0);
+          const y = (rec.y | 0);
+          const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
+          if (d < bestD) {
+            bestD = d;
+            best = { x, y };
+          }
+        }
+        return best;
+      }
+
+      if (!dest && t === "town") {
+        dest = nearestFrom(world.towns || []);
+      } else if (!dest && t === "dungeon") {
+        dest = nearestFrom(world.dungeons || []);
+      } else if (t === "ruins") {
+        dest = nearestFrom(world.ruins || []);
+      } else if (t === "castle") {
+        const castles = world.castles || [];
+        if (castles.length) dest = nearestFrom(castles);
+        if (!dest) {
+          const castlesFromTowns = Array.isArray(world.towns)
+            ? world.towns.filter(tt => String(tt.kind || "").toLowerCase() === "castle")
+            : [];
+          dest = nearestFrom(castlesFromTowns);
+        }
       }
     }
 
@@ -519,10 +535,7 @@ export function teleportToTarget(ctx, target) {
       return;
     }
 
-    const GAPI = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.teleportTo === "function")
-      ? window.GameAPI
-      : null;
-    if (!GAPI) {
+    if (typeof GAPI.teleportTo !== "function") {
       ctx && ctx.log && ctx.log("GOD: GameAPI.teleportTo not available; cannot teleport.", "warn");
       return;
     }
