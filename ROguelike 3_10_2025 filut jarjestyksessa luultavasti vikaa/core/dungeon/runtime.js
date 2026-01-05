@@ -29,6 +29,24 @@ export function keyFromWorldPos(x, y) {
 
 // Spawn sparse wall torches on WALL tiles adjacent to FLOOR/DOOR/STAIRS.
 // Options: { density:number (0..1), minSpacing:number (tiles) }
+//
+// Tower-specific notes:
+// - Towers are multi-floor dungeons managed via ctx.towerRun.
+// - Each floor stores its own meta (map, seen/visible, enemies, corpses, decals, dungeonProps, chestSpots, stairs).
+// - Floors are generated once and then persisted through DungeonState; revisiting restores exactly what you left.
+// - Tower floors are assembled from JSON room prefabs (data/dungeon/tower_prefabs.json) plus corridors,
+//   then decorated with props and chests based on meta.dungeonProps/meta.chestSpots.
+// - spawnTowerEnemiesOnFloor places bandit enemies, spawnTowerBossOnFloor adds a dedicated boss on the top floor,
+//   and spawnTowerChestsOnFloor wires in loot chests using JSON chest spots when available.
+//
+// Captives and allies:
+// - Some tower prefabs embed CAPTIVE props, stamped into meta.dungeonProps.
+// - Standing on a captive prop and pressing G in a tower calls releaseCaptiveHere(ctx):
+//   - Removes the captive prop from that tile.
+//   - Spawns a guard-faction ally on a nearby free floor tile (if any).
+//   - The ally uses normal enemy AI but has _ignorePlayer = true so it never targets the player, only hostile factions
+//     (e.g., bandits). Allies are saved in towerRun like any other enemy and persist across floor changes and exits.
+
 function spawnWallTorches(ctx, options = {}) {
   const density = typeof options.density === "number" ? Math.max(0, Math.min(1, options.density)) : 0.006;
   const minSpacing = Math.max(1, (options.minSpacing | 0) || 2);
