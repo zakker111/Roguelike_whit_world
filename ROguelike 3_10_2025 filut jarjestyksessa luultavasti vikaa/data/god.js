@@ -457,96 +457,124 @@ export function teleportToNearestTower(ctx) {
 /**
  * Generic teleport helper for the GOD panel.
  * target: "tower" | "town" | "dungeon" | "ruins" | "castle"
+ *
+ * Uses the same infinite-world aware pattern as teleportToNearestTower:
+ * - Searches in world space via world.gen.tileAt()
+ * - Ensures the destination is inside the current window via WorldRuntime.ensureInBounds
+ * - Converts back to local map coords and moves ctx.player.x/y directly
  */
 export function teleportToTarget(ctx, target) {
   try {
-    const mode = ctx && ctx.mode;
-    if (mode !== "world") {
-      ctx && ctx.log && ctx.log("GOD: Teleport works in overworld mode only.", "warn");
+    if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.gen) {
+      if (ctx && ctx.log) ctx.log("GOD: Teleport works in overworld mode only.", "warn");
       return;
     }
+
     const t = String(target || "tower").toLowerCase();
     if (t === "tower") {
       teleportToNearestTower(ctx);
       return;
     }
 
-    const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
-    if (!GAPI) {
-      ctx && ctx.log && ctx.log("GOD: GameAPI not available; cannot teleport.", "warn");
+    const WT = ctx.World && ctx.World.TILES;
+    if (!WT) {
+      ctx.log && ctx.log("GOD: World tile types not available.", "warn");
       return;
     }
 
-    // Prefer GameAPI helpers where available; they know about current world/POIs.
-    let dest = null;
-    if (t === "town") {
-      if (typeof GAPI.nearestTown === "function") dest = GAPI.nearestTown();
-    } else if (t === "dungeon") {
-      if (typeof GAPI.nearestDungeon === "function") dest = GAPI.nearestDungeon();
+    // Map GOD target strings to overworld tile IDs
+    function tileMatches(tileCode) {
+      if (tileCode == null) return false;
+      if (t === "town") {
+        // Treat both TOWN and CASTLE as towns for this option.
+        return tileCode === WT.TOWN || (WT.CASTLE != null && tileCode === WT.CASTLE);
+      }
+      if (t === "dungeon") return tileCode === WT.DUNGEON;
+      if (t === "ruins") return tileCode === WT.RUINS;
+      if (t === "castle") return WT.CASTLE != null && tileCode === WT.CASTLE;
+      return false;
     }
 
-    // Ruins and castles don't have direct helpers; fall back to world.*.
-    if (!dest && (t === "ruins" || t === "castle" || t === "town" || t === "dungeon")) {
-      const world = ctx.world || (ctx.getWorld ? ctx.getWorld() : null);
-      if (!world) {
-        ctx && ctx.log && ctx.log("GOD: World data not available for teleport.", "warn");
-        return;
-      }
+    const gen = ctx.world.gen;
+    if (!gen || typeof gen.tileAt !== "function") {
+      ctx.log && ctx.log("GOD: World generator unavailable; cannot search for teleport target.", "warn");
+      return;
+    }
 
-      function nearestFrom(list) {
-        if (!Array.isArray(list) || !list.length) return null;
-        const p = ctx.player || (ctx.getPlayer && ctx.getPlayer()) || { x: 0, y: 0 };
-        let best = null;
-        let bestD = Infinity;
-        for (const rec of list) {
-          if (!rec) continue;
-          const x = (rec.x | 0);
-          const y = (rec.y | 0);
-          const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
-          if (d < bestD) {
-            bestD = d;
-            best = { x, y };
-          }
-        }
-        return best;
-      }
+    // Player world coordinates
+    const originX = ctx.world.originX | 0;
+    const originY = ctx.world.originY | 0;
+    const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : 0;
+    const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : 0;
+    const wx0 = originX + px;
+    const wy0 = originY + py;
 
-      if (!dest && t === "town") {
-        dest = nearestFrom(world.towns || []);
-      } else if (!dest && t === "dungeon") {
-        dest = nearestFrom(world.dungeons || []);
-      } else if (t === "ruins") {
-        dest = nearestFrom(world.ruins || []);
-      } else if (t === "castle") {
-        const castles = world.castles || [];
-        if (castles.length) dest = nearestFrom(castles);
-        if (!dest) {
-          const castlesFromTowns = Array.isArray(world.towns)
-            ? world.towns.filter(tt => String(tt.kind || "").toLowerCase() === "castle")
-            : [];
-          dest = nearestFrom(castlesFromTowns);
+    let best = null;
+    let bestDist = Infinity;
+    const maxR = 400; // same order of magnitude as tower search
+
+    for (let wy = wy0 - maxR; wy <= wy0 + maxR; wy++) {
+      for (let wx = wx0 - maxR; wx <= wx0 + maxR; wx++) {
+        const tileCode = gen.tileAt(wx, wy);
+        if (!tileMatches(tileCode)) continue;
+        const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+        if (md < bestDist) {
+          bestDist = md;
+          best = { x: wx, y: wy };
         }
       }
     }
 
-    if (!dest) {
+    if (!best) {
       const lbl = t.charAt(0).toUpperCase() + t.slice(1);
-      ctx && ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found to teleport to.`, "warn");
+      ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found within search radius.`, "warn");
       return;
     }
 
-    if (typeof GAPI.teleportTo !== "function") {
-      ctx && ctx.log && ctx.log("GOD: GameAPI.teleportTo not available; cannot teleport.", "warn");
+    // Ensure the target is inside the current window; expand map if needed.
+    try {
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      if (WR && typeof WR.ensureInBounds === "function") {
+        ctx._suspendExpandShift = true;
+        try {
+          const hintLx = best.x - (ctx.world.originX | 0);
+          const hintLy = best.y - (ctx.world.originY | 0);
+          WR.ensureInBounds(ctx, hintLx, hintLy, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+      }
+    } catch (_) {}
+
+    const newOriginX = ctx.world.originX | 0;
+    const newOriginY = ctx.world.originY | 0;
+    const lx = best.x - newOriginX;
+    const ly = best.y - newOriginY;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (lx < 0 || ly < 0 || ly >= rows || lx >= cols) {
+      ctx.log && ctx.log("GOD: Teleport target ended up outside the current window; aborting.", "warn");
       return;
     }
 
-    const ok = !!GAPI.teleportTo(dest.x, dest.y, { ensureWalkable: true, fallbackScanRadius: 4 });
-    const label = (t === "town" ? "town/castle" : t);
-    if (ok) {
-      ctx && ctx.log && ctx.log(`GOD: Teleported to nearest ${label} at (${dest.x},${dest.y}).`, "notice");
-    } else {
-      ctx && ctx.log && ctx.log(`GOD: Teleport to nearest ${label} failed.`, "warn");
-    }
+    ctx.player.x = lx;
+    ctx.player.y = ly;
+
+    const label =
+      t === "town" ? "town/castle" :
+      t === "dungeon" ? "dungeon" :
+      t === "ruins" ? "ruins" :
+      t === "castle" ? "castle" : t;
+
+    ctx.log && ctx.log(`GOD: Teleported to nearest ${label} at (${best.x},${best.y}).`, "notice");
+
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
   } catch (e) {
     try {
       ctx && ctx.log && ctx.log("GOD: Teleport helper failed; see console for details.", "warn");
