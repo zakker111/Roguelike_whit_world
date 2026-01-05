@@ -469,6 +469,21 @@ export function init(UI) {
     try { UI.updateAlwaysCritButton(); } catch (_) {}
   }
 
+  // Invincibility toggle
+  const invBtn = byId("god-toggle-invincible-btn");
+  if (invBtn) {
+    invBtn.addEventListener("click", () => {
+      const next = !UI.getInvincibleState?.();
+      if (typeof UI.setInvincibleState === "function") UI.setInvincibleState(next);
+      invBtn.textContent = `Invincible: ${next ? "On" : "Off"}`;
+      if (typeof UI.handlers.onGodToggleInvincible === "function") UI.handlers.onGodToggleInvincible(next);
+    });
+    try {
+      const initial = UI.getInvincibleState?.() || false;
+      invBtn.textContent = `Invincible: ${initial ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+
   // Apply status effect: show a small chooser and arm next hit with the selected effect.
   const applyStatusBtn = byId("god-apply-status-btn");
   if (applyStatusBtn) {
@@ -634,6 +649,16 @@ export function init(UI) {
       UI.updateMinimapButton();
     });
     try { UI.updateMinimapButton(); } catch (_) {}
+  }
+
+  // Teleport helpers
+  const tpTowerBtn = byId("god-teleport-tower-btn");
+  if (tpTowerBtn) {
+    tpTowerBtn.addEventListener("click", () => {
+      if (typeof UI.handlers.onGodTeleportToTower === "function") {
+        UI.handlers.onGodTeleportToTower();
+      }
+    });
   }
 
   // HUD toggles

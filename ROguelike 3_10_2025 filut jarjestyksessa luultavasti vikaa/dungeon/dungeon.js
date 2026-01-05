@@ -52,16 +52,29 @@ export function generateLevel(ctx, depth) {
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
   const drng = mulberry32(dseed);
+  const isTowerDungeon = !!(dinfo && typeof dinfo.kind === "string" && String(dinfo.kind).toLowerCase() === "tower");
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);
   const ch = (p) => drng() < p;
 
   // Size/difficulty config from ctx.dungeon
   const sizeStr = (dinfo && dinfo.size) ? String(dinfo.size).toLowerCase() : "medium";
-  const sizeFactor = sizeStr === "small" ? 0.6 : sizeStr === "large" ? 1.0 : 0.85;
+  let sizeFactor = sizeStr === "small" ? 0.6 : sizeStr === "large" ? 1.0 : 0.85;
   const baseRows = (typeof MAP_ROWS === "number" && MAP_ROWS > 0) ? MAP_ROWS : ROWS;
   const baseCols = (typeof MAP_COLS === "number" && MAP_COLS > 0) ? MAP_COLS : COLS;
-  const rRows = Math.max(20, Math.floor(baseRows * sizeFactor));
-  const rCols = Math.max(30, Math.floor(baseCols * sizeFactor));
+
+  // Towers use a more compact footprint so floors are easier to clear and
+  // the next-floor stairs are never absurdly far away.
+  let rRows;
+  let rCols;
+  if (isTowerDungeon) {
+    const targetRows = Math.max(14, Math.floor(baseRows * 0.4));
+    const targetCols = Math.max(20, Math.floor(baseCols * 0.4));
+    rRows = targetRows;
+    rCols = targetCols;
+  } else {
+    rRows = Math.max(20, Math.floor(baseRows * sizeFactor));
+    rCols = Math.max(30, Math.floor(baseCols * sizeFactor));
+  }
 
   // Init arrays/state
   ctx.map = Array.from({ length: rRows }, () => Array(rCols).fill(TILES.WALL));
@@ -74,11 +87,22 @@ export function generateLevel(ctx, depth) {
   // Rooms
   const rooms = [];
   const area = rRows * rCols;
-  const roomAttempts = Math.max(40, Math.floor(area / 120)); // scale with map size
+  // Towers get fewer room placement attempts so their layout stays dense.
+  const roomAttempts = isTowerDungeon
+    ? Math.max(20, Math.floor(area / 160))
+    : Math.max(40, Math.floor(area / 120)); // scale with map size
   for (let i = 0; i < roomAttempts; i++) {
-    // Room sizes scale gently with dungeon size
-    const w = ri(Math.max(4, Math.floor(6 * sizeFactor)), Math.max(7, Math.floor(10 * sizeFactor)));
-    const h = ri(Math.max(3, Math.floor(5 * sizeFactor)), Math.max(6, Math.floor(8 * sizeFactor)));
+    // Room sizes scale gently with dungeon size; towers prefer slightly smaller rooms.
+    const baseWMin = Math.max(4, Math.floor(6 * sizeFactor));
+    const baseWMax = Math.max(7, Math.floor(10 * sizeFactor));
+    const baseHMin = Math.max(3, Math.floor(5 * sizeFactor));
+    const baseHMax = Math.max(6, Math.floor(8 * sizeFactor));
+    const w = isTowerDungeon
+      ? ri(Math.max(4, Math.floor(baseWMin * 0.8)), Math.max(6, Math.floor(baseWMax * 0.8)))
+      : ri(baseWMin, baseWMax);
+    const h = isTowerDungeon
+      ? ri(Math.max(3, Math.floor(baseHMin * 0.8)), Math.max(5, Math.floor(baseHMax * 0.8)))
+      : ri(baseHMin, baseHMax);
     const x = ri(1, Math.max(1, rCols - w - 2));
     const y = ri(1, Math.max(1, rRows - h - 2));
     const rect = { x, y, w, h };
@@ -145,86 +169,107 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     player.y = start.y;
   }
 
-  // Place a landmark exit tile far from start (descending disabled in game logic)
-  let endRoomIndex = rooms.length - 1;
-  if (rooms.length > 1 && ctx.startRoomRect) {
-    const sc = center(ctx.startRoomRect);
-    const endC = center(rooms[endRoomIndex]);
-    if (inRect(endC.x, endC.y, ctx.startRoomRect)) {
-      let best = endRoomIndex;
-      let bestD = -1;
-      for (let k = 0; k < rooms.length; k++) {
-        const c = center(rooms[k]);
-        if (inRect(c.x, c.y, ctx.startRoomRect)) continue;
-        const d = Math.abs(c.x - sc.x) + Math.abs(c.y - sc.y);
-        if (d > bestD) { bestD = d; best = k; }
+  // Place dungeon exit / special stairs only for non-tower dungeons.
+  // Towers manage their own stairs (exit + up/down between floors) via
+  // DungeonRuntime and should not receive the generic landmark/mountain
+  // stairs from this generator.
+  if (!isTowerDungeon) {
+    // Place a landmark exit tile far from start (descending disabled in game logic)
+    let endRoomIndex = rooms.length - 1;
+    if (rooms.length > 1 && ctx.startRoomRect) {
+      const sc = center(ctx.startRoomRect);
+      const endC = center(rooms[endRoomIndex]);
+      if (inRect(endC.x, endC.y, ctx.startRoomRect)) {
+        let best = endRoomIndex;
+        let bestD = -1;
+        for (let k = 0; k < rooms.length; k++) {
+          const c = center(rooms[k]);
+          if (inRect(c.x, c.y, ctx.startRoomRect)) continue;
+          const d = Math.abs(c.x - sc.x) + Math.abs(c.y - sc.y);
+          if (d > bestD) { bestD = d; best = k; }
+        }
+        endRoomIndex = best;
       }
-      endRoomIndex = best;
     }
-  }
-  const end = center(rooms[endRoomIndex] || { x: rCols - 3, y: rRows - 3, w: 1, h: 1 });
-  const STAIRS = typeof TILES.STAIRS === "number" ? TILES.STAIRS : TILES.DOOR;
-  ctx.map[end.y][end.x] = STAIRS;
+    const end = center(rooms[endRoomIndex] || { x: rCols - 3, y: rRows - 3, w: 1, h: 1 });
+    const STAIRS = typeof TILES.STAIRS === "number" ? TILES.STAIRS : TILES.DOOR;
+    ctx.map[end.y][end.x] = STAIRS;
 
-  // If this dungeon entrance is in a mountain biome, place a second portal inside leading to a dungeon across the mountain.
-  try {
-    const W = (typeof window !== "undefined" ? window.World : null);
-    const world = ctx.world || null;
-    const WT = W ? W.TILES : null;
-    const gen = world && world.gen;
-    const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
+    // If this dungeon entrance is in a mountain biome, place a second portal inside leading to a dungeon across the mountain.
+    try {
+      const W = (typeof window !== "undefined" ? window.World : null);
+      const world = ctx.world || null;
+      const WT = W ? W.TILES : null;
+      const gen = world && world.gen;
+      const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
 
-    function isMountainAt(ax, ay) {
-      try { return gen && typeof gen.tileAt === "function" && WT && gen.tileAt(ax | 0, ay | 0) === WT.MOUNTAIN; } catch (_) { return false; }
-    }
-    function isMountainEntranceNear(abs) {
-      if (!abs) return false;
-      const x0 = abs.x | 0, y0 = abs.y | 0;
-      if (isMountainAt(x0, y0)) return true;
-      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
-      for (const d of dirs) { if (isMountainAt(x0 + d.dx, y0 + d.dy)) return true; }
-      return false;
-    }
+      function isMountainAt(ax, ay) {
+        try { return gen && typeof gen.tileAt === "function" && WT && gen.tileAt(ax | 0, ay | 0) === WT.MOUNTAIN; } catch (_) { return false; }
+      }
+      function isMountainEntranceNear(abs) {
+        if (!abs) return false;
+        const x0 = abs.x | 0, y0 = abs.y | 0;
+        if (isMountainAt(x0, y0)) return true;
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+        for (const d of dirs) { if (isMountainAt(x0 + d.dx, y0 + d.dy)) return true; }
+        return false;
+      }
 
-    const isMountainEntrance = isMountainEntranceNear(dinfoAbs);
-    if (isMountainEntrance) {
-      // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
-      let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));
-      if (passRoomIdx === endRoomIndex) passRoomIdx = Math.max(1, Math.min(rooms.length - 1, passRoomIdx - 1));
-      const passC = center(rooms[passRoomIdx] || rooms[rooms.length - 1] || { x: 2, y: 2, w: 1, h: 1 });
-      // Mark with STAIRS tile as well (distinct behavior handled by runtime)
-      ctx.map[passC.y][passC.x] = STAIRS;
-      // Record portal location for runtime to detect
-      ctx._mountainPassAt = { x: passC.x, y: passC.y };
-    }
-  } catch (_) {}
+      const isMountainEntrance = isMountainEntranceNear(dinfoAbs);
+      if (isMountainEntrance) {
+        // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
+        let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));
+        if (passRoomIdx === endRoomIndex) passRoomIdx = Math.max(1, Math.min(rooms.length - 1, passRoomIdx - 1));
+        const passC = center(rooms[passRoomIdx] || rooms[rooms.length - 1] || { x: 2, y: 2, w: 1, h: 1 });
+        // Mark with STAIRS tile as well (distinct behavior handled by runtime)
+        ctx.map[passC.y][passC.x] = STAIRS;
+        // Record portal location for runtime to detect
+        ctx._mountainPassAt = { x: passC.x, y: passC.y };
+      }
+    } catch (_) {}
 
-  // Safety net: ensure at least one stairs exists
-  let stairsCount = 0;
-  for (let yy = 1; yy < rRows - 1; yy++) {
-    for (let xx = 1; xx < rCols - 1; xx++) {
-      if (ctx.map[yy][xx] === STAIRS) stairsCount++;
-    }
-  }
-  if (stairsCount === 0) {
-    let best = null, bestD = -1;
+    // Safety net: ensure at least one stairs exists
+    let stairsCount = 0;
     for (let yy = 1; yy < rRows - 1; yy++) {
       for (let xx = 1; xx < rCols - 1; xx++) {
-        if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
-        if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-        const d = Math.abs(xx - ctx.player.x) + Math.abs(yy - ctx.player.y);
-        if (d > bestD) { bestD = d; best = { x: xx, y: yy }; }
+        if (ctx.map[yy][xx] === STAIRS) stairsCount++;
       }
     }
-    if (!best) best = { x: Math.max(1, rCols - 2), y: Math.max(1, rRows - 2) };
-    ctx.map[best.y][best.x] = STAIRS;
+    if (stairsCount === 0) {
+      let best = null, bestD = -1;
+      for (let yy = 1; yy < rRows - 1; yy++) {
+        for (let xx = 1; xx < rCols - 1; xx++) {
+          if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
+          if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
+          const d = Math.abs(xx - ctx.player.x) + Math.abs(yy - ctx.player.y);
+          if (d > bestD) { bestD = d; best = { x: xx, y: yy }; }
+        }
+      }
+      if (!best) best = { x: Math.max(1, rCols - 2), y: Math.max(1, rRows - 2) };
+      ctx.map[best.y][best.x] = STAIRS;
+    }
   }
 
   // Enemies scale with dungeon difficulty and size
   const sizeMult = sizeStr === "small" ? 0.8 : sizeStr === "large" ? 1.35 : 1.1;
   const baseEnemies = 8 + Math.floor(depth * 4);
-  const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
-  const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
+  let enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
+  // Towers: lower baseline density so bandit floors feel tense but not
+  // overcrowded. We also want fewer enemies on the first floor and a bit
+  // more on higher floors via depth, so this acts as a global dampener.
+  if (isTowerDungeon) {
+    enemyCount = Math.max(3, Math.floor(enemyCount * 0.6));
+  }
+
+  // Enemy factory: allow towers to bias toward bandit-style enemies while
+  // still respecting a custom ctx.enemyFactory when present.
+  const baseFactory = ctx.enemyFactory || defaultEnemyFactory;
+  const makeEnemy = isTowerDungeon
+    ? (x, y, depthArg, rngArg) => {
+        const e = towerEnemyFactory(ctx, x, y, depthArg, rngArg);
+        return e || baseFactory(x, y, depthArg, rngArg);
+      }
+    : baseFactory;
 
   // Ensure enemy registry is loaded before spawning
   try {
@@ -323,9 +368,13 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     }
   }
 
-  // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside
+  // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside.
+  // Towers get fewer packs so they don't feel overcrowded with bandits.
   (function spawnExtraPacks() {
-    const packs = Math.max(1, Math.floor(rooms.length * 0.3));
+    let packs = Math.max(1, Math.floor(rooms.length * 0.3));
+    if (isTowerDungeon) {
+      packs = Math.max(1, Math.floor(packs * 0.6));
+    }
     function randomInRoom(r) {
       const x = ri(r.x, r.x + r.w - 1);
       const y = ri(r.y, r.y + r.h - 1);
@@ -337,7 +386,7 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       const r = rooms[idx];
       // Skip start room
       if (ctx.startRoomRect && r === ctx.startRoomRect) continue;
-      const add = 1 + (drng() < 0.6 ? 1 : 0); // 1–2 extras
+      const add = isTowerDungeon ? 1 : (1 + (drng() < 0.6 ? 1 : 0)); // towers: only 1 extra per pack
       for (let k = 0; k < add; k++) {
         const p = randomInRoom(r);
         if (ctx.map[p.y][p.x] !== TILES.FLOOR) continue;
@@ -469,6 +518,72 @@ function defaultEnemyFactory(x, y, depth, rng) {
     return EM.createEnemyAt(x, y, depth, rng);
   }
   return null;
+}
+
+// Tower-themed enemy factory: prefers bandit enemies so tower floors
+// feel like dedicated bandit strongholds. Falls back to the global
+// registry if anything is missing.
+function towerEnemyFactory(ctx, x, y, depth, rng) {
+  try {
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    if (!EM || typeof EM.getTypeDef !== "function") return null;
+
+    // Candidate types and simple weights; only those actually present
+    // in the registry are used.
+    const rawPool = [
+      { key: "bandit",        w: 5 }, // common grunt
+      { key: "bandit_guard",  w: 3 }, // tougher guard-type bandit
+      { key: "bandit_elite",  w: 1 }, // rare elite
+    ];
+    const pool = [];
+    for (const entry of rawPool) {
+      const def = EM.getTypeDef(entry.key);
+      if (def) pool.push({ key: entry.key, w: entry.w, def });
+    }
+    if (!pool.length) return null;
+
+    // Deterministic RNG for tower spawns
+    let rfn = rng;
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        rfn = window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    if (typeof rfn !== "function") {
+      rfn = () => 0.5;
+    }
+
+    let total = 0;
+    for (const p of pool) total += p.w;
+    if (!(total > 0)) return null;
+
+    let r = rfn() * total;
+    let chosen = pool[0];
+    for (const p of pool) {
+      if (r < p.w) { chosen = p; break; }
+      r -= p.w;
+    }
+
+    const td = chosen.def;
+    const d = Math.max(1, depth | 0);
+    const level = (EM.levelFor && typeof EM.levelFor === "function")
+      ? EM.levelFor(chosen.key, d, rfn)
+      : d;
+    const glyph = (td.glyph && td.glyph.length) ? td.glyph : (chosen.key && chosen.key.length ? chosen.key[0] : "?");
+    const enemy = {
+      x, y,
+      type: chosen.key,
+      glyph,
+      hp: td.hp(d),
+      atk: td.atk(d),
+      xp: td.xp(d),
+      level,
+      announced: false,
+    };
+    return enemy;
+  } catch (_) {
+    return null;
+  }
 }
 
 // Back-compat: attach to window via helper

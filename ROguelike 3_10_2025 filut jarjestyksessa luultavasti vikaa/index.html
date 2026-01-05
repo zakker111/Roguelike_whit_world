@@ -16,7 +16,7 @@
     connect-src 'self';
   ">
   <!-- App version for storage invalidation on deploy -->
-  <meta name="app-version" content="1.49.2">
+  <meta name="app-version" content="1.49.4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/ui/style.css">
@@ -122,6 +122,7 @@
     <div class="inv-title">GOD Mode</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
       <button id="god-heal-btn" class="btn">Fully Heal</button>
+      <button id="god-toggle-invincible-btn" class="btn" title="Player cannot die; damage heals back immediately">Invincible: Off</button>
       <button id="god-spawn-btn" class="btn">Spawn Random Items</button>
       <button id="god-spawn-enemy-btn" class="btn">Spawn Enemy Nearby</button>
       <button id="god-spawn-stairs-btn" class="btn">Spawn Stairs Here</button>
@@ -189,6 +190,7 @@
       <button id="god-toggle-ow-hud-btn" class="btn" title="Show or hide the Overworld HUD (biome + clock)">Overworld HUD: On</button>
       <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
       <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
+      <button id="god-teleport-tower-btn" class="btn" title="Teleport to the nearest tower (overworld only)">Teleport to Tower</button>
       
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>

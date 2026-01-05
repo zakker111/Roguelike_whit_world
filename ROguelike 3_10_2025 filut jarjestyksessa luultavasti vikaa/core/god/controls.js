@@ -7,11 +7,13 @@
  * - spawnEnemyNearby(getCtx, count)
  * - setAlwaysCrit(getCtx, enabled)
  * - setCritPart(getCtx, part)
+ * - toggleInvincible(getCtx, enabled)
  * - applySeed(getCtx, seedUint32)
  * - rerollSeed(getCtx)
  * - applyBleedToPlayer(getCtx, durationTurns)
  * - applyDazedToPlayer(getCtx, durationTurns)
  * - clearPlayerEffects(getCtx)
+ * - teleportToNearestTower(getCtx)
  */
 
 export function heal(getCtx) {
@@ -56,6 +58,13 @@ export function setCritPart(getCtx, part) {
   ctx.log("GOD: setCritPart not available.", "warn");
 }
 
+export function toggleInvincible(getCtx, enabled) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.toggleInvincible === "function") return G.toggleInvincible(ctx, !!enabled);
+  ctx.log("GOD: toggleInvincible not available.", "warn");
+}
+
 export function applySeed(getCtx, seedUint32) {
   const ctx = getCtx();
   const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
@@ -96,6 +105,13 @@ export function clearPlayerEffects(getCtx) {
   } catch (_) {}
 }
 
+export function teleportToNearestTower(getCtx) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.teleportToNearestTower === "function") return G.teleportToNearestTower(ctx);
+  ctx.log("GOD: teleportToNearestTower not available.", "warn");
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.GodControls = {
@@ -110,5 +126,6 @@ if (typeof window !== "undefined") {
     applyBleedToPlayer,
     applyDazedToPlayer,
     clearPlayerEffects,
+    teleportToNearestTower,
   };
 }

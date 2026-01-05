@@ -1,6 +1,63 @@
 # Game Version History
 Last updated: 2025-12-19 13:00 UTC
 
+v1.58.0 — Tower Phase 2: JSON-driven rooms, props, captives, and rewards
+- Added: Tower interior room prefabs in JSON.
+  - data/dungeon/tower_prefabs.json:
+    - Defines small tower barracks, storage rooms, prison cells, side-cells, cross-halls, and a boss arena layout.
+    - Uses embedded codes (CHEST/CRATE/BARREL/CAMPFIRE/CAPTIVE/BED/TABLE/CHAIR/RUG) to place props and chest spawn points in tower floors.
+    - Captive-heavy rooms (prison/cells/boss arena) now contain multiple CAPTIVE tiles to support ally spawning.
+- Added: Tower prefab stamper for dungeon mode.
+  - core/dungeon/tower_prefabs.js:
+    - towerPrefabsAvailable(ctx): reports whether tower room prefabs are loaded.
+    - stampTowerRoom(ctx, prefab, bx, by, meta): stamps a single prefab into ctx.map and fills meta.dungeonProps and meta.chestSpots.
+    - stampTowerRoomsForFloor(ctx, meta, floorIndex, totalFloors): picks prefabs by tower type and floor role (base/mid/top) and stamps a small set of rooms per tower floor, avoiding stairs/entrance tiles.
+- Changed: Tower floor generation wires in JSON-driven rooms, chests, props, and bandit enemy spawns.
+  - core/dungeon/runtime.js:
+    - gotoTowerFloor(ctx, floorIndex, direction):
+      - For towers, prefers buildTowerFloorLayout(ctx, towerRun, f, total) which:
+        - Assembles each tower floor from JSON room prefabs and simple corridors.
+        - Initializes meta.map/seen/visible/enemies/corpses/decals/dungeonProps/chestSpots for that floor.
+      - Adds inner stairs (exitToWorldPos, stairsUpPos, stairsDownPos) and sparse wall torches.
+      - Calls spawnTowerEnemiesOnFloor(ctx, meta, f, total) to populate bandit-only enemies, with difficulty and density scaling by floor and tower config.
+      - On the final floor, spawns a dedicated boss via spawnTowerBossOnFloor(ctx, meta) (normally bandit_captain or theme-configured boss).
+      - Calls spawnTowerChestsOnFloor(ctx, meta, f, total) so:
+        - The top floor always gets a high-tier “boss” chest, preferring JSON chest spots near the boss when possible, plus optional extra chests.
+        - Lower floors occasionally get smaller chests at JSON chest spots based on config, floor index, and RNG.
+      - Ensures ctx.dungeonProps mirrors meta.dungeonProps so all prefabs/props (beds, crates, barrels, campfires, captives, rugs) render immediately on first visit.
+    - spawnTowerEnemiesOnFloor(ctx, meta, f, total):
+      - Uses tower config and tower_themes.json to derive baseDepth and per-floor enemy HP/ATK multipliers, then spawns bandit-bandit_guard-bandit_elite enemies only.
+      - For the first floor, reduces density slightly; for the top floor, halves ambient bandit count so the focus remains on the boss.
+    - Tower floors persist fully via towerRun and DungeonState; revisiting a floor restores map, enemies, corpses, props, decals, and chest state exactly as left.
+- Added: Dungeon prop definitions for campfire and captive (existing).
+  - data/world/world_assets.json:
+    - campfire (CAMPFIRE): walkable, emits light in dungeons, rendered as a glowing fire glyph.
+    - captive (CAPTIVE): walkable “npc” decor prop for tower rooms; used by captives/ally system (see below).
+- Added: Captive rescue and allied guards inside towers.
+  - core/dungeon/runtime.js:
+    - Added releaseCaptiveHere(ctx):
+      - Only active in dungeon mode when ctx.towerRun.kind === \"tower\".
+      - If the player stands on a CAPTIVE prop tile and presses G:
+        - Removes the captive prop from that tile.
+        - Searches adjacent tiles for a free FLOOR/DOOR tile not occupied by enemies/corpses/props.
+        - Spawns a guard-faction ally there (or, as a fallback, a bandit-flavored ally) using enemy definitions from data/entities/enemies.json.
+        - Marks the ally with _ignorePlayer = true so AI never targets the player; the ally will only attack hostile factions (e.g., bandits).
+        - Logs: \"You free a captive! They grab a weapon and turn on the bandits.\" or a fallback message if no space is available.
+      - The ally is stored in ctx.enemies/meta.enemies and persists across floor changes and tower exits through the towerRun structure.
+    - returnToWorldIfAtExit(ctx) and handleTowerStairsOrExit(ctx):
+      - Continue to manage tower stair navigation (base exit vs. internal up/down stairs) without interfering with captive interactions.
+  - core/modes/actions.js:
+    - doAction(ctx) in dungeon mode:
+      - For tower dungeons, first consults DungeonRuntime.returnToWorldIfAtExit(ctx) for stair handling.
+      - Then calls DungeonRuntime.releaseCaptiveHere(ctx); if it returns true, the action is consumed and no loot/guidance is executed.
+      - Falls back to loot(ctx) otherwise.
+  - Effect: Tower prisoners are now meaningful interactive objects. Freeing captives can provide in-dungeon allied guards who fight bandits on your behalf but never turn against you.
+
+- Effect: Towers now feel more lived-in and rewarding:
+  - Lower floors can contain JSON-authored barracks, storage rooms, and prisons sprinkled with crates, barrels, beds, campfires, and multiple captives.
+  - The top floor gains a boss arena with a Bandit Captain (or configured boss), decorative props, and a guaranteed high-tier chest, all driven primarily from JSON layout data.
+  - Captives are no longer just decoration: freeing them can change the tactical situation by adding neutral-aligned guard allies against bandits, while tower floors and their states remain fully persistent across visits.
+
 v1.57.0 — Logging refinements and status effect visibility
 - Changed: Combat status effect messages are now visible at the default info log level.
   - combat/status_effects.js:

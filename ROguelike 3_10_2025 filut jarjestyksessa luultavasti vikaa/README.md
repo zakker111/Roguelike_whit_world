@@ -318,6 +318,13 @@ Roadmap (Upcoming Phases)
 
 - Phase 6 — Optional gameplay and UX expansions
   - Multi-floor dungeons and portal variants; scale ED and loot appropriately.
+  - Bandit Towers (implemented):
+    - Rare river-adjacent tower POIs on the overworld that open multi-floor (3–5) bandit dungeons.
+    - Each floor uses JSON-driven room prefabs (barracks, storage, cells, cross-halls, boss arenas) from data/dungeon/tower_prefabs.json plus corridors.
+    - Floors persist fully (map, enemies, corpses, props, chests) via towerRun; exiting to the overworld and re-entering preserves cleared floors and loot.
+    - Top floor contains a dedicated Bandit Captain boss and a guaranteed high-tier boss chest.
+    - Some rooms contain CAPTIVE props; standing on a captive in a tower and pressing G frees them and spawns a guard-faction ally who fights bandits but never targets the player.
+  - Trap system v1: visible spike traps (tile-based hazards with minimal damage and clear log messages), defined in data and first used in Bandit Towers, with hooks to reuse in other dungeons/ruins.
   - Quest board extensions: multi-step quests, rewards from palette-driven POI markers.
   - Overworld hazards/biome effects (swamp slow, snow visibility); palette-configurable.
   - Merchant/encounter improvements: shopkeeper themes, Seppo inventory in encounters.

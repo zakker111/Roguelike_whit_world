@@ -317,10 +317,35 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "dungeon") {
-    // Prefer centralized exit flow first (standing on STAIRS and pressing G)
+    const isTowerDungeon =
+      !!(ctx.towerRun && ctx.towerRun.kind === "tower") ||
+      !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
+
+    if (isTowerDungeon) {
+      // In towers, let DungeonRuntime decide whether stairs mean floor
+      // transitions or exiting to the overworld so internal tower stairs
+      // don't trigger a world exit via GameExit.exitToWorld.
+      try {
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
+          const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
+          if (ok) return true;
+        }
+      } catch (_) {}
+    } else {
+      // Non-tower dungeons: use centralized exit flow first (standing on
+      // STAIRS and pressing G exits back to the overworld).
+      try {
+        const exited = exitToWorld(ctx, { reason: "stairs" });
+        if (exited) return true;
+      } catch (_) {}
+    }
+
+    // Tower-specific interaction: free captives when standing on them.
     try {
-      const exited = exitToWorld(ctx, { reason: "stairs" });
-      if (exited) return true;
+      if (isTowerDungeon && ctx.DungeonRuntime && typeof ctx.DungeonRuntime.releaseCaptiveHere === "function") {
+        const freed = ctx.DungeonRuntime.releaseCaptiveHere(ctx);
+        if (freed) return true;
+      }
     } catch (_) {}
 
     // Otherwise fall back to loot/guidance behavior

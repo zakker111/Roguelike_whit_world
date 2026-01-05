@@ -102,6 +102,22 @@ export function isAtDungeonExit(ctx) {
     const px = ctx.player.x | 0;
     const py = ctx.player.y | 0;
 
+    // Tower dungeons: only treat the base-floor exit tile as a valid
+    // dungeon exit. All other STAIRS tiles are internal tower stairs
+    // and should not trigger a return to the overworld via this helper.
+    try {
+      if (ctx.towerRun && ctx.towerRun.floors) {
+        const tr = ctx.towerRun;
+        const f = tr.currentFloor || 1;
+        const meta = tr.floors && tr.floors[f];
+        if (meta && f === 1 && meta.exitToWorldPos) {
+          return px === (meta.exitToWorldPos.x | 0) && py === (meta.exitToWorldPos.y | 0);
+        }
+        // On non-base tower floors or non-exit tiles, never treat as dungeon exit.
+        return false;
+      }
+    } catch (_) {}
+
     try {
       if (typeof ctx.inBounds === "function" && !ctx.inBounds(px, py)) return false;
     } catch (_) {}

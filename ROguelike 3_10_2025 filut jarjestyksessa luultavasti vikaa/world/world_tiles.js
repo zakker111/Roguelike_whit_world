@@ -17,6 +17,7 @@ export const TILES = {
   BERRY_BUSH: 14, // region-only forage bush; walkable, does not block FOV
   CASTLE: 15, // overworld castle POI; uses town-mode layout but marked as castle
   SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
+  TOWER: 17, // overworld tower POI; used for multi-floor bandit towers
 };
 
 export function isWalkable(tile) {
@@ -48,6 +49,7 @@ export function biomeName(tile) {
     case TILES.CASTLE: return "Castle";
     case TILES.DUNGEON: return "Dungeon";
     case TILES.RUINS: return "Ruins";
+    case TILES.TOWER: return "Tower";
     default: return "Unknown";
   }
 }

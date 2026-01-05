@@ -45,6 +45,8 @@ export const UI = {
     onGodSpawnEnemy: null,
     // Town events
     onGodTownBandits: null,
+    // World teleport helpers
+    onGodTeleportToTower: null,
   },
 
   init() {
@@ -83,6 +85,7 @@ export const UI = {
 
     this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
     this.els.godToggleCritBtn = document.getElementById("god-toggle-crit-btn");
+    this.els.godToggleInvincibleBtn = document.getElementById("god-toggle-invincible-btn");
     this.els.godToggleGridBtn = document.getElementById("god-toggle-grid-btn");
     // Additional GOD toggle buttons (needed for updating button labels/titles)
     this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
@@ -280,7 +283,7 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -296,6 +299,7 @@ export const UI = {
     if (typeof onGodSpawnStairs === "function") this.handlers.onGodSpawnStairs = onGodSpawnStairs;
     if (typeof onGodSetAlwaysCrit === "function") this.handlers.onGodSetAlwaysCrit = onGodSetAlwaysCrit;
     if (typeof onGodSetCritPart === "function") this.handlers.onGodSetCritPart = onGodSetCritPart;
+    if (typeof onGodToggleInvincible === "function") this.handlers.onGodToggleInvincible = onGodToggleInvincible;
     if (typeof onGodApplySeed === "function") this.handlers.onGodApplySeed = onGodApplySeed;
     if (typeof onGodRerollSeed === "function") this.handlers.onGodRerollSeed = onGodRerollSeed;
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
@@ -311,6 +315,7 @@ export const UI = {
     if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
     if (typeof onGodTownBandits === "function") this.handlers.onGodTownBandits = onGodTownBandits;
+    if (typeof onGodTeleportToTower === "function") this.handlers.onGodTeleportToTower = onGodTeleportToTower;
 
     // Extra handler (added later) for applying a status effect via GOD panel.
     const extra = arguments[0] || {};
@@ -966,6 +971,28 @@ export const UI = {
       this.setCritPartState("");
     }
     this.updateAlwaysCritButton();
+  },
+
+  // --- GOD invincibility toggle ---
+  getInvincibleState() {
+    try {
+      if (typeof window.GOD_INVINCIBLE === "boolean") return window.GOD_INVINCIBLE;
+      const v = localStorage.getItem("GOD_INVINCIBLE");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return false;
+  },
+
+  setInvincibleState(enabled) {
+    try {
+      window.GOD_INVINCIBLE = !!enabled;
+      if (enabled) localStorage.setItem("GOD_INVINCIBLE", "1");
+      else localStorage.removeItem("GOD_INVINCIBLE");
+    } catch (_) {}
+    if (this.els.godToggleInvincibleBtn) {
+      this.els.godToggleInvincibleBtn.textContent = `Invincible: ${enabled ? "On" : "Off"}`;
+    }
   },
 
   getCritPartState() {

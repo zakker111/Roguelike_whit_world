@@ -11,6 +11,8 @@
  *   applySeed(ctx, seedUint32)
  *   rerollSeed(ctx)
  *   clearGameStorage(ctx)
+ *   teleportToNearestTower(ctx)
+ *   toggleInvincible(ctx, enabled)
  */
 import { attachGlobal } from "../utils/global.js";
 import { getMod } from "../utils/access.js";
@@ -251,6 +253,26 @@ export function setAlwaysCrit(ctx, enabled) {
   ctx.log(`GOD: Always Crit ${ctx.alwaysCrit ? "enabled" : "disabled"}.`, ctx.alwaysCrit ? "good" : "warn");
 }
 
+/**
+ * Toggle GOD invincibility: when enabled, the player still takes damage
+ * as usual but immediately heals back to max HP after each hit and
+ * cannot die.
+ */
+export function toggleInvincible(ctx, enabled) {
+  const on = !!enabled;
+  ctx.godInvincible = on;
+  try {
+    if (typeof window !== "undefined") {
+      window.GOD_INVINCIBLE = on;
+    }
+    if (typeof localStorage !== "undefined") {
+      if (on) localStorage.setItem("GOD_INVINCIBLE", "1");
+      else localStorage.removeItem("GOD_INVINCIBLE");
+    }
+  } catch (_) {}
+  ctx.log(`GOD: Invincibility ${on ? "enabled" : "disabled"}.`, on ? "good" : "warn");
+}
+
 export function setCritPart(ctx, part) {
   const valid = new Set(["torso","head","hands","legs",""]);
   const p = valid.has(part) ? part : "";
@@ -333,5 +355,115 @@ export function rerollSeed(ctx) {
   applySeed(ctx, s);
 }
 
+/**
+ * Teleport player to the nearest tower tile in the overworld.
+ * Uses InfiniteGen.tileAt so it can find towers outside the current window.
+ * World-only; no effect in towns/dungeons/encounters.
+ */
+export function teleportToNearestTower(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.gen) {
+      if (ctx && ctx.log) ctx.log("GOD: Teleport to tower works in overworld mode only.", "warn");
+      return;
+    }
+    const WT = ctx.World && ctx.World.TILES;
+    if (!WT || WT.TOWER == null) {
+      ctx.log && ctx.log("GOD: Tower tile type not available.", "warn");
+      return;
+    }
+    const gen = ctx.world.gen;
+    if (!gen || typeof gen.tileAt !== "function") {
+      ctx.log && ctx.log("GOD: World generator unavailable; cannot search for towers.", "warn");
+      return;
+    }
+
+    const originX = ctx.world.originX | 0;
+    const originY = ctx.world.originY | 0;
+    const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : 0;
+    const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : 0;
+    const wx0 = originX + px;
+    const wy0 = originY + py;
+
+    let best = null;
+    let bestDist = Infinity;
+    const maxR = 400; // search radius in world tiles (~800x800 area around player)
+
+    for (let wy = wy0 - maxR; wy <= wy0 + maxR; wy++) {
+      for (let wx = wx0 - maxR; wx <= wx0 + maxR; wx++) {
+        const t = gen.tileAt(wx, wy);
+        if (t === WT.TOWER) {
+          const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+          if (md < bestDist) {
+            bestDist = md;
+            best = { x: wx, y: wy };
+          }
+        }
+      }
+    }
+
+    if (!best) {
+      ctx.log && ctx.log("GOD: No towers found within search radius.", "warn");
+      return;
+    }
+
+    // Ensure the target is inside the current window; expand map if needed.
+    try {
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      if (WR && typeof WR.ensureInBounds === "function") {
+        ctx._suspendExpandShift = true;
+        try {
+          const hintLx = best.x - (ctx.world.originX | 0);
+          const hintLy = best.y - (ctx.world.originY | 0);
+          WR.ensureInBounds(ctx, hintLx, hintLy, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+      }
+    } catch (_) {}
+
+    const newOriginX = ctx.world.originX | 0;
+    const newOriginY = ctx.world.originY | 0;
+    const lx = best.x - newOriginX;
+    const ly = best.y - newOriginY;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (lx < 0 || ly < 0 || ly >= rows || lx >= cols) {
+      ctx.log && ctx.log("GOD: Teleport target ended up outside the current window; aborting.", "warn");
+      return;
+    }
+
+    ctx.player.x = lx;
+    ctx.player.y = ly;
+
+    ctx.log && ctx.log(`GOD: Teleported to nearest tower at (${best.x},${best.y}).`, "notice");
+
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+  } catch (e) {
+    try {
+      if (ctx && ctx.log) ctx.log("GOD: Teleport to tower failed; see console for details.", "warn");
+      // eslint-disable-next-line no-console
+      console.error(e);
+    } catch (_) {}
+  }
+}
+
 // Back-compat: attach to window via helper
-attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed, clearGameStorage });
+attachGlobal("God", {
+  heal,
+  spawnStairsHere,
+  spawnItems,
+  spawnEnemyNearby,
+  setAlwaysCrit,
+  toggleInvincible,
+  setCritPart,
+  applySeed,
+  rerollSeed,
+  clearGameStorage,
+  teleportToNearestTower,
+});

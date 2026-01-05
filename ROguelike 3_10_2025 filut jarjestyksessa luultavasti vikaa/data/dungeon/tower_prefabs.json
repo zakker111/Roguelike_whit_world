@@ -1,0 +1,146 @@
+{
+  "jcdocs": {
+    "title": "Tower room prefabs",
+    "schemaVersion": 1,
+    "tiles": ["WALL", "FLOOR", "DOOR", "STAIRS"],
+    "embeddedPropCodes": [
+      "CHEST", "CRATE", "BARREL", "CAMPFIRE", "CAPTIVE",
+      "BED", "TABLE", "CHAIR", "RUG"
+    ],
+    "usage": [
+      "Tiles use dungeon keys (WALL/FLOOR/DOOR/STAIRS).",
+      "EmbeddedPropCodes inside tiles become dungeon props or chest spawn points.",
+      "CHEST marks a logical chest spot; loot and chest entity are created by DungeonItems.",
+      "Other codes (CRATE/BARREL/CAMPFIRE/CAPTIVE/BED/TABLE/CHAIR/RUG) become props in ctx.dungeonProps.",
+      "Rooms are stamped into existing tower floors; stamping avoids stairs/entrance tiles.",
+      "Optional per-room metadata (towerTypes, minFloor, maxFloor, role, weight, maxPerTower) guides which tower types and floors can use each room and how often."
+    ]
+  },
+  "rooms": [
+    {
+      "id": "tower_barracks_small",
+      "name": "Tower Barracks (Small)",
+      "category": "tower_room",
+      "tags": ["barracks", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "combat",
+      "weight": 1.0,
+      "maxPerTower": 3,
+      "size": { "w": 9, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","BED","WALL"],
+        ["WALL","CRATE","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_storage_small",
+      "name": "Tower Storage (Small)",
+      "category": "tower_room",
+      "tags": ["storage", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "storage",
+      "weight": 0.8,
+      "maxPerTower": 2,
+      "size": { "w": 7, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","CRATE","BARREL","CRATE","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","BARREL","CRATE","FLOOR","CRATE","BARREL","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_boss_arena",
+      "name": "Tower Boss Arena",
+      "category": "tower_room",
+      "tags": ["boss", "arena", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 3,
+      "maxFloor": 6,
+      "role": "boss",
+      "weight": 1.0,
+      "maxPerTower": 1,
+      "size": { "w": 11, "h": 7 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["DOOR","CRATE","FLOOR","FLOOR","FLOOR","CAMPFIRE","FLOOR","FLOOR","FLOOR","BARREL","DOOR"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","CAPTIVE","FLOOR","CHEST","FLOOR","FLOOR","FLOOR","CAPTIVE","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","DOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_hall_cross",
+      "name": "Tower Cross Hall",
+      "category": "tower_room",
+      "tags": ["hall", "cross", "connector"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 1,
+      "maxFloor": 4,
+      "role": "connector",
+      "weight": 1.2,
+      "maxPerTower": 2,
+      "size": { "w": 7, "h": 7 },
+      "tiles": [
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","CRATE","FLOOR","BARREL","FLOOR","WALL"],
+        ["DOOR","FLOOR","FLOOR","RUG","FLOOR","FLOOR","DOOR"],
+        ["WALL","FLOOR","BARREL","FLOOR","CRATE","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_prison_three_doors",
+      "name": "Tower Prison (Three Doors)",
+      "category": "tower_room",
+      "tags": ["prison", "cells", "bandits"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 2,
+      "maxFloor": 4,
+      "role": "prison",
+      "weight": 0.8,
+      "maxPerTower": 2,
+      "size": { "w": 9, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","DOOR","WALL","WALL","DOOR","WALL","WALL","WALL"],
+        ["WALL","CAPTIVE","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","CAPTIVE","WALL"],
+        ["WALL","FLOOR","CAPTIVE","RUG","FLOOR","FLOOR","FLOOR","FLOOR","DOOR"],
+        ["WALL","BARREL","FLOOR","FLOOR","CHEST","FLOOR","FLOOR","BARREL","WALL"],
+        ["WALL","WALL","FLOOR","WALL","DOOR","WALL","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_side_cell",
+      "name": "Tower Side Cell",
+      "category": "tower_room",
+      "tags": ["cell", "side_room"],
+      "towerTypes": ["bandit_tower"],
+      "minFloor": 2,
+      "maxFloor": 4,
+      "role": "prison",
+      "weight": 0.7,
+      "maxPerTower": 3,
+      "size": { "w": 7, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"],
+        ["WALL","BED","FLOOR","FLOOR","FLOOR","CRATE","WALL"],
+        ["WALL","CAPTIVE","FLOOR","RUG","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ]
+    }
+  ]
+}

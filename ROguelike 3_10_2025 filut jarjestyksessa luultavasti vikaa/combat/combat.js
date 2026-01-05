@@ -93,6 +93,37 @@ export function enemyDamageMultiplier(level) {
  */
 export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
+
+  // Guard attack confirmation: prevent accidental guard aggression.
+  try {
+    const fac = String(enemy.faction || "").toLowerCase();
+    const alreadyHostile = enemy._ignorePlayer === false;
+    const needsConfirm = (fac === "guard") && !alreadyHostile && !enemy._guardConfirmDone;
+    if (needsConfirm) {
+      const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.showConfirm === "function") {
+        const prompt = "Do you really want to attack the guard? This will make all guards hostile to you.";
+        const title = "Attack Guard?";
+        const onOk = () => {
+          try {
+            enemy._guardConfirmDone = true;
+          } catch (_) {}
+          // Re-invoke the attack now that confirmation is granted.
+          try {
+            playerAttackEnemy(ctx, enemy);
+          } catch (_) {}
+        };
+        const onCancel = () => {
+          try {
+            if (ctx.log) ctx.log("You lower your weapon and decide not to attack the guard.", "info");
+          } catch (_) {}
+        };
+        UIO.showConfirm(ctx, prompt, title, onOk, onCancel);
+        return;
+      }
+    }
+  } catch (_) {}
+
   const RU = (function(){ try { return getRNGUtils(ctx); } catch(_) { return null; } })();
   const rng = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)

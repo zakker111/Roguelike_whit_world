@@ -72,6 +72,11 @@ export function install(getCtx) {
       if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), !!enabled); return; }
       const c = getCtx(); c.log("GOD: setAlwaysCrit not available.", "warn");
     },
+    onGodToggleInvincible: (enabled) => {
+      if (GC && typeof GC.toggleInvincible === "function") { GC.toggleInvincible(() => getCtx(), !!enabled); return; }
+      if (G && typeof G.toggleInvincible === "function") { G.toggleInvincible(getCtx(), !!enabled); return; }
+      const c = getCtx(); c.log("GOD: toggleInvincible not available.", "warn");
+    },
     onGodSetCritPart: (part) => {
       if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); return; }
       if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); return; }
@@ -595,7 +600,19 @@ export function install(getCtx) {
       } catch (_) {}
     },
 
-    
+    // Teleport helpers
+    onGodTeleportToTower: () => {
+      const c = getCtx();
+      if (GC && typeof GC.teleportToNearestTower === "function") {
+        GC.teleportToNearestTower(() => getCtx());
+        return;
+      }
+      if (G && typeof G.teleportToNearestTower === "function") {
+        G.teleportToNearestTower(c);
+        return;
+      }
+      c.log("GOD: Teleport to tower not available.", "warn");
+    },
 
     onGodDiagnostics: () => {
       const c = getCtx();

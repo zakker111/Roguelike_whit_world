@@ -76,6 +76,20 @@ function cloneForStorage(st) {
     info: st.info,
     level: st.level
   };
+
+  // Towers: persist the full multi-floor towerRun structure when present so
+  // bandits, corpses, and loot remain consistent across re-entry. Deep clone
+  // to avoid aliasing live ctx.towerRun/meta arrays so that clearing enemies/
+  // corpses on exit does not mutate the stored snapshot.
+  if (st.towerRun && st.towerRun.kind === "tower") {
+    try {
+      out.towerRun = JSON.parse(JSON.stringify(st.towerRun));
+    } catch (_) {
+      // Fallback: keep as-is if JSON cloning fails for some reason.
+      out.towerRun = st.towerRun;
+    }
+  }
+
   return out;
 }
 
@@ -84,6 +98,30 @@ export function save(ctx) {
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
   const k = key(ctx.dungeonInfo.x, ctx.dungeonInfo.y);
   if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
+
+  // Towers: before taking a snapshot, ensure the current floor meta inside
+  // towerRun points at the latest ctx arrays so enemies/corpses/loot on that
+  // floor are saved correctly.
+  try {
+    if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+      const tr = ctx.towerRun;
+      const floorIndex = tr.currentFloor && tr.currentFloor >= 1 ? tr.currentFloor : 1;
+      const floors = tr.floors || {};
+      const meta = floors[floorIndex] || null;
+      if (meta) {
+        meta.map = ctx.map;
+        meta.seen = ctx.seen;
+        meta.visible = ctx.visible;
+        meta.enemies = ctx.enemies;
+        meta.corpses = ctx.corpses;
+        meta.decals = ctx.decals;
+        if (Array.isArray(ctx.dungeonProps)) {
+          meta.dungeonProps = ctx.dungeonProps;
+        }
+      }
+    }
+  } catch (_) {}
+
   const snapshot = {
     map: ctx.map,
     seen: ctx.seen,
@@ -95,6 +133,14 @@ export function save(ctx) {
     info: ctx.dungeonInfo,
     level: ctx.floor
   };
+  // Towers: include multi-floor towerRun so tower floors behave like
+  // persistent dungeons (corpses, loot, cleared rooms, etc.).
+  try {
+    if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+      snapshot.towerRun = ctx.towerRun;
+    }
+  } catch (_) {}
+
   // Store a cloned, JSON-safe copy in memory to avoid aliasing/mutation issues
   ctx._dungeonStates[k] = cloneForStorage(snapshot);
 
@@ -107,9 +153,9 @@ export function save(ctx) {
   try {
     const enemiesCount = Array.isArray(snapshot.enemies) ? snapshot.enemies.length : 0;
     const corpsesCount = Array.isArray(snapshot.corpses) ? snapshot.corpses.length : 0;
-    const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
+    const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}${snapshot.towerRun && snapshot.towerRun.kind === "tower" ? ", towerRun" : ""}`;
     if (window.DEV && ctx.log) ctx.log(msg, "notice");
-    try { if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "DungeonState" }); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "DungeonState" }); } catch (_) {}
   } catch (_) {}
 }
 
@@ -135,13 +181,51 @@ function applyState(ctx, st, x, y) {
   ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
   ctx.floor = st.level || 1;
 
-  // Deep references
-  ctx.map = st.map;
-  ctx.seen = st.seen;
-  ctx.visible = st.visible;
-  ctx.enemies = st.enemies || [];
-  ctx.corpses = st.corpses || [];
-  ctx.decals = st.decals || [];
+  // For towers, prefer the multi-floor towerRun snapshot first. Only if that
+  // is missing or malformed do we fall back to the flat single-floor arrays.
+  let usedTowerMeta = false;
+  ctx.towerRun = null;
+
+  try {
+    if (st.towerRun && st.towerRun.kind === "tower") {
+      ctx.towerRun = st.towerRun;
+      const tr = ctx.towerRun;
+      const floorIndex = tr.currentFloor && tr.currentFloor >= 1 ? tr.currentFloor : 1;
+      const floors = tr.floors || {};
+      const meta = floors[floorIndex] || floors[1] || null;
+      if (meta && meta.map) {
+        // Base map/visibility and per-floor entities/props come from meta for towers.
+        ctx.map = meta.map;
+        ctx.seen = meta.seen || st.seen;
+        ctx.visible = meta.visible || st.visible;
+
+        ctx.enemies = Array.isArray(meta.enemies) ? meta.enemies : (st.enemies || []);
+        ctx.corpses = Array.isArray(meta.corpses) ? meta.corpses : (st.corpses || []);
+        ctx.decals = Array.isArray(meta.decals) ? meta.decals : (st.decals || []);
+        if (Array.isArray(meta.dungeonProps)) ctx.dungeonProps = meta.dungeonProps;
+        if (typeof meta.floorLevel === "number") {
+          ctx.floor = meta.floorLevel;
+        }
+        usedTowerMeta = true;
+      } else {
+        // Meta missing or malformed: drop towerRun to avoid half-restored towers.
+        ctx.towerRun = null;
+      }
+    }
+  } catch (_) {
+    ctx.towerRun = null;
+  }
+
+  if (!usedTowerMeta) {
+    // Classic single-floor dungeon restore path.
+    ctx.map = st.map;
+    ctx.seen = st.seen;
+    ctx.visible = st.visible;
+    ctx.enemies = st.enemies || [];
+    ctx.corpses = st.corpses || [];
+    ctx.decals = st.decals || [];
+  }
+
   // Exit tile from saved state or fallback to world entrance
   let ex, ey;
   if (st.dungeonExitAt && typeof st.dungeonExitAt.x === "number" && typeof st.dungeonExitAt.y === "number") {
