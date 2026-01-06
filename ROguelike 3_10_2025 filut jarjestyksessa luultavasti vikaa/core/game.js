@@ -92,6 +92,8 @@ import {
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
 } from "./god/facade.js";
+// Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
+import "./followers_items.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();
