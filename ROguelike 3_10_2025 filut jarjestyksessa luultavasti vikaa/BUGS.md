@@ -7,7 +7,7 @@
 - multirun in smoketest skips first multirun 
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
-- in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
+- [FIXED] in dungeons when enemies fight each other they are logged (which is good for debugging purposes), but they gave player XP when they killed each other
 - in dungeons enemies seems to show behind walls(not line of sight)
 - in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
 - VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
