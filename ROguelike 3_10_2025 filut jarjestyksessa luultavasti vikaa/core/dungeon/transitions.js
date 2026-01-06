@@ -4,6 +4,7 @@
 import { getMod } from "../../utils/access.js";
 import { save } from "./state.js";
 import { enter } from "./enter.js";
+import { addDungeon as addDungeonPOI } from "../world/poi.js";
 
 // Determine a target world coordinate across a mountain from this dungeon's entrance.
 export function computeAcrossMountainTarget(ctx) {
@@ -24,7 +25,8 @@ export function computeAcrossMountainTarget(ctx) {
       { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }
     ];
 
-    // Walk a mountain run starting from the first mountain tile adjacent to the entrance
+    // Walk a mountain run starting from the first mountain tile adjacent to the entrance.
+    // Limit the run length so we do not pick a target arbitrarily far away.
     function mountainRunLenFromNeighbor(dx, dy) {
       // Step once into the direction; require that tile to be mountain
       let x = wx0 + dx;
@@ -34,8 +36,9 @@ export function computeAcrossMountainTarget(ctx) {
         return { len: 0, endX: wx0, endY: wy0 };
       }
       let len = 0;
+      const maxRun = 120;
       // Now walk along this direction while we stay on mountains
-      for (let i = 0; i < 300; i++) {
+      for (let i = 0; i < maxRun; i++) {
         t = gen.tileAt(x, y);
         if (t === M) {
           len++;
@@ -71,23 +74,99 @@ export function computeAcrossMountainTarget(ctx) {
       tx = nx;
       ty = ny;
     }
-    return { x: tx, y: ty };
+
+    // Prefer a nearby walkable tile (non-water/river/mountain) around the across-mountain
+    // candidate so the overworld exit makes sense and does not drop the player into water.
+    function isWalkableWorldTile(x, y) {
+      try {
+        if (W && typeof W.isWalkable === "function") {
+          return !!W.isWalkable(gen.tileAt(x, y));
+        }
+      } catch (_) {}
+      try {
+        const tt = gen.tileAt(x, y);
+        if (tt === WT.WATER || tt === WT.RIVER || tt === WT.MOUNTAIN) return false;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    let bestTarget = { x: tx, y: ty };
+    let found = isWalkableWorldTile(tx, ty);
+    const maxRadius = 6;
+    for (let r = 0; r <= maxRadius && !found; r++) {
+      for (let dy = -r; dy <= r && !found; dy++) {
+        for (let dx = -r; dx <= r && !found; dx++) {
+          const ax = tx + dx;
+          const ay = ty + dy;
+          if (!isWalkableWorldTile(ax, ay)) continue;
+          bestTarget = { x: ax, y: ay };
+          found = true;
+        }
+      }
+    }
+
+    return bestTarget;
   } catch (_) {
     return null;
   }
 }
 
 // If stepping on a special mountain-pass stairs, transfer to a linked dungeon across the mountain.
+// The exit-side dungeon shares its base layout seed with the entrance dungeon so both ends of the
+// pass are identical, and entering from the far side spawns the player at the pass stairs.
 export function maybeEnterMountainPass(ctx, nx, ny) {
   try {
     const pass = ctx._mountainPassAt || null;
     if (pass && nx === pass.x && ny === pass.y && ctx.map[ny][nx] === ctx.TILES.STAIRS) {
       const tgt = computeAcrossMountainTarget(ctx);
-      if (tgt) {
+      if (tgt && ctx.world) {
         try { save(ctx, false); } catch (_) {}
-        const size = (ctx.dungeonInfo && ctx.dungeonInfo.size) ? ctx.dungeonInfo.size : "medium";
+
+        const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
         const level = Math.max(1, ctx.floor | 0);
-        const info = { x: tgt.x, y: tgt.y, level, size };
+        const size = (dinfo && dinfo.size) ? dinfo.size : "medium";
+
+        // Ensure POI bookkeeping exists and either find or create a dungeon record at the
+        // across-mountain coordinate. We use addDungeonPOI so world._poiSet stays consistent.
+        let info = null;
+        const world = ctx.world;
+        try {
+          const list = Array.isArray(world.dungeons) ? world.dungeons : [];
+          info = list.find(d => d && (d.x | 0) === (tgt.x | 0) && (d.y | 0) === (tgt.y | 0)) || null;
+          if (!info) {
+            addDungeonPOI(world, tgt.x | 0, tgt.y | 0, {
+              level,
+              size,
+              isMountainDungeon: true,
+              spawnAtMountainPass: true,
+              passSourceX: dinfo ? (dinfo.x | 0) : undefined,
+              passSourceY: dinfo ? (dinfo.y | 0) : undefined,
+            });
+            // Re-fetch from world.dungeons after registration
+            const list2 = Array.isArray(world.dungeons) ? world.dungeons : [];
+            info = list2.find(d => d && (d.x | 0) === (tgt.x | 0) && (d.y | 0) === (tgt.y | 0)) || null;
+          } else {
+            info.isMountainDungeon = true;
+            info.spawnAtMountainPass = true;
+            if (dinfo) {
+              info.passSourceX = dinfo.x | 0;
+              info.passSourceY = dinfo.y | 0;
+            }
+            if (typeof info.level !== "number") info.level = level;
+            if (!info.size) info.size = size;
+          }
+        } catch (_) {
+          info = { x: tgt.x | 0, y: tgt.y | 0, level, size, isMountainDungeon: true, spawnAtMountainPass: true };
+        }
+
+        if (!info) return false;
+
+        // When exiting this dungeon, return to the far-side world coordinate.
+        ctx.worldReturnPos = { x: info.x | 0, y: info.y | 0 };
+        ctx.cameFromWorld = true;
+
         ctx.log && ctx.log("You find a hidden passage through the mountain...", "info");
         return !!enter(ctx, info);
       }

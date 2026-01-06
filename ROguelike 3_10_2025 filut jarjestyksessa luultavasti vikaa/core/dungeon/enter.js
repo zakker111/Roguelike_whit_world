@@ -30,6 +30,15 @@ export function enter(ctx, info) {
   try { ctx.log && ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info"); } catch (_) {}
   generate(ctx, ctx.floor);
 
+  // For exit-side mountain-pass dungeons, spawn the player at the special pass stairs
+  // location instead of the initial entrance room if the generator marked one.
+  try {
+    if (info && info.spawnAtMountainPass && ctx._mountainPassAt) {
+      ctx.player.x = ctx._mountainPassAt.x | 0;
+      ctx.player.y = ctx._mountainPassAt.y | 0;
+    }
+  } catch (_) {}
+
   // Mark entrance position as the exit and ensure tile visuals
   try {
     ctx.dungeonExitAt = { x: ctx.player.x, y: ctx.player.y };
