@@ -1471,12 +1471,23 @@ function tryMove(ctx, dx, dy) {
   // Non-walkable tiles (e.g., water/river/mountain) cannot be entered in region mode
   if (!walkable) return false;
 
-  // Allow bump attacks on any enemy occupying the target tile
+  // Allow bump interactions on any enemy occupying the target tile
   let enemy = null;
   if (Array.isArray(ctx.enemies)) {
     try { enemy = ctx.enemies.find(e => e && e.x === nx && e.y === ny) || null; } catch (_) { enemy = null; }
   }
   if (enemy) {
+    // Followers: open follower inspect panel instead of attacking.
+    try {
+      if (enemy._isFollower) {
+        const UIO = getUIOrchestration(ctx) || getMod(ctx, "UIOrchestration");
+        if (UIO && typeof UIO.showFollower === "function") {
+          UIO.showFollower(ctx, enemy);
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
     try {
       if (String(enemy.faction || "") === "animal") {
