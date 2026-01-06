@@ -77,11 +77,11 @@ function carveLocalMountainPass(ctx, lx, ly, WT) {
 export function scanPOIs(ctx, x0, y0, w, h) {
   const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17 };
   const world = ctx.world;
-  for (let yy = y0; yy &lt; y0 + h; yy++) {
-    if (yy &lt; 0 || yy &gt;= ctx.map.length) continue;
+  for (let yy = y0; yy < y0 + h; yy++) {
+    if (yy < 0 || yy >= ctx.map.length) continue;
     const row = ctx.map[yy];
-    for (let xx = x0; xx &lt; x0 + w; xx++) {
-      if (xx &lt; 0 || xx &gt;= row.length) continue;
+    for (let xx = x0; xx < x0 + w; xx++) {
+      if (xx < 0 || xx >= row.length) continue;
       const t = row[xx];
       if (t === WT.TOWN) {
         const wx = world.originX + xx;
@@ -100,13 +100,13 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         try {
           const rows = ctx.map.length;
           const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-          if (yy >= 0 && yy &lt; rows && xx >= 0 && xx &lt; cols) {
-            for (let dy = -1; dy &lt;= 1 && !isMountainDungeon; dy++) {
-              for (let dx = -1; dx &lt;= 1 && !isMountainDungeon; dx++) {
+          if (yy >= 0 && yy < rows && xx >= 0 && xx < cols) {
+            for (let dy = -1; dy <= 1 && !isMountainDungeon; dy++) {
+              for (let dx = -1; dx <= 1 && !isMountainDungeon; dx++) {
                 if (!dx && !dy) continue;
                 const ny = yy + dy;
                 const nx = xx + dx;
-                if (ny &lt; 0 || nx &lt; 0 || ny &gt;= rows || nx &gt;= cols) continue;
+                if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
                 if (ctx.map[ny][nx] === WT.MOUNTAIN) {
                   isMountainDungeon = true;
                 }
@@ -125,7 +125,7 @@ export function scanPOIs(ctx, x0, y0, w, h) {
       } else if (WT.TOWER != null && t === WT.TOWER) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
-        // Towers are treated as dungeons with kind=\"tower\"; addDungeon will derive towerFloors deterministically.
+        // Towers are treated as dungeons with kind="tower"; addDungeon will derive towerFloors deterministically.
         addDungeon(world, wx, wy, { kind: "tower" });
       } else if (t === WT.RUINS) {
         const wx = world.originX + xx;
