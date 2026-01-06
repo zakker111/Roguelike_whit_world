@@ -1,7 +1,7 @@
 # Game Version History
 Last updated: 2025-12-20 00:00 UTC
 
-v1.59.0 — Mountain-pass experiments, bug bookkeeping, and combat XP fix
+v1.59.0 — Mountain-pass experiments, GOD panel layout, bug bookkeeping, and combat XP fix
 - Changed: Experimental mountain-pass dungeon A/B behavior.
   - core/dungeon/transitions.js:
     - maybeEnterMountainPass(ctx, nx, ny) now:
@@ -22,6 +22,16 @@ v1.59.0 — Mountain-pass experiments, bug bookkeeping, and combat XP fix
     - The current A/B mountain-pass logic is experimental and still considered unreliable; mountain-pass dungeon travel is explicitly tracked as broken in BUGS.md and slated for a full redesign in TODO.md.
     - Non-mountain dungeons should behave as before, but this area needs manual regression testing before relying on it in saves.
 
+- Changed: GOD panel layout and teleport tools.
+  - index.html and ui/style.css:
+    - Reorganized the GOD panel from a flat wall of buttons into clearly labeled sections (Quick Actions, World & Encounters, Render & HUD, Town Debug, Combat & Status, Logs & Tracing, RNG & Theme, Tools & Analysis, Smoke Tests).
+    - Added lightweight layout helpers (`.god-section`, `.god-row`, `.god-label`) to keep controls visually grouped and easier to scan while remaining always visible.
+  - GOD teleport dropdown:
+    - Replaced the single “Teleport to Tower” button with a destination dropdown and Teleport button offering:
+      - Nearest Tower, Nearest Town/Castle, Nearest Dungeon, Nearest Ruins, Nearest Castle, and a dedicated Nearest Mountain Dungeon option.
+    - Wired teleport actions through core/god/controls.js and data/god.js to use GameAPI/InfiniteGen/world POI data, with special handling for towers and mountain dungeons.
+    - Status: Non-tower destinations and mountain-dungeon teleports are still experimental and subject to the same mountain-pass caveats described above.
+
 - Changed: Dungeon combat XP bug marked fixed.
   - BUGS.md:
     - Updated the entry “in dungeons when enemies fight each other they are logged … but they give player xp when they kill each other” to:
@@ -41,8 +51,8 @@ v1.59.0 — Mountain-pass experiments, bug bookkeeping, and combat XP fix
     - This centralizes the future design/refactor work required for mountain-pass dungeons so they can become a first-class, reliable feature.
 
 - Notes:
-  - These changes are mostly experimental plumbing and bookkeeping around mountain-pass dungeons, plus documentation updates.
-  - Normal dungeon/town/ruins flows should remain unchanged, but mountain-pass dungeons are not yet considered shippable content and are disabled only by convention (via BUGS/TODO), not hard feature flags.
+  - These changes are mostly experimental plumbing around mountain-pass dungeons, plus GOD panel usability improvements and documentation updates.
+  - Normal dungeon/town/ruins flows should remain unchanged, but mountain-pass dungeons and the related GOD teleport shortcuts are not yet considered shippable content and are disabled only by convention (via BUGS/TODO), not hard feature flags.
 
 v1.58.0 — Tower Phase 2: JSON-driven rooms, props, captives, and rewards
 - Added: Tower interior room prefabs in JSON.
