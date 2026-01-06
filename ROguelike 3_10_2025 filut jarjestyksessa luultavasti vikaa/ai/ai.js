@@ -523,7 +523,8 @@ export function enemiesAct(ctx) {
 
       if (target.kind === "player") {
         if (rv() < ctx.getPlayerBlockChance(loc)) {
-          ctx.log(`You block the ${e.type || "enemy"}'s attack to your ${loc.part}.`, "block", { category: "Combat", side: "player" });
+          const attackerName = e.name || Cap(e.type || "enemy");
+          ctx.log(`You block ${attackerName}'s attack to your ${loc.part}.`, "block", { category: "Combat", side: "player" });
           if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
             ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
           }
@@ -559,8 +560,10 @@ export function enemiesAct(ctx) {
         const dmg = ctx.enemyDamageAfterDefense(raw);
         player.hp -= dmg;
         try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
-        if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
-        else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
+
+        const attackerName = e.name || Cap(e.type || "enemy");
+        if (isCrit) ctx.log(`Critical! ${attackerName} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
+        else ctx.log(`${attackerName} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
         if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
           const dur = 1 + Math.floor(rv() * 2);
@@ -623,8 +626,10 @@ export function enemiesAct(ctx) {
         const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
         if (rv() < blockChance) {
           try {
+            const attackerName = e.name || Cap(e.type || "enemy");
+            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
             ctx.log && ctx.log(
-              `${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack to the ${loc.part}.`,
+              `${defenderName} blocks ${attackerName}'s attack to the ${loc.part}.`,
               "block",
               { category: "Combat", side: "enemy" }
             );
@@ -722,15 +727,17 @@ export function enemiesAct(ctx) {
             }
           } catch (_) {}
           try {
+            const attackerName = e.name || Cap(e.type || "enemy");
+            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
             if (isCrit) {
               ctx.log(
-                `Critical! ${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                `Critical! ${attackerName} hits ${defenderName}'s ${loc.part} for ${dmg}.`,
                 "crit",
                 { category: "Combat", side: "enemy" }
               );
             } else {
               ctx.log(
-                `${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                `${attackerName} hits ${defenderName}'s ${loc.part} for ${dmg}.`,
                 "info",
                 { category: "Combat", side: "enemy" }
               );
