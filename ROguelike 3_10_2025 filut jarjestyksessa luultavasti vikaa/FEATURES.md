@@ -485,6 +485,15 @@ These exist partially in code or design but are **known unstable** or not yet im
 - Current status:
   - Not implemented; planned in `TODO.md`.
 
+### 12.5 Infinite overworld performance
+
+- Intent:
+  - Infinite-style overworld where the player can explore large regions without hard map bounds.
+- Current status:
+  - Implemented, but **performance degrades** after exploring large portions of the world:
+    - World generation and expansion can become slow/sluggish as more chunks are visited.
+  - Tracked as a bug in `BUGS.md` and targeted for future performance work in world/infinite_gen + world_runtime.
+
 ---
 
 ## 13. Platform & Input
