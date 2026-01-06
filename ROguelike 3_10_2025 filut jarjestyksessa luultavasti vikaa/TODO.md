@@ -4,9 +4,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
-- [ ] Bridge/ford generation across rivers
-- [ ] Named towns and persistent inventories/NPCs across visits
-- [ ] Shop UI (buy/sell) and currency
+- [x] Bridge/ford generation across rivers
+- [x] Named towns and persistent inventories/NPCs across visits
+- [x] Shop UI (buy/sell) and currency
 - [ ] District themes (market / residential / temple) and signage
 - [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
