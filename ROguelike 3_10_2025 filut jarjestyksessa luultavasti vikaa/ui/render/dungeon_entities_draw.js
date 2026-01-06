@@ -46,6 +46,16 @@ export function drawEnemies(ctx, view) {
       }
     }
 
+    // Followers: draw a soft backdrop so they stand out from enemies.
+    if (isFollower) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.55;
+      ctx2d.fillStyle = color;
+      const pad = 4;
+      ctx2d.fillRect(screenX + pad, screenY + pad, TILE - pad * 2, TILE - pad * 2);
+      ctx2d.restore();
+    }
+
     // Base enemy body
     if (!isFollower && enemyKey && tilesetReady && TS.draw && TS.draw(ctx2d, enemyKey, screenX, screenY, TILE)) {
       // drawn via tileset

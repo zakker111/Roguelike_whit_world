@@ -48,7 +48,7 @@ export function drawNPCs(ctx, view) {
       // Use the canonical bandit definition from data/entities/enemies.json for glyph/color.
       try {
         const EM = (typeof window !== "undefined" ? window.Enemies : null);
-        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef("bandit") : null;
+        const td = EM && typeof EM.getTypeDef === "function") ? EM.getTypeDef("bandit") : null;
         glyph = (td && td.glyph) ? td.glyph : "b";
         color = (td && td.color) ? td.color : "#c59d5f";
       } catch (_) {
@@ -60,7 +60,7 @@ export function drawNPCs(ctx, view) {
       try {
         const EM = (typeof window !== "undefined" ? window.Enemies : null);
         const typeId = (n.guardType || n.type || "guard");
-        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(typeId) : null;
+        const td = EM && typeof EM.getTypeDef === "function") ? EM.getTypeDef(typeId) : null;
         glyph = (td && td.glyph) ? td.glyph : "G";
         color = (td && td.color) ? td.color : "#2563eb";
       } catch (_) {
@@ -95,6 +95,17 @@ export function drawNPCs(ctx, view) {
     }
 
     const drawDim = (!isVisible || !hasLine);
+
+    // Followers: add a subtle backdrop to distinguish them from generic NPCs.
+    if (n._isFollower) {
+      ctx2d.save();
+      ctx2d.globalAlpha = drawDim ? 0.45 : 0.65;
+      ctx2d.fillStyle = color;
+      const pad = 4;
+      ctx2d.fillRect(screenX + pad, screenY + pad, TILE - pad * 2, TILE - pad * 2);
+      ctx2d.restore();
+    }
+
     if (drawDim) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.70;

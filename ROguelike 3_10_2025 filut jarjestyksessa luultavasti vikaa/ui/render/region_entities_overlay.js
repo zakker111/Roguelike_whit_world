@@ -48,8 +48,15 @@ export function drawRegionEntities(ctx, view) {
         ctx2d.fillStyle = color;
         ctx2d.fill();
       } else {
+        // Enemies: solid square marker; Followers: same square plus a thin outline
+        const pad = 6;
         ctx2d.fillStyle = color;
-        ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
+        if (isFollower) {
+          ctx2d.lineWidth = 2;
+          ctx2d.strokeStyle = "#ffffff";
+          ctx2d.strokeRect(sx + pad + 0.5, sy + pad + 0.5, TILE - pad * 2 - 1, TILE - pad * 2 - 1);
+        }
       }
       try {
         const half = TILE / 2;
