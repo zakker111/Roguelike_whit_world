@@ -16,6 +16,7 @@
 
 import { attachGlobal } from "../utils/global.js";
 import { getFollowerDef } from "../entities/followers.js";
+import { aggregateFollowerAtkDef } from "../entities/equip_common.js";
 
 function getFollowerRecord(ctx, followerId) {
   if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return null;
@@ -60,27 +61,16 @@ function recomputeFollowerRuntimeStats(ctx, followerId) {
   if (!ctx) return;
   const rec = getFollowerRecord(ctx, followerId);
   if (!rec) return;
+
   let def = null;
   try {
     def = getFollowerDef(ctx, followerId) || null;
   } catch (_) {}
-  if (!def || typeof def.baseAtk !== "number" || typeof def.baseDef !== "number") return;
+  if (!def) return;
 
-  let atk = def.baseAtk;
-  let defense = def.baseDef;
-  try {
-    const eq = rec.equipment && typeof rec.equipment === "object" ? rec.equipment : null;
-    if (eq) {
-      const slots = ["left", "right", "head", "torso", "legs", "hands"];
-      for (let i = 0; i < slots.length; i++) {
-        const s = slots[i];
-        const it = eq[s];
-        if (!it) continue;
-        if (typeof it.atk === "number") atk += it.atk;
-        if (typeof it.def === "number") defense += it.def;
-      }
-    }
-  } catch (_) {}
+  const agg = aggregateFollowerAtkDef(def, rec);
+  const atk = typeof agg.atk === "number" ? agg.atk : (def.baseAtk || 0);
+  const defense = typeof agg.def === "number" ? agg.def : (def.baseDef || 0);
 
   try {
     if (Array.isArray(ctx.enemies)) {

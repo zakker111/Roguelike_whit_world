@@ -7,6 +7,7 @@
  */
 
 import { getGameData } from "../utils/access.js";
+import { aggregateFollowerAtkDef } from "./equip_common.js";
 
 function getFollowersList(ctx) {
   try {
@@ -139,23 +140,10 @@ export function createRuntimeFollower(ctx, record) {
     throw new Error(`Follower color missing for id=${record.id}`);
   }
 
-  // Apply simple equipment bonuses from follower record equipment onto base stats.
-  // This keeps gear meaningful without changing JSON definitions.
-  let finalAtk = baseAtk;
-  let finalDef = baseDef;
-  try {
-    const eq = record.equipment && typeof record.equipment === "object" ? record.equipment : null;
-    if (eq) {
-      const slots = ["left", "right", "head", "torso", "legs", "hands"];
-      for (let i = 0; i < slots.length; i++) {
-        const s = slots[i];
-        const it = eq[s];
-        if (!it) continue;
-        if (typeof it.atk === "number") finalAtk += it.atk;
-        if (typeof it.def === "number") finalDef += it.def;
-      }
-    }
-  } catch (_) {}
+  // Aggregate final Attack/Defense from base stats plus equipped gear via shared helper.
+  const agg = aggregateFollowerAtkDef(def, record);
+  const finalAtk = typeof agg.atk === "number" ? agg.atk : baseAtk;
+  const finalDef = typeof agg.def === "number" ? agg.def : baseDef;
 
   return {
     x: 0,
