@@ -249,13 +249,13 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
       } else {
         ok = !!enter(ctx, enterInfo);
       }
-      return ok;
-    } catch (_) {
-      return false;
-    }
-  } catch (_) {}
-  return false;
-}
+
+      // After entering the target dungeon via the portal, ensure that future
+      // normal exits (using the regular entrance/exit stairs) return to this
+      // dungeon's own overworld tile, regardless of which side we came from.
+      if (ok && ctx && ctx.mode === "dungeon" && targetInfo && typeof targetInfo.x === "number" && typeof targetInfo.y === "number") {
+        ctx.worldReturnPos = { x: targetInfo.x | 0, y: targetInfo.y | 0 };
+        ctx}
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
