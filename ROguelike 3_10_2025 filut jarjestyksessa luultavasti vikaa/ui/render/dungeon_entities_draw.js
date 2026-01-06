@@ -2,6 +2,7 @@
  * Dungeon entities: enemies and player rendering.
  */
 import * as RenderCore from "../render_core.js";
+import { getFollowerDef } from "../../entities/followers.js";
 
 export function drawEnemies(ctx, view) {
   const {
@@ -24,18 +25,11 @@ export function drawEnemies(ctx, view) {
     let color = RenderCore.enemyColor(ctx, e.type, COLORS);
     if (isFollower) {
       try {
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
         const fid = e._followerId || "guard_follower";
-        if (list) {
-          const def = list.find(f => f && String(f.id) === String(fid));
-          if (def) {
-            glyph = def.glyph || glyph;
-            color = def.color || color;
-          } else {
-            glyph = "G";
-            color = "#000000";
-          }
+        const def = getFollowerDef(ctx, fid);
+        if (def) {
+          glyph = def.glyph || glyph;
+          color = def.color || color;
         } else {
           glyph = "G";
           color = "#000000";

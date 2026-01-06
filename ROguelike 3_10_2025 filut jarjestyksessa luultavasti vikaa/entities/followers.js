@@ -21,7 +21,9 @@ function getFollowersList(ctx) {
   return null;
 }
 
-function getFollowerDef(ctx, id) {
+// Exported so renderers and other modules can resolve follower visuals
+// (glyph/color/type) from a single data source (data/entities/followers.json).
+export function getFollowerDef(ctx, id) {
   const list = getFollowersList(ctx);
   if (!list || !id) return null;
   const key = String(id);

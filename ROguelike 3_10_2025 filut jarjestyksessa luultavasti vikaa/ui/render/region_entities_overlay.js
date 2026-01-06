@@ -1,6 +1,8 @@
 /**
  * Region entities overlay: enemies/animals markers when visible.
  */
+import { getFollowerDef } from "../../entities/followers.js";
+
 export function drawRegionEntities(ctx, view) {
   const { ctx2d, TILE, COLORS, visible, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
 
@@ -24,17 +26,11 @@ export function drawRegionEntities(ctx, view) {
           color = "#e9d5a1";
         }
       } else if (isFollower) {
-        // Followers use their own palette color from data/entities/followers.json
+        // Followers use their own palette color from data/entities/followers.json via Followers.getFollowerDef
         try {
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
           const fid = e._followerId || "guard_follower";
-          if (list) {
-            const def = list.find(f => f && String(f.id) === String(fid));
-            color = (def && def.color) ? def.color : "#000000";
-          } else {
-            color = "#000000";
-          }
+          const def = getFollowerDef(ctx, fid);
+          color = (def && def.color) ? def.color : "#000000";
         } catch (_) {
           color = "#000000";
         }

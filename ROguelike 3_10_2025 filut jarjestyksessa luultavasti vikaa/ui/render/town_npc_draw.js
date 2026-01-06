@@ -2,6 +2,7 @@
  * Town NPC drawing with LOS/dim and sleeping 'Z' effect.
  */
 import * as RenderCore from "../render_core.js";
+import { getFollowerDef } from "../../entities/followers.js";
 
 export function drawNPCs(ctx, view) {
   const { ctx2d, TILE, COLORS, player, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
@@ -68,19 +69,12 @@ export function drawNPCs(ctx, view) {
         color = "#2563eb";
       }
     } else if (n._isFollower) {
-      // Use follower visuals from data/entities/followers.json when available
+      // Use follower visuals from data/entities/followers.json via Followers.getFollowerDef
       try {
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
         const fid = n._followerId || "guard_follower";
-        if (list) {
-          const def = list.find(f => f && String(f.id) === String(fid));
-          glyph = (def && def.glyph) ? def.glyph : "G";
-          color = (def && def.color) ? def.color : "#000000";
-        } else {
-          glyph = "G";
-          color = "#000000";
-        }
+        const def = getFollowerDef(ctx, fid);
+        glyph = (def && def.glyph) ? def.glyph : "G";
+        color = (def && def.color) ? def.color : "#000000";
       } catch (_) {
         glyph = "G";
         color = "#000000";
