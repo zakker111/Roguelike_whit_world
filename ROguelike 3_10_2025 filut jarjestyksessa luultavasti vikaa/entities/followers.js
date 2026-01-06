@@ -139,6 +139,24 @@ export function createRuntimeFollower(ctx, record) {
     throw new Error(`Follower color missing for id=${record.id}`);
   }
 
+  // Apply simple equipment bonuses from follower record equipment onto base stats.
+  // This keeps gear meaningful without changing JSON definitions.
+  let finalAtk = baseAtk;
+  let finalDef = baseDef;
+  try {
+    const eq = record.equipment && typeof record.equipment === "object" ? record.equipment : null;
+    if (eq) {
+      const slots = ["left", "right", "head", "torso", "legs", "hands"];
+      for (let i = 0; i < slots.length; i++) {
+        const s = slots[i];
+        const it = eq[s];
+        if (!it) continue;
+        if (typeof it.atk === "number") finalAtk += it.atk;
+        if (typeof it.def === "number") finalDef += it.def;
+      }
+    }
+  } catch (_) {}
+
   return {
     x: 0,
     y: 0,
@@ -149,8 +167,8 @@ export function createRuntimeFollower(ctx, record) {
     color,
     hp,
     maxHp,
-    atk: baseAtk,
-    def: baseDef,
+    atk: finalAtk,
+    def: finalDef,
     level,
     announced: false,
     _isFollower: true,

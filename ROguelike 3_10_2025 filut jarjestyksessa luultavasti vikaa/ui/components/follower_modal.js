@@ -92,6 +92,7 @@ function buildContent(ctx, view) {
   const hint = esc(v.hint || "");
   const equipment = v.equipment && typeof v.equipment === "object" ? v.equipment : null;
   const inventory = Array.isArray(v.inventory) ? v.inventory : null;
+  const playerInv = ctx && ctx.player && Array.isArray(ctx.player.inventory) ? ctx.player.inventory : null;
 
   const lines = [];
 
@@ -191,16 +192,37 @@ function buildContent(ctx, view) {
       "</ul>");
   }
 
-  // Inventory (read-only view with Take actions)
+  // Inventory (follower's own inventory, with Equip/Take actions)
   lines.push("<div style='margin-top:8px;'>Inventory:</div>");
   if (inventory && inventory.length) {
     lines.push("<ul style='margin:4px 0 0 16px;'>" +
       inventory.map((it, idx) =>
-        `<li>${idx + 1}. ${esc(formatItem(it))} <span data-fcmd="take" data-index="${idx}" style="color:#60a5fa; cursor:pointer;">[Take]</span></li>`
+        `<li>${idx + 1}. ${esc(formatItem(it))} ` +
+        `<span data-fcmd="equip" data-index="${idx}" style="color:#4ade80; cursor:pointer;">[Equip]</span> ` +
+        `<span data-fcmd="take" data-index="${idx}" style="color:#60a5fa; cursor:pointer;">[Take]</span>` +
+        "</li>"
       ).join("") +
       "</ul>");
   } else {
     lines.push("<div style=\"margin-left:12px; margin-top:2px; color:#9ca3af;\">(empty)</div>");
+  }
+
+  // Player inventory (give to follower)
+  lines.push("<div style='margin-top:8px;'>Player inventory (give to follower):</div>");
+  if (playerInv && playerInv.length) {
+    const maxShown = 30;
+    lines.push("<ul style='margin:4px 0 0 16px;'>" +
+      playerInv.slice(0, maxShown).map((it, idx) =>
+        `<li>${idx + 1}. ${esc(formatItem(it))} ` +
+        `<span data-fcmd="give" data-pindex="${idx}" style="color:#60a5fa; cursor:pointer;">[Give]</span>` +
+        "</li>"
+      ).join("") +
+      "</ul>");
+    if (playerInv.length > maxShown) {
+      lines.push(`<div style="margin-left:12px; margin-top:2px; color:#9ca3af;">(+${playerInv.length - maxShown} more not shown)</div>`);
+    }
+  } else {
+    lines.push("<div style=\"margin-left:12px; margin-top:2px; color:#9ca3af;\">(no items)</div>");
   }
 
   if (hint) {
@@ -226,15 +248,55 @@ function bindCommands() {
       try {
         const FI = (typeof window !== "undefined" && window.FollowersItems) ? window.FollowersItems : null;
         if (!FI) return;
+
         if (cmd === "take") {
           const idx = parseInt(el.getAttribute("data-index") || "-1", 10);
           if (idx >= 0 && typeof FI.takeInventoryItemFromFollower === "function") {
             did = !!FI.takeInventoryItemFromFollower(_ctxForCommands, fid, idx);
           }
+
         } else if (cmd === "unequip") {
           const slot = el.getAttribute("data-slot") || "";
           if (slot && typeof FI.unequipFollowerSlot === "function") {
             did = !!FI.unequipFollowerSlot(_ctxForCommands, fid, slot);
+          }
+
+        } else if (cmd === "give") {
+          const pidx = parseInt(el.getAttribute("data-pindex") || "-1", 10);
+          if (pidx >= 0 && typeof FI.giveItemToFollower === "function") {
+            did = !!FI.giveItemToFollower(_ctxForCommands, fid, pidx);
+          }
+
+        } else if (cmd === "equip") {
+          const idx = parseInt(el.getAttribute("data-index") || "-1", 10);
+          if (idx >= 0 && typeof FI.equipFollowerItemFromInventory === "function") {
+            // Decide slot based on item slot and current equipment
+            let slot = "right";
+            try {
+              const p = _ctxForCommands && _ctxForCommands.player;
+              const followers = p && Array.isArray(p.followers) ? p.followers : null;
+              let rec = null;
+              if (followers) {
+                rec = followers.find(f => f && f.id === fid) || null;
+              }
+              const finv = rec && Array.isArray(rec.inventory) ? rec.inventory : null;
+              const item = finv && finv[idx] ? finv[idx] : null;
+              const eq = rec && rec.equipment && typeof rec.equipment === "object" ? rec.equipment : null;
+              const itemSlot = item && item.slot ? String(item.slot) : "hand";
+              if (itemSlot === "head" || itemSlot === "torso" || itemSlot === "legs" || itemSlot === "hands") {
+                slot = itemSlot;
+              } else if (itemSlot === "hand") {
+                // Prefer right hand, then left
+                const rightEmpty = !eq || !eq.right;
+                const leftEmpty = !eq || !eq.left;
+                if (rightEmpty) slot = "right";
+                else if (leftEmpty) slot = "left";
+                else slot = "right";
+              } else {
+                slot = "right";
+              }
+            } catch (_) {}
+            did = !!FI.equipFollowerItemFromInventory(_ctxForCommands, fid, idx, slot);
           }
         }
       } catch (_) {}
