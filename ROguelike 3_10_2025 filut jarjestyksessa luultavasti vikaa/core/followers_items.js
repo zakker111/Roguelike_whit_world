@@ -16,7 +16,7 @@
 
 import { attachGlobal } from "../utils/global.js";
 import { getFollowerDef } from "../entities/followers.js";
-import { aggregateFollowerAtkDef } from "../entities/equip_common.js";
+import { aggregateFollowerAtkDef, isCursedSeppoBlade, followerPreferredScore } from "../entities/equip_common.js";
 import { decayEquippedGeneric } from "../combat/equipment_decay.js";
 
 function getFollowerRecord(ctx, followerId) {
@@ -102,7 +102,6 @@ function autoEquipBestFollowerItem(ctx, rec, followerId, slot) {
   try {
     def = getFollowerDef(ctx, followerId) || null;
   } catch (_) {}
-  // Scoring does not currently depend on def, but we may extend it later.
   let bestIdx = -1;
   let bestScore = -Infinity;
 
@@ -110,9 +109,16 @@ function autoEquipBestFollowerItem(ctx, rec, followerId, slot) {
     const it = inv[i];
     if (!it || it.kind !== "equip") continue;
     if (it.slot !== targetSlot) continue;
-    const atk = typeof it.atk === "number" ? it.atk : 0;
-    const defVal = typeof it.def === "number" ? it.def : 0;
-    const score = atk + defVal;
+
+    let score = -Infinity;
+    if (def) {
+      score = followerPreferredScore(it, def, rec);
+    } else {
+      const atk = typeof it.atk === "number" ? it.atk : 0;
+      const defVal = typeof it.def === "number" ? it.def : 0;
+      score = atk + defVal;
+    }
+
     if (score > bestScore + 1e-9) {
       bestScore = score;
       bestIdx = i;
@@ -251,6 +257,19 @@ export function giveItemToFollower(ctx, followerId, playerIndex, opts = {}) {
   const finv = ensureFollowerInventory(rec);
   const slot = typeof opts.slot === "string" ? opts.slot : null;
 
+  // If follower already wields a cursed Seppo blade in hands, block giving
+  // them another non-cursed hand weapon directly into a hand slot.
+  try {
+    if (slot && (slot === "left" || slot === "right") && item.kind === "equip" && item.slot === "hand") {
+      if (followerHandsHaveCursedBlade(eq) && !isCursedSeppoBlade(item)) {
+        if (ctx.log) {
+          ctx.log(`Cursed: The blade refuses to be replaced on ${followerLabel(rec)}; they cannot wield another weapon until it breaks.`, "info");
+        }
+        return false;
+      }
+    }
+  } catch (_) {}
+
   // Remove from player inventory
   inv.splice(idx, 1);
 
@@ -334,6 +353,19 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
   const item = finv[idx];
   if (!item) return false;
 
+  // Seppo's True Blade curse: if follower already has the cursed blade in hands,
+  // block equipping any other hand weapon.
+  try {
+    if ((slot === "left" || slot === "right") && item.kind === "equip" && item.slot === "hand") {
+      if (followerHandsHaveCursedBlade(eq) && !isCursedSeppoBlade(item)) {
+        if (ctx.log) {
+          ctx.log(`Cursed: The blade refuses to be replaced on ${followerLabel(rec)}; they cannot wield another weapon until it breaks.`, "info");
+        }
+        return false;
+      }
+    }
+  } catch (_) {}
+
   // Remove from inventory
   finv.splice(idx, 1);
 
@@ -374,6 +406,22 @@ export function unequipFollowerSlot(ctx, followerId, slot, opts = {}) {
   if (!slot || !Object.prototype.hasOwnProperty.call(eq, slot)) return false;
   const item = eq[slot];
   if (!item) return false;
+
+  // Seppo's True Blade curse: cannot be unequipped from follower hands.
+  try {
+    if ((slot === "left" || slot === "right") && isCursedSeppoBlade(item)) {
+      if (ctx.log) {
+        ctx.log(`Cursed: The blade clings to ${followerLabel(rec)}'s hand and cannot be unequipped.`, "info");
+      }
+      return false;
+    }
+    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && isCursedSeppoBlade(eq.left)) {
+      if (ctx.log) {
+        ctx.log(`Cursed: The blade clings to ${followerLabel(rec)}'s hands and cannot be unequipped.`, "info");
+      }
+      return false;
+    }
+  } catch (_) {}
 
   eq[slot] = null;
   finv.push(item);

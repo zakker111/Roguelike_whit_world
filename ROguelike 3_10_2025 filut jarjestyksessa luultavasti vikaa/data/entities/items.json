@@ -10,6 +10,7 @@
       "2": [1.2, 3.2],
       "3": [2.0, 3.8]
     },
+    "tags": ["weapon", "sword", "guard_favored"],
     "name": "simple sword"
   },
   {
@@ -41,6 +42,7 @@
       "2": [1.2, 3.2],
       "3": [2.0, 4.0]
     },
+    "tags": ["weapon", "shield", "guard_favored"],
     "name": "shield"
   },
   {
@@ -53,6 +55,7 @@
       "2": [0.8, 2.8],
       "3": [1.6, 3.6]
     },
+    "tags": ["armor", "heavy_armor", "guard_favored"],
     "name": "helmet"
   },
   {
@@ -65,6 +68,7 @@
       "2": [1.6, 3.6],
       "3": [2.4, 4.0]
     },
+    "tags": ["armor", "heavy_armor", "guard_favored"],
     "name": "armor"
   },
   {
@@ -77,6 +81,7 @@
       "2": [1.0, 3.0],
       "3": [1.8, 3.8]
     },
+    "tags": ["armor", "heavy_armor", "guard_favored"],
     "name": "leg armor"
   },
   {
@@ -91,6 +96,7 @@
     },
     "handAtkBonus": { "2": [0.1, 0.6], "3": [0.2, 1.0] },
     "handAtkChance": 0.5,
+    "tags": ["armor", "light_armor", "thief_favored"],
     "name": "gloves"
   },
   {
@@ -129,6 +135,7 @@
       "2": [0.8, 2.4],
       "3": [1.0, 2.8]
     },
+    "tags": ["weapon", "light_weapon", "dagger", "thief_favored"],
     "name": "dagger"
   },
   {

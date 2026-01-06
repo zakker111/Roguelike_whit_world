@@ -25,6 +25,16 @@
       "fleeHpFrac": 0.15,
       "tauntFrequency": 0.1
     },
+    "pref": {
+      "weaponTags": ["guard_favored", "sword", "shield"],
+      "armorTags": ["heavy_armor", "guard_favored"],
+      "primarySlot": "right",
+      "secondarySlot": "left",
+      "buffs": {
+        "matchedWeaponAtkMult": 0.08,
+        "matchedArmorDefMult": 0.06
+      }
+    },
     "namePool": ["Arne", "Tuula", "Kari", "Liisa", "Oskari"],
     "hint": "Tough frontline ally with decent armor."
   },
@@ -53,6 +63,16 @@
       "loyalty": 0.7,
       "fleeHpFrac": 0.35,
       "tauntFrequency": 0.3
+    },
+    "pref": {
+      "weaponTags": ["thief_favored", "light_weapon", "dagger"],
+      "armorTags": ["light_armor", "thief_favored"],
+      "primarySlot": "right",
+      "secondarySlot": "left",
+      "buffs": {
+        "matchedWeaponAtkMult": 0.10,
+        "matchedArmorDefMult": 0.04
+      }
     },
     "namePool": ["Nella", "Eero", "Sade", "Riku", "Maarit"],
     "hint": "Fast, lightly armored ally who excels at quick strikes."

@@ -5,6 +5,7 @@
  * - equipmentScoreBase(item)
  * - isCursedSeppoBlade(item)
  * - aggregateFollowerAtkDef(def, record)
+ * - followerPreferredScore(item, followerDef, followerRecord)
  */
 
 import { attachGlobal } from "../utils/global.js";
@@ -66,9 +67,55 @@ export function aggregateFollowerAtkDef(def, record) {
   return { atk, def: defense };
 }
 
+/**
+ * Preference-aware score for follower equipment auto-choices.
+ * Applies a small multiplier to base score when item tags match follower
+ * archetype preferences (def.pref.weaponTags / armorTags).
+ */
+export function followerPreferredScore(item, followerDef, followerRecord) {
+  const base = equipmentScoreBase(item);
+  if (!isFinite(base)) return base;
+
+  const pref = followerDef && followerDef.pref;
+  if (!pref) return base;
+
+  const tagsArr = Array.isArray(item.tags) ? item.tags : [];
+  const tags = new Set(tagsArr.map((t) => String(t).toLowerCase()));
+
+  const wTags = Array.isArray(pref.weaponTags)
+    ? pref.weaponTags.map((t) => String(t).toLowerCase())
+    : [];
+  const aTags = Array.isArray(pref.armorTags)
+    ? pref.armorTags.map((t) => String(t).toLowerCase())
+    : [];
+
+  let mult = 1.0;
+
+  if (item.slot === "hand" && wTags.length && tags.size) {
+    const matched = wTags.some((t) => tags.has(t));
+    if (matched) {
+      const m = pref.buffs && typeof pref.buffs.matchedWeaponAtkMult === "number"
+        ? pref.buffs.matchedWeaponAtkMult
+        : 0.08;
+      mult += m;
+    }
+  } else if (item.slot !== "hand" && aTags.length && tags.size) {
+    const matched = aTags.some((t) => tags.has(t));
+    if (matched) {
+      const m = pref.buffs && typeof pref.buffs.matchedArmorDefMult === "number"
+        ? pref.buffs.matchedArmorDefMult
+        : 0.05;
+      mult += m;
+    }
+  }
+
+  return base * mult;
+}
+
 // Optional back-compat: attach to window for diagnostics / GOD panel use.
 attachGlobal("EquipCommon", {
   equipmentScoreBase,
   isCursedSeppoBlade,
   aggregateFollowerAtkDef,
+  followerPreferredScore,
 });

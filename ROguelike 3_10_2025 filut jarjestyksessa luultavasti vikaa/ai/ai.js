@@ -665,6 +665,26 @@ export function enemiesAct(ctx) {
             } catch (_) {}
           }
 
+          // If the defender is a follower, apply armor decay on the hit location
+          try {
+            if (target.ref && target.ref._isFollower) {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerEquipped === "function") {
+                const part = loc.part;
+                const armorSlot = (part === "torso" || part === "head" || part === "legs" || part === "hands") ? part : null;
+                if (armorSlot) {
+                  const critWear = isCrit ? 1.6 : 1.0;
+                  let wear = 0.5;
+                  if (part === "torso") wear = randFloat(0.8, 2.0, 1);
+                  else if (part === "head") wear = randFloat(0.3, 1.0, 1);
+                  else if (part === "legs") wear = randFloat(0.4, 1.3, 1);
+                  else if (part === "hands") wear = randFloat(0.3, 1.0, 1);
+                  FI.decayFollowerEquipped(ctx, target.ref._followerId || target.ref.type || target.ref.id, armorSlot, wear * critWear);
+                }
+              }
+            }
+          } catch (_) {}
+
           // Record last hit so death flavor can attribute killer, hit location, and likely weapon
           try {
             const killerType = String(e.type || "enemy");
