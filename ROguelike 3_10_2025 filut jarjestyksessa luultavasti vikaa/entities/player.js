@@ -48,7 +48,18 @@ export const defaults = {
       level: 1,
       hp: 20,
       maxHp: 20,
-      enabled: true
+      enabled: true,
+      // Provide a simple default weapon so the follower starts with visible gear.
+      // This is cosmetic for now; follower combat still uses baseAtk/baseDef.
+      equipment: {
+        left: null,
+        right: { kind: "equip", slot: "hand", name: "iron sword", atk: 1.5, tier: 2, decay: 20 },
+        head: null,
+        torso: null,
+        legs: null,
+        hands: null,
+      },
+      inventory: []
     }
   ],
   injuries: [],
