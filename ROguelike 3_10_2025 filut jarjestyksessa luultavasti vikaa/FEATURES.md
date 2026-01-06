@@ -459,20 +459,40 @@ These exist partially in code or design but are **known unstable** or not yet im
   - Tracked as broken in `BUGS.md`.
   - Full rework planned in `TODO.md`.
 
-### 12.2 Followers / party system
+### 12.2 Followers / party system (EXPERIMENTAL)
 
 - Intent:
   - Friendly characters that follow the player and fight alongside them.
   - Followers with inventories, basic commands, morale, and persistence.
-- Current status:
-  - First-pass implementation in v1.61.0:
-    - One basic guard-style follower archetype defined in `data/entities/followers.json`.
-    - A single follower record on the player that is normalized and persisted.
-    - Follower spawns as:
-      - An allied guard enemy in dungeons/towers (never targets the player, fights hostile factions).
-      - A follower NPC in towns that trails the player near the gate and around streets.
-    - Follower HP/level are synced back into player data when leaving dungeons; town hooks are wired for future extensions.
-  - Full party system (multiple followers, inventories, commands, morale) remains WIP and is tracked in `TODO.md`.
+
+- Current status (experimental, first-pass implementation):
+  - Data-driven archetype:
+    - One basic guard-style follower archetype (“Guard Ally”) is defined in `data/entities/followers.json` with glyph, color, base stats, faction, and equipment.
+    - `GameData.followers` is the single source of truth for follower visuals/stats.
+  - Player follower slot:
+    - Player defaults include a single follower record in `player.followers`, normalized and persisted on the save.
+  - Spawning and modes:
+    - Dungeons / towers / encounters / region-map:
+      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set.
+      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies.
+      - When no hostile is visible, the follower moves to stay near the player.
+    - Towns / castles:
+      - A follower NPC is spawned near the gate/player with roles `["follower"]` and `_isFollower/_followerId` markers.
+      - Town tick logic causes the follower NPC to stay within a few tiles of the player as they move through the town.
+  - Persistence and death:
+    - Dungeon/town/region save snapshots explicitly exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
+    - Follower HP/level from dungeon/encounter/region runs are synced back into `player.followers` on exit.
+    - When a follower dies in combat, their corresponding record is removed from `player.followers`, and they will not respawn anywhere (permanent death for that run).
+  - Visual consistency:
+    - Follower glyph/color are taken from `followers.json` and rendered consistently in all modes (town, dungeon, region) with a distinct background to differentiate them from normal enemies/NPCs.
+
+- Not yet implemented (planned; see `TODO.md`):
+  - Multiple followers / true party system and party size limits.
+  - Unique random names per follower from a name pool, persisted across modes.
+  - Follower inspect/stats panel with equipment slots and follower-specific inventory.
+  - Player-driven equipment management for followers (equip/unequip from player inventory, follower inventory, and item transfers).
+  - Followers drinking potions from their own inventory when low on HP.
+  - Command UI (Attack / Follow / Wait here), follower morale, and richer behavior tuning.
 
 ### 12.3 GOD Arena mode
 

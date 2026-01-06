@@ -59,39 +59,56 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - UI:
     - Clear menu explaining what each treatment does, its cost, and what remains (cosmetic vs mechanical).
 
-- [ ] Friendly followers / party system
+- [ ] Friendly followers / party system (EXPERIMENTAL, first-pass implemented)
   - Allow the player to have friendly characters that follow them (party members/henchmen).
   - Followers can fight alongside the player and can die permanently.
-  - Acquisition paths:
+  - Acquisition paths (not implemented yet):
     - Hire/buy allies from inns or taverns (gold sink, limited slots, different archetypes).
     - Rescue potential followers from special encounters or dungeons (e.g., captives who choose to join).
-  - First pass (implemented in v1.61.0):
-    - Data-driven follower archetypes in JSON (data/entities/followers.json) loaded via GameData.followers.
+  - First pass (implemented in v1.61.0 and later tweaks):
+    - Data-driven follower archetypes in JSON (`data/entities/followers.json`) loaded via `GameData.followers`.
     - One basic “Guard Ally” follower record on the player, normalized and persisted on the save.
     - Simple spawn/runtime layer:
-      - In dungeons/towers, spawns a guard-style ally enemy near the player that never targets the player but fights hostile factions.
-      - In towns, spawns a follower NPC near the gate that follows the player around using town pathing rules.
-      - Follower HP/level is synced back into player.followers on dungeon exit; town hooks are in place for future use.
-    - Persistence guards:
-      - Dungeon/town state snapshots exclude follower actors/NPCs so followers are always derived from player state on entry.
+      - In dungeons/towers/encounters/region-map fights, spawns a guard-style ally enemy near the player that never targets the player but fights hostile factions.
+      - In towns/castles, spawns a follower NPC near the gate that follows the player around using town pathing rules.
+      - Follower HP/level is synced back into `player.followers` on dungeon/encounter/region exits; town hooks are wired for future extensions.
+    - Persistence and saving:
+      - Dungeon/town/region state snapshots exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
+      - When a follower dies in combat, their corresponding record is removed from `player.followers` and they will not respawn anywhere (permanent death).
+    - Visuals:
+      - Follower glyph/color are defined only in `followers.json` and rendered consistently in town, dungeon, and region views with a distinct backdrop.
   - Next steps:
-    - Simple follower AI that:
-      - Trails the player cleanly in overworld/dungeons without blocking entrances.
-      - Prioritizes nearby threats, avoids stepping on traps when possible.
-      - Has basic morale/retreat logic (e.g., when low HP, try to drink a potion if available or flee instead of suiciding).
-    - UI hooks:
-      - Basic party status display (HP, name, maybe one trait icon).
-      - Simple command wheel / commands:
-        - “Attack at will” (normal behavior).
-        - “Follow” (stay close, only retaliate when attacked).
-        - “Wait here” (hold position, do not follow until ordered).
+    - Unique follower identity:
+      - Followers should receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
+      - Names are persisted in `player.followers` so the same named follower is seen across dungeons/towns until permanent death.
+    - Follower inspect / stats panel:
+      - Bumping into a follower in town or dungeon should offer a “Follower” / “Inspect follower” button.
+      - Opens a small panel that shows:
+        - Follower name, level, HP/max HP, base attack/defense, and faction/role.
+        - The same style of equipment slots as the player (left hand, right hand, head, torso, legs, hands).
+    - Shared equipment management:
+      - From the follower panel, allow equipping/unequipping items for the follower using items from the player’s inventory:
+        - Equip/unequip follower left-hand/right-hand and armor slots.
+        - When the player unequips an item from the follower, that item is moved into the follower’s personal inventory.
+        - When equipping a new item on the follower from the player’s inventory, the replaced item moves into the follower’s inventory.
     - Follower inventory:
-      - Simple inventory per follower where the player can give weapons/armor/items.
-      - Followers automatically equip the “best” armor and weapons that suit their archetype (e.g., no heavy armor on fragile casters).
-      - Followers can consume potions from their inventory when low HP if allowed.
-    - Balance and persistence:
-      - Limited party size.
-      - Persist follower state across mode switches and saves (gear, HP, location) with proper death handling.
+      - Each follower has a unique inventory separate from the player’s:
+        - Displayed in the follower panel similarly to the player’s inventory list.
+        - Items can be transferred:
+          - Player → follower: “Give” or “Equip” to send items to the follower (equipped items go into slots, others into follower inventory).
+          - Follower → player: “Take” to move items from follower inventory back into the player’s inventory.
+      - Items taken from followers should behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+    - Follower potion use:
+      - Followers can drink their own potions when their HP is low, if they have potions in their personal inventory:
+        - Define a low-HP threshold (e.g., ≤ 30% maxHp or a fixed HP value) per follower or archetype.
+        - On their turn, if below threshold and a potion is available, the follower consumes a potion instead of attacking, restoring HP and consuming one potion item.
+    - Simple follower AI improvements:
+      - Trail the player without blocking doors/entrances when possible.
+      - Continue to prioritize nearby hostiles using LOS-based targeting.
+      - Later: basic morale/retreat logic (e.g., avoid charging into hopeless fights when low on HP and out of potions).
+    - Party size & balance:
+      - Introduce a configurable party size limit (e.g., 1–3 followers).
+      - Ensure follower gear and potion usage are balanced so followers support the player without trivializing combat.
 
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:
