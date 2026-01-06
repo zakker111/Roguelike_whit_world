@@ -32,9 +32,17 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Simple follower AI that:
       - Trails the player in overworld/dungeons without blocking entrances.
       - Prioritizes nearby threats, avoids stepping on traps when possible.
+      - Has basic morale/retreat logic (e.g., when low HP, try to drink a potion if available or flee instead of suiciding).
     - UI hooks:
       - Basic party status display (HP, name, maybe one trait icon).
-      - Simple command hooks (e.g., “wait here”, “follow”, maybe “hold position”).
+      - Simple command wheel / commands:
+        - “Attack at will” (normal behavior).
+        - “Follow” (stay close, only retaliate when attacked).
+        - “Wait here” (hold position, do not follow until ordered).
+    - Follower inventory:
+      - Simple inventory per follower where the player can give weapons/armor/items.
+      - Followers automatically equip the “best” armor and weapons that suit their archetype (e.g., no heavy armor on fragile casters).
+      - Followers can consume potions from their inventory when low HP if allowed.
     - Balance and persistence:
       - Limited party size.
       - Persist follower state across mode switches and saves (gear, HP, location).
@@ -74,6 +82,11 @@ This file collects planned features, ideas, and technical cleanups that were pre
 ## Technical / Cleanup
 
 - [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
+- [ ] GOD panel: add a toggle to visualize enemy FOV/vision cones
+  - GOD toggle that overlays the current FOV/vision radius of selected enemies (or all enemies) on the map:
+    - Show which tiles each enemy can currently see, based on the same LOS/FOV rules used in real gameplay.
+    - Optionally highlight the player when they are inside or outside an enemy’s detection range.
+  - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
 - [ ] Smoketest runner:
   - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
