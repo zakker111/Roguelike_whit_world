@@ -1004,8 +1004,12 @@ function open(ctx, size) {
 
   ctx.mode = "region";
 
-  // PHASE 2: Ruins encounter (enemies + loot) setup. Skip if cleared or persisted map restored.
-  (function spawnRuinsEncounter() {
+  // Spawn player follower/ally into the Region map, if configured.
+  try {
+    spawnInDungeon(ctx);
+  } catch (_) {}
+
+  // PHASE 2{
     try {
       const WT = World.TILES;
       const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[anchorY][anchorX] === WT.RUINS);
