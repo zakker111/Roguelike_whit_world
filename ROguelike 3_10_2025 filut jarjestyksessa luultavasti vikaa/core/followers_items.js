@@ -17,6 +17,7 @@
 import { attachGlobal } from "../utils/global.js";
 import { getFollowerDef } from "../entities/followers.js";
 import { aggregateFollowerAtkDef } from "../entities/equip_common.js";
+import { decayEquippedGeneric } from "../combat/equipment_decay.js";
 
 function getFollowerRecord(ctx, followerId) {
   if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return null;
@@ -85,6 +86,118 @@ function recomputeFollowerRuntimeStats(ctx, followerId) {
       }
     }
   } catch (_) {}
+}
+
+// Choose the best replacement item from follower inventory for a given slot
+// and equip it, then update runtime stats. This is used when an equipped item
+// breaks due to decay.
+function autoEquipBestFollowerItem(ctx, rec, followerId, slot) {
+  if (!ctx || !rec) return;
+  const inv = ensureFollowerInventory(rec);
+  if (!inv.length) return;
+
+  const targetSlot = (slot === "left" || slot === "right") ? "hand" : slot;
+
+  let def = null;
+  try {
+    def = getFollowerDef(ctx, followerId) || null;
+  } catch (_) {}
+  // Scoring does not currently depend on def, but we may extend it later.
+  let bestIdx = -1;
+  let bestScore = -Infinity;
+
+  for (let i = 0; i < inv.length; i++) {
+    const it = inv[i];
+    if (!it || it.kind !== "equip") continue;
+    if (it.slot !== targetSlot) continue;
+    const atk = typeof it.atk === "number" ? it.atk : 0;
+    const defVal = typeof it.def === "number" ? it.def : 0;
+    const score = atk + defVal;
+    if (score > bestScore + 1e-9) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+
+  if (bestIdx < 0) return;
+  const item = inv[bestIdx];
+  inv.splice(bestIdx, 1);
+
+  const eq = ensureFollowerEquipment(rec);
+  // Put any existing item from that slot back into inventory
+  if (eq[slot]) {
+    inv.push(eq[slot]);
+  }
+  eq[slot] = item;
+
+  try {
+    if (ctx.log) {
+      const label = describeItem(ctx, item);
+      const who = followerLabel(rec);
+      ctx.log(`${who} automatically equips ${label} in ${slot}.`, "info");
+    }
+  } catch (_) {}
+
+  try {
+    recomputeFollowerRuntimeStats(ctx, followerId);
+  } catch (_) {}
+}
+
+// Decay a specific equipped slot on a follower record and auto-equip a
+// replacement when the item breaks.
+export function decayFollowerEquipped(ctx, followerId, slot, amount) {
+  if (!ctx || !slot || typeof amount !== "number") return;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return;
+  const eq = ensureFollowerEquipment(rec);
+  if (!eq[slot]) return;
+
+  const hooks = {
+    log: (msg, type) => {
+      try {
+        if (ctx.log) ctx.log(msg, type);
+      } catch (_) {}
+    },
+    updateUI: () => {
+      try {
+        if (ctx.updateUI) ctx.updateUI();
+      } catch (_) {}
+    },
+    onInventoryChange: () => {},
+    onBreak: () => {
+      autoEquipBestFollowerItem(ctx, rec, followerId, slot);
+    },
+  };
+
+  try {
+    decayEquippedGeneric(rec, slot, amount, hooks);
+    recomputeFollowerRuntimeStats(ctx, followerId);
+  } catch (_) {}
+}
+
+// Convenience helper: decay follower hands (weapon) after an attack or block.
+// Picks the hand with higher atk (or first non-null) and applies a light or
+// normal decay amount.
+export function decayFollowerHands(ctx, followerId, opts = {}) {
+  if (!ctx) return;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return;
+  const eq = ensureFollowerEquipment(rec);
+
+  const left = eq.left;
+  const right = eq.right;
+  const leftAtk = left && typeof left.atk === "number" ? left.atk : 0;
+  const rightAtk = right && typeof right.atk === "number" ? right.atk : 0;
+
+  let slot = null;
+  if (leftAtk >= rightAtk && left) slot = "left";
+  else if (right) slot = "right";
+  if (!slot) return;
+
+  const light = !!opts.light;
+  const amount = light ? 0.6 : 1.4;
+
+  decayFollowerEquipped(ctx, followerId, slot, amount);
 }
 
 function describeItem(ctx, it) {
@@ -278,8 +391,7 @@ export function unequipFollowerSlot(ctx, followerId, slot, opts = {}) {
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
 
   return true;
-}
-
+}>
 // Back-compat: attach to window for GOD/debug use.
 attachGlobal("FollowersItems", {
   giveItemToFollower,

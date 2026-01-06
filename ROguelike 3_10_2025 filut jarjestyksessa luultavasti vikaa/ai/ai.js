@@ -634,16 +634,36 @@ export function enemiesAct(ctx) {
               { category: "Combat", side: "enemy" }
             );
           } catch (_) {}
+
+          // Follower weapon decay on blocked attack (always light)
+          if (isFollower) {
+            try {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerHands === "function") {
+                FI.decayFollowerHands(ctx, e._followerId || e.type || e.id, { light: true });
+              }
+            } catch (_) {}
+          }
         } else {
           const level = (typeof e.level === "number" && e.level > 0) ? e.level : 1;
           const typeScale = (typeof e.damageScale === "number" && e.damageScale > 0) ? e.damageScale : 1.0;
           const baseMult = 1 + 0.15 * Math.max(0, level - 1);
           const globalMult = (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(level) : baseMult);
           let raw = e.atk * globalMult * typeScale * (loc.mult || 1);
-          const isCrit = rv() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
+          const isCrit = rv() &lt; Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
+
+          // Follower weapon decay after a successful hit (light vs normal based on crit)
+          if (isFollower) {
+            try {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerHands === "function") {
+                FI.decayFollowerHands(ctx, e._followerId || e.type || e.id, { light: !isCrit });
+              }
+            } catch (_) {}
+          }
 
           // Record last hit so death flavor can attribute killer, hit location, and likely weapon
           try {
