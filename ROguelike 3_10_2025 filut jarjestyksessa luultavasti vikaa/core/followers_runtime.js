@@ -82,8 +82,8 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
-    for (let y = 0; y &lt; rows; y++) {
-      for (let x = 0; x &lt; cols; x++) {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
         if (!inB(x, y)) continue;
         if (tileBlocked(x, y)) continue;
         return { x, y };
