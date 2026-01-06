@@ -98,7 +98,22 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
   }
 
   const killerRaw = (lastHit?.by) || "unknown";
-  const killedBy = killerNames[killerRaw] || killerRaw;
+  let killedBy = killerNames[killerRaw] || killerRaw;
+
+  // If the killer matches a player follower archetype id, prefer the
+  // follower's current personalized name (e.g., "Oskari the Guard") over
+  // a raw id like "guard_follower". This works for all follower types,
+  // not just the default guard.
+  try {
+    if (ctx && ctx.player && Array.isArray(ctx.player.followers) && killerRaw && killerRaw !== "player") {
+      const followers = ctx.player.followers;
+      const fid = String(killerRaw);
+      const hit = followers.find(f => f && String(f.id) === fid);
+      if (hit && hit.name && typeof hit.name === "string") {
+        killedBy = hit.name;
+      }
+    }
+  } catch (_) {}
   // Prefer exact weapon if known, else try to provide a likely cause phrase
   const via = lastHit?.weapon ? `${lastHit.weapon}` : null;
   let likely = null;
