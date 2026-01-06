@@ -17,11 +17,40 @@ export function drawEnemies(ctx, view) {
     const screenY = (e.y - startY) * TILE - tileOffsetY;
     const enemyKey = e.type ? `enemy.${e.type}` : null;
 
+    // Followers/allies use their own glyph/color from GameData.followers so they
+    // look consistent across dungeon, town, and region maps.
+    const isFollower = !!(e && e._isFollower);
+    let glyph = e.glyph || "e";
+    let color = RenderCore.enemyColor(ctx, e.type, COLORS);
+    if (isFollower) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
+        const fid = e._followerId || "guard_follower";
+        if (list) {
+          const def = list.find(f => f && String(f.id) === String(fid));
+          if (def) {
+            glyph = def.glyph || glyph;
+            color = def.color || color;
+          } else {
+            glyph = "G";
+            color = "#2563eb";
+          }
+        } else {
+          glyph = "G";
+          color = "#2563eb";
+        }
+      } catch (_) {
+        glyph = "G";
+        color = "#2563eb";
+      }
+    }
+
     // Base enemy body
-    if (enemyKey && tilesetReady && TS.draw && TS.draw(ctx2d, enemyKey, screenX, screenY, TILE)) {
+    if (!isFollower && enemyKey && tilesetReady && TS.draw && TS.draw(ctx2d, enemyKey, screenX, screenY, TILE)) {
       // drawn via tileset
     } else {
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, e.glyph || "e", RenderCore.enemyColor(ctx, e.type, COLORS), TILE);
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
     }
 
     // Simple burning overlay when enemy is on fire (inFlamesTurns > 0)

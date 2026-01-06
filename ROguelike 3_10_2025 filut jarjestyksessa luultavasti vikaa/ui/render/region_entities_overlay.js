@@ -14,6 +14,7 @@ export function drawRegionEntities(ctx, view) {
       const sx = (ex - startX) * TILE - tileOffsetX;
       const sy = (ey - startY) * TILE - tileOffsetY;
       const faction = String(e.faction || "");
+      const isFollower = !!(e && e._isFollower);
       let color = "#f7768e";
       if (faction === "animal") {
         try {
@@ -21,6 +22,21 @@ export function drawRegionEntities(ctx, view) {
           color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
         } catch (_) {
           color = "#e9d5a1";
+        }
+      } else if (isFollower) {
+        // Followers use their own palette color from data/entities/followers.json
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
+          const fid = e._followerId || "guard_follower";
+          if (list) {
+            const def = list.find(f => f && String(f.id) === String(fid));
+            color = (def && def.color) ? def.color : "#2563eb";
+          } else {
+            color = "#2563eb";
+          }
+        } catch (_) {
+          color = "#2563eb";
         }
       } else if (typeof ctx.enemyColor === "function") {
         try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
