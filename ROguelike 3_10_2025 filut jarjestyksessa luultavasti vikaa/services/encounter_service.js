@@ -289,6 +289,11 @@ export function maybeTryEncounter(ctx) {
       return false;
     }
 
+    // Special picks may request a specific template but still go through the confirm UI.
+    let specialTemplate = null;
+    let specialDifficulty = null;
+    let specialMeta = null;
+
     // Special pick: Night Raid goblins vs bandits (3% of all encounters, night-only, once per in-game week)
     (function maybeNightRaid() {
       try {
@@ -301,28 +306,31 @@ export function maybeTryEncounter(ctx) {
         const tc = (typeof clock.turnCounter === "number") ? (clock.turnCounter | 0) : 0;
         if (tc < (STATE.nightRaidCooldownUntilTurn | 0)) return;
         // 3% share among all rolled encounters
-        const r = rngFor(ctx)();
+        const rfn = rngFor(ctx) || (() => Math.random());
+        const r = rfn();
         if (r >= 0.03) return;
         const tmpl = findTemplateById(ctx, "night_raid_goblins");
         if (!tmpl) return;
         const diff = computeDifficulty(ctx, biome);
-        if (tryEnter(ctx, tmpl, biome, diff)) {
-          // Set cooldown for one in-game week
-          const minsPerTurn = (clock.minutesPerTurn || 4);
-          const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
-          STATE.nightRaidCooldownUntilTurn = tc + oneWeekTurns;
-          STATE.movesSinceLast = 0;
-          STATE.cooldownMoves = 10;
-          throw { _earlyExit: true };
-        }
-      } catch (e) {
-        if (e && e._earlyExit) throw e;
-      }
+
+        specialTemplate = tmpl;
+        specialDifficulty = diff;
+
+        const minsPerTurn = (clock.minutesPerTurn || 4);
+        const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
+        specialMeta = {
+          kind: "night_raid_goblins",
+          cooldownTurn: tc + oneWeekTurns,
+        };
+      } catch (_) {}
     })();
 
     // Special pick: Full Moon Ritual — rare, night-only, Full Moon, globally rate-limited via share
     (function maybeFullMoonRitual() {
       try {
+        // If a higher-priority special already claimed the slot, skip.
+        if (specialTemplate) return;
+
         const reg = registry(ctx);
         const has = reg && reg.some(t => String(t.id || "").toLowerCase() === "full_moon_ritual");
         if (!has) return;
@@ -344,31 +352,26 @@ export function maybeTryEncounter(ctx) {
         const bump = baseDiff <= 3 ? 2 : 1;
         const diff = Math.min(5, baseDiff + bump);
 
-        if (tryEnter(ctx, tmpl, biome, diff)) {
-          STATE.movesSinceLast = 0;
-          STATE.cooldownMoves = 10;
-          throw { _earlyExit: true };
-        }
-      } catch (e) {
-        if (e && e._earlyExit) throw e;
-      }
+        specialTemplate = tmpl;
+        specialDifficulty = diff;
+        specialMeta = { kind: "full_moon_ritual", turnCounter: tc };
+      } catch (_) {}
     })();
 
     // Select a suitable template for this biome
-    const tmpl = pickTemplate(ctx, biome);
+    const tmpl = specialTemplate || pickTemplate(ctx, biome);
     if (!tmpl) { STATE.movesSinceLast += 1; return false; }
+    const difficulty = specialDifficulty || computeDifficulty(ctx, biome);
     (function logPick() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] template selected", "info", { category: "Encounter", id: String(tmpl.id || ""), name: tmpl.name || "", biome, difficulty: computeDifficulty(ctx, biome) });
+            window.Logger.log("[Encounter] template selected", "info", { category: "Encounter", id: String(tmpl.id || ""), name: tmpl.name || "", biome, difficulty });
           }
         } catch (_) {}
       }
     })();
-
-    const difficulty = computeDifficulty(ctx, biome);
     // Build enemy preview from template groups
     try {
       const groups = Array.isArray(tmpl.groups) ? tmpl.groups : [];
@@ -394,6 +397,11 @@ export function maybeTryEncounter(ctx) {
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
         STATE.movesSinceLast = 0;
         STATE.cooldownMoves = 10;
+        try {
+          if (specialMeta && specialMeta.kind === "night_raid_goblins" && typeof specialMeta.cooldownTurn === "number") {
+            STATE.nightRaidCooldownUntilTurn = specialMeta.cooldownTurn | 0;
+          }
+        } catch (_) {}
         return true;
       }
       return false;
