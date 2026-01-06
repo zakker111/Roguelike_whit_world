@@ -112,7 +112,7 @@ export function spawnInDungeon(ctx) {
         const label = follower.name || "Your ally";
         let where = "dungeon";
         if (ctx.mode === "encounter") where = "encounter";
-        else if (ctx.mode === "region") where = "ruins";
+        else if (ctx.mode === "region") where = "region map";
         ctx.log(`${label} joins you in the ${where}.`, "info");
       }
     } catch (_) {}
