@@ -114,17 +114,23 @@ export function computeAcrossMountainTarget(ctx) {
 }
 
 // If stepping on a special mountain-pass stairs, use it as a bidirectional tunnel between two
-// overworld dungeon locations A & B.
+// *dungeon interiors* A &amp; B, while still wiring their overworld entrances.
 //
 // Behaviour:
-// - In entrance dungeon A (no passSourceX/Y on dungeonInfo):
-//   - Stepping on the pass stairs exits the dungeon and teleports the player to the far-side
-//     overworld dungeon B coordinate across the mountain.
-//   - A corresponding dungeon POI is created at B with spawnAtMountainPass=true so entering
-//     B from the overworld later spawns at the second ladder position inside the shared layout.
-// - In exit-side dungeon B (dungeonInfo.passSourceX/Y present):
-//   - Stepping on the pass stairs exits to the source dungeon's overworld entrance A.
-//   - B keeps spawnAtMountainPass so entering from the overworld still starts at the pass stairs.
+// - Entrance dungeon A (no passSourceX/Y on dungeonInfo):
+//   - First time you step on the pass stairs inside A:
+//     - Compute a far-side overworld coordinate B across the mountains.
+//     - Create a dungeon POI at B (if missing) with spawnAtMountainPass=true and passSourceX/Y=A.x/y.
+//   - Every time you step on the pass stairs inside A:
+//     - Exit to overworld B, then immediately enter dungeon B interior.
+//     - Normal stairs in B exit to overworld B.
+// - Exit-side dungeon B (dungeonInfo.passSourceX/Y present):
+//   - Stepping on the pass stairs inside B:
+//     - Exit to overworld A, then immediately enter dungeon A interior.
+//     - Normal stairs in A exit to overworld A.
+// - From overworld:
+//   - Entering A spawns at A's normal entrance room.
+//   - Entering B spawns at the mountain-pass stairs (spawnAtMountainPass=true) so the second ladder is B's \"start\".
 export function maybeEnterMountainPass(ctx, nx, ny) {
   try {
     const pass = ctx._mountainPassAt || null;
@@ -136,21 +142,34 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
     const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
     if (!dinfo) return false;
 
-    // Move the player onto the pass stairs tile before exiting.
+    // Move the player onto the pass stairs tile.
     ctx.player.x = nx;
     ctx.player.y = ny;
 
+    const world = ctx.world;
+    let targetInfo = null;
     let targetX = null;
     let targetY = null;
-    const world = ctx.world;
 
-    // If this dungeon has a passSource, we are on the far side (B) and should return to A.
+    // Far-side is the original source dungeon (A) when we are currently in B
+    // (B carries passSourceX/Y pointing back to A).
     if (typeof dinfo.passSourceX === "number" && typeof dinfo.passSourceY === "number") {
       targetX = dinfo.passSourceX | 0;
       targetY = dinfo.passSourceY | 0;
+
+      try {
+        const list = Array.isArray(world.dungeons) ? world.dungeons : [];
+        targetInfo = list.find(d => d && (d.x | 0) === targetX && (d.y | 0) === targetY) || null;
+        if (!targetInfo) {
+          const level = Math.max(1, ctx.floor | 0);
+          const size = dinfo && dinfo.size ? dinfo.size : "medium";
+          targetInfo = { x: targetX, y: targetY, level, size };
+          list.push(targetInfo);
+        }
+      } catch (_) {}
     } else {
-      // We are on the entrance side (A). Compute the far-side coordinate across the mountain
-      // and ensure there is a dungeon POI there for later entry from the overworld.
+      // We are on the entrance side (A). Compute a far-side coordinate across the mountain
+      // and ensure there is a dungeon POI at B with metadata for overworld entry.
       const tgt = computeAcrossMountainTarget(ctx);
       if (!tgt) return false;
       targetX = tgt.x | 0;
@@ -160,9 +179,8 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
       const size = dinfo && dinfo.size ? dinfo.size : "medium";
 
       try {
-        let info = null;
-        const list = Array.isArray(world.dungeons) ? world.dungeons : [];
-        info = list.find(d => d && (d.x | 0) === targetX && (d.y | 0) === targetY) || null;
+        const list = Array.isArray(world.dungeons) ? world.dungeons : (world.dungeons = []);
+        let info = list.find(d => d && (d.x | 0) === targetX && (d.y | 0) === targetY) || null;
         if (!info) {
           addDungeonPOI(world, targetX, targetY, {
             level,
@@ -172,6 +190,8 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
             passSourceX: dinfo.x | 0,
             passSourceY: dinfo.y | 0
           });
+          // Re-fetch the registered dungeon info
+          info = list.find(d => d && (d.x | 0) === targetX && (d.y | 0) === targetY) || null;
         } else {
           info.isMountainDungeon = true;
           info.spawnAtMountainPass = true;
@@ -180,16 +200,59 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
           if (typeof info.level !== "number") info.level = level;
           if (!info.size) info.size = size;
         }
+        targetInfo = info;
       } catch (_) {}
+
+      if (!targetInfo) {
+        // Fallback: synthesize a minimal dungeon info for B if POI registration failed.
+        targetInfo = { x: targetX, y: targetY, level, size, isMountainDungeon: true, spawnAtMountainPass: true, passSourceX: dinfo.x | 0, passSourceY: dinfo.y | 0 };
+      }
     }
 
-    // Teleport out of the dungeon to the chosen overworld dungeon entrance.
-    ctx.worldReturnPos = { x: targetX, y: targetY };
-    ctx.cameFromWorld = true;
-    ctx.log && ctx.log("You traverse a hidden passage through the mountain...", "info");
+    if (!targetInfo) return false;
 
-    // Use the standard exit path (any STAIRS tile) with our overridden worldReturnPos.
-    return returnToWorldIfAtExit(ctx);
+    // When we later leave the target dungeon via its normal exit stairs, we want
+    // to appear on that dungeon's overworld entrance tile.
+    ctx.worldReturnPos = { x: targetInfo.x | 0, y: targetInfo.y | 0 };
+    ctx.cameFromWorld = true;
+
+    // Exit current dungeon back to overworld using the pass stairs as a valid exit.
+    let exitedToWorld = false;
+    try {
+      const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
+      if (DR && typeof DR.returnToWorldIfAtExit === "function") {
+        exitedToWorld = !!DR.returnToWorldIfAtExit(ctx);
+      } else {
+        exitedToWorld = returnToWorldIfAtExit(ctx);
+      }
+    } catch (_) {
+      exitedToWorld = false;
+    }
+    if (!exitedToWorld || ctx.mode !== "world") return false;
+
+    // Now we stand on the overworld tile for targetInfo (A or B). Immediately
+    // enter that dungeon interior. For overworld entry B should spawn at the
+    // pass stairs (spawnAtMountainPass=true), but when using the internal
+    // portal we want to arrive at the natural entrance room instead, so we
+    // strip spawnAtMountainPass for this entry call only.
+    let enterInfo = targetInfo;
+    if (enterInfo && enterInfo.spawnAtMountainPass) {
+      enterInfo = { ...targetInfo };
+      try { delete enterInfo.spawnAtMountainPass; } catch (_) {}
+    }
+
+    try {
+      const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
+      let ok = false;
+      if (DR && typeof DR.enter === "function") {
+        ok = !!DR.enter(ctx, enterInfo);
+      } else {
+        ok = !!enter(ctx, enterInfo);
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
   } catch (_) {}
   return false;
 }
