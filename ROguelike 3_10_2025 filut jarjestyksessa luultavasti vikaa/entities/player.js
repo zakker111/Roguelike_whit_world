@@ -45,7 +45,6 @@ export const defaults = {
   followers: [
     {
       id: "guard_follower",
-      name: "Guard Ally",
       level: 1,
       hp: 20,
       maxHp: 20,
