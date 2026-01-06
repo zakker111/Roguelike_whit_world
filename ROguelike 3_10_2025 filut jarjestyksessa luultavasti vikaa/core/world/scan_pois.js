@@ -42,15 +42,46 @@ function featureEnabled(name, defaultVal) {
   return !!defaultVal;
 }
 
+// Locally carve a small walkable pocket around a mountain dungeon entrance so the tile is not completely sealed
+// by mountains/water in the current window. This does not guarantee global connectivity, but ensures the dungeon
+// tile itself is not surrounded by immediate non-walkable neighbours.
+function carveLocalMountainPass(ctx, lx, ly, WT) {
+  try {
+    const mapRef = Array.isArray(ctx.map) ? ctx.map : null;
+    if (!mapRef || !mapRef.length) return;
+    const rows = mapRef.length;
+    const cols = mapRef[0] ? mapRef[0].length : 0;
+    if (rows === 0 || cols === 0) return;
+
+    const inBounds = (x, y) => y >= 0 && x >= 0 && y < rows && x < cols;
+
+    const toGrass = (x, y) => {
+      if (!inBounds(x, y)) return;
+      const tile = mapRef[y][x];
+      if (tile === WT.MOUNTAIN) {
+        mapRef[y][x] = WT.GRASS;
+      } else if (tile === WT.WATER || tile === WT.RIVER) {
+        mapRef[y][x] = WT.BEACH;
+      }
+    };
+
+    // Convert the four cardinal neighbours out of mountains/water into walkable terrain.
+    toGrass(lx + 1, ly);
+    toGrass(lx - 1, ly);
+    toGrass(lx, ly + 1);
+    toGrass(lx, ly - 1);
+  } catch (_) {}
+}
+
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 export function scanPOIs(ctx, x0, y0, w, h) {
   const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17 };
   const world = ctx.world;
-  for (let yy = y0; yy < y0 + h; yy++) {
-    if (yy < 0 || yy >= ctx.map.length) continue;
+  for (let yy = y0; yy &lt; y0 + h; yy++) {
+    if (yy &lt; 0 || yy &gt;= ctx.map.length) continue;
     const row = ctx.map[yy];
-    for (let xx = x0; xx < x0 + w; xx++) {
-      if (xx < 0 || xx >= row.length) continue;
+    for (let xx = x0; xx &lt; x0 + w; xx++) {
+      if (xx &lt; 0 || xx &gt;= row.length) continue;
       const t = row[xx];
       if (t === WT.TOWN) {
         const wx = world.originX + xx;
@@ -69,13 +100,13 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         try {
           const rows = ctx.map.length;
           const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-          if (yy >= 0 && yy < rows && xx >= 0 && xx < cols) {
-            for (let dy = -1; dy <= 1 && !isMountainDungeon; dy++) {
-              for (let dx = -1; dx <= 1 && !isMountainDungeon; dx++) {
+          if (yy >= 0 && yy &lt; rows && xx >= 0 && xx &lt; cols) {
+            for (let dy = -1; dy &lt;= 1 && !isMountainDungeon; dy++) {
+              for (let dx = -1; dx &lt;= 1 && !isMountainDungeon; dx++) {
                 if (!dx && !dy) continue;
                 const ny = yy + dy;
                 const nx = xx + dx;
-                if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+                if (ny &lt; 0 || nx &lt; 0 || ny &gt;= rows || nx &gt;= cols) continue;
                 if (ctx.map[ny][nx] === WT.MOUNTAIN) {
                   isMountainDungeon = true;
                 }
@@ -85,6 +116,12 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         } catch (_) {}
 
         addDungeon(world, wx, wy, isMountainDungeon ? { isMountainDungeon: true } : undefined);
+
+        // For mountain dungeons, ensure the entrance in the current window is not immediately sealed by
+        // mountains/water on all sides by carving a tiny pass around it.
+        if (isMountainDungeon) {
+          carveLocalMountainPass(ctx, xx, yy, WT);
+        }
       } else if (WT.TOWER != null && t === WT.TOWER) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
