@@ -24,6 +24,7 @@ const DATA_FILES = {
   npcs: "data/entities/npcs.json",
   consumables: "data/entities/consumables.json",
   tools: "data/entities/tools.json",
+  followers: "data/entities/followers.json",
 
   // Materials/crafting registries
   materials: "data/entities/materials.json",
@@ -94,6 +95,7 @@ export const GameData = {
   npcs: null,
   consumables: null,
   tools: null,
+  followers: null,
   shops: null,
   town: null,
   flavor: null,
@@ -252,7 +254,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, combatBalance, animals, prefabs,
-      overworldGen, weatherConfig, towerPrefabs, towersConfig, towerThemes
+      overworldGen, weatherConfig, towerPrefabs, towersConfig, towerThemes, followers
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -287,7 +289,8 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.weatherConfig).catch(() => null),
       fetchJson(DATA_FILES.towerPrefabs).catch(() => null),
       fetchJson(DATA_FILES.towers).catch(() => null),
-      fetchJson(DATA_FILES.towerThemes).catch(() => null)
+      fetchJson(DATA_FILES.towerThemes).catch(() => null),
+      fetchJson(DATA_FILES.followers).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -327,6 +330,7 @@ GameData.ready = (async function loadAll() {
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
     GameData.combat = (combatBalance && typeof combatBalance === "object") ? combatBalance : null;
     GameData.animals = Array.isArray(animals) ? animals : null;
+    GameData.followers = Array.isArray(followers) ? followers : null;
     
     // Prefabs registry grouped by category
     GameData.prefabs = (prefabs && typeof prefabs === "object") ? prefabs : null;

@@ -31,6 +31,7 @@ Key modules (ctx-first)
 - town_runtime.js — orchestrator for town loop (schedules, shop hours).
 - dungeon_runtime.js — orchestrator for dungeon loop (stairs, persistence).
 - encounter_runtime.js — orchestrator for encounter maps and exits.
+- followers_runtime.js — spawn/sync helpers for player followers/party allies (dungeon/town/encounter/region maps).
 - input.js — keyboard input handling and modal gating priorities.
 - game_api.js — capability facade exposed to smoketest and dev tools.
 - inventory_controller.js — inventory/equip flows and hand chooser.
@@ -44,3 +45,4 @@ Notes
 - Legacy top-level proxies in core/ were removed. Modules now import deeper paths directly (engine/, bridge/, state/, facades/).
 - Prefer ctx.* handles over window.* for module communication.
 - Movement/actions are ignored while any modal is open; ESC closes the top modal.
+- Followers are currently an experimental single-ally system: a Guard Ally is spawned via followers_runtime in combat/town modes and removed permanently from player state when killed.

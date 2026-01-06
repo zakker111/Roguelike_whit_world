@@ -250,8 +250,31 @@ export function enemiesAct(ctx) {
     return best ? { kind: "enemy", x: best.x, y: best.y, ref: best, faction: factionOf(best) } : null;
   }
 
+  function nearestHostileInLOS(e, maxRange) {
+    const eFac = factionOf(e);
+    const limit = (typeof maxRange === "number" && maxRange > 0) ? maxRange : senseRange;
+    let best = null;
+    let bestDist = Infinity;
+    for (const other of enemies) {
+      if (!other || other === e) continue;
+      const oFac = factionOf(other);
+      if (!isHostileTo(eFac, oFac)) continue;
+      const dx = other.x - e.x;
+      const dy = other.y - e.y;
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d > limit) continue;
+      if (!hasLOS(ctx, e.x, e.y, other.x, other.y)) continue;
+      if (d < bestDist) {
+        bestDist = d;
+        best = other;
+      }
+    }
+    return best ? { kind: "enemy", x: best.x, y: best.y, ref: best, faction: factionOf(best) } : null;
+  }
+
   for (const e of enemies) {
     const eFac = factionOf(e);
+    const isFollower = !!(e && e._isFollower);
 
     // Ensure enemies have a maxHp baseline for healing logic.
     if (typeof e.maxHp !== "number" || e.maxHp <= 0) {
@@ -295,14 +318,15 @@ export function enemiesAct(ctx) {
     // Guards in special encounters can start neutral to the player via e._ignorePlayer.
     let target = null;
     let bestDist = Infinity;
-    const considerPlayer = (eFac !== "animal") && !e._ignorePlayer;
+    const considerPlayer = !isFollower && (eFac !== "animal") && !e._ignorePlayer;
     if (considerPlayer) {
       target = { kind: "player", x: player.x, y: player.y, ref: null, faction: "player" };
       bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
     }
 
-    // Use spatial index for nearest hostile enemy
-    const idxCand = nearestHostileFor(e);
+    // Use spatial index for nearest hostile enemy. Followers only consider
+    // enemies that are within their own line of sight.
+    const idxCand = isFollower ? nearestHostileInLOS(e, senseRange) : nearestHostileFor(e);
     if (idxCand) {
       const d = Math.abs(idxCand.x - e.x) + Math.abs(idxCand.y - e.y);
       if (d < bestDist) {
@@ -443,7 +467,45 @@ export function enemiesAct(ctx) {
 
     // If no target (e.g., neutral animal), optionally wander and skip attacks
     if (!target) {
-      if (chance(0.4)) {
+      if (isFollower) {
+        // Followers without a visible hostile target follow the player instead
+        const dxp = player.x - e.x;
+        const dyp = player.y - e.y;
+        const distP = Math.abs(dxp) + Math.abs(dyp);
+        const followRange = 2;
+        if (distP > followRange) {
+          const sx = dxp === 0 ? 0 : (dxp > 0 ? 1 : -1);
+          const sy = dyp === 0 ? 0 : (dyp > 0 ? 1 : -1);
+          const primary = Math.abs(dxp) > Math.abs(dyp)
+            ? [{ x: sx, y: 0 }, { x: 0, y: sy }]
+            : [{ x: 0, y: sy }, { x: sx, y: 0 }];
+
+          let moved = false;
+          for (const d of primary) {
+            const nx = e.x + d.x;
+            const ny = e.y + d.y;
+            if (isFree(nx, ny)) {
+              occClearEnemy(occ, e.x, e.y);
+              e.x = nx; e.y = ny;
+              occSetEnemy(occ, e.x, e.y);
+              moved = true;
+              break;
+            }
+          }
+          if (!moved) {
+            for (const d of ALT_DIRS) {
+              const nx = e.x + d.x;
+              const ny = e.y + d.y;
+              if (isFree(nx, ny)) {
+                occClearEnemy(occ, e.x, e.y);
+                e.x = nx; e.y = ny;
+                occSetEnemy(occ, e.x, e.y);
+                break;
+              }
+            }
+          }
+        }
+      } else if (chance(0.4)) {
         const d = WANDER_DIRS[randInt(0, WANDER_DIRS.length - 1)];
         const nx = e.x + d.x, ny = e.y + d.y;
         if (isFree(nx, ny)) {

@@ -11,6 +11,17 @@ export function complete(ctx, outcome = "victory") {
   // Capture encounter id before we clear encounterInfo so we can trigger escort flows.
   const encounterId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
 
+  // Sync follower/ally runtime HP back to player data before leaving the encounter.
+  try {
+    const FR =
+      (typeof window !== "undefined" && window.FollowersRuntime)
+        ? window.FollowersRuntime
+        : null;
+    if (FR && typeof FR.syncFollowersFromDungeon === "function") {
+      FR.syncFollowersFromDungeon(ctx);
+    }
+  } catch (_) {}
+
   // Return to the overworld
   ctx.mode = "world";
   if (ctx.world && ctx.world.map) {

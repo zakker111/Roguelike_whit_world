@@ -19,6 +19,7 @@ import * as World from "../world/world.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { getMod, getRNGUtils, getUIOrchestration, getGameData } from "../utils/access.js";
 import { attachGlobal } from "../utils/global.js";
+import { spawnInDungeon, syncFollowersFromDungeon } from "../core/followers_runtime.js";
 
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
@@ -1003,6 +1004,11 @@ function open(ctx, size) {
 
   ctx.mode = "region";
 
+  // Spawn player follower/ally into the Region map, if configured.
+  try {
+    spawnInDungeon(ctx);
+  } catch (_) {}
+
   // PHASE 2: Ruins encounter (enemies + loot) setup. Skip if cleared or persisted map restored.
   (function spawnRuinsEncounter() {
     try {
@@ -1127,6 +1133,14 @@ function open(ctx, size) {
       // Mark encounter-active for AI/tick and guidance
       ctx.region._isEncounter = true;
       try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "info"); } catch (_) {}
+
+      // Spawn player follower/ally into the ruins encounter, if configured.
+      try {
+        const FR = getMod(ctx, "FollowersRuntime") || (typeof window !== "undefined" ? window.FollowersRuntime : null);
+        if (FR && typeof FR.spawnInDungeon === "function") {
+          FR.spawnInDungeon(ctx);
+        }
+      } catch (_) {}
     } catch (_) {}
   })();
 
@@ -1380,6 +1394,12 @@ function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
   // Save current region state so reopening at this tile restores it
   try { saveRegionState(ctx); } catch (_) {}
+
+  // Sync follower/ally runtime HP back to player data before leaving the region.
+  try {
+    syncFollowersFromDungeon(ctx);
+  } catch (_) {}
+
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
   // Restore previous LOS transparency (object and original function) to avoid breaking dungeon FOV.

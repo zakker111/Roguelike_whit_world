@@ -2,6 +2,7 @@
  * Town NPC drawing with LOS/dim and sleeping 'Z' effect.
  */
 import * as RenderCore from "../render_core.js";
+import { getFollowerDef } from "../../entities/followers.js";
 
 export function drawNPCs(ctx, view) {
   const { ctx2d, TILE, COLORS, player, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
@@ -48,7 +49,7 @@ export function drawNPCs(ctx, view) {
       // Use the canonical bandit definition from data/entities/enemies.json for glyph/color.
       try {
         const EM = (typeof window !== "undefined" ? window.Enemies : null);
-        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef("bandit") : null;
+        const td = (EM && typeof EM.getTypeDef === "function") ? EM.getTypeDef("bandit") : null;
         glyph = (td && td.glyph) ? td.glyph : "b";
         color = (td && td.color) ? td.color : "#c59d5f";
       } catch (_) {
@@ -60,13 +61,28 @@ export function drawNPCs(ctx, view) {
       try {
         const EM = (typeof window !== "undefined" ? window.Enemies : null);
         const typeId = (n.guardType || n.type || "guard");
-        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(typeId) : null;
+        const td = (EM && typeof EM.getTypeDef === "function") ? EM.getTypeDef(typeId) : null;
         glyph = (td && td.glyph) ? td.glyph : "G";
         color = (td && td.color) ? td.color : "#2563eb";
       } catch (_) {
         glyph = "G";
         color = "#2563eb";
       }
+    } else if (n._isFollower) {
+      // Use follower visuals from data/entities/followers.json via Followers.getFollowerDef
+      const fid = n._followerId;
+      const def = fid ? getFollowerDef(ctx, fid) : null;
+      if (!def) {
+        throw new Error(`Follower definition not found for id=${fid} (town)`);
+      }
+      if (typeof def.glyph !== "string" || !def.glyph.trim()) {
+        throw new Error(`Follower glyph missing for id=${fid}`);
+      }
+      if (typeof def.color !== "string" || !def.color.trim()) {
+        throw new Error(`Follower color missing for id=${fid}`);
+      }
+      glyph = def.glyph;
+      color = def.color;
     } else if (n.isShopkeeper || n._shopRef) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
@@ -77,6 +93,19 @@ export function drawNPCs(ctx, view) {
     }
 
     const drawDim = (!isVisible || !hasLine);
+
+    // Followers: add a subtle backdrop to distinguish them from generic NPCs.
+    if (n._isFollower) {
+      ctx2d.save();
+      ctx2d.globalAlpha = drawDim ? 0.45 : 0.65;
+      // Use a slightly lighter background so a black glyph remains visible.
+      const pad = 4;
+      const bgColor = (color === "#000000") ? "#4b5563" : color;
+      ctx2d.fillStyle = bgColor;
+      ctx2d.fillRect(screenX + pad, screenY + pad, TILE - pad * 2, TILE - pad * 2);
+      ctx2d.restore();
+    }
+
     if (drawDim) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.70;

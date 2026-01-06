@@ -40,12 +40,16 @@ function writeLS(obj) {
 
 function cloneForStorage(st) {
   // Shallow clone with primitives/arrays suitable for JSON
+  const filteredEnemies = Array.isArray(st.enemies)
+    ? st.enemies.filter(e => !e || !e._isFollower)
+    : st.enemies;
+
   const out = {
     map: st.map,
     seen: st.seen,
     visible: st.visible,
-    enemies: Array.isArray(st.enemies)
-      ? st.enemies.map(e => ({
+    enemies: Array.isArray(filteredEnemies)
+      ? filteredEnemies.map(e => ({
           x: e.x, y: e.y,
           type: e.type, glyph: e.glyph,
           hp: e.hp, atk: e.atk, xp: e.xp, level: e.level,
@@ -84,6 +88,15 @@ function cloneForStorage(st) {
   if (st.towerRun && st.towerRun.kind === "tower") {
     try {
       out.towerRun = JSON.parse(JSON.stringify(st.towerRun));
+      // Strip follower allies from per-floor enemy lists in the stored snapshot.
+      if (out.towerRun && out.towerRun.floors && typeof out.towerRun.floors === "object") {
+        const floors = out.towerRun.floors;
+        for (const key of Object.keys(floors)) {
+          const meta = floors[key];
+          if (!meta || !Array.isArray(meta.enemies)) continue;
+          meta.enemies = meta.enemies.filter(e => !e || !e._isFollower);
+        }
+      }
     } catch (_) {
       // Fallback: keep as-is if JSON cloning fails for some reason.
       out.towerRun = st.towerRun;
@@ -324,6 +337,14 @@ export function returnToWorldIfAtExit(ctx) {
     // Save current dungeon state before leaving so corpses/emptied chests persist
     try {
       save(ctx);
+    } catch (_) {}
+
+    // Best-effort follower sync when exiting via legacy DungeonState helper.
+    try {
+      const FR = (typeof window !== "undefined" && window.FollowersRuntime) ? window.FollowersRuntime : null;
+      if (FR && typeof FR.syncFollowersFromDungeon === "function") {
+        FR.syncFollowersFromDungeon(ctx);
+      }
     } catch (_) {}
 
     ctx.mode = "world";

@@ -5,6 +5,28 @@ import { save } from "./state.js";
 
 export function killEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
+
+  // If this enemy is a player follower/ally, permanently remove it from the
+  // player's followers list so it does not respawn on future entries.
+  try {
+    if (enemy._isFollower && enemy._followerId && ctx.player && Array.isArray(ctx.player.followers)) {
+      const followers = ctx.player.followers;
+      let removedName = null;
+      for (let i = 0; i < followers.length; i++) {
+        const f = followers[i];
+        if (!f) continue;
+        if (String(f.id) === String(enemy._followerId)) {
+          removedName = f.name || enemy.name || "Your follower";
+          followers.splice(i, 1);
+          break;
+        }
+      }
+      if (removedName && ctx.log) {
+        ctx.log(`${removedName} falls in battle and will not return.`, "bad");
+      }
+    }
+  } catch (_) {}
+
   // Announce death
   try {
     const Cap = (ctx.utils && typeof ctx.utils.capitalize === "function") ? ctx.utils.capitalize : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;

@@ -18,6 +18,7 @@ import { tryMoveEncounter as tryMoveEncounterExt } from "./movement.js";
 import { tick as tickExt } from "./tick.js";
 import { complete as completeExt } from "./transitions.js";
 import { enterRegion as enterRegionExt } from "./enter_region.js";
+import { spawnInDungeon } from "../followers_runtime.js";
 
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
@@ -80,7 +81,14 @@ function createEnemyOfType(ctx, x, y, depth, type) {
 }
 
 export function enter(ctx, info) {
-  return enterExt(ctx, info);
+  const ok = enterExt(ctx, info);
+  if (ok) {
+    try {
+      // Spawn player follower/ally into this encounter map, if configured.
+      spawnInDungeon(ctx);
+    } catch (_) {}
+  }
+  return ok;
 }
 
 export function tryMoveEncounter(ctx, dx, dy) {
@@ -89,8 +97,15 @@ export function tryMoveEncounter(ctx, dx, dy) {
 
 // Start an encounter within the existing Region Map mode (ctx.mode === "region").
 // Spawns enemies on the current region sample without changing mode or map.
+// Also ensures the active player follower spawns into this region encounter.
 export function enterRegion(ctx, info) {
-  return (typeof enterRegionExt === "function") ? enterRegionExt(ctx, info) : false;
+  const ok = (typeof enterRegionExt === "function") ? enterRegionExt(ctx, info) : false;
+  if (ok) {
+    try {
+      spawnInDungeon(ctx);
+    } catch (_) {}
+  }
+  return ok;
 }
 
 export function complete(ctx, outcome = "victory") {

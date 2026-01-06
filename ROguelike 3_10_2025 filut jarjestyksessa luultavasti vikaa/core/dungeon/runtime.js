@@ -14,6 +14,7 @@
 
 import { getMod, getGameData } from "../../utils/access.js";
 import { keyFromWorldPos as keyFromWorldPosExt, save as saveExt, load as loadExt } from "./state.js";
+import { spawnInDungeon } from "../followers_runtime.js";
 import { generate as generateExt } from "./generate.js";
 import { generateLoot as generateLootExt, lootHere as lootHereExt } from "./loot.js";
 import { tryMoveDungeon as tryMoveDungeonExt } from "./movement.js";
@@ -1136,6 +1137,11 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
 
   tr.currentFloor = f;
 
+  // Spawn player follower/ally for this dungeon floor, if configured.
+  try {
+    spawnInDungeon(ctx);
+  } catch (_) {}
+
   // Refresh UI/visuals via StateSync when available.
   try {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");
@@ -1267,7 +1273,13 @@ export function enter(ctx, info) {
     return gotoTowerFloor(ctx, 1, "fromWorld");
   }
 
-  return enterExt(ctx, info);
+  const ok = enterExt(ctx, info);
+  if (ok && ctx && ctx.mode === "dungeon") {
+    try {
+      spawnInDungeon(ctx);
+    } catch (_) {}
+  }
+  return ok;
 }
 
 export function tryMoveDungeon(ctx, dx, dy) {
