@@ -127,7 +127,11 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
     likely = fromWeaponKind || likelyCauseFromKillerName(killedBy);
   }
 
-  const victim = capitalize(String(enemy?.type || "enemy"));
+  // Use the enemy's display name when available (e.g., follower names like
+  // "Oskari the Guard") so corpses for allies and named foes show their
+  // proper identity instead of raw type ids (guard_follower, thief_follower, etc.).
+  const victimSource = (enemy && enemy.name) ? enemy.name : (enemy && enemy.type) ? enemy.type : "enemy";
+  const victim = capitalize(String(victimSource));
 
   return { victim, killedBy, wound, via, likely };
 }
