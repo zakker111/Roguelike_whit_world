@@ -167,8 +167,15 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
         ctx.worldReturnPos = { x: info.x | 0, y: info.y | 0 };
         ctx.cameFromWorld = true;
 
+        // When entering via the internal mountain-pass stairs, we want to arrive at the
+        // far-side dungeon's natural entrance room, not at its own mountain-pass stairs.
+        // The spawnAtMountainPass flag is still stored on the POI metadata (info) so that
+        // entering from the overworld tile on the far side can spawn at the pass stairs.
+        const enterInfo = { ...info };
+        try { delete enterInfo.spawnAtMountainPass; } catch (_) {}
+
         ctx.log && ctx.log("You find a hidden passage through the mountain...", "info");
-        return !!enter(ctx, info);
+        return !!enter(ctx, enterInfo);
       }
     }
   } catch (_) {}
