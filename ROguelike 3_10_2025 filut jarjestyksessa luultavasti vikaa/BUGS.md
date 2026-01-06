@@ -5,22 +5,18 @@
 - some npc dont sleep in theid beds
 - some work needed for smoketestrunner
 - multirun in smoketest skips first multirun 
-- itseems eguibed items go to inventory when re going to dungeon/town &lt;-very fy this
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
-- Vild seppo S does not have inventory in encounter
-- in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
-- some bloodstanes seem to be generated from ruins/animal(creatures)/encounters in another regional map
+- [FIXED] in dungeons when enemies fight each other they are logged (which is good for debugging purposes), but they gave player XP when they killed each other
 - in dungeons enemies seems to show behind walls(not line of sight)
 - in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
 - VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
-- i dont see what killed enemy in ruins chek encounters too
 - there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
 - minimap shows all chunks when going in ruins, dungeons, towns etc and re entering
 - minimap shows dungeons and towns
 - dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
-- Make coherent way out like in ruins and region_map encounters there is only &gt; and not clearly visible ab coherent
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
 - caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
 - dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
-- town ground/overlay sometimes looks like uniform sand on first entering town, but fixes after moving: suspect early town biome/palette not ready when ui/render_town.js / ui/render/town_base_layer.js first build the cached base layer (TOWN.canvas); verify cache rebuild triggers correctly once ctx.townBiome and town palette are ready, and that fallback biome tint doesn’t blanket all outdoor tiles in the first frame
+- mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now
+- world generation / infinite overworld gets slow and sluggish after exploring large chunks of the world; investigate performance of infinite_gen + world_runtime expansion and caching when many chunks have been visited

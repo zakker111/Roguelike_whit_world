@@ -12,6 +12,7 @@
  *   rerollSeed(ctx)
  *   clearGameStorage(ctx)
  *   teleportToNearestTower(ctx)
+ *   teleportToTarget(ctx, target)
  *   toggleInvincible(ctx, enabled)
  */
 import { attachGlobal } from "../utils/global.js";
@@ -453,6 +454,157 @@ export function teleportToNearestTower(ctx) {
   }
 }
 
+/**
+ * Generic teleport helper for the GOD panel.
+ * target: "tower" | "town" | "dungeon" | "ruins" | "castle"
+ *
+ * Uses the same infinite-world aware pattern as teleportToNearestTower:
+ * - Searches in world space via world.gen.tileAt()
+ * - Ensures the destination is inside the current window via WorldRuntime.ensureInBounds
+ * - Converts back to local map coords and moves ctx.player.x/y directly
+ */
+export function teleportToTarget(ctx, target) {
+  try {
+    if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.gen) {
+      if (ctx && ctx.log) ctx.log("GOD: Teleport works in overworld mode only.", "warn");
+      return;
+    }
+
+    const t = String(target || "tower").toLowerCase();
+    if (t === "tower") {
+      teleportToNearestTower(ctx);
+      return;
+    }
+
+    const WT = ctx.World && ctx.World.TILES;
+    if (!WT) {
+      ctx.log && ctx.log("GOD: World tile types not available.", "warn");
+      return;
+    }
+
+    const gen = ctx.world.gen;
+    if (!gen || typeof gen.tileAt !== "function") {
+      ctx.log && ctx.log("GOD: World generator unavailable; cannot search for teleport target.", "warn");
+      return;
+    }
+
+    // Player world coordinates
+    const originX = ctx.world.originX | 0;
+    const originY = ctx.world.originY | 0;
+    const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : 0;
+    const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : 0;
+    const wx0 = originX + px;
+    const wy0 = originY + py;
+
+    let best = null;
+    let bestDist = Infinity;
+
+    // Special case: mountain dungeons use POI metadata (world.dungeons with isMountainDungeon)
+    if (t === "mountain_dungeon") {
+      const world = ctx.world;
+      const duns = Array.isArray(world.dungeons) ? world.dungeons : [];
+      for (const d of duns) {
+        if (!d || !d.isMountainDungeon) continue;
+        const wx = d.x | 0;
+        const wy = d.y | 0;
+        const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+        if (md < bestDist) {
+          bestDist = md;
+          best = { x: wx, y: wy };
+        }
+      }
+      if (!best) {
+        ctx.log && ctx.log("GOD: No mountain dungeons found in registered POIs.", "warn");
+        return;
+      }
+    } else {
+      // Map GOD target strings to overworld tile IDs
+      function tileMatches(tileCode) {
+        if (tileCode == null) return false;
+        if (t === "town") {
+          // Treat both TOWN and CASTLE as towns for this option.
+          return tileCode === WT.TOWN || (WT.CASTLE != null && tileCode === WT.CASTLE);
+        }
+        if (t === "dungeon") return tileCode === WT.DUNGEON;
+        if (t === "ruins") return tileCode === WT.RUINS;
+        if (t === "castle") return WT.CASTLE != null && tileCode === WT.CASTLE;
+        return false;
+      }
+
+      const maxR = 400; // same order of magnitude as tower search
+      for (let wy = wy0 - maxR; wy <= wy0 + maxR; wy++) {
+        for (let wx = wx0 - maxR; wx <= wx0 + maxR; wx++) {
+          const tileCode = gen.tileAt(wx, wy);
+          if (!tileMatches(tileCode)) continue;
+          const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+          if (md < bestDist) {
+            bestDist = md;
+            best = { x: wx, y: wy };
+          }
+        }
+      }
+
+      if (!best) {
+        const lbl = t.charAt(0).toUpperCase() + t.slice(1);
+        ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found within search radius.`, "warn");
+        return;
+      }
+    }
+
+    // Ensure the target is inside the current window; expand map if needed.
+    try {
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      if (WR && typeof WR.ensureInBounds === "function") {
+        ctx._suspendExpandShift = true;
+        try {
+          const hintLx = best.x - (ctx.world.originX | 0);
+          const hintLy = best.y - (ctx.world.originY | 0);
+          WR.ensureInBounds(ctx, hintLx, hintLy, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+      }
+    } catch (_) {}
+
+    const newOriginX = ctx.world.originX | 0;
+    const newOriginY = ctx.world.originY | 0;
+    const lx = best.x - newOriginX;
+    const ly = best.y - newOriginY;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (lx < 0 || ly < 0 || ly >= rows || lx >= cols) {
+      ctx.log && ctx.log("GOD: Teleport target ended up outside the current window; aborting.", "warn");
+      return;
+    }
+
+    ctx.player.x = lx;
+    ctx.player.y = ly;
+
+    const label =
+      t === "town" ? "town/castle" :
+      t === "dungeon" ? "dungeon" :
+      t === "mountain_dungeon" ? "mountain dungeon" :
+      t === "ruins" ? "ruins" :
+      t === "castle" ? "castle" : t;
+
+    ctx.log && ctx.log(`GOD: Teleported to nearest ${label} at (${best.x},${best.y}).`, "notice");
+
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+  } catch (e) {
+    try {
+      ctx && ctx.log && ctx.log("GOD: Teleport helper failed; see console for details.", "warn");
+      // eslint-disable-next-line no-console
+      console.error(e);
+    } catch (_) {}
+  }
+}
+
 // Back-compat: attach to window via helper
 attachGlobal("God", {
   heal,
@@ -466,4 +618,5 @@ attachGlobal("God", {
   rerollSeed,
   clearGameStorage,
   teleportToNearestTower,
+  teleportToTarget,
 });

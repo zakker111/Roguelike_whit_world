@@ -14,6 +14,7 @@
  * - applyDazedToPlayer(getCtx, durationTurns)
  * - clearPlayerEffects(getCtx)
  * - teleportToNearestTower(getCtx)
+ * - teleportToTarget(getCtx, target)
  */
 
 export function heal(getCtx) {
@@ -112,6 +113,17 @@ export function teleportToNearestTower(getCtx) {
   ctx.log("GOD: teleportToNearestTower not available.", "warn");
 }
 
+export function teleportToTarget(getCtx, target) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.teleportToTarget === "function") return G.teleportToTarget(ctx, target);
+  // Back-compat: fall back to tower helper when requested
+  if (String(target || "").toLowerCase() === "tower") {
+    return teleportToNearestTower(getCtx);
+  }
+  ctx.log("GOD: teleportToTarget not available.", "warn");
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.GodControls = {
@@ -127,5 +139,6 @@ if (typeof window !== "undefined") {
     applyDazedToPlayer,
     clearPlayerEffects,
     teleportToNearestTower,
+    teleportToTarget,
   };
 }

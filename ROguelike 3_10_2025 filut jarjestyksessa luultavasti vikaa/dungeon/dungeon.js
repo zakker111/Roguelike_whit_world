@@ -50,7 +50,24 @@ export function generateLevel(ctx, depth) {
     ? (window.RNG.getSeed() || 0)
     : 0;
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
-  const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
+
+  // Allow exit-side mountain-pass dungeons to reuse the seed of their source entrance so
+  // both ends of the pass share an identical base layout. When passSourceX/Y are present
+  // on dungeonInfo, they override the local entrance coordinates for seed derivation.
+  let seedX = dinfo.x | 0;
+  let seedY = dinfo.y | 0;
+  if (typeof dinfo.passSourceX === "number" && typeof dinfo.passSourceY === "number") {
+    seedX = dinfo.passSourceX | 0;
+    seedY = dinfo.passSourceY | 0;
+  }
+
+  const dseed = deriveDungeonSeed(
+    rootSeed,
+    seedX,
+    seedY,
+    (depth | 0) || (dinfo.level | 0) || 1,
+    dinfo.size
+  );
   const drng = mulberry32(dseed);
   const isTowerDungeon = !!(dinfo && typeof dinfo.kind === "string" && String(dinfo.kind).toLowerCase() === "tower");
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);

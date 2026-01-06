@@ -354,6 +354,7 @@ function advanceCaravans(ctx) {
   if (!Array.isArray(caravans) || !caravans.length) return;
 
   const escort = world.caravanEscort || null;
+  const r = worldRng(ctx);
 
   const nowTurn = getTurn(ctx);
   const dayTurns = turnsPerDay(ctx);
@@ -393,6 +394,12 @@ function advanceCaravans(ctx) {
     const cy = cv.y | 0;
     const tx = cv.dest.x | 0;
     const ty = cv.dest.y | 0;
+
+    // Track last position to detect stuck caravans across ticks.
+    try {
+      if (typeof cv.lastX !== "number") cv.lastX = cx;
+      if (typeof cv.lastY !== "number") cv.lastY = cy;
+    } catch (_) {}
 
     // Arrived at destination town: start a dwell period here and, if this is the
     // escorted caravan, pay the player and end the escort job.
@@ -474,9 +481,43 @@ function advanceCaravans(ctx) {
       }
     }
 
+    if (!moved) {
+      // Simple nudge: if we failed to move this tick and the caravan also did not
+      // move on the previous tick, try a small random step to avoid permanent stuck.
+      try {
+        const wasStuck = (typeof cv.lastX === "number" && typeof cv.lastY === "number" && cv.lastX === cx && cv.lastY === cy);
+        if (wasStuck) {
+          const dirs = [
+            { dx: 1, dy: 0 },
+            { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 },
+            { dx: 0, dy: -1 },
+          ];
+          // Shuffle-like simple random pick order
+          for (let i = 0; i < dirs.length; i++) {
+            const j = (r() * dirs.length) | 0;
+            const tmp = dirs[i];
+            dirs[i] = dirs[j];
+            dirs[j] = tmp;
+          }
+          for (let i = 0; i < dirs.length && !moved; i++) {
+            const px = cx + dirs[i].dx;
+            const py = cy + dirs[i].dy;
+            if (tryStep(px, py)) {
+              moved = true;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     if (moved) {
       cv.x = nx;
       cv.y = ny;
+      try {
+        cv.lastX = cx;
+        cv.lastY = cy;
+      } catch (_) {}
 
       // If the player is escorting this caravan and it is within the current window, move the player with it.
       try {
@@ -492,6 +533,12 @@ function advanceCaravans(ctx) {
             ctx.player.y = ly;
           }
         }
+      } catch (_) {}
+    } else {
+      // Update last position even when staying still (no move succeeded).
+      try {
+        cv.lastX = cx;
+        cv.lastY = cy;
       } catch (_) {}
     }
   }

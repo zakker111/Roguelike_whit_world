@@ -42,6 +42,37 @@ function featureEnabled(name, defaultVal) {
   return !!defaultVal;
 }
 
+// Locally carve a small walkable pocket around a mountain dungeon entrance so the tile is not completely sealed
+// by mountains/water in the current window. This does not guarantee global connectivity, but ensures the dungeon
+// tile itself is not surrounded by immediate non-walkable neighbours.
+function carveLocalMountainPass(ctx, lx, ly, WT) {
+  try {
+    const mapRef = Array.isArray(ctx.map) ? ctx.map : null;
+    if (!mapRef || !mapRef.length) return;
+    const rows = mapRef.length;
+    const cols = mapRef[0] ? mapRef[0].length : 0;
+    if (rows === 0 || cols === 0) return;
+
+    const inBounds = (x, y) => y >= 0 && x >= 0 && y < rows && x < cols;
+
+    const toGrass = (x, y) => {
+      if (!inBounds(x, y)) return;
+      const tile = mapRef[y][x];
+      if (tile === WT.MOUNTAIN) {
+        mapRef[y][x] = WT.GRASS;
+      } else if (tile === WT.WATER || tile === WT.RIVER) {
+        mapRef[y][x] = WT.BEACH;
+      }
+    };
+
+    // Convert the four cardinal neighbours out of mountains/water into walkable terrain.
+    toGrass(lx + 1, ly);
+    toGrass(lx - 1, ly);
+    toGrass(lx, ly + 1);
+    toGrass(lx, ly - 1);
+  } catch (_) {}
+}
+
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 export function scanPOIs(ctx, x0, y0, w, h) {
   const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17 };
@@ -85,10 +116,16 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         } catch (_) {}
 
         addDungeon(world, wx, wy, isMountainDungeon ? { isMountainDungeon: true } : undefined);
+
+        // For mountain dungeons, ensure the entrance in the current window is not immediately sealed by
+        // mountains/water on all sides by carving a tiny pass around it.
+        if (isMountainDungeon) {
+          carveLocalMountainPass(ctx, xx, yy, WT);
+        }
       } else if (WT.TOWER != null && t === WT.TOWER) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
-        // Towers are treated as dungeons with kind=\"tower\"; addDungeon will derive towerFloors deterministically.
+        // Towers are treated as dungeons with kind="tower"; addDungeon will derive towerFloors deterministically.
         addDungeon(world, wx, wy, { kind: "tower" });
       } else if (t === WT.RUINS) {
         const wx = world.originX + xx;

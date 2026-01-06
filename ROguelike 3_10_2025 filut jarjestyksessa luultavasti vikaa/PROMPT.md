@@ -242,6 +242,9 @@ To keep the project’s history and docs useful:
 
 - **VERSIONS.md:**
   - When you make a user-visible change (new feature, significant bug fix), add a short entry under the latest version or a new version tag, following the existing style.
+- **FEATURES.md:**
+  - Keep this file in sync with the current, stable feature set and controls.
+  - When you add or materially change a player-facing feature, update the relevant section (e.g. Controls, Towns, Dungeons, GOD tools) and move items out of the “Experimental / WIP” section once they are reliable.
 - **BUGS.md:**
   - For known issues that are not immediately fixed, add a brief bug description and repro steps.
 - **TODO.md:**

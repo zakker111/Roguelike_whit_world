@@ -120,134 +120,177 @@
 
   <div id="god-panel" class="inv-panel" hidden>
     <div class="inv-title">GOD Mode</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+
+    <!-- Quick Actions -->
+    <div class="god-section god-row">
       <button id="god-heal-btn" class="btn">Fully Heal</button>
       <button id="god-toggle-invincible-btn" class="btn" title="Player cannot die; damage heals back immediately">Invincible: Off</button>
       <button id="god-spawn-btn" class="btn">Spawn Random Items</button>
       <button id="god-spawn-enemy-btn" class="btn">Spawn Enemy Nearby</button>
       <button id="god-spawn-stairs-btn" class="btn">Spawn Stairs Here</button>
-    </div>
-    <div class="inv-subtitle">Field of view (FOV)</div>
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-      <input id="god-fov" type="range" min="3" max="14" step="1" />
-      <span id="god-fov-value" class="help" style="font-size:12px;"></span>
-    </div>
-
-    <div class="inv-subtitle">Encounters</div>
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-      <input id="god-enc-rate" type="range" min="0" max="100" step="1" />
-      <span id="god-enc-rate-value" class="help" style="font-size:12px;"></span>
-    </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <label class="help" style="font-size:12px; color:#8a98b0;">Template:</label>
-      <select id="god-enc-select" style="min-width:220px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
-        <option value="">(auto)</option>
-      </select>
-      <button id="god-enc-start-btn" class="btn" title="Start selected encounter immediately (world mode)">Start Now</button>
-      <button id="god-enc-arm-btn" class="btn" title="Trigger selected encounter on next world move">Arm Next Move</button>
-    </div>
-
-    <div class="inv-subtitle">Logs</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-      <button id="god-toggle-mirror-btn" class="btn">Side Log: On</button>
-      <button id="god-toggle-trace-move-btn" class="btn" title="Enable movement trace logs (DEV or local setting)">Trace Move: Off</button>
-      <button id="god-toggle-trace-enc-btn" class="btn" title="Enable encounter trace logs (DEV or local setting)">Trace Enc: Off</button>
-      <button id="god-toggle-trace-shop-btn" class="btn" title="Enable shop trace logs (DEV or local setting)">Trace Shop: Off</button>
-    </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <label class="help" style="font-size:12px; color:#8a98b0;">Level:</label>
-      <select id="god-log-level" style="min-width:140px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
-        <option value="info">(info)</option>
-        <option value="notice">notice</option>
-        <option value="warn">warn</option>
-        <option value="error">error</option>
-        <option value="fatal">fatal</option>
-        <option value="all">all</option>
-      </select>
-      <button id="god-log-reset-btn" class="btn" title="Reset log filters to defaults">Reset Logs</button>
-      <button id="god-log-clear-btn" class="btn" title="Clear on-screen and in-memory logs">Clear Logs</button>
-      <button id="god-log-download-btn" class="btn" title="Download current session logs">Download Logs</button>
-      <button id="god-log-download-json-btn" class="btn" title="Download logs as JSON">Download JSON</button>
-    </div>
-    <div class="help" style="font-size:12px; color:#8a98b0; margin-bottom:6px;">Categories:</div>
-    <div id="god-log-categories" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:12px;">
-      <!-- checkboxes inserted by GodPanel.renderLogCategories() -->
-    </div>
-    <div class="inv-subtitle">Combat</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-      <button id="god-toggle-crit-btn" class="btn">Always Crit: Off</button>
-      <button id="god-apply-status-btn" class="btn" title="Apply a status effect to the next enemy you hit">Apply Status Effect</button>
-    </div>
-    <div class="inv-subtitle">Render</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-      <button id="god-toggle-grid-btn" class="btn">Grid: On</button>
-      <button id="god-toggle-town-overlay-btn" class="btn" title="Show occupied houses and NPC targets in town">Overlay: Off</button>
-      <button id="god-toggle-town-paths-btn" class="btn" title="Draw NPC planned paths (town only)">Paths: Off</button>
-      <button id="god-toggle-home-paths-btn" class="btn" title="Draw full home paths in blue (NPCs to their homes/beds)">Home Paths: Off</button>
-      <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
-      <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD">Perf: On</button>
-      <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
-      <button id="god-toggle-ow-hud-btn" class="btn" title="Show or hide the Overworld HUD (biome + clock)">Overworld HUD: On</button>
-      <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
-      <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
-      <button id="god-teleport-tower-btn" class="btn" title="Teleport to the nearest tower (overworld only)">Teleport to Tower</button>
-      
-      <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
-      <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
-      <button id="god-check-signs-btn" class="btn" title="List shop signage and prefab sign intent (outside/inside)">Check Signs</button>
-      <button id="god-check-prefabs-btn" class="btn" title="List loaded prefabs and which ones were used in this town">Check Prefabs</button>
-      <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
-      <button id="god-run-validation-btn" class="btn" title="Run data validation and show counts">Run Validation</button>
-      <button id="god-download-validation-btn" class="btn" title="Download latest validation report as JSON">Download Validation</button>
       <button id="god-newgame-btn" class="btn" title="Start New Game">Start New Game</button>
-      <div style="display:flex; gap:6px; align-items:center;">
+    </div>
+
+    <!-- World & Encounters -->
+    <div class="god-section">
+      <div class="inv-subtitle">Field of View &amp; Encounters</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">FOV:</label>
+        <input id="god-fov" type="range" min="3" max="14" step="1" />
+        <span id="god-fov-value" class="help" style="font-size:12px;"></span>
+      </div>
+
+      <div class="god-row" style="margin-bottom:6px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Encounter rate:</label>
+        <input id="god-enc-rate" type="range" min="0" max="100" step="1" />
+        <span id="god-enc-rate-value" class="help" style="font-size:12px;"></span>
+      </div>
+
+      <div class="god-row" style="margin-bottom:8px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Template:</label>
+        <select id="god-enc-select" style="min-width:220px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="">(auto)</option>
+        </select>
+        <button id="god-enc-start-btn" class="btn" title="Start selected encounter immediately (world mode)">Start Now</button>
+        <button id="god-enc-arm-btn" class="btn" title="Trigger selected encounter on next world move">Arm Next Move</button>
+        <button id="god-town-bandits-btn" class="btn" title="Spawn a guards vs bandits battle using the Guards vs Bandits encounter template (world mode)">Bandits at Gate</button>
+      </div>
+    </div>
+
+    <!-- Render & HUD -->
+    <div class="god-section">
+      <div class="inv-subtitle">Render Overlays</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-toggle-grid-btn" class="btn">Grid: On</button>
+        <button id="god-toggle-town-overlay-btn" class="btn" title="Show occupied houses and NPC targets in town">Overlay: Off</button>
+        <button id="god-toggle-town-paths-btn" class="btn" title="Draw NPC planned paths (town only)">Paths: Off</button>
+        <button id="god-toggle-home-paths-btn" class="btn" title="Draw full home paths in blue (NPCs to their homes/beds)">Home Paths: Off</button>
+        <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
+        <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
+      </div>
+
+      <div class="inv-subtitle">HUD &amp; Perf</div>
+      <div class="god-row" style="margin-bottom:8px;">
+        <button id="god-toggle-ow-hud-btn" class="btn" title="Show or hide the Overworld HUD (biome + clock)">Overworld HUD: On</button>
+        <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
+        <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
+        <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD">Perf: On</button>
+        <label class="help" style="font-size:12px; color:#8a98b0;">Teleport:</label>
+        <select id="god-teleport-target" style="min-width:130px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="tower">Nearest Tower</option>
+          <option value="town">Nearest Town/Castle</option>
+          <option value="dungeon">Nearest Dungeon</option>
+          <option value="mountain_dungeon">Nearest Mountain Dungeon</option>
+          <option value="ruins">Nearest Ruins</option>
+          <option value="castle">Nearest Castle</option>
+        </select>
+        <button id="god-teleport-btn" class="btn" title="Teleport to the selected overworld destination (world mode only)">Teleport</button>
+      </div>
+    </div>
+
+    <!-- Town Debug -->
+    <div class="god-section">
+      <div class="inv-subtitle">Town Debug</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
+        <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
+        <button id="god-check-signs-btn" class="btn" title="List shop signage and prefab sign intent (outside/inside)">Check Signs</button>
+        <button id="god-check-prefabs-btn" class="btn" title="List loaded prefabs and which ones were used in this town">Check Prefabs</button>
+      </div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
+        <button id="god-run-validation-btn" class="btn" title="Run data validation and show counts">Run Validation</button>
+        <button id="god-download-validation-btn" class="btn" title="Download latest validation report as JSON">Download Validation</button>
+      </div>
+      <div id="god-check-output" class="help" style="font-size:12px; color:#cbd5e1; margin:4px 0 8px 0;"></div>
+    </div>
+
+    <!-- Combat & Status -->
+    <div class="god-section">
+      <div class="inv-subtitle">Combat</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-toggle-crit-btn" class="btn">Always Crit: Off</button>
+        <button id="god-apply-status-btn" class="btn" title="Apply a status effect to the next enemy you hit">Apply Status Effect</button>
+      </div>
+
+      <div class="inv-subtitle">Player Status Effects</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-apply-bleed-btn" class="btn" title="Apply Bleed for 3 turns to the player">Apply Bleed (3)</button>
+        <button id="god-apply-dazed-btn" class="btn" title="Apply Dazed for 2 turns to the player">Apply Dazed (2)</button>
+        <button id="god-clear-effects-btn" class="btn" title="Clear Bleed/Dazed from player">Clear Effects</button>
+      </div>
+    </div>
+
+    <!-- Logs & Tracing -->
+    <div class="god-section">
+      <div class="inv-subtitle">Logs &amp; Tracing</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-toggle-mirror-btn" class="btn">Side Log: On</button>
+        <button id="god-toggle-trace-move-btn" class="btn" title="Enable movement trace logs (DEV or local setting)">Trace Move: Off</button>
+        <button id="god-toggle-trace-enc-btn" class="btn" title="Enable encounter trace logs (DEV or local setting)">Trace Enc: Off</button>
+        <button id="god-toggle-trace-shop-btn" class="btn" title="Enable shop trace logs (DEV or local setting)">Trace Shop: Off</button>
+      </div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Level:</label>
+        <select id="god-log-level" style="min-width:140px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="info">(info)</option>
+          <option value="notice">notice</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+          <option value="fatal">fatal</option>
+          <option value="all">all</option>
+        </select>
+        <button id="god-log-reset-btn" class="btn" title="Reset log filters to defaults">Reset Logs</button>
+        <button id="god-log-clear-btn" class="btn" title="Clear on-screen and in-memory logs">Clear Logs</button>
+        <button id="god-log-download-btn" class="btn" title="Download current session logs">Download Logs</button>
+        <button id="god-log-download-json-btn" class="btn" title="Download logs as JSON">Download JSON</button>
+      </div>
+      <div class="help" style="font-size:12px; color:#8a98b0; margin-bottom:6px;">Categories:</div>
+      <div id="god-log-categories" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:4px;">
+        <!-- checkboxes inserted by GodPanel.renderLogCategories() -->
+      </div>
+    </div>
+
+    <!-- RNG & Theme -->
+    <div class="god-section">
+      <div class="inv-subtitle">RNG &amp; Theme</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <input id="god-seed-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter seed (numbers only)" style="width:190px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
+        <button id="god-apply-seed-btn" class="btn">Apply Seed</button>
+        <button id="god-reroll-seed-btn" class="btn">Reroll</button>
+        <span id="god-seed-help" class="help" style="font-size:12px; color:#8a98b0;"></span>
+      </div>
+      <div class="god-row" style="margin-bottom:4px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Palette:</label>
+        <select id="god-palette-select" style="min-width:160px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="default">(default)</option>
+          <option value="alt">alt</option>
+        </select>
+        <button id="god-apply-palette-btn" class="btn" title="Load selected palette and redraw">Apply</button>
+      </div>
+    </div>
+
+    <!-- Tools & Analysis -->
+    <div class="god-section">
+      <div class="inv-subtitle">Tools &amp; Analysis</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-run-analysis-btn" class="btn" title="Generate size &amp; duplication report (client-side)">Run Analysis</button>
+        <button id="god-download-analysis-btn" class="btn" title="Download last analysis report (Markdown)">Download Report</button>
+        <button id="god-open-prefab-editor-btn" class="btn" title="Open Prefab Editor (DEV)">Prefab Editor</button>
+      </div>
+      <div id="god-analysis-output" class="help" style="font-size:12px; color:#cbd5e1; margin:4px 0 4px 0;"></div>
+    </div>
+
+    <!-- Smoke Tests -->
+    <div class="god-section">
+      <div class="inv-subtitle">Smoke Tests</div>
+      <div class="god-row" style="margin-bottom:4px;">
         <button id="god-run-smoke-btn" class="btn" title="Configure and run automated smoke tests">Run Smoke Test</button>
         <label for="god-smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
         <input id="god-smoke-count" type="number" min="1" max="20" step="1" value="1" style="width:64px; padding:4px 6px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
       </div>
-      <div style="display:flex; gap:6px; align-items:center; margin-top:8px;">
-        <button id="god-open-prefab-editor-btn" class="btn" title="Open Prefab Editor (DEV)">Prefab Editor</button>
-      </div>
     </div>
 
-    <div class="inv-subtitle">Town Events</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <button id="god-town-bandits-btn" class="btn" title="Spawn a guards vs bandits battle using the Guards vs Bandits encounter template (world mode)">Bandits at Gate (Guards vs Bandits)</button>
-    </div>
-
-    <div class="inv-subtitle">Theme</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <label class="help" style="font-size:12px; color:#8a98b0;">Palette:</label>
-      <select id="god-palette-select" style="min-width:160px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
-        <option value="default">(default)</option>
-        <option value="alt">alt</option>
-      </select>
-      <button id="god-apply-palette-btn" class="btn" title="Load selected palette and redraw">Apply</button>
-    </div>
-
-    <div class="inv-subtitle">Player Status Effects</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <button id="god-apply-bleed-btn" class="btn" title="Apply Bleed for 3 turns to the player">Apply Bleed (3)</button>
-      <button id="god-apply-dazed-btn" class="btn" title="Apply Dazed for 2 turns to the player">Apply Dazed (2)</button>
-      <button id="god-clear-effects-btn" class="btn" title="Clear Bleed/Dazed from player">Clear Effects</button>
-    </div>
-
-    <div id="god-check-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
-
-    <div class="inv-subtitle">Analysis</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <button id="god-run-analysis-btn" class="btn" title="Generate size &amp; duplication report (client-side)">Run Analysis</button>
-      <button id="god-download-analysis-btn" class="btn" title="Download last analysis report (Markdown)">Download Report</button>
-    </div>
-    <div id="god-analysis-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
-
-    <div class="inv-subtitle">RNG</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <input id="god-seed-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Enter seed (numbers only)" style="width:190px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
-      <button id="god-apply-seed-btn" class="btn">Apply Seed</button>
-      <button id="god-reroll-seed-btn" class="btn">Reroll</button>
-      <span id="god-seed-help" class="help" style="font-size:12px; color:#8a98b0;"></span>
-    </div>
     <div class="loot-hint">Press Esc to close</div>
   </div>
 

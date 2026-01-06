@@ -613,6 +613,30 @@ export function install(getCtx) {
       }
       c.log("GOD: Teleport to tower not available.", "warn");
     },
+    onGodTeleport: (target) => {
+      const c = getCtx();
+      const t = String(target || "tower").toLowerCase();
+      if (GC && typeof GC.teleportToTarget === "function") {
+        GC.teleportToTarget(() => getCtx(), t);
+        return;
+      }
+      if (G && typeof G.teleportToTarget === "function") {
+        G.teleportToTarget(c, t);
+        return;
+      }
+      // Back-compat: fall back to tower helper if requested
+      if (t === "tower") {
+        if (GC && typeof GC.teleportToNearestTower === "function") {
+          GC.teleportToNearestTower(() => getCtx());
+          return;
+        }
+        if (G && typeof G.teleportToNearestTower === "function") {
+          G.teleportToNearestTower(c);
+          return;
+        }
+      }
+      c.log("GOD: Teleport helper not available.", "warn");
+    },
 
     onGodDiagnostics: () => {
       const c = getCtx();
