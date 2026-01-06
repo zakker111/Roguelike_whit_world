@@ -21,6 +21,23 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
 - [ ] Passive combat skills
   - One-handed, two-handed, shield use, and striking skills that grow with use up to a cap and affect combat stats.
+- [ ] Friendly followers / party system
+  - Allow the player to have friendly characters that follow them (party members/henchmen).
+  - Followers can fight alongside the player and can die permanently.
+  - Acquisition paths:
+    - Hire/buy allies from inns or taverns (gold sink, limited slots, different archetypes).
+    - Rescue potential followers from special encounters or dungeons (e.g., captives who choose to join).
+  - Needs:
+    - Data-driven follower archetypes (stats, AI behavior, gear, personality) in JSON.
+    - Simple follower AI that:
+      - Trails the player in overworld/dungeons without blocking entrances.
+      - Prioritizes nearby threats, avoids stepping on traps when possible.
+    - UI hooks:
+      - Basic party status display (HP, name, maybe one trait icon).
+      - Simple command hooks (e.g., “wait here”, “follow”, maybe “hold position”).
+    - Balance and persistence:
+      - Limited party size.
+      - Persist follower state across mode switches and saves (gear, HP, location).
 
 ## Technical / Cleanup
 
