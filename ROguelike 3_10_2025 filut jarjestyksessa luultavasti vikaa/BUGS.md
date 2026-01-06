@@ -18,3 +18,4 @@
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
 - caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
 - dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
+- mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now
