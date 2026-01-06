@@ -1,6 +1,35 @@
 # Game Version History
 Last updated: 2025-12-20 02:30 UTC
 
+v1.61.2 — Follower inspect panel (Phase 2) and bump-to-inspect behavior
+- Added: Read-only follower inspect / stats panel.
+  - ui/components/follower_modal.js:
+    - New modal showing follower name, level, HP/max HP, faction/roles, traits/personality, temperament, and base Attack/Defense.
+    - Presents a simple equipment section with placeholder slots (left/right hand, head, torso, legs, hands) in preparation for future follower inventory and gear management.
+  - ui/ui.js, core/bridge/ui_bridge.js, core/bridge/ui_orchestration.js:
+    - Wire follower modal into the shared UI layer via showFollower/hideFollower/isFollowerOpen helpers.
+    - buildFollowerView(ctx, runtime) merges runtime actor, player.followers records, and followers.json definitions (baseHp/baseAtk/baseDef/faction/glyph/color) into a compact view model for the panel.
+
+- Changed: Bump-to-inspect behavior for followers.
+  - core/dungeon/movement.js:
+    - Bumping into a follower actor in dungeon mode (and encounters that reuse dungeon movement) opens the follower inspect panel instead of attacking.
+    - Inspecting a follower does not consume a combat turn.
+  - core/movement.js:
+    - Encounter movement respects follower bump-to-inspect alongside existing neutral-guard confirmation prompts.
+  - core/town/runtime.js:
+    - Talking/bumping a follower NPC in town opens the follower inspect panel instead of generic villager/shopkeeper chatter.
+    - Keeps bandit-event and innkeeper behavior unchanged for non-follower NPCs.
+
+- Input and modal gating:
+  - core/input.js:
+    - Treats the follower inspect panel as a top-level modal: while open, movement and actions are blocked and Esc closes the panel.
+  - ui/ui.js, core/bridge/ui_bridge.js:
+    - Include follower panel state in isAnyModalOpen() to keep keyboard and mouse interaction consistent with other modals.
+
+- Docs:
+  - TODO.md:
+    - Marks “Follower inspect / stats panel” as DONE in the followers/party system section and documents the bump-to-inspect behavior in dungeon/encounter and town modes.
+
 v1.61.1 — Follower visuals, permanent death, and docs alignment
 - Changed: Followers now have a single source of truth for visuals and stricter validation.
   - entities/followers.js:

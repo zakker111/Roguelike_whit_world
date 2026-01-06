@@ -81,11 +81,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Unique follower identity (DONE):
       - Followers receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
       - Names are persisted in `player.followers` so the same named follower is seen across dungeons/towns until permanent death.
-    - Follower inspect / stats panel:
-      - Bumping into a follower in town or dungeon should offer a “Follower” / “Inspect follower” button.
-      - Opens a small panel that shows:
-        - Follower name, level, HP/max HP, base attack/defense, and faction/role.
-        - The same style of equipment slots as the player (left hand, right hand, head, torso, legs, hands).
+    - Follower inspect / stats panel (DONE):
+      - Bumping into a follower in dungeon/encounter mode opens a read-only follower inspect panel instead of attacking or prompting to attack.
+      - Talking/bumping a follower NPC in town opens the same follower inspect panel instead of generic chatter or shop text.
+      - Panel shows follower name, level, HP/max HP, base attack/defense, faction/role, traits/temperament, and placeholder equipment slots (for future inventory/gear work).
     - Shared equipment management:
       - From the follower panel, allow equipping/unequipping items for the follower using items from the player’s inventory:
         - Equip/unequip follower left-hand/right-hand and armor slots.

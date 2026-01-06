@@ -7,7 +7,7 @@
  * - isOpen()
  *
  * `view` is a plain object built by core/bridge/ui_orchestration.js with fields:
- *   { id, name, level, hp, maxHp, faction, roles, race, subrace, background,
+ *   { id, name, level, hp, maxHp, atk, def, faction, roles, race, subrace, background,
  *     tags, personalityTags, temperament, hint, glyph, color }
  */
 
@@ -81,6 +81,8 @@ function buildContent(ctx, view) {
   const hp = typeof v.hp === "number" ? v.hp : null;
   const maxHp = typeof v.maxHp === "number" ? v.maxHp : null;
   const hpStr = (hp != null && maxHp != null) ? `HP ${hp}/${maxHp}` : "";
+  const atk = typeof v.atk === "number" ? v.atk : null;
+  const defVal = typeof v.def === "number" ? v.def : null;
   const roles = Array.isArray(v.roles) && v.roles.length ? v.roles : null;
   const tags = Array.isArray(v.tags) && v.tags.length ? v.tags : null;
   const personality = Array.isArray(v.personalityTags) && v.personalityTags.length ? v.personalityTags : null;
@@ -112,6 +114,8 @@ function buildContent(ctx, view) {
   statParts.push(`Level ${level}`);
   if (hpStr) statParts.push(hpStr);
   if (roles && roles.length) statParts.push(roles.join(", "));
+  if (atk != null) statParts.push(`Attack ${atk}`);
+  if (defVal != null) statParts.push(`Defense ${defVal}`);
   const stats = statParts.join("   •   ");
   lines.push(`<div style="margin-bottom:6px;">${stats}</div>`);
 

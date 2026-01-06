@@ -417,6 +417,15 @@ function buildFollowerView(ctx, runtime) {
     maxHp = def.baseHp;
   }
 
+  // Base attack/defense for inspect panel: prefer runtime values, then follower
+  // definition base stats. These are informational only in Phase 2.
+  let atk = null;
+  let defense = null;
+  if (typeof runtime.atk === "number") atk = runtime.atk;
+  if (typeof runtime.def === "number") defense = runtime.def;
+  if (atk == null && def && typeof def.baseAtk === "number") atk = def.baseAtk;
+  if (defense == null && def && typeof def.baseDef === "number") defense = def.baseDef;
+
   const faction = runtime.faction || (def && def.faction) || "";
 
   const roles = Array.isArray(def && def.roles) ? def.roles.slice() : [];
@@ -446,6 +455,8 @@ function buildFollowerView(ctx, runtime) {
     level,
     hp,
     maxHp,
+    atk,
+    def: defense,
     faction,
     roles,
     race,
