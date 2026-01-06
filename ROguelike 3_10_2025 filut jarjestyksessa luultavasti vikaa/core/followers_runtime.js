@@ -25,6 +25,34 @@ function getActiveFollowerRecord(ctx) {
   return null;
 }
 
+// Local helper to mirror TownRuntime.isFreeTownFloor without creating a
+// module import cycle. Used only when ctx.mode === "town".
+function isFreeTownFloorLocal(ctx, x, y) {
+  try {
+    if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") {
+      return !!ctx.Utils.isFreeTownFloor(ctx, x, y);
+    }
+  } catch (_) {}
+  try {
+    const U = (typeof window !== "undefined" ? window.Utils : null);
+    if (U && typeof U.isFreeTownFloor === "function") {
+      return !!U.isFreeTownFloor(ctx, x, y);
+    }
+  } catch (_) {}
+  if (!ctx || typeof ctx.inBounds !== "function") return false;
+  if (!ctx.inBounds(x, y)) return false;
+  try {
+    const t = ctx.map[y][x];
+    if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+    if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return false;
+    if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
+    if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && p.x === x && p.y === y)) return false;
+  } catch (_) {
+    return false;
+  }
+  return true;
+}
+
 function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
   if (!ctx || !ctx.player || typeof ctx.inBounds !== "function" || typeof ctx.isWalkable !== "function") {
     return null;
@@ -35,8 +63,17 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
   const inB = (x, y) => !!ctx.inBounds(x, y);
   const isWalkable = (x, y) => !!ctx.isWalkable(x, y);
 
+  const mode = ctx.mode || "";
+
   function tileBlocked(x, y) {
     if (!inB(x, y)) return true;
+
+    // In towns/castles, rely on the same floor rules NPCs use so we don't
+    // spawn allies inside walls or on props, and ignore stale occupancy.
+    if (mode === "town") {
+      return !isFreeTownFloorLocal(ctx, x, y);
+    }
+
     if (!isWalkable(x, y)) return true;
     if (x === (p.x | 0) && y === (p.y | 0)) return true;
     if (occ && typeof occ.isFree === "function") {
@@ -55,7 +92,6 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     return false;
   }
 
-  const mode = ctx.mode || "";
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
     ? maxRadius
     : (mode === "town" ? 8 : 4);
@@ -197,6 +233,9 @@ export function spawnInTown(ctx) {
       if (ctx.log) {
         const label = npc.name || "Your ally";
         ctx.log(`${label} accompanies you in town.`, "info");
+        // Debug-friendly hint: where the follower spawned, so it's easier to
+        // verify during testing (especially in large castles).
+        ctx.log(`(Follower position: ${npc.x},${npc.y})`, "info");
       }
     } catch (_) {}
   } catch (_) {}
