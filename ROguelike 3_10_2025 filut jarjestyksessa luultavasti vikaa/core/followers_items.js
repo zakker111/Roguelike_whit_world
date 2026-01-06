@@ -1,0 +1,247 @@
+/**
+ * FollowersItems: helper functions to move items between the player and a follower.
+ *
+ * Exports (ESM + window.FollowersItems):
+ * - giveItemToFollower(ctx, followerId, playerIndex, opts?)
+ * - takeInventoryItemFromFollower(ctx, followerId, followerIndex, opts?)
+ * - equipFollowerItemFromInventory(ctx, followerId, followerIndex, slot, opts?)
+ * - unequipFollowerSlot(ctx, followerId, slot, opts?)
+ *
+ * Notes:
+ * - All functions are ctx-first and operate only on data (no rendering).
+ * - Logging and UI updates are best-effort via ctx.log / ctx.updateUI.
+ * - This module does NOT yet change follower combat stats; it only manages
+ *   inventory/equipment data on follower records. Combat continues to use
+ *   archetype/base stats until a later phase wires gear bonuses in.
+ */
+
+import { attachGlobal } from "../utils/global.js";
+
+function getFollowerRecord(ctx, followerId) {
+  if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return null;
+  const id = String(followerId || "").trim();
+  if (!id) return null;
+  for (let i = 0; i < ctx.player.followers.length; i++) {
+    const f = ctx.player.followers[i];
+    if (!f) continue;
+    if (String(f.id || "").trim() === id) return f;
+  }
+  return null;
+}
+
+function ensureFollowerEquipment(rec) {
+  const base = { left: null, right: null, head: null, torso: null, legs: null, hands: null };
+  if (!rec || typeof rec !== "object") return base;
+  const src = rec.equipment && typeof rec.equipment === "object" ? rec.equipment : {};
+  const eq = {
+    left: src.left || null,
+    right: src.right || null,
+    head: src.head || null,
+    torso: src.torso || null,
+    legs: src.legs || null,
+    hands: src.hands || null,
+  };
+  try { rec.equipment = eq; } catch (_) {}
+  return eq;
+}
+
+function ensureFollowerInventory(rec) {
+  if (!rec || typeof rec !== "object") return [];
+  if (!Array.isArray(rec.inventory)) {
+    try { rec.inventory = []; } catch (_) {}
+    return rec.inventory || [];
+  }
+  return rec.inventory;
+}
+
+function describeItem(ctx, it) {
+  if (!it) return "item";
+  try {
+    const ID = (ctx && (ctx.ItemDescribe || (typeof window !== "undefined" ? window.ItemDescribe : null))) || null;
+    if (ID && typeof ID.describe === "function") {
+      const s = ID.describe(it);
+      if (s) return String(s);
+    }
+  } catch (_) {}
+  try {
+    const Items = (ctx && ctx.Items) || (typeof window !== "undefined" ? window.Items : null);
+    if (Items && typeof Items.describe === "function") {
+      const s = Items.describe(it);
+      if (s) return String(s);
+    }
+  } catch (_) {}
+  if (typeof it.name === "string" && it.name) return it.name;
+  if (typeof it.id === "string" && it.id) return it.id;
+  if (typeof it.type === "string" && it.type) return it.type;
+  return "item";
+}
+
+function followerLabel(rec) {
+  if (!rec) return "your follower";
+  if (typeof rec.name === "string" && rec.name.trim()) return rec.name.trim();
+  return "your follower";
+}
+
+/**
+ * Move an item from the player's inventory to the follower.
+ *
+ * @param {object} ctx         Game context (must include player + followers).
+ * @param {string} followerId  Follower record id.
+ * @param {number} playerIndex Index into ctx.player.inventory.
+ * @param {object} opts        { slot?: "left"|"right"|"head"|"torso"|"legs"|"hands" }
+ */
+export function giveItemToFollower(ctx, followerId, playerIndex, opts = {}) {
+  if (!ctx || !ctx.player || !Array.isArray(ctx.player.inventory)) return false;
+  const inv = ctx.player.inventory;
+  const idx = playerIndex | 0;
+  if (idx < 0 || idx >= inv.length) return false;
+  const item = inv[idx];
+  if (!item) return false;
+
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return false;
+
+  const eq = ensureFollowerEquipment(rec);
+  const finv = ensureFollowerInventory(rec);
+  const slot = typeof opts.slot === "string" ? opts.slot : null;
+
+  // Remove from player inventory
+  inv.splice(idx, 1);
+
+  if (slot && Object.prototype.hasOwnProperty.call(eq, slot)) {
+    // Move any existing equipment in the slot into follower inventory first.
+    if (eq[slot]) {
+      finv.push(eq[slot]);
+    }
+    eq[slot] = item;
+  } else {
+    finv.push(item);
+  }
+
+  // Best-effort log + UI refresh
+  try {
+    if (ctx.log) {
+      const label = describeItem(ctx, item);
+      const who = followerLabel(rec);
+      ctx.log(`You give ${label} to ${who}.`, "info");
+    }
+  } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+
+  return true;
+}
+
+/**
+ * Move an item from follower inventory back to the player.
+ *
+ * @param {object} ctx
+ * @param {string} followerId
+ * @param {number} followerIndex Index into follower.inventory.
+ */
+export function takeInventoryItemFromFollower(ctx, followerId, followerIndex, opts = {}) {
+  if (!ctx || !ctx.player || !Array.isArray(ctx.player.inventory)) return false;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return false;
+  const finv = ensureFollowerInventory(rec);
+  const idx = followerIndex | 0;
+  if (idx < 0 || idx >= finv.length) return false;
+  const item = finv[idx];
+  if (!item) return false;
+
+  finv.splice(idx, 1);
+  ctx.player.inventory.push(item);
+
+  try {
+    if (ctx.log) {
+      const label = describeItem(ctx, item);
+      const who = followerLabel(rec);
+      ctx.log(`You take ${label} from ${who}.`, "info");
+    }
+  } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+
+  return true;
+}
+
+/**
+ * Equip a follower item from their inventory into a specific equipment slot.
+ * Replaced gear is moved into follower inventory.
+ *
+ * @param {object} ctx
+ * @param {string} followerId
+ * @param {number} followerIndex Index into follower.inventory.
+ * @param {string} slot          Equipment slot key: left/right/head/torso/legs/hands.
+ */
+export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, slot, opts = {}) {
+  if (!ctx) return false;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return false;
+  const finv = ensureFollowerInventory(rec);
+  const eq = ensureFollowerEquipment(rec);
+  if (!slot || !Object.prototype.hasOwnProperty.call(eq, slot)) return false;
+
+  const idx = followerIndex | 0;
+  if (idx < 0 || idx >= finv.length) return false;
+  const item = finv[idx];
+  if (!item) return false;
+
+  // Remove from inventory
+  finv.splice(idx, 1);
+
+  // Move existing equipment to inventory, then equip new item
+  if (eq[slot]) {
+    finv.push(eq[slot]);
+  }
+  eq[slot] = item;
+
+  try {
+    if (ctx.log) {
+      const label = describeItem(ctx, item);
+      const who = followerLabel(rec);
+      ctx.log(`${who} equips ${label} (${slot}).`, "info");
+    }
+  } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+
+  return true;
+}
+
+/**
+ * Unequip a follower slot and move the item into the follower's inventory.
+ *
+ * @param {object} ctx
+ * @param {string} followerId
+ * @param {string} slot
+ */
+export function unequipFollowerSlot(ctx, followerId, slot, opts = {}) {
+  if (!ctx) return false;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return false;
+  const eq = ensureFollowerEquipment(rec);
+  const finv = ensureFollowerInventory(rec);
+  if (!slot || !Object.prototype.hasOwnProperty.call(eq, slot)) return false;
+  const item = eq[slot];
+  if (!item) return false;
+
+  eq[slot] = null;
+  finv.push(item);
+
+  try {
+    if (ctx.log) {
+      const label = describeItem(ctx, item);
+      const who = followerLabel(rec);
+      ctx.log(`You remove ${label} from ${who}.`, "info");
+    }
+  } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+
+  return true;
+}
+
+// Back-compat: attach to window for GOD/debug use.
+attachGlobal("FollowersItems", {
+  giveItemToFollower,
+  takeInventoryItemFromFollower,
+  equipFollowerItemFromInventory,
+  unequipFollowerSlot,
+});
