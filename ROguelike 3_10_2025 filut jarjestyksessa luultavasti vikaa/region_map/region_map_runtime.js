@@ -1009,7 +1009,8 @@ function open(ctx, size) {
     spawnInDungeon(ctx);
   } catch (_) {}
 
-  // PHASE 2{
+  // PHASE 2: Ruins encounter (enemies + loot) setup. Skip if cleared or persisted map restored.
+  (function spawnRuinsEncounter() {
     try {
       const WT = World.TILES;
       const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[anchorY][anchorX] === WT.RUINS);
