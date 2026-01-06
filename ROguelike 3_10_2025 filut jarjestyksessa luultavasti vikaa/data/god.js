@@ -482,19 +482,6 @@ export function teleportToTarget(ctx, target) {
       return;
     }
 
-    // Map GOD target strings to overworld tile IDs
-    function tileMatches(tileCode) {
-      if (tileCode == null) return false;
-      if (t === "town") {
-        // Treat both TOWN and CASTLE as towns for this option.
-        return tileCode === WT.TOWN || (WT.CASTLE != null && tileCode === WT.CASTLE);
-      }
-      if (t === "dungeon") return tileCode === WT.DUNGEON;
-      if (t === "ruins") return tileCode === WT.RUINS;
-      if (t === "castle") return WT.CASTLE != null && tileCode === WT.CASTLE;
-      return false;
-    }
-
     const gen = ctx.world.gen;
     if (!gen || typeof gen.tileAt !== "function") {
       ctx.log && ctx.log("GOD: World generator unavailable; cannot search for teleport target.", "warn");
@@ -511,24 +498,57 @@ export function teleportToTarget(ctx, target) {
 
     let best = null;
     let bestDist = Infinity;
-    const maxR = 400; // same order of magnitude as tower search
 
-    for (let wy = wy0 - maxR; wy <= wy0 + maxR; wy++) {
-      for (let wx = wx0 - maxR; wx <= wx0 + maxR; wx++) {
-        const tileCode = gen.tileAt(wx, wy);
-        if (!tileMatches(tileCode)) continue;
+    // Special case: mountain dungeons use POI metadata (world.dungeons with isMountainDungeon)
+    if (t === "mountain_dungeon") {
+      const world = ctx.world;
+      const duns = Array.isArray(world.dungeons) ? world.dungeons : [];
+      for (const d of duns) {
+        if (!d || !d.isMountainDungeon) continue;
+        const wx = d.x | 0;
+        const wy = d.y | 0;
         const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
         if (md < bestDist) {
           bestDist = md;
           best = { x: wx, y: wy };
         }
       }
-    }
+      if (!best) {
+        ctx.log && ctx.log("GOD: No mountain dungeons found in registered POIs.", "warn");
+        return;
+      }
+    } else {
+      // Map GOD target strings to overworld tile IDs
+      function tileMatches(tileCode) {
+        if (tileCode == null) return false;
+        if (t === "town") {
+          // Treat both TOWN and CASTLE as towns for this option.
+          return tileCode === WT.TOWN || (WT.CASTLE != null && tileCode === WT.CASTLE);
+        }
+        if (t === "dungeon") return tileCode === WT.DUNGEON;
+        if (t === "ruins") return tileCode === WT.RUINS;
+        if (t === "castle") return WT.CASTLE != null && tileCode === WT.CASTLE;
+        return false;
+      }
 
-    if (!best) {
-      const lbl = t.charAt(0).toUpperCase() + t.slice(1);
-      ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found within search radius.`, "warn");
-      return;
+      const maxR = 400; // same order of magnitude as tower search
+      for (let wy = wy0 - maxR; wy <= wy0 + maxR; wy++) {
+        for (let wx = wx0 - maxR; wx <= wx0 + maxR; wx++) {
+          const tileCode = gen.tileAt(wx, wy);
+          if (!tileMatches(tileCode)) continue;
+          const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+          if (md < bestDist) {
+            bestDist = md;
+            best = { x: wx, y: wy };
+          }
+        }
+      }
+
+      if (!best) {
+        const lbl = t.charAt(0).toUpperCase() + t.slice(1);
+        ctx.log && ctx.log(`GOD: No ${lbl.toLowerCase()} found within search radius.`, "warn");
+        return;
+      }
     }
 
     // Ensure the target is inside the current window; expand map if needed.
@@ -564,6 +584,7 @@ export function teleportToTarget(ctx, target) {
     const label =
       t === "town" ? "town/castle" :
       t === "dungeon" ? "dungeon" :
+      t === "mountain_dungeon" ? "mountain dungeon" :
       t === "ruins" ? "ruins" :
       t === "castle" ? "castle" : t;
 
