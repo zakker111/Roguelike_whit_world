@@ -1,5 +1,56 @@
 # Game Version History
-Last updated: 2025-12-20 01:00 UTC
+Last updated: 2025-12-20 02:30 UTC
+
+v1.61.1 — Follower visuals, permanent death, and docs alignment
+- Changed: Followers now have a single source of truth for visuals and stricter validation.
+  - entities/followers.js:
+    - getFollowerDef(ctx, id) is exported and used by renderers to resolve follower glyph/color/type from data/entities/followers.json.
+    - createRuntimeFollower(ctx, record) now validates follower definitions from followers.json (baseHp/baseAtk/baseDef/faction/glyph/color) and throws on invalid data instead of silently using defaults.
+  - data/entities/followers.json:
+    - Guard Ally archetype explicitly defines glyph/color/base stats/faction; all follower instances derive these values via getFollowerDef.
+
+- Changed: Dungeon/town/region renderers use follower definitions directly.
+  - ui/render/town_npc_draw.js:
+    - Imports getFollowerDef and uses follower definitions to render follower NPC glyph/color.
+    - Draws a distinct square backdrop behind follower glyphs so they stand out from generic villagers/guards.
+  - ui/render/dungeon_entities_draw.js:
+    - Uses getFollowerDef to render follower allies with their follower glyph/color instead of enemy defaults.
+    - Adds a subtle backdrop behind follower glyphs to distinguish them from enemies.
+  - ui/render/region_entities_overlay.js:
+    - Uses getFollowerDef to pick follower color and draws a matching backdrop/glyph marker in the Region Map overlay.
+
+- Added: Strict follower removal on death (permanent for the run).
+  - core/dungeon/kill_enemy.js:
+    - When an enemy with _isFollower/_followerId dies, the corresponding entry is removed from ctx.player.followers and a log line (“<name> falls in battle and will not return.”) is emitted.
+    - This makes followers permanently dead for that run; they will no longer spawn in dungeons, encounters, Region Map, or towns/castles once killed.
+
+- Changed: Follower spawn coverage and robustness.
+  - core/followers_runtime.js:
+    - spawnInDungeon(ctx) now covers dungeon/tower floors, encounters, and Region Map ruins, spawning a single follower ally near the player using occupancy/tile checks with a fallback search when local tiles are cramped.
+    - spawnInTown(ctx) uses town floor rules to find a free tile near the player (wider radius for castles) and logs when no active follower is available or no space can be found.
+    - syncFollowersFromDungeon(ctx) keeps syncing follower hp/level from runtime actors back into player.followers on dungeon/encounter/region exits.
+  - core/modes/modes.js, core/dungeon/runtime.js, core/encounter/runtime.js, region_map/region_map_runtime.js, core/town/runtime.js:
+    - Ensure spawnInDungeon/spawnInTown are called when entering dungeons/towers/encounters/Region Map/towns so the Guard Ally is present in all relevant combat/town contexts.
+
+- Docs and metadata:
+  - core/README.md:
+    - Lists followers_runtime.js as a key ctx-first module and documents the experimental single-ally follower system and permanent death behavior.
+  - entities/README.md:
+    - Adds followers.js to the key modules list as the bridge between followers.json and runtime follower actors.
+  - FEATURES.md:
+    - Marks the followers/party system as “EXPERIMENTAL” and details current behavior (single Guard Ally, spawn in dungeon/town/encounter/region, HP sync, permanent death, visual consistency) plus missing features (multi-party, names, follower UI/inventory/commands).
+  - TODO.md:
+    - Expands the “Friendly followers / party system (EXPERIMENTAL, first-pass implemented)” entry with:
+      - Unique names from randomized name pools.
+      - Follower inspect/stats panel with equipment slots and follower inventory.
+      - Equipment transfer flows (player↔follower) and follower potion use at low HP.
+      - Follower death drops: equipped and inventory items should be dropped as loot at follower death location.
+      - Party size limits, AI refinements, and balance notes.
+  - BUGS.md:
+    - Adds new bugs for:
+      - Shopkeepers sometimes trading when away from their shop.
+      - Some towns still changing ground tint incorrectly.
+      - Region Map animals/creatures using odd or incorrect glyphs.
 
 v1.61.0 — First-pass follower/ally system and persistence hooks
 - Added: Basic data-driven follower archetypes and player follower slot.
