@@ -39,6 +39,32 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Limited party size.
       - Persist follower state across mode switches and saves (gear, HP, location).
 
+- [ ] GOD Arena mode for combat/AI testing
+  - Add a GOD panel entry that teleports the player to a special “arena” test map:
+    - Simple, mostly empty space (flat floor) with optional walls/props the user can place.
+    - Uses a dedicated HUD layout with tools for spawning enemies/props and tweaking parameters.
+  - Enemy spawning:
+    - List all enemy types (from data/entities/enemies.json) in a scrollable/filtered list.
+    - Allow spawning one or many instances of the selected enemy at/around a cursor or the player.
+    - Allow batch spawns (“spawn 10 of this type at random positions”).
+  - Tweaks and controls:
+    - Sliders/inputs for:
+      - Enemy level, HP multiplier, damage multiplier, and optional randomization ranges.
+      - Global enemy aggression (e.g., shorter/longer detection ranges).
+    - Toggles:
+      - Player invincible on/off.
+      - Enemies see player on/off (stealth/visibility toggle).
+      - Freeze/unfreeze enemy AI (debug single-step behavior).
+  - Props and walls:
+    - Allow placing/removing walls and basic props (crates, barrels, campfires, doors) to simulate different tactical situations.
+    - Optionally place simple line-of-sight obstacles to test FOV/cover behavior.
+  - Behavior requirements:
+    - Enemies in arena mode should behave exactly as in real game contexts (same AI, FOV, pathing, abilities).
+    - Arena should not alter core AI logic; it only provides a sandbox and parameter overrides.
+  - Safety / exit:
+    - Provide a clear “Return from Arena” button that restores the player to their previous mode/position.
+    - Ensure arena mode does not affect normal save data (or is clearly tagged as non-persistent) except for intentional tests.
+
 ## Technical / Cleanup
 
 - [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
