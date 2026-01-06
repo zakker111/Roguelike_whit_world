@@ -42,29 +42,46 @@ export function drawRegionEntities(ctx, view) {
         try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
       }
       ctx2d.save();
+      if (isFollower) {
+        // Followers: use the same visual language as dungeon/town allies:
+        // a solid colored square backdrop with a colored glyph.
+        const pad = 4;
+        ctx2d.globalAlpha = 0.9;
+        ctx2d.fillStyle = color;
+        ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
+        ctx2d.restore();
+
+        // Draw the follower glyph (e.g. 'G') in the same color on top
+        try {
+          const half = TILE / 2;
+          ctx2d.save();
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          ctx2d.fillStyle = color;
+          ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
+          ctx2d.restore();
+        } catch (_) {}
+        continue;
+      }
+
       if (faction === "animal") {
         ctx2d.beginPath();
         ctx2d.arc(sx + TILE / 2, sy + TILE / 2, Math.max(6, (TILE - 12) / 2), 0, Math.PI * 2);
         ctx2d.fillStyle = color;
         ctx2d.fill();
       } else {
-        // Enemies: solid square marker; Followers: same square plus a thin outline
+        // Non-follower enemies: solid square marker with dark glyph
         const pad = 6;
         ctx2d.fillStyle = color;
         ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
-        if (isFollower) {
-          ctx2d.lineWidth = 2;
-          ctx2d.strokeStyle = "#ffffff";
-          ctx2d.strokeRect(sx + pad + 0.5, sy + pad + 0.5, TILE - pad * 2 - 1, TILE - pad * 2 - 1);
-        }
+        try {
+          const half = TILE / 2;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          ctx2d.fillStyle = "#0b0f16";
+          ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
+        } catch (_) {}
       }
-      try {
-        const half = TILE / 2;
-        ctx2d.textAlign = "center";
-        ctx2d.textBaseline = "middle";
-        ctx2d.fillStyle = "#0b0f16";
-        ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
-      } catch (_) {}
       // Simple burning marker in Region Map when enemy is on fire
       try {
         if (e.inFlamesTurns && e.inFlamesTurns > 0) {
