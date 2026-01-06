@@ -1,5 +1,48 @@
 # Game Version History
-Last updated: 2025-12-19 13:00 UTC
+Last updated: 2025-12-20 00:00 UTC
+
+v1.59.0 — Mountain-pass experiments, bug bookkeeping, and combat XP fix
+- Changed: Experimental mountain-pass dungeon A/B behavior.
+  - core/dungeon/transitions.js:
+    - maybeEnterMountainPass(ctx, nx, ny) now:
+      - Treats the special mountain-pass stairs (`ctx._mountainPassAt`) as an interior portal that can:
+        - Link an entrance-side mountain dungeon A to a far-side dungeon B across a mountain ridge.
+        - Create or update a far-side dungeon POI at B with metadata (`isMountainDungeon`, `spawnAtMountainPass`, `passSourceX/passSourceY`) so overworld entry can spawn at the pass stairs.
+      - Implements a portal sequence:
+        - Step on the pass stairs inside A or B → exit to overworld at the paired dungeon entrance → immediately re-enter the target dungeon interior via DungeonRuntime/enter().
+        - When entering via the portal, strips `spawnAtMountainPass` for the new dungeon entry so you spawn at its “normal” entrance room instead of the pass stairs.
+      - After entering the target dungeon, forces `ctx.worldReturnPos` and `ctx.cameFromWorld` to match that dungeon’s overworld entrance for subsequent normal exits.
+    - returnToWorldIfAtExit(ctx) now:
+      - Detects mountain-pass dungeons via `info.isMountainDungeon` and `passSourceX/passSourceY`.
+      - For A/B pairs:
+        - From B (has passSourceX/Y): exits to overworld A by default.
+        - From A (no passSourceX/Y but a B with matching passSource in world.dungeons): exits to overworld B.
+      - Otherwise falls back to the previous behavior of exiting to the same dungeon entrance tile.
+  - Status:
+    - The current A/B mountain-pass logic is experimental and still considered unreliable; mountain-pass dungeon travel is explicitly tracked as broken in BUGS.md and slated for a full redesign in TODO.md.
+    - Non-mountain dungeons should behave as before, but this area needs manual regression testing before relying on it in saves.
+
+- Changed: Dungeon combat XP bug marked fixed.
+  - BUGS.md:
+    - Updated the entry “in dungeons when enemies fight each other they are logged … but they give player xp when they kill each other” to:
+      - “[FIXED] … they gave player XP when they killed each other.”
+    - This reflects an earlier code fix to prevent the player from gaining XP when enemies kill each other autonomously, while keeping the combat logs for debugging.
+
+- Added: Explicit bug entry for mountain-pass dungeon travel.
+  - BUGS.md:
+    - Added:
+      - “mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now.”
+    - This documents the current state of mountain-pass work and warns that it should not be treated as stable gameplay.
+
+- Added: TODO for full mountain-pass dungeon rework.
+  - TODO.md:
+    - Under “Technical / Cleanup” added:
+      - “Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.”
+    - This centralizes the future design/refactor work required for mountain-pass dungeons so they can become a first-class, reliable feature.
+
+- Notes:
+  - These changes are mostly experimental plumbing and bookkeeping around mountain-pass dungeons, plus documentation updates.
+  - Normal dungeon/town/ruins flows should remain unchanged, but mountain-pass dungeons are not yet considered shippable content and are disabled only by convention (via BUGS/TODO), not hard feature flags.
 
 v1.58.0 — Tower Phase 2: JSON-driven rooms, props, captives, and rewards
 - Added: Tower interior room prefabs in JSON.
