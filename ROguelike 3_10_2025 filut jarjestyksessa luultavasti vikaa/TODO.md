@@ -24,6 +24,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Technical / Cleanup
 
+- [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
 - [ ] Smoketest runner:
   - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
