@@ -20,3 +20,6 @@
 - dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
 - mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now
 - world generation / infinite overworld gets slow and sluggish after exploring large chunks of the world; investigate performance of infinite_gen + world_runtime expansion and caching when many chunks have been visited
+- sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
+- in some towns, ground/terrain tinting still changes incorrectly or inconsistently (tiles changing biome color unexpectedly)
+- animals/creatures on the Region Map sometimes use odd or incorrect glyphs (verify animal glyph mapping in region map overlays)
