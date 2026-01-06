@@ -42,9 +42,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:
     - Simple, mostly empty space (flat floor) with optional walls/props the user can place.
-    - Uses a dedicated HUD layout with tools for spawning enemies/props/creatures and tweaking parameters.
-  - Enemy/creature spawning:
-    - List all enemy and creature types used in the game (from data/entities/enemies.json and any wildlife/creature registries) in a scrollable/filtered list.
+    - Uses a dedicated HUD layout with tools for spawning enemies/props/creatures/NPCs and tweaking parameters.
+  - Enemy/creature/NPC spawning:
+    - List all enemy, creature, and town NPC archetypes used in the game (from data/entities/enemies.json, wildlife/creature registries, and town NPC definitions) in a scrollable/filtered list.
     - Allow spawning one or many instances of the selected type at/around a cursor or the player.
     - Allow batch spawns (“spawn 10 of this type at random positions”).
   - Tweaks and controls:
