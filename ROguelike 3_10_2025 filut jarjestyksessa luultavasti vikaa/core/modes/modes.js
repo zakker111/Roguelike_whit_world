@@ -15,6 +15,7 @@
 
 import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
+import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -220,6 +221,8 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
+            // Spawn follower/ally in town, if configured.
+            try { spawnInTown(ctx); } catch (_) {}
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
@@ -238,6 +241,8 @@ export function enterTownIfOnTile(ctx) {
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
             // Ensure player stands on the gate interior tile
             movePlayerToTownGateInterior(ctx);
+            // Spawn follower/ally in town, if configured.
+            try { spawnInTown(ctx); } catch (_) {}
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
@@ -366,6 +371,9 @@ export function enterDungeonIfOnEntrance(ctx) {
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     saveCurrentDungeonState(ctx);
+
+    // Spawn follower/ally when using the legacy inline dungeon generation path.
+    try { spawnInDungeon(ctx); } catch (_) {}
     
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info");
     syncAfterMutation(ctx);

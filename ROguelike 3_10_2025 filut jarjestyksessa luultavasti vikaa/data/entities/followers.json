@@ -1,0 +1,17 @@
+[
+  {
+    "id": "guard_follower",
+    "name": "Guard Ally",
+    "glyph": "G",
+    "color": "#2563eb",
+    "faction": "guard",
+    "roles": ["follower", "melee"],
+    "baseHp": 20,
+    "baseAtk": 3,
+    "baseDef": 1,
+    "equip": {
+      "weapon": "iron_sword",
+      "armor": "leather_armor"
+    }
+  }
+]

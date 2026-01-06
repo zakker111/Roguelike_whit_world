@@ -5,6 +5,7 @@ import { getMod } from "../../utils/access.js";
 import { save } from "./state.js";
 import { enter } from "./enter.js";
 import { addDungeon as addDungeonPOI } from "../world/poi.js";
+import { syncFollowersFromDungeon } from "../followers_runtime.js";
 
 // Determine a target world coordinate across a mountain from this dungeon's entrance.
 export function computeAcrossMountainTarget(ctx) {
@@ -279,6 +280,11 @@ export function returnToWorldIfAtExit(ctx) {
     try { if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx); } catch (_) {}
     try { if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") window.DungeonState.save(ctx); } catch (_) {}
   }
+
+  // Sync follower HP/state back to player data before clearing enemies.
+  try {
+    syncFollowersFromDungeon(ctx);
+  } catch (_) {}
 
   // Switch to world and clear dungeon-only entities
   ctx.mode = "world";

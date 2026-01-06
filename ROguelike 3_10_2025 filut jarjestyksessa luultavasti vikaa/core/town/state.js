@@ -134,13 +134,17 @@ function writeLS(obj) {
 }
 
 function cloneForStorage(st) {
+  const npcSrc = Array.isArray(st.npcs)
+    ? st.npcs.filter(n => !n || !n._isFollower)
+    : st.npcs;
+
   const out = {
     map: st.map,
     seen: st.seen,
     visible: st.visible,
     // Entities and fixtures
-    npcs: Array.isArray(st.npcs)
-      ? st.npcs.map(n => ({
+    npcs: Array.isArray(npcSrc)
+      ? npcSrc.map(n => ({
           x: n.x, y: n.y,
           name: n.name,
           lines: Array.isArray(n.lines) ? n.lines.slice(0) : undefined,

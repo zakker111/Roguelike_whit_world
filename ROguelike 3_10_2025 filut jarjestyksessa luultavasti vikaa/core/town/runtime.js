@@ -12,6 +12,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { syncFollowersFromTown } from "../followers_runtime.js";
 
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
@@ -428,6 +429,11 @@ export function returnToWorldIfAtGate(ctx) {
 
 export function applyLeaveSync(ctx) {
   if (!ctx || !ctx.world) return false;
+
+  // Sync any follower/ally state before persisting and leaving town.
+  try {
+    syncFollowersFromTown(ctx);
+  } catch (_) {}
 
   // Persist current town state (map + visibility + entities) before leaving
   try {
@@ -1007,6 +1013,65 @@ export function tick(ctx) {
     const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
     if (TAI && typeof TAI.townNPCsAct === "function") {
       TAI.townNPCsAct(ctx);
+    }
+  } catch (_) {}
+
+  // Simple follower NPC behavior: stay near the player in town.
+  try {
+    const p = ctx.player;
+    if (p && Array.isArray(ctx.npcs)) {
+      for (const n of ctx.npcs) {
+        if (!n || !n._isFollower) continue;
+        const dx = p.x - n.x;
+        const dy = p.y - n.y;
+        const dist = Math.abs(dx) + Math.abs(dy);
+        const followRange = 2;
+        if (dist <= followRange) continue;
+
+        const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
+        const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
+        const primary = Math.abs(dx) > Math.abs(dy)
+          ? [{ x: sx, y: 0 }, { x: 0, y: sy }]
+          : [{ x: 0, y: sy }, { x: sx, y: 0 }];
+
+        let moved = false;
+        for (const d of primary) {
+          const nx = n.x + d.x;
+          const ny = n.y + d.y;
+          if (isFreeTownFloor(ctx, nx, ny)) {
+            if (ctx.occupancy && typeof ctx.occupancy.clearNPC === "function") {
+              ctx.occupancy.clearNPC(n.x, n.y);
+            }
+            n.x = nx;
+            n.y = ny;
+            if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
+              ctx.occupancy.setNPC(n.x, n.y);
+            }
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) {
+          const ALT_DIRS = [
+            { x: 1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: 1 }, { x: -1, y: -1 }
+          ];
+          for (const d of ALT_DIRS) {
+            const nx = n.x + d.x;
+            const ny = n.y + d.y;
+            if (isFreeTownFloor(ctx, nx, ny)) {
+              if (ctx.occupancy && typeof ctx.occupancy.clearNPC === "function") {
+                ctx.occupancy.clearNPC(n.x, n.y);
+              }
+              n.x = nx;
+              n.y = ny;
+              if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
+                ctx.occupancy.setNPC(n.x, n.y);
+              }
+              break;
+            }
+          }
+        }
+      }
     }
   } catch (_) {}
 

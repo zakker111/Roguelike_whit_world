@@ -1,6 +1,73 @@
 # Game Version History
 Last updated: 2025-12-20 01:00 UTC
 
+v1.61.0 — First-pass follower/ally system and persistence hooks
+- Added: Basic data-driven follower archetypes and player follower slot.
+  - data/entities/followers.json:
+    - Introduces a simple JSON registry for follower/ally archetypes (starting with a guard-style ally).
+    - Each entry defines id, name, glyph/color, faction, baseHp/baseAtk/baseDef, and starting equipment hints.
+  - data/loader.js:
+    - Loads followers.json into GameData.followers alongside existing enemy/NPC/item registries.
+  - entities/player.js:
+    - Player.defaults now include a minimal followers array, seeded with a single “Guard Ally” follower record.
+    - normalize(player) ensures player.followers is always a well-formed array of { id, name, level, hp, maxHp, enabled }.
+
+- Added: Followers runtime + dungeon/town spawning.
+  - entities/followers.js:
+    - createRuntimeFollower(ctx, record) builds a live enemy-style actor from a follower record and GameData.followers (hp/atk/def/glyph/color/faction).
+    - syncRecordFromRuntime(record, runtime) copies hp/level back into the persistent record with simple clamping.
+  - core/followers_runtime.js:
+    - spawnInDungeon(ctx): when entering a dungeon (or tower floor), spawns the active follower near the player as an ally enemy:
+      - Marks the actor with _isFollower and _followerId and sets _ignorePlayer so AI never targets the player.
+      - Uses the shared OccupancyGrid when available to avoid overlapping other entities.
+    - spawnInTown(ctx): when entering a town, spawns the active follower as a special NPC near the player:
+      - NPCs carry roles: ["follower"] and _isFollower/_followerId so town logic can recognize them.
+    - syncFollowersFromDungeon(ctx): scans ctx.enemies for follower actors on dungeon exit and syncs their hp/level back to player.followers.
+    - syncFollowersFromTown(ctx): hook point for future town-side follower state; currently a no-op after schema validation.
+    - FollowersRuntime is attached to window.FollowersRuntime for GOD/debug access.
+
+- Changed: Dungeon/town runtimes wire in follower spawn and HP persistence.
+  - core/dungeon/runtime.js:
+    - Imports spawnInDungeon from core/followers_runtime.js.
+    - enter(ctx, info):
+      - After normal dungeon entry, calls spawnInDungeon(ctx) once when mode switches to "dungeon".
+      - Tower entry path now calls spawnInDungeon(ctx) inside gotoTowerFloor(...) after map/meta/player placement so the follower appears on the correct floor.
+  - core/dungeon/transitions.js:
+    - Imports syncFollowersFromDungeon and calls it immediately after saving dungeon state and before clearing ctx.enemies when returning to the overworld.
+    - Ensures follower hp/level changes from a dungeon run persist back into player.followers.
+  - dungeon/dungeon_state.js:
+    - cloneForStorage(st) now filters out allies tagged _isFollower from enemies and per-floor towerRun.meta.enemies before writing to localStorage.
+    - returnToWorldIfAtExit(ctx) calls window.FollowersRuntime.syncFollowersFromDungeon(ctx) when available, so legacy DungeonState flows also propagate follower hp.
+  - core/town/runtime.js:
+    - Imports syncFollowersFromTown and calls it from applyLeaveSync(ctx) before TownState.save(ctx), providing a town-side sync hook.
+    - tick(ctx) gained a light-weight “follow player” step for NPCs with _isFollower=true:
+      - After TownAI.townNPCsAct, follower NPCs step toward the player when they drift more than two tiles away, using isFreeTownFloor and occupancy updates.
+  - core/modes/modes.js:
+    - Imports spawnInTown and invokes it after:
+      - Successfully loading a persisted town via TownState.load(...).
+      - Generating a new town via TownRuntime.generate(ctx).
+    - This guarantees the follower appears in town near the gate on entry.
+
+- Changed: Town/dungeon persistence excludes transient follower actors.
+  - core/dungeon/state.js:
+    - save(ctx, toLocalStorageOnly?) now filters ctx.enemies through !e._isFollower before capturing a dungeon snapshot in ctx._dungeonStates.
+    - Prevents follower allies from being “baked into” dungeon save states; they are instead respawned from player.followers on each entry.
+  - core/town/state.js:
+    - cloneForStorage(st) filters out any npc with _isFollower before serializing npcs.
+    - Follower NPCs are treated as transient town state derived from player.followers, not as part of the saved town layout.
+
+Notes:
+- This is a first-pass “single ally” follower system:
+  - One active follower record is read from player.followers and spawned as a guard-style ally in dungeons/towers and as a special NPC in towns.
+  - Followers automatically follow the player in towns and in dungeons will:
+    - Never target the player.
+    - Use the existing enemy-vs-enemy combat path to attack hostile factions when they come into view.
+  - HP changes in dungeons are synced back to the follower record when exiting to the overworld; town hooks are in place for future extensions.
+- Future work (see TODO.md followers section) includes:
+  - Command toggles (Attack / Follow / Wait).
+  - Follower inventory and auto-equipping from player-gifted gear.
+  - Richer multi-follower party support and UI for managing them.
+
 v1.60.0 — Docs consolidation, FEATURES snapshot, and planning pass
 - Added: FEATURES.md as a current-state feature snapshot.
   - Root-level FEATURES.md now documents:

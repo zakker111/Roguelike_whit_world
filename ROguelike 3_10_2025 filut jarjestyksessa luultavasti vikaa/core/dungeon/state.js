@@ -20,11 +20,14 @@ export function save(ctx, logOnce = false) {
   }
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
   const key = keyFromWorldPos(ctx.dungeonInfo.x, ctx.dungeonInfo.y);
+  const enemies = Array.isArray(ctx.enemies)
+    ? ctx.enemies.filter(e => !e || !e._isFollower)
+    : ctx.enemies;
   ctx._dungeonStates[key] = {
     map: ctx.map,
     seen: ctx.seen,
     visible: ctx.visible,
-    enemies: ctx.enemies,
+    enemies,
     corpses: ctx.corpses,
     decals: ctx.decals,
     dungeonProps: Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps.slice(0) : [],

@@ -65,10 +65,18 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Acquisition paths:
     - Hire/buy allies from inns or taverns (gold sink, limited slots, different archetypes).
     - Rescue potential followers from special encounters or dungeons (e.g., captives who choose to join).
-  - Needs:
-    - Data-driven follower archetypes (stats, AI behavior, gear, personality) in JSON.
+  - First pass (implemented in v1.61.0):
+    - Data-driven follower archetypes in JSON (data/entities/followers.json) loaded via GameData.followers.
+    - One basic “Guard Ally” follower record on the player, normalized and persisted on the save.
+    - Simple spawn/runtime layer:
+      - In dungeons/towers, spawns a guard-style ally enemy near the player that never targets the player but fights hostile factions.
+      - In towns, spawns a follower NPC near the gate that follows the player around using town pathing rules.
+      - Follower HP/level is synced back into player.followers on dungeon exit; town hooks are in place for future use.
+    - Persistence guards:
+      - Dungeon/town state snapshots exclude follower actors/NPCs so followers are always derived from player state on entry.
+  - Next steps:
     - Simple follower AI that:
-      - Trails the player in overworld/dungeons without blocking entrances.
+      - Trails the player cleanly in overworld/dungeons without blocking entrances.
       - Prioritizes nearby threats, avoids stepping on traps when possible.
       - Has basic morale/retreat logic (e.g., when low HP, try to drink a potion if available or flee instead of suiciding).
     - UI hooks:
@@ -83,7 +91,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Followers can consume potions from their inventory when low HP if allowed.
     - Balance and persistence:
       - Limited party size.
-      - Persist follower state across mode switches and saves (gear, HP, location).
+      - Persist follower state across mode switches and saves (gear, HP, location) with proper death handling.
 
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:

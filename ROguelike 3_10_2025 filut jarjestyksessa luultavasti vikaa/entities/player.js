@@ -40,6 +40,18 @@ export const defaults = {
     { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk: 3.8, tier: 3, twoHanded: true, decay: 35 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
+  // Basic follower/ally slot for early testing. This record is data-normalized in normalize()
+  // and can be expanded later when a richer party system is added.
+  followers: [
+    {
+      id: "guard_follower",
+      name: "Guard Ally",
+      level: 1,
+      hp: 20,
+      maxHp: 20,
+      enabled: true
+    }
+  ],
   injuries: [],
   // Passive skills
   // Combat: increment with attacks; provide small damage buffs
@@ -72,6 +84,27 @@ export function normalize(p) {
   if (!Array.isArray(p.inventory)) p.inventory = [];
   const eq = p.equipment && typeof p.equipment === "object" ? p.equipment : {};
   p.equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, eq);
+
+  // Normalize followers (party allies). Keep schema minimal for now:
+  // { id, name, level, hp, maxHp, enabled }
+  try {
+    if (!Array.isArray(p.followers)) {
+      p.followers = Array.isArray(defaults.followers) ? clone(defaults.followers) : [];
+    }
+    p.followers = p.followers.map((f) => {
+      if (!f) return null;
+      const id = String(f.id || "").trim();
+      const name = f.name || "Follower";
+      const level = Math.max(1, (f.level | 0) || 1);
+      let maxHp = typeof f.maxHp === "number" && f.maxHp > 0 ? f.maxHp : (typeof f.hp === "number" && f.hp > 0 ? f.hp : 10);
+      let hp = typeof f.hp === "number" ? f.hp : maxHp;
+      if (hp > maxHp) maxHp = hp;
+      if (hp <= 0) hp = 1;
+      const enabled = f.enabled !== false;
+      return { id, name, level, hp, maxHp, enabled };
+    }).filter(Boolean);
+  } catch (_) {}
+
   if (!Array.isArray(p.injuries)) p.injuries = [];
   // Normalize injuries into objects: { name, healable, durationTurns }
   try {
@@ -123,6 +156,7 @@ export function createInitial() {
     xpNext: defaults.xpNext,
     inventory: clone(defaults.inventory) || [],
     equipment: clone(defaults.equipment) || { ...DEFAULT_EQUIPMENT },
+    followers: clone(defaults.followers) || [],
   });
 
   // Ensure the player starts with a basic stick in inventory (avoid duplicates if already present).
@@ -292,6 +326,7 @@ export function resetFromDefaults(player) {
     xpNext: defaults.xpNext,
     inventory: clone(defaults.inventory) || [],
     equipment: clone(defaults.equipment) || {},
+    followers: clone(defaults.followers) || [],
   });
   for (const k of Object.keys(fresh)) {
     player[k] = Array.isArray(fresh[k]) ? fresh[k].slice() :

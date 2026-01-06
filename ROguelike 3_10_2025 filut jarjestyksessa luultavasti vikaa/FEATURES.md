@@ -465,7 +465,14 @@ These exist partially in code or design but are **known unstable** or not yet im
   - Friendly characters that follow the player and fight alongside them.
   - Followers with inventories, basic commands, morale, and persistence.
 - Current status:
-  - Not implemented yet; design captured in `TODO.md`.
+  - First-pass implementation in v1.61.0:
+    - One basic guard-style follower archetype defined in `data/entities/followers.json`.
+    - A single follower record on the player that is normalized and persisted.
+    - Follower spawns as:
+      - An allied guard enemy in dungeons/towers (never targets the player, fights hostile factions).
+      - A follower NPC in towns that trails the player near the gate and around streets.
+    - Follower HP/level are synced back into player data when leaving dungeons; town hooks are wired for future extensions.
+  - Full party system (multiple followers, inventories, commands, morale) remains WIP and is tracked in `TODO.md`.
 
 ### 12.3 GOD Arena mode
 
