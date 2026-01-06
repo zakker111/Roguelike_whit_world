@@ -10,12 +10,12 @@
  * Notes:
  * - All functions are ctx-first and operate only on data (no rendering).
  * - Logging and UI updates are best-effort via ctx.log / ctx.updateUI.
- * - This module does NOT yet change follower combat stats; it only manages
- *   inventory/equipment data on follower records. Combat continues to use
- *   archetype/base stats until a later phase wires gear bonuses in.
+ * - After each equipment change, follower runtime atk/def are recomputed so
+ *   gear affects combat immediately (like player equipment).
  */
 
 import { attachGlobal } from "../utils/global.js";
+import { getFollowerDef } from "../entities/followers.js";
 
 function getFollowerRecord(ctx, followerId) {
   if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return null;
@@ -52,6 +52,49 @@ function ensureFollowerInventory(rec) {
     return rec.inventory || [];
   }
   return rec.inventory;
+}
+
+// Recompute follower runtime atk/def based on their equipment so changes in
+// follower gear affect combat immediately, similar to player equipment.
+function recomputeFollowerRuntimeStats(ctx, followerId) {
+  if (!ctx) return;
+  const rec = getFollowerRecord(ctx, followerId);
+  if (!rec) return;
+  let def = null;
+  try {
+    def = getFollowerDef(ctx, followerId) || null;
+  } catch (_) {}
+  if (!def || typeof def.baseAtk !== "number" || typeof def.baseDef !== "number") return;
+
+  let atk = def.baseAtk;
+  let defense = def.baseDef;
+  try {
+    const eq = rec.equipment && typeof rec.equipment === "object" ? rec.equipment : null;
+    if (eq) {
+      const slots = ["left", "right", "head", "torso", "legs", "hands"];
+      for (let i = 0; i < slots.length; i++) {
+        const s = slots[i];
+        const it = eq[s];
+        if (!it) continue;
+        if (typeof it.atk === "number") atk += it.atk;
+        if (typeof it.def === "number") defense += it.def;
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (Array.isArray(ctx.enemies)) {
+      for (let i = 0; i < ctx.enemies.length; i++) {
+        const e = ctx.enemies[i];
+        if (!e || !e._isFollower) continue;
+        const fid = e._followerId != null ? String(e._followerId) : "";
+        if (fid && fid === String(followerId)) {
+          e.atk = atk;
+          e.def = defense;
+        }
+      }
+    }
+  } catch (_) {}
 }
 
 function describeItem(ctx, it) {
@@ -117,6 +160,9 @@ export function giveItemToFollower(ctx, followerId, playerIndex, opts = {}) {
   } else {
     finv.push(item);
   }
+
+  // Update follower combat stats immediately when gear changes
+  try { recomputeFollowerRuntimeStats(ctx, followerId); } catch (_) {}
 
   // Best-effort log + UI refresh
   try {
@@ -194,6 +240,9 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
   }
   eq[slot] = item;
 
+  // Update runtime stats so follower damage/defense reflect new gear
+  try { recomputeFollowerRuntimeStats(ctx, followerId); } catch (_) {}
+
   try {
     if (ctx.log) {
       const label = describeItem(ctx, item);
@@ -225,6 +274,9 @@ export function unequipFollowerSlot(ctx, followerId, slot, opts = {}) {
 
   eq[slot] = null;
   finv.push(item);
+
+  // Update runtime stats so follower damage/defense reflect loss of gear
+  try { recomputeFollowerRuntimeStats(ctx, followerId); } catch (_) {}
 
   try {
     if (ctx.log) {
