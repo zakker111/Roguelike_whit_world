@@ -9,6 +9,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] Shop UI (buy/sell) and currency
 - [ ] District themes (market / residential / temple) and signage
 - [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
+- [ ] World generation: support larger lakes and inland water bodies
+  - Allow the overworld generator to create bigger lakes and inland seas, not just thin rivers or small ponds.
+  - Ensure lake size integrates with biome transitions (e.g., beaches, marshy shorelines) and walkability rules.
+  - Consider special POIs or encounters attached to large lakes (ferries, fishing huts, ruined piers) in future work.
 - [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
 - [ ] Move flavor text into JSON data (data-driven flavor)
 - [ ] Port towns/cities with distinct layouts
