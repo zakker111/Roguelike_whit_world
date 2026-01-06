@@ -114,6 +114,14 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
       }
     }
   } catch (_) {}
+  // If lastHit carries an explicit killerName (e.g., from follower runtime),
+  // prefer that over any generic mapping.
+  try {
+    if (lastHit && typeof lastHit.killerName === "string" && lastHit.killerName.trim()) {
+      killedBy = lastHit.killerName.trim();
+    }
+  } catch (_) {}
+
   // Prefer exact weapon if known, else try to provide a likely cause phrase
   const via = lastHit?.weapon ? `${lastHit.weapon}` : null;
   let likely = null;
@@ -124,7 +132,17 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
                         : weaponKind === "burn" ? "fire"
                         : weaponKind === "freeze" ? "ice"
                         : null;
-    likely = fromWeaponKind || likelyCauseFromKillerName(killedBy);
+
+    // Avoid guessing weapon type from killer name when the killer is a follower.
+    // For followers we either know the exact weapon via lastHit.weapon or we
+    // leave the cause unspecified rather than implying \"sword\".
+    let fromKiller = null;
+    const isFollowerKiller = !!(lastHit && lastHit.isFollower);
+    if (!isFollowerKiller) {
+      fromKiller = likelyCauseFromKillerName(killedBy);
+    }
+
+    likely = fromWeaponKind || fromKiller;
   }
 
   // Use the enemy's display name when available (e.g., follower names like
