@@ -13,6 +13,8 @@
 
 let _panel = null;
 let _content = null;
+let _ctxForCommands = null;
+let _viewForCommands = null;
 
 function ensurePanel() {
   if (_panel) return _panel;
@@ -177,7 +179,9 @@ function buildContent(ctx, view) {
     lines.push("<ul style='margin:4px 0 0 16px;'>" +
       slotDefs.map(({ key, label }) => {
         const it = equipment[key] || null;
-        return `<li>${label}: ${esc(formatItem(it))}</li>`;
+        const base = `${label}: ${esc(formatItem(it))}`;
+        if (!it) return `<li>${base}</li>`;
+        return `<li>${base} <span data-fcmd="unequip" data-slot="${key}" style="color:#60a5fa; cursor:pointer;">[Unequip]</span></li>`;
       }).join("") +
       "</ul>");
   } else {
@@ -187,11 +191,13 @@ function buildContent(ctx, view) {
       "</ul>");
   }
 
-  // Inventory (read-only view)
+  // Inventory (read-only view with Take actions)
   lines.push("<div style='margin-top:8px;'>Inventory:</div>");
   if (inventory && inventory.length) {
     lines.push("<ul style='margin:4px 0 0 16px;'>" +
-      inventory.map((it, idx) => `<li>${idx + 1}. ${esc(formatItem(it))}</li>`).join("") +
+      inventory.map((it, idx) =>
+        `<li>${idx + 1}. ${esc(formatItem(it))} <span data-fcmd="take" data-index="${idx}" style="color:#60a5fa; cursor:pointer;">[Take]</span></li>`
+      ).join("") +
       "</ul>");
   } else {
     lines.push("<div style=\"margin-left:12px; margin-top:2px; color:#9ca3af;\">(empty)</div>");
@@ -204,11 +210,68 @@ function buildContent(ctx, view) {
   return lines.join("");
 }
 
+function bindCommands() {
+  if (!_content) return;
+  const root = _content;
+  const els = root.querySelectorAll("[data-fcmd]");
+  if (!els || !els.length) return;
+  els.forEach((el) => {
+    el.addEventListener("click", (e) => {
+      try { e.preventDefault(); } catch (_) {}
+      try { e.stopPropagation(); } catch (_) {}
+      const cmd = el.getAttribute("data-fcmd");
+      if (!cmd || !_ctxForCommands || !_viewForCommands || !_viewForCommands.id) return;
+      const fid = _viewForCommands.id;
+      let did = false;
+      try {
+        const FI = (typeof window !== "undefined" && window.FollowersItems) ? window.FollowersItems : null;
+        if (!FI) return;
+        if (cmd === "take") {
+          const idx = parseInt(el.getAttribute("data-index") || "-1", 10);
+          if (idx >= 0 && typeof FI.takeInventoryItemFromFollower === "function") {
+            did = !!FI.takeInventoryItemFromFollower(_ctxForCommands, fid, idx);
+          }
+        } else if (cmd === "unequip") {
+          const slot = el.getAttribute("data-slot") || "";
+          if (slot && typeof FI.unequipFollowerSlot === "function") {
+            did = !!FI.unequipFollowerSlot(_ctxForCommands, fid, slot);
+          }
+        }
+      } catch (_) {}
+
+      // If we changed something, ask UIOrchestration to rebuild the follower view and panel.
+      if (did) {
+        try {
+          const UIO = (typeof window !== "undefined" && window.UIOrchestration) ? window.UIOrchestration : null;
+          if (UIO && typeof UIO.showFollower === "function") {
+            const stub = {
+              _isFollower: true,
+              _followerId: fid,
+              id: fid,
+              type: fid,
+              name: _viewForCommands.name || "Follower",
+              hp: typeof _viewForCommands.hp === "number" ? _viewForCommands.hp : undefined,
+              maxHp: typeof _viewForCommands.maxHp === "number" ? _viewForCommands.maxHp : undefined,
+              level: typeof _viewForCommands.level === "number" ? _viewForCommands.level : undefined,
+            };
+            UIO.showFollower(_ctxForCommands, stub);
+          }
+        } catch (_) {}
+      }
+    });
+  });
+}
+
 export function show(ctx = null, view = null) {
   const panel = ensurePanel();
+  _ctxForCommands = ctx || null;
+  _viewForCommands = view || null;
   try {
     const html = buildContent(ctx, view);
-    if (_content) _content.innerHTML = html;
+    if (_content) {
+      _content.innerHTML = html;
+      bindCommands();
+    }
   } catch (_) {}
   panel.style.display = "block";
 }
