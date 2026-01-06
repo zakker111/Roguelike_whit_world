@@ -83,13 +83,19 @@ function rngFor(ctx) {
 function pickTemplate(ctx, biome) {
   const reg = registry(ctx);
   const rng = rngFor(ctx);
-  const fallback = [
-    { id: "ambush_forest", name: "Forest Ambush", baseWeight: 1.0, allowedBiomes: ["FOREST","GRASS"], map: { generator: "ambush_forest", w: 24, h: 16 }, groups: [ { type: "bandit", count: { min: 2, max: 4 } } ] },
-    { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
-    { id: "wild_seppo", name: "Wild Seppo", baseWeight: 0.06, allowedBiomes: ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"], map: { generator: "camp", w: 24, h: 16 }, merchant: { vendor: "seppo" }, groups: [] },
-  ];
 
-  const list = reg || fallback;
+  if (!reg || !reg.length) {
+    try {
+      const msg = "[Encounter] No encounter templates available in GameData.encounters.templates.";
+      if (ctx && ctx.log) ctx.log(msg, "error");
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(msg, "error", { category: "Encounter" });
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  const list = reg;
   // Get current time-of-day and moon phase for weighting/constraints
   const clock = (ctx && typeof ctx.getClock === "function") ? ctx.getClock() : (ctx && ctx.time) || {};
   const phase = String(clock && clock.phase || "").toLowerCase();      // "dawn"/"day"/"dusk"/"night"
