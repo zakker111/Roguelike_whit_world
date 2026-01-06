@@ -41,12 +41,18 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:
-    - Simple, mostly empty space (flat floor) with optional walls/props the user can place.
+    - A fairly large, open map (big enough to host any prefab layout from towers/towns and generic dungeon rooms).
+    - Simple, mostly empty base (flat floor) with optional walls/props the user can place or stamp via prefabs.
     - Uses a dedicated HUD layout with tools for spawning enemies/props/creatures/NPCs and tweaking parameters.
   - Enemy/creature/NPC spawning:
     - List all enemy, creature, and town NPC archetypes used in the game (from data/entities/enemies.json, wildlife/creature registries, and town NPC definitions) in a scrollable/filtered list.
     - Allow spawning one or many instances of the selected type at/around a cursor or the player.
     - Allow batch spawns (“spawn 10 of this type at random positions”).
+  - Prefab spawning:
+    - Allow stamping any prefab used in towers or towns (JSON room/layouts) into the arena at a chosen anchor:
+      - Tower room prefabs (barracks, storage, prison cells, boss arenas, etc.).
+      - Town building/interior prefabs, plaza/town props groups, and other reusable layouts.
+    - Ensure arena bounds are large enough to accommodate full prefab footprints without clipping.
   - Tweaks and controls:
     - Sliders/inputs for:
       - Enemy level, HP multiplier, damage multiplier, and optional randomization ranges.
