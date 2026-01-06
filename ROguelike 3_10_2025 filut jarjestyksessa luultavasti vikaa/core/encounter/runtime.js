@@ -97,8 +97,15 @@ export function tryMoveEncounter(ctx, dx, dy) {
 
 // Start an encounter within the existing Region Map mode (ctx.mode === "region").
 // Spawns enemies on the current region sample without changing mode or map.
+// Also ensures the active player follower spawns into this region encounter.
 export function enterRegion(ctx, info) {
-  return (typeof enterRegionExt === "function") ? enterRegionExt(ctx, info) : false;
+  const ok = (typeof enterRegionExt === "function") ? enterRegionExt(ctx, info) : false;
+  if (ok) {
+    try {
+      spawnInDungeon(ctx);
+    } catch (_) {}
+  }
+  return ok;
 }
 
 export function complete(ctx, outcome = "victory") {
