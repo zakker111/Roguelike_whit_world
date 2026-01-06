@@ -9,6 +9,7 @@ Key modules
 - player_utils.js — helpers for player state and inventory flows.
 - items.js — item adapters over data registries; equip/use rules.
 - enemies.js — enemy adapters over data registries; type loading hardened to avoid fallbacks.
+- followers.js — follower archetype lookup and runtime actor creation (Guard Ally and future party members).
 - loot.js — loot transfer and consolidation (multi-container underfoot).
 
 Notes
