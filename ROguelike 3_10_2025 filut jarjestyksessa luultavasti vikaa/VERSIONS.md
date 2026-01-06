@@ -1,5 +1,78 @@
 # Game Version History
-Last updated: 2025-12-20 00:00 UTC
+Last updated: 2025-12-20 01:00 UTC
+
+v1.60.0 — Docs consolidation, FEATURES snapshot, and planning pass
+- Added: FEATURES.md as a current-state feature snapshot.
+  - Root-level FEATURES.md now documents:
+    - Controls & keybindings (movement, actions, modals, GOD panel).
+    - Run structure and progression (per-run model, death, difficulty scaling).
+    - Core gameplay systems (dungeons, towers, towns, overworld, encounters, caravans, shops).
+    - Time/day-night/moon systems and how they affect visuals and encounters.
+    - GOD panel capabilities and how they are grouped (Quick Actions, World & Encounters, Render & HUD, Town Debug, Combat & Status, Logs & Tracing, RNG & Theme, Tools & Analysis, Smoke Tests).
+    - Persistence model (what is saved for towns/dungeons/towers) and platform/input assumptions.
+    - An explicit “Experimental / WIP” section that calls out:
+      - Mountain-pass dungeon A/B pairs as unreliable.
+      - Followers/party system as future work.
+      - GOD Arena and enemy FOV visualization as planned tools.
+      - Infinite overworld performance issues as known problems.
+  - Intention: FEATURES.md is the “what exists now” snapshot, complementing VERSIONS.md (history) and TODO.md (future).
+
+- Changed: Docs index updated to expose top-level game docs.
+  - docs/index.html:
+    - The docs catalog now includes:
+      - README.md (top-level overview).
+      - VERSIONS.md (changelog).
+      - FEATURES.md (current feature set).
+      - TODO.md (planned work).
+      - BUGS.md (known issues).
+      - Existing module READMEs (core, ui, world, dungeon, services, entities, combat, ai, region_map, utils, tools, scripts, worldgen) and data/docs entries.
+    - Each entry:
+      - Loads content via `fetch(path, { cache: 'no-cache' })` with a `?ts=timestamp` suffix, ensuring BUGS/FEATURES/TODO view is always fresh post-deployment.
+      - Shows a description where available for quick orientation.
+  - Effect: In-game docs view (`/docs/`) can now be used to inspect current bugs, planned features, and the live feature snapshot without leaving the game context.
+
+- Changed: PROMPT.md housekeeping updated to include FEATURES.md.
+  - PROMPT.md:
+    - Under “Versioning, Docs, and Housekeeping”, added:
+      - **FEATURES.md** as a required sync target when adding or materially changing player-facing features.
+      - Guidance to move items out of the Experimental / WIP section once they are reliable.
+  - Effect: AI-assisted development is now explicitly instructed to keep FEATURES.md in sync with controls and stable systems, alongside VERSIONS.md / BUGS.md / TODO.md.
+
+- Added: Expanded TODOs for followers, GOD Arena, ports, lakes, injuries, and healer.
+  - TODO.md now includes:
+    - Friendly followers / party system details:
+      - Simple command wheel (Attack at will / Follow / Wait here).
+      - Basic morale/retreat logic (drink potions or flee on low HP).
+      - Follower inventory where the player can give weapons/armor/items; followers auto-equip suitable best gear and can drink their own potions.
+    - GOD Arena mode spec:
+      - Large, mostly empty test map (big enough for any tower/town prefab).
+      - Spawn all enemy/creature/NPC archetypes and tower/town prefabs.
+      - Sliders for level/HP/damage/aggression; toggles for player invincibility, enemy vision, and AI freeze.
+      - Tools to place/remove walls/props and a clear “Return from Arena” exit.
+    - GOD panel FOV debug:
+      - Toggle to render enemy FOV/vision cones and detection ranges as an overlay for debugging LOS/stealth.
+    - Port towns/cities:
+      - Special port layouts that integrate shoreline water from the overworld, partial walls, piers, and visible boats/ships.
+      - Pier orientation derived from the direction of adjacent water tiles on the overworld.
+    - World generation: larger lakes and inland water bodies:
+      - Allow generation of bigger lakes/inland seas, with appropriate shoreline transitions and future hooks for lake-based POIs.
+    - Deeper character sheet and lasting injuries:
+      - Represent missing fingers/toes/limbs, scars, burns, and other lasting marks.
+      - Make some injuries mechanically meaningful (accuracy, FOV, movement, weapon handling).
+    - Healer/surgeon NPC:
+      - Town/temple healer that can, for gold, remove or mitigate permanent penalties while optionally keeping cosmetic marks.
+  - Effect: The TODO list now captures a richer roadmap for followers, testing tools, world variety (ports/lakes), and long-term injury + healer systems.
+
+- Added: New bug for infinite overworld performance.
+  - BUGS.md:
+    - Added an entry noting that world generation / infinite overworld can become slow and sluggish after exploring large portions of the world.
+      - Points to world/infinite_gen and world_runtime expansion/caching as focus areas.
+    - Mountain-pass dungeon travel remains marked as unreliable and is still slated for a full rework.
+  - FEATURES.md:
+    - Experimental section updated with “Infinite overworld performance” to reflect that the system exists but has performance issues at scale.
+  - Effect: Infinite world performance issues are now documented both as a bug and as an experimental limitation in the feature snapshot.
+
+Deployment: https://0w4mmdyglghn.cosine.page (docs + FEATURES + PROMPT alignment + updated roadmaps)
 
 v1.59.0 — Mountain-pass experiments, GOD panel layout, bug bookkeeping, and combat XP fix
 - Changed: Experimental mountain-pass dungeon A/B behavior.
