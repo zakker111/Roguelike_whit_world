@@ -127,6 +127,19 @@ export function isGodOpen() {
   try { return !!(hasUI() && window.UI.isGodOpen && window.UI.isGodOpen()); } catch (_) { return false; }
 }
 
+// Follower inspect panel wrappers
+export function isFollowerOpen() {
+  try { return !!(hasUI() && window.UI.isFollowerOpen && window.UI.isFollowerOpen()); } catch (_) { return false; }
+}
+export function showFollower(ctx, view) {
+  if (!hasUI()) return;
+  try { window.UI.showFollower && window.UI.showFollower(ctx, view); } catch (_) {}
+}
+export function hideFollower(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.hideFollower && window.UI.hideFollower(); } catch (_) {}
+}
+
 // Shop UI wrappers
 export function isShopOpen() {
   try {
@@ -551,6 +564,7 @@ export function isAnyModalOpen() {
       isSmokeOpen() ||
       isHelpOpen() ||
       isCharacterOpen() ||
+      isFollowerOpen() ||
       isSleepOpen() ||
       isQuestBoardOpen() ||
       isFishingOpen() ||
@@ -609,6 +623,10 @@ if (typeof window !== "undefined") {
     showGod,
     hideGod,
     isGodOpen,
+    // Follower inspect panel
+    isFollowerOpen,
+    showFollower,
+    hideFollower,
     isShopOpen,
     showShop,
     hideShop,

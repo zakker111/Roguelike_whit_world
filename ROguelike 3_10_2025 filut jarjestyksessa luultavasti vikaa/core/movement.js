@@ -286,11 +286,23 @@ export function tryMove(ctx, dx, dy) {
     } catch (_) {}
 
     // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
+    // Followers are treated specially: bump opens the follower inspect panel instead of attacking
+    // or prompting.
     try {
       let enemy = null;
       const enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
       if (enemy) {
+        // Followers: open inspect panel instead of prompting for attack.
+        if (enemy._isFollower) {
+          const UIO = mod("UIOrchestration");
+          if (UIO && typeof UIO.showFollower === "function") {
+            UIO.showFollower(ctx, enemy);
+          }
+          // Inspecting a follower does not consume a turn.
+          return true;
+        }
+
         const fac = String(enemy.faction || "").toLowerCase();
         const isGuard = fac === "guard" || String(enemy.type || "").toLowerCase() === "guard";
         const neutralGuard = isGuard && enemy._ignorePlayer;

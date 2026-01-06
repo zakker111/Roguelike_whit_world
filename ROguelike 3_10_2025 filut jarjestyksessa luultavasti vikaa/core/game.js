@@ -983,6 +983,15 @@ import {
           const UIO = modHandle("UIOrchestration");
           if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
         },
+        // Follower inspect panel
+        isFollowerOpen: () => {
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isFollowerOpen === "function" && UIO.isFollowerOpen(getCtx()));
+        },
+        onHideFollower: () => {
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideFollower === "function") UIO.hideFollower(getCtx());
+        },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
         onLoot: () => doAction(),
@@ -1313,7 +1322,7 @@ import {
   }
   
   
-  
+
   {
     const UIH = modHandle("UI");
     if (UIH && typeof UIH.init === "function") {
@@ -1337,6 +1346,7 @@ import {
         }
       } catch (_) {}
     }
+  }
   }
 
   // Hand decay helpers delegated to inventory_decay facade

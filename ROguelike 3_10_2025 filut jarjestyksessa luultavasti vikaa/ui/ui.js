@@ -17,6 +17,7 @@
 
 import * as HelpModal from "/ui/components/help_modal.js";
 import * as CharacterModal from "/ui/components/character_modal.js";
+import * as FollowerModal from "/ui/components/follower_modal.js";
 
 import * as SmokeModal from "/ui/components/smoke_modal.js";
 import * as ConfirmModal from "/ui/components/confirm_modal.js";
@@ -240,6 +241,9 @@ export const UI = {
           e.preventDefault();
         } else if (this.isCharacterOpen && this.isCharacterOpen()) {
           this.hideCharacter();
+          e.preventDefault();
+        } else if (this.isFollowerOpen && this.isFollowerOpen()) {
+          this.hideFollower();
           e.preventDefault();
         }
       }
@@ -468,6 +472,24 @@ export const UI = {
 
   isCharacterOpen() {
     try { return !!CharacterModal.isOpen(); } catch (_) { return false; }
+  },
+
+  // ---- Follower Inspect (bump follower) ----
+  showFollower(ctx = null, view = null) {
+    // Close other modals for clarity
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    if (this.isSmokeOpen()) this.hideSmoke();
+    try { FollowerModal.show(ctx, view); } catch (_) {}
+  },
+
+  hideFollower() {
+    try { FollowerModal.hide(); } catch (_) {}
+  },
+
+  isFollowerOpen() {
+    try { return !!FollowerModal.isOpen(); } catch (_) { return false; }
   },
 
   // --- Encounter rate controls (0..100) ---

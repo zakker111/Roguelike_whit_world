@@ -138,6 +138,34 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   };
   npc = npc || pick(near, ctx.rng);
 
+  // Followers in town: bump opens follower inspect panel instead of generic chatter/shop.
+  try {
+    if (npc && npc._isFollower && npc._followerId) {
+      const UIO = ctx.UIOrchestration || getMod(ctx, "UIOrchestration") || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.showFollower === "function") {
+        // Build a minimal runtime follower stub; UIOrchestration will enrich it using
+        // player.followers and followers.json.
+        const followers = ctx.player && Array.isArray(ctx.player.followers) ? ctx.player.followers : [];
+        const rec = followers.find(f => f && f.id === npc._followerId) || null;
+        const runtime = {
+          _isFollower: true,
+          _followerId: npc._followerId,
+          id: npc._followerId,
+          type: npc._followerId,
+          name: npc.name || (rec && rec.name) || "Follower",
+          faction: "guard",
+          level: rec && typeof rec.level === "number" ? rec.level : 1,
+          hp: rec && typeof rec.hp === "number" ? rec.hp : undefined,
+          maxHp: rec && typeof rec.maxHp === "number" ? rec.maxHp : undefined,
+        };
+        UIO.showFollower(ctx, runtime);
+      } else if (ctx.log) {
+        ctx.log(`${npc.name || "Follower"}: ${Array.isArray(npc.lines) && npc.lines[0] ? npc.lines[0] : "I'm with you."}`, "info");
+      }
+      return true;
+    }
+  } catch (_) {}
+
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
   let line = pick(lines, ctx.rng);
   // Normalize keeper lines for Inn: always open, avoid misleading schedule phrases
