@@ -76,14 +76,14 @@ export function drawNPCs(ctx, view) {
         if (list) {
           const def = list.find(f => f && String(f.id) === String(fid));
           glyph = (def && def.glyph) ? def.glyph : "G";
-          color = (def && def.color) ? def.color : "#2563eb";
+          color = (def && def.color) ? def.color : "#000000";
         } else {
           glyph = "G";
-          color = "#2563eb";
+          color = "#000000";
         }
       } catch (_) {
         glyph = "G";
-        color = "#2563eb";
+        color = "#000000";
       }
     } else if (n.isShopkeeper || n._shopRef) {
       try {
@@ -100,8 +100,10 @@ export function drawNPCs(ctx, view) {
     if (n._isFollower) {
       ctx2d.save();
       ctx2d.globalAlpha = drawDim ? 0.45 : 0.65;
-      ctx2d.fillStyle = color;
+      // Use a slightly lighter background so a black glyph remains visible.
       const pad = 4;
+      const bgColor = (color === "#000000") ? "#4b5563" : color;
+      ctx2d.fillStyle = bgColor;
       ctx2d.fillRect(screenX + pad, screenY + pad, TILE - pad * 2, TILE - pad * 2);
       ctx2d.restore();
     }

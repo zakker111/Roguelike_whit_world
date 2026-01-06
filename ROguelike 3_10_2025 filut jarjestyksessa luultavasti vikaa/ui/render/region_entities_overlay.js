@@ -31,12 +31,12 @@ export function drawRegionEntities(ctx, view) {
           const fid = e._followerId || "guard_follower";
           if (list) {
             const def = list.find(f => f && String(f.id) === String(fid));
-            color = (def && def.color) ? def.color : "#2563eb";
+            color = (def && def.color) ? def.color : "#000000";
           } else {
-            color = "#2563eb";
+            color = "#000000";
           }
         } catch (_) {
-          color = "#2563eb";
+          color = "#000000";
         }
       } else if (typeof ctx.enemyColor === "function") {
         try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
@@ -44,14 +44,15 @@ export function drawRegionEntities(ctx, view) {
       ctx2d.save();
       if (isFollower) {
         // Followers: use the same visual language as dungeon/town allies:
-        // a solid colored square backdrop with a colored glyph.
+        // a solid backdrop plus a black glyph.
         const pad = 4;
         ctx2d.globalAlpha = 0.9;
-        ctx2d.fillStyle = color;
+        const bgColor = (color === "#000000") ? "#4b5563" : color;
+        ctx2d.fillStyle = bgColor;
         ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
         ctx2d.restore();
 
-        // Draw the follower glyph (e.g. 'G') in the same color on top
+        // Draw the follower glyph (e.g. 'G') in glyph color (black by default)
         try {
           const half = TILE / 2;
           ctx2d.save();

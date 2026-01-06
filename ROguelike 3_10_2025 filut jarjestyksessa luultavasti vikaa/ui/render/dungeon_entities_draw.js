@@ -34,15 +34,15 @@ export function drawEnemies(ctx, view) {
             color = def.color || color;
           } else {
             glyph = "G";
-            color = "#2563eb";
+            color = "#000000";
           }
         } else {
           glyph = "G";
-          color = "#2563eb";
+          color = "#000000";
         }
       } catch (_) {
         glyph = "G";
-        color = "#2563eb";
+        color = "#000000";
       }
     }
 
@@ -50,8 +50,10 @@ export function drawEnemies(ctx, view) {
     if (isFollower) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.55;
-      ctx2d.fillStyle = color;
+      // Slightly lighter background so black glyph remains visible.
       const pad = 4;
+      const bgColor = (color === "#000000") ? "#4b5563" : color;
+      ctx2d.fillStyle = bgColor;
       ctx2d.fillRect(screenX + pad, screenY + pad, TILE - pad * 2, TILE - pad * 2);
       ctx2d.restore();
     }
