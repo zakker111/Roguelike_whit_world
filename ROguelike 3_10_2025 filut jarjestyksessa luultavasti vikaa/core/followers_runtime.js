@@ -55,6 +55,7 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     return false;
   }
 
+  // First, try tiles near the player in an expanding diamond.
   for (let r = 1; r <= maxRadius; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -65,6 +66,21 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
       }
     }
   }
+
+  // Fallback: scan the whole map for any reasonable free tile if the area
+  // immediately around the player is too cramped (small rooms, crowded towns).
+  try {
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (!inB(x, y)) continue;
+        if (tileBlocked(x, y)) continue;
+        return { x, y };
+      }
+    }
+  } catch (_) {}
+
   return null;
 }
 
@@ -130,11 +146,17 @@ export function spawnInTown(ctx) {
     if (existing) return;
 
     const rec = getActiveFollowerRecord(ctx);
-    if (!rec) return;
+    if (!rec) {
+      try { ctx.log && ctx.log("No active follower available to accompany you in town.", "info"); } catch (_) {}
+      return;
+    }
 
     const followerActor = createRuntimeFollower(ctx, rec);
     const pos = findSpawnTileNearPlayer(ctx);
-    if (!pos) return;
+    if (!pos) {
+      try { ctx.log && ctx.log("Your follower cannot find room to stand nearby in this town.", "info"); } catch (_) {}
+      return;
+    }
 
     const npc = {
       x: pos.x | 0,
@@ -155,6 +177,14 @@ export function spawnInTown(ctx) {
     try {
       if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
         ctx.occupancy.setNPC(npc.x, npc.y);
+      }
+    } catch (_) {}
+
+    // Light log so it's visible that the ally is present in town.
+    try {
+      if (ctx.log) {
+        const label = npc.name || "Your ally";
+        ctx.log(`${label} accompanies you in town.`, "info");
       }
     } catch (_) {}
   } catch (_) {}
