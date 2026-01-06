@@ -284,13 +284,51 @@ export function returnToWorldIfAtExit(ctx) {
     if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
   } catch (_) {}
 
+  // For mountain-pass dungeons, exiting via normal stairs should take the player to the
+  // *other* side of the pass (A <-> B), not back to the same entrance. We detect the
+  // paired dungeon using passSourceX/passSourceY metadata on the far side dungeon (B),
+  // or by scanning world.dungeons for a record that uses this dungeon's coords as its
+  // passSource (when we are on the source side A).
+  try {
+    const info = ctx.dungeonInfo || ctx.dungeon || null;
+    if (info && info.isMountainDungeon && ctx.world && Array.isArray(ctx.world.dungeons)) {
+      let twinX = null;
+      let twinY = null;
+
+      if (typeof info.passSourceX === "number" && typeof info.passSourceY === "number") {
+        // We are on the far side (B); twin is the original entrance dungeon A.
+        twinX = info.passSourceX | 0;
+        twinY = info.passSourceY | 0;
+      } else if (typeof info.x === "number" && typeof info.y === "number") {
+        // We are on the entrance side (A); twin is any dungeon whose passSource points here.
+        const list = ctx.world.dungeons;
+        const twin = list.find(d =>
+          d &&
+          typeof d.passSourceX === "number" &&
+          typeof d.passSourceY === "number" &&
+          (d.passSourceX | 0) === (info.x | 0) &&
+          (d.passSourceY | 0) === (info.y | 0)
+        ) || null;
+        if (twin) {
+          twinX = twin.x | 0;
+          twinY = twin.y | 0;
+        }
+      }
+
+      if (twinX != null && twinY != null) {
+        ctx.worldReturnPos = { x: twinX, y: twinY };
+        ctx.cameFromWorld = true;
+      }
+    }
+  } catch (_) {}
+
   // Restore world position: prefer stored worldReturnPos; else dungeon entrance coordinates (absolute world coords)
   let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
   let ry = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : null;
   if (rx == null || ry == null) {
-    const info = ctx.dungeon || ctx.dungeonInfo;
-    if (info && typeof info.x === "number" && typeof info.y === "number") {
-      rx = info.x; ry = info.y;
+    const info2 = ctx.dungeon || ctx.dungeonInfo;
+    if (info2 && typeof info2.x === "number" && typeof info2.y === "number") {
+      rx = info2.x; ry = info2.y;
     }
   }
 
