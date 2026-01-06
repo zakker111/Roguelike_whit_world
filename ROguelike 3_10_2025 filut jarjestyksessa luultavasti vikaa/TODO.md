@@ -78,8 +78,8 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Visuals:
       - Follower glyph/color are defined only in `followers.json` and rendered consistently in town, dungeon, and region views with a distinct backdrop.
   - Next steps:
-    - Unique follower identity:
-      - Followers should receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
+    - Unique follower identity (DONE):
+      - Followers receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
       - Names are persisted in `player.followers` so the same named follower is seen across dungeons/towns until permanent death.
     - Follower inspect / stats panel:
       - Bumping into a follower in town or dungeon should offer a “Follower” / “Inspect follower” button.

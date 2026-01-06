@@ -84,8 +84,8 @@ export function normalize(p) {
   const eq = p.equipment && typeof p.equipment === "object" ? p.equipment : {};
   p.equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, eq);
 
-  // Normalize followers (party allies). Keep schema minimal for now:
-  // { id, name, level, hp, maxHp, enabled }
+  // Normalize followers (party allies). Core schema:
+  // { id, name, level, hp, maxHp, enabled, inventory, equipment, ...optional flavor fields }
   try {
     if (!Array.isArray(p.followers)) {
       p.followers = Array.isArray(defaults.followers) ? clone(defaults.followers) : [];
@@ -95,12 +95,62 @@ export function normalize(p) {
       const id = String(f.id || "").trim();
       const name = f.name || "Follower";
       const level = Math.max(1, (f.level | 0) || 1);
-      let maxHp = typeof f.maxHp === "number" && f.maxHp > 0 ? f.maxHp : (typeof f.hp === "number" && f.hp > 0 ? f.hp : 10);
+      let maxHp =
+        typeof f.maxHp === "number" && f.maxHp > 0
+          ? f.maxHp
+          : (typeof f.hp === "number" && f.hp > 0 ? f.hp : 10);
       let hp = typeof f.hp === "number" ? f.hp : maxHp;
       if (hp > maxHp) maxHp = hp;
       if (hp <= 0) hp = 1;
       const enabled = f.enabled !== false;
-      return { id, name, level, hp, maxHp, enabled };
+
+      // Optional flavor fields: keep them if present so future phases can rely on them.
+      const race = typeof f.race === "string" ? f.race : undefined;
+      const subrace = typeof f.subrace === "string" ? f.subrace : undefined;
+      const background = typeof f.background === "string" ? f.background : undefined;
+      const tags = Array.isArray(f.tags) ? f.tags.filter(Boolean) : undefined;
+      const personalityTags = Array.isArray(f.personalityTags) ? f.personalityTags.filter(Boolean) : undefined;
+      const temperament =
+        f.temperament && typeof f.temperament === "object"
+          ? {
+              aggression:
+                typeof f.temperament.aggression === "number"
+                  ? f.temperament.aggression
+                  : undefined,
+              courage:
+                typeof f.temperament.courage === "number"
+                  ? f.temperament.courage
+                  : undefined,
+              loyalty:
+                typeof f.temperament.loyalty === "number"
+                  ? f.temperament.loyalty
+                  : undefined,
+              fleeHpFrac:
+                typeof f.temperament.fleeHpFrac === "number"
+                  ? f.temperament.fleeHpFrac
+                  : undefined,
+              tauntFrequency:
+                typeof f.temperament.tauntFrequency === "number"
+                  ? f.temperament.tauntFrequency
+                  : undefined,
+            }
+          : undefined;
+
+      // Prepare inventory/equipment for future phases; keep them normalized but optional.
+      const inventory = Array.isArray(f.inventory) ? clone(f.inventory) : [];
+      const feq = f.equipment && typeof f.equipment === "object" ? f.equipment : {};
+      const equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, feq);
+
+      const out = { id, name, level, hp, maxHp, enabled };
+      if (race) out.race = race;
+      if (subrace) out.subrace = subrace;
+      if (background) out.background = background;
+      if (tags) out.tags = tags;
+      if (personalityTags) out.personalityTags = personalityTags;
+      if (temperament) out.temperament = temperament;
+      out.inventory = inventory;
+      out.equipment = equipment;
+      return out;
     }).filter(Boolean);
   } catch (_) {}
 
