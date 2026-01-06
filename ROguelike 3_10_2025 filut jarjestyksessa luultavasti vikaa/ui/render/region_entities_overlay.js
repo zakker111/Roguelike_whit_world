@@ -27,13 +27,15 @@ export function drawRegionEntities(ctx, view) {
         }
       } else if (isFollower) {
         // Followers use their own palette color from data/entities/followers.json via Followers.getFollowerDef
-        try {
-          const fid = e._followerId || "guard_follower";
-          const def = getFollowerDef(ctx, fid);
-          color = (def && def.color) ? def.color : "#000000";
-        } catch (_) {
-          color = "#000000";
+        const fid = e._followerId;
+        const def = fid ? getFollowerDef(ctx, fid) : null;
+        if (!def) {
+          throw new Error(`Follower definition not found for id=${fid} (region)`);
         }
+        if (typeof def.color !== "string" || !def.color.trim()) {
+          throw new Error(`Follower color missing for id=${fid}`);
+        }
+        color = def.color;
       } else if (typeof ctx.enemyColor === "function") {
         try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
       }

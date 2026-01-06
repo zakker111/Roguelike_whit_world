@@ -37,29 +37,30 @@ export function getFollowerDef(ctx, id) {
 
 export function createRuntimeFollower(ctx, record) {
   if (!record) return null;
-  const def = getFollowerDef(ctx, record.id) || {};
+  const def = getFollowerDef(ctx, record.id);
+  if (!def) return null;
+
   const name = record.name || def.name || "Follower";
   const level = typeof record.level === "number" && record.level > 0 ? (record.level | 0) : 1;
 
-  const baseHp = typeof def.baseHp === "number" && def.baseHp > 0 ? def.baseHp : 10;
+  const baseHp = def.baseHp;
   let maxHp = typeof record.maxHp === "number" && record.maxHp > 0 ? record.maxHp : baseHp;
   let hp = typeof record.hp === "number" ? record.hp : maxHp;
   if (hp > maxHp) maxHp = hp;
   if (hp <= 0) hp = 1;
 
-  const baseAtk = typeof def.baseAtk === "number" ? def.baseAtk : 2;
-  const baseDef = typeof def.baseDef === "number" ? def.baseDef : 0;
-
-  const faction = def.faction || "ally";
+  const baseAtk = def.baseAtk;
+  const baseDef = def.baseDef;
+  const faction = def.faction;
 
   return {
     x: 0,
     y: 0,
-    type: def.id || record.id || "follower",
+    type: def.id,
     name,
     faction,
-    glyph: def.glyph || "g",
-    color: def.color || "#aabbee",
+    glyph: def.glyph,
+    color: def.color,
     hp,
     maxHp,
     atk: baseAtk,
@@ -67,7 +68,62 @@ export function createRuntimeFollower(ctx, record) {
     level,
     announced: false,
     _isFollower: true,
-    _followerId: record.id || def.id || "follower",
+    _followerId: def.id,
+    _ignorePlayer: true,
+  };
+}
+
+  let maxHp =
+    typeof record.maxHp === "number" && record.maxHp > 0
+      ? record.maxHp
+      : baseHp;
+  let hp =
+    typeof record.hp === "number"
+      ? record.hp
+      : maxHp;
+  if (hp > maxHp) maxHp = hp;
+  if (hp <= 0) hp = 1;
+
+  const baseAtk = def.baseAtk;
+  if (typeof baseAtk !== "number") {
+    throw new Error(`Follower baseAtk must be a number for id=${record.id}`);
+  }
+  const baseDef = def.baseDef;
+  if (typeof baseDef !== "number") {
+    throw new Error(`Follower baseDef must be a number for id=${record.id}`);
+  }
+
+  const faction = def.faction;
+  if (!faction) {
+    throw new Error(`Follower faction missing for id=${record.id}`);
+  }
+
+  const glyph = def.glyph;
+  if (typeof glyph !== "string" || !glyph.trim()) {
+    throw new Error(`Follower glyph missing for id=${record.id}`);
+  }
+
+  const color = def.color;
+  if (typeof color !== "string" || !color.trim()) {
+    throw new Error(`Follower color missing for id=${record.id}`);
+  }
+
+  return {
+    x: 0,
+    y: 0,
+    type: def.id || record.id,
+    name,
+    faction,
+    glyph,
+    color,
+    hp,
+    maxHp,
+    atk: baseAtk,
+    def: baseDef,
+    level,
+    announced: false,
+    _isFollower: true,
+    _followerId: record.id || def.id,
     _ignorePlayer: true,
   };
 }

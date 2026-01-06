@@ -70,15 +70,19 @@ export function drawNPCs(ctx, view) {
       }
     } else if (n._isFollower) {
       // Use follower visuals from data/entities/followers.json via Followers.getFollowerDef
-      try {
-        const fid = n._followerId || "guard_follower";
-        const def = getFollowerDef(ctx, fid);
-        glyph = (def && def.glyph) ? def.glyph : "G";
-        color = (def && def.color) ? def.color : "#000000";
-      } catch (_) {
-        glyph = "G";
-        color = "#000000";
+      const fid = n._followerId;
+      const def = fid ? getFollowerDef(ctx, fid) : null;
+      if (!def) {
+        throw new Error(`Follower definition not found for id=${fid} (town)`);
       }
+      if (typeof def.glyph !== "string" || !def.glyph.trim()) {
+        throw new Error(`Follower glyph missing for id=${fid}`);
+      }
+      if (typeof def.color !== "string" || !def.color.trim()) {
+        throw new Error(`Follower color missing for id=${fid}`);
+      }
+      glyph = def.glyph;
+      color = def.color;
     } else if (n.isShopkeeper || n._shopRef) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;

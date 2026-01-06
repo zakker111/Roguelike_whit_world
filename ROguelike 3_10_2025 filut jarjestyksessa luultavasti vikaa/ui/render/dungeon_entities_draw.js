@@ -24,20 +24,19 @@ export function drawEnemies(ctx, view) {
     let glyph = e.glyph || "e";
     let color = RenderCore.enemyColor(ctx, e.type, COLORS);
     if (isFollower) {
-      try {
-        const fid = e._followerId || "guard_follower";
-        const def = getFollowerDef(ctx, fid);
-        if (def) {
-          glyph = def.glyph || glyph;
-          color = def.color || color;
-        } else {
-          glyph = "G";
-          color = "#000000";
-        }
-      } catch (_) {
-        glyph = "G";
-        color = "#000000";
+      const fid = e._followerId;
+      const def = fid ? getFollowerDef(ctx, fid) : null;
+      if (!def) {
+        throw new Error(`Follower definition not found for id=${fid} (dungeon)`);
       }
+      if (typeof def.glyph !== "string" || !def.glyph.trim()) {
+        throw new Error(`Follower glyph missing for id=${fid}`);
+      }
+      if (typeof def.color !== "string" || !def.color.trim()) {
+        throw new Error(`Follower color missing for id=${fid}`);
+      }
+      glyph = def.glyph;
+      color = def.color;
     }
 
     // Followers: draw a soft backdrop so they stand out from enemies.
