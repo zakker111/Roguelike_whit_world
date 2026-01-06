@@ -11,6 +11,18 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
 - [ ] Move flavor text into JSON data (data-driven flavor)
+- [ ] Port towns/cities with distinct layouts
+  - Add special “port” variants of towns/cities that sit on coasts, rivers, or lakes.
+  - Layout differences from normal towns:
+    - Partially walled (open toward the water, or with lighter defenses on the harbor side).
+    - Visible water edge integrated into town map (docks/piers extending onto water tiles).
+    - Boats/ships/moored vessels visible at the pier.
+  - Overworld integration:
+    - Water direction and shoreline for the port town should be derived from the actual overworld water tiles next to the town’s location.
+    - Pier orientation (north/south/east/west) should match the adjacent water direction in the overworld.
+  - Future extensions (optional):
+    - Harbor-specific NPCs (dockworkers, sailors, fishers).
+    - Trade modifiers or special caravan/ship visits at ports.
 - [ ] Mouse-hover enemy inspect system tied to Perception skill
   - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
   - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
