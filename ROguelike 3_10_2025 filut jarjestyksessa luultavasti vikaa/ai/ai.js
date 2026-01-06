@@ -74,6 +74,25 @@ export function enemiesAct(ctx) {
   const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const r=rv();return r<p;}));
   const Cap = U && U.capitalize ? U.capitalize : (s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+  // Display name helper for combat logs: prefers follower names from
+  // player.followers when applicable, then runtime name, then type.
+  function enemyDisplayName(en) {
+    if (!en) return "Enemy";
+    try {
+      if (ctx && ctx.player && Array.isArray(ctx.player.followers)) {
+        const fid = String(en._followerId || en.type || en.id || "");
+        if (fid) {
+          const hit = ctx.player.followers.find(f => f && String(f.id) === fid);
+          if (hit && typeof hit.name === "string" && hit.name.trim()) {
+            return hit.name;
+          }
+        }
+      }
+    } catch (_) {}
+    if (typeof en.name === "string" && en.name.trim()) return en.name;
+    return Cap(en.type || "enemy");
+  }
+
   const senseRange = 8;
 
   // Walkability that respects Region Map tiles (using tiles.json for region) as well as dungeon
@@ -522,8 +541,8 @@ export function enemiesAct(ctx) {
       const loc = ctx.rollHitLocation();
 
       if (target.kind === "player") {
-        if (rv() < ctx.getPlayerBlockChance(loc)) {
-          const attackerName = e.name || Cap(e.type || "enemy");
+        if (rv() &lt; ctx.getPlayerBlockChance(loc)) {
+          const attackerName = enemyDisplayName(e);
           ctx.log(`You block ${attackerName}'s attack to your ${loc.part}.`, "block", { category: "Combat", side: "player" });
           if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
             ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
@@ -561,7 +580,7 @@ export function enemiesAct(ctx) {
         player.hp -= dmg;
         try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
 
-        const attackerName = e.name || Cap(e.type || "enemy");
+        const attackerName = enemyDisplayName(e);
         if (isCrit) ctx.log(`Critical! ${attackerName} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
         else ctx.log(`${attackerName} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
@@ -624,10 +643,10 @@ export function enemiesAct(ctx) {
       } else if (target.kind === "enemy" && target.ref) {
         // Enemy vs enemy attack (no defense reduction for simplicity; allow block + crits + logs)
         const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
-        if (rv() < blockChance) {
+        if (rv() &lt; blockChance) {
           try {
-            const attackerName = e.name || Cap(e.type || "enemy");
-            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
+            const attackerName = enemyDisplayName(e);
+            const defenderName = enemyDisplayName(target.ref);
             ctx.log && ctx.log(
               `${defenderName} blocks ${attackerName}'s attack to the ${loc.part}.`,
               "block",
@@ -727,8 +746,8 @@ export function enemiesAct(ctx) {
             }
           } catch (_) {}
           try {
-            const attackerName = e.name || Cap(e.type || "enemy");
-            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
+            const attackerName = enemyDisplayName(e);
+            const defenderName = enemyDisplayName(target.ref);
             if (isCrit) {
               ctx.log(
                 `Critical! ${attackerName} hits ${defenderName}'s ${loc.part} for ${dmg}.`,
