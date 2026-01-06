@@ -46,7 +46,12 @@ export function createRuntimeFollower(ctx, record) {
   }
 
   let name = record.name;
-  if (!name) {
+  const shouldPersonalize =
+    !name ||
+    name === def.name ||
+    name === "Follower";
+
+  if (shouldPersonalize) {
     // Prefer a data-driven namePool when available so followers get a unique
     // identity without requiring every record to carry a hard-coded name.
     try {
