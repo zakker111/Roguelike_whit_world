@@ -55,8 +55,13 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     return false;
   }
 
+  const mode = ctx.mode || "";
+  const rMax = (typeof maxRadius === "number" && maxRadius > 0)
+    ? maxRadius
+    : (mode === "town" ? 8 : 4);
+
   // First, try tiles near the player in an expanding diamond.
-  for (let r = 1; r <= maxRadius; r++) {
+  for (let r = 1; r <= rMax; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) + Math.abs(dy) !== r) continue;
@@ -67,13 +72,18 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     }
   }
 
-  // Fallback: scan the whole map for any reasonable free tile if the area
-  // immediately around the player is too cramped (small rooms, crowded towns).
+  // For towns/castles, only spawn within a radius of the player; do not
+  // fall back to an arbitrary distant tile.
+  if (mode === "town") return null;
+
+  // For dungeon/encounter/region maps, allow a broader fallback: scan the
+  // whole map for any reasonable free tile if the immediate area around
+  // the player is too cramped (small rooms, crowded corridors).
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    for (let y = 0; y &lt; rows; y++) {
+      for (let x = 0; x &lt; cols; x++) {
         if (!inB(x, y)) continue;
         if (tileBlocked(x, y)) continue;
         return { x, y };
@@ -152,7 +162,9 @@ export function spawnInTown(ctx) {
     }
 
     const followerActor = createRuntimeFollower(ctx, rec);
-    const pos = findSpawnTileNearPlayer(ctx);
+    // Try a slightly larger radius around the player so castle gates and
+    // narrow town entrances still find a nearby tile.
+    const pos = findSpawnTileNearPlayer(ctx, 8);
     if (!pos) {
       try { ctx.log && ctx.log("Your follower cannot find room to stand nearby in this town.", "info"); } catch (_) {}
       return;
