@@ -255,7 +255,16 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
       // dungeon's own overworld tile, regardless of which side we came from.
       if (ok && ctx && ctx.mode === "dungeon" && targetInfo && typeof targetInfo.x === "number" && typeof targetInfo.y === "number") {
         ctx.worldReturnPos = { x: targetInfo.x | 0, y: targetInfo.y | 0 };
-        ctx}
+        ctx.cameFromWorld = true;
+      }
+
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  } catch (_) {}
+  return false;
+}
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
