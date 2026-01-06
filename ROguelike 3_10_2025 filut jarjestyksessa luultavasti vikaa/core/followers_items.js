@@ -391,11 +391,14 @@ export function unequipFollowerSlot(ctx, followerId, slot, opts = {}) {
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
 
   return true;
-}>
+}
+
 // Back-compat: attach to window for GOD/debug use.
 attachGlobal("FollowersItems", {
   giveItemToFollower,
   takeInventoryItemFromFollower,
   equipFollowerItemFromInventory,
   unequipFollowerSlot,
+  decayFollowerEquipped,
+  decayFollowerHands,
 });

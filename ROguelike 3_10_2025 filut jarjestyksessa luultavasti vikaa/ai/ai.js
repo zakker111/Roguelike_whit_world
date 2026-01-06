@@ -650,7 +650,7 @@ export function enemiesAct(ctx) {
           const baseMult = 1 + 0.15 * Math.max(0, level - 1);
           const globalMult = (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(level) : baseMult);
           let raw = e.atk * globalMult * typeScale * (loc.mult || 1);
-          const isCrit = rv() &lt; Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
+          const isCrit = rv() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
@@ -776,7 +776,17 @@ export function enemiesAct(ctx) {
             }
 
             const viaStr = weapName ? `with ${weapName}` : "melee";
-            target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: weapName, via: viaStr };
+            const killerDisplayName = e.name || Cap(e.type || "enemy");
+            target.ref._lastHit = {
+              by: killerType,
+              part: loc.part,
+              crit: isCrit,
+              dmg,
+              weapon: weapName,
+              via: viaStr,
+              killerName: killerDisplayName,
+              isFollower: !!(e && e._isFollower)
+            };
           } catch (_) {}
 
           try {
