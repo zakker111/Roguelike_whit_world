@@ -64,13 +64,15 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
   const isWalkable = (x, y) => !!ctx.isWalkable(x, y);
 
   const mode = ctx.mode || "";
+  const isTownLike = mode === "town";
+  const isRegionLike = mode === "region";
 
   function tileBlocked(x, y) {
     if (!inB(x, y)) return true;
 
     // In towns/castles, rely on the same floor rules NPCs use so we don't
     // spawn allies inside walls or on props, and ignore stale occupancy.
-    if (mode === "town") {
+    if (isTownLike) {
       return !isFreeTownFloorLocal(ctx, x, y);
     }
 
@@ -94,7 +96,7 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
 
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
     ? maxRadius
-    : (mode === "town" ? 8 : 4);
+    : ((isTownLike || isRegionLike) ? 8 : 4);
 
   // First, try tiles near the player in an expanding diamond.
   for (let r = 1; r <= rMax; r++) {
@@ -108,8 +110,8 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     }
   }
 
-  // For towns/castles, only spawn within a radius of the player; do not
-  // fall back to an arbitrary distant tile.
+  // For towns/castles and Region Map, only spawn within a radius of the
+  // player; do notn arbitrary distant tile.
   if (mode === "town") return null;
 
   // For dungeon/encounter/region maps, allow a broader fallback: scan the
