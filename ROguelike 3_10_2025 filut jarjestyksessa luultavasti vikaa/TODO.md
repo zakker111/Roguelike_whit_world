@@ -102,6 +102,8 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Followers can drink their own potions when their HP is low, if they have potions in their personal inventory:
         - Define a low-HP threshold (e.g., ≤ 30% maxHp or a fixed HP value) per follower or archetype.
         - On their turn, if below threshold and a potion is available, the follower consumes a potion instead of attacking, restoring HP and consuming one potion item.
+    - Follower death drops:
+      - When a follower dies, all of their equipped items and inventory items should be dropped as loot on the ground (added to the corpse/loot at their death location) so the player can recover their gear.
     - Simple follower AI improvements:
       - Trail the player without blocking doors/entrances when possible.
       - Continue to prioritize nearby hostiles using LOS-based targeting.
