@@ -23,6 +23,93 @@ if (typeof window !== "undefined" && !window._TOWN_STATES_MEM) {
 
 export function key(x, y) { return `${x},${y}`; }
 
+export function deriveTownBiomeFromWorld(ctx, wx, wy) {
+  try {
+    if (!ctx || !ctx.world) return "GRASS";
+    const world = ctx.world;
+    const WMOD = (typeof window !== "undefined" ? window.World : null);
+    const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+    if (!WT) return "GRASS";
+
+    function worldTileAtAbs(ax, ay) {
+      const wmap = world.map || null;
+      const ox = world.originX | 0;
+      const oy = world.originY | 0;
+      const lx = (ax - ox) | 0;
+      const ly = (ay - oy) | 0;
+      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+        return wmap[ly][lx];
+      }
+      if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+      return null;
+    }
+
+    const counts = { DESERT: 0, SNOW: 0, BEACH: 0, SWAMP: 0, FOREST: 0, GRASS: 0 };
+
+    function bump(tile, w) {
+      if (!WT || tile == null) return;
+      const weight = (w && w > 0) ? w : 1;
+      if (tile === WT.DESERT) counts.DESERT += weight;
+      else if (tile === WT.SNOW || tile === WT.SNOW_FOREST) counts.SNOW += weight;
+      else if (tile === WT.BEACH) counts.BEACH += weight;
+      else if (tile === WT.SWAMP) counts.SWAMP += weight;
+      else if (tile === WT.FOREST) counts.FOREST += weight;
+      else if (tile === WT.GRASS) counts.GRASS += weight;
+    }
+
+    const cx = wx | 0;
+    const cy = wy | 0;
+
+    const centerTile = worldTileAtAbs(cx, cy);
+    let centerBiome = null;
+    if (centerTile === WT.DESERT) centerBiome = "DESERT";
+    else if (centerTile === WT.SNOW || centerTile === WT.SNOW_FOREST) centerBiome = "SNOW";
+    else if (centerTile === WT.BEACH) centerBiome = "BEACH";
+    else if (centerTile === WT.SWAMP) centerBiome = "SWAMP";
+    else if (centerTile === WT.FOREST) centerBiome = "FOREST";
+    else if (centerTile === WT.GRASS) centerBiome = "GRASS";
+
+    if (centerBiome) bump(centerTile, 6);
+
+    const MAX_R = 6;
+    for (let r = 1; r <= MAX_R; r++) {
+      const ringWeight = (r <= 2) ? 3 : (r <= 4 ? 2 : 1);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const t = worldTileAtAbs(cx + dx, cy + dy);
+          if (t == null) continue;
+          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS || t === WT.CASTLE || t === WT.TOWER)) continue;
+          bump(t, ringWeight);
+        }
+      }
+    }
+
+    const order = ["FOREST", "GRASS", "DESERT", "BEACH", "SNOW", "SWAMP"];
+    let best = centerBiome || "GRASS";
+    let bestV = -1;
+    for (let i = 0; i < order.length; i++) {
+      const k = order[i];
+      const v = counts[k] | 0;
+      if (v > bestV) {
+        bestV = v;
+        best = k;
+      }
+    }
+
+    if (!centerBiome) return best || "GRASS";
+
+    const centerV = counts[centerBiome] | 0;
+    const bestV2 = counts[best] | 0;
+    if (best !== centerBiome && bestV2 < centerV * 2) {
+      return centerBiome;
+    }
+    return best || centerBiome || "GRASS";
+  } catch (_) {
+    return "GRASS";
+  }
+}
+
 function readLS() {
   try {
     // Allow disabling localStorage via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
@@ -317,58 +404,17 @@ function applyState(ctx, st, x, y) {
     } catch (_) {}
   })();
 
-  // Ensure town biome is set on load by sampling surrounding world tiles.
-  // This always re-derives the biome so stale persisted values cannot linger.
+  // Ensure town biome is set on load by sampling surrounding world tiles once.
+  // Use shared helper so renderer and runtime agree on the town's biome.
   try {
-    // Clear any stale outdoor mask from a previous town; it will be rebuilt for this map
     try { ctx.townOutdoorMask = undefined; } catch (_) {}
-
     const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === x && t.y === y) : null;
-    const WMOD = (typeof window !== "undefined" ? window.World : null);
-    const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
-    const world = ctx.world || {};
-    function worldTileAtAbs(ax, ay) {
-      const wmap = world.map || null;
-      const ox = world.originX | 0, oy = world.originY | 0;
-      const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
-      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
-        return wmap[ly][lx];
-      }
-      if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
-      return null;
-    }
-    let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
-    function bump(tile) {
-      if (!WT) return;
-      if (tile === WT.DESERT) counts.DESERT++;
-      else if (tile === WT.SNOW) counts.SNOW++;
-      else if (tile === WT.BEACH) counts.BEACH++;
-      else if (tile === WT.SWAMP) counts.SWAMP++;
-      else if (tile === WT.FOREST) counts.FOREST++;
-      else if (tile === WT.GRASS) counts.GRASS++;
-    }
-    const MAX_R = 6;
-    for (let r = 1; r <= MAX_R; r++) {
-      let any = false;
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const t = worldTileAtAbs(x + dx, y + dy);
-          if (t == null) continue;
-          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
-          bump(t);
-          any = true;
-        }
-      }
-      const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-      if (any && total > 0) break;
-    }
-    const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
-    let best = "GRASS", bestV = -1;
-    for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
-    ctx.townBiome = best || "GRASS";
-    // Persist for next load
-    try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
+    const biome = deriveTownBiomeFromWorld(ctx, x, y);
+    ctx.townBiome = biome || "GRASS";
+    try {
+      if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+    } catch (_) {}
+    try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
 
   // Place player at the town gate (exit tile) if available
@@ -473,5 +519,5 @@ export function load(ctx, x, y) {
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.TownState = { key, save, load };
+  window.TownState = { key, save, load, deriveTownBiomeFromWorld };
 }

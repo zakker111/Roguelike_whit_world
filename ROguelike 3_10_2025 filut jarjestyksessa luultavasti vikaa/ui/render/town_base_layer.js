@@ -23,72 +23,48 @@ function insideAnyBuildingAt(ctx, x, y) {
 // Helpers for biome-based outdoor ground tint
 function ensureTownBiome(ctx) {
   try {
-    if (ctx.townBiome) return;
-    const world = ctx.world || {};
-    const WMOD = (typeof window !== "undefined" ? window.World : null);
-    const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+    if (ctx && ctx._townBiomeResolved) return;
 
+    const world = ctx.world || {};
     const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
     let wx, wy;
     if (hasWRP) {
       wx = ctx.worldReturnPos.x | 0;
       wy = ctx.worldReturnPos.y | 0;
     } else {
-      const ox = world.originX | 0, oy = world.originY | 0;
+      const ox = world.originX | 0;
+      const oy = world.originY | 0;
       wx = (ox + (ctx.player ? (ctx.player.x | 0) : 0)) | 0;
       wy = (oy + (ctx.player ? (ctx.player.y | 0) : 0)) | 0;
     }
 
-    try {
-      const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-      if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
-    } catch (_) {}
-
-    function worldTileAtAbs(ax, ay) {
-      const wmap = world.map || null;
-      const ox = world.originX | 0, oy = world.originY | 0;
-      const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
-      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
-        return wmap[ly][lx];
-      }
-      if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
-      return null;
+    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+    let rec = null;
+    for (let i = 0; i < towns.length; i++) {
+      const t = towns[i];
+      if (t && (t.x | 0) === wx && (t.y | 0) === wy) { rec = t; break; }
     }
 
-    let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
-    function bump(tile) {
-      if (!WT) return;
-      if (tile === WT.DESERT) counts.DESERT++;
-      else if (tile === WT.SNOW || tile === WT.SNOW_FOREST) counts.SNOW++;
-      else if (tile === WT.BEACH) counts.BEACH++;
-      else if (tile === WT.SWAMP) counts.SWAMP++;
-      else if (tile === WT.FOREST) counts.FOREST++;
-      else if (tile === WT.GRASS) counts.GRASS++;
-    }
-    const MAX_R = 6;
-    for (let r = 1; r <= MAX_R; r++) {
-      let any = false;
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const t = worldTileAtAbs(wx + dx, wy + dy);
-          if (t == null) continue;
-          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
-          bump(t);
-          any = true;
+    let biome = null;
+
+    if (rec && rec.biome) {
+      biome = rec.biome;
+    } else {
+      try {
+        const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+        if (TS && typeof TS.deriveTownBiomeFromWorld === "function") {
+          biome = TS.deriveTownBiomeFromWorld(ctx, wx, wy);
         }
-      }
-      const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-      if (any && total > 0) break;
+      } catch (_) {}
     }
-    const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
-    let best = "GRASS", bestV = -1;
-    for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
-    ctx.townBiome = best || "GRASS";
+
+    if (!biome) biome = ctx.townBiome || "GRASS";
+
+    ctx.townBiome = biome;
     try {
-      const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-      if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+      if (rec && typeof rec === "object") rec.biome = biome;
     } catch (_) {}
+    try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
 }
 function townBiomeFill(ctx) {
