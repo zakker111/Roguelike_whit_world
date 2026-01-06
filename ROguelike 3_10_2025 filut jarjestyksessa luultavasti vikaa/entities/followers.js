@@ -36,42 +36,31 @@ export function getFollowerDef(ctx, id) {
 }
 
 export function createRuntimeFollower(ctx, record) {
-  if (!record) return null;
+  if (!record || !record.id) {
+    throw new Error("createRuntimeFollower requires a follower record with a valid id");
+  }
+
   const def = getFollowerDef(ctx, record.id);
-  if (!def) return null;
+  if (!def) {
+    throw new Error(`Follower definition not found for id=${record.id}`);
+  }
 
-  const name = record.name || def.name || "Follower";
-  const level = typeof record.level === "number" && record.level > 0 ? (record.level | 0) : 1;
+  const name = record.name || def.name;
+  if (!name) {
+    throw new Error(`Follower name missing for id=${record.id}`);
+  }
 
+  // Level: record overrides definition; default to 1 when unspecified.
+  const level =
+    typeof record.level === "number" && record.level > 0
+      ? (record.level | 0)
+      : (typeof def.level === "number" && def.level > 0 ? (def.level | 0) : 1);
+
+  // Base stats must be defined in followers.json
   const baseHp = def.baseHp;
-  let maxHp = typeof record.maxHp === "number" && record.maxHp > 0 ? record.maxHp : baseHp;
-  let hp = typeof record.hp === "number" ? record.hp : maxHp;
-  if (hp > maxHp) maxHp = hp;
-  if (hp <= 0) hp = 1;
-
-  const baseAtk = def.baseAtk;
-  const baseDef = def.baseDef;
-  const faction = def.faction;
-
-  return {
-    x: 0,
-    y: 0,
-    type: def.id,
-    name,
-    faction,
-    glyph: def.glyph,
-    color: def.color,
-    hp,
-    maxHp,
-    atk: baseAtk,
-    def: baseDef,
-    level,
-    announced: false,
-    _isFollower: true,
-    _followerId: def.id,
-    _ignorePlayer: true,
-  };
-}
+  if (typeof baseHp !== "number" || baseHp <= 0) {
+    throw new Error(`Follower baseHp must be a positive number for id=${record.id}`);
+  }
 
   let maxHp =
     typeof record.maxHp === "number" && record.maxHp > 0
