@@ -21,6 +21,28 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
 - [ ] Passive combat skills
   - One-handed, two-handed, shield use, and striking skills that grow with use up to a cap and affect combat stats.
+- [ ] Deeper character sheet and lasting injuries
+  - Expand the character sheet to show more flavorful and precise body-state details:
+    - Exactly which fingers/toes/limbs are missing, scars, burns, and other lasting marks.
+    - Summaries of major injuries vs cosmetic scars.
+  - Make some injuries mechanically meaningful:
+    - Missing fingers reduce effectiveness with certain weapon types (e.g., bows, heavy two-handed weapons).
+    - Leg/foot injuries affect movement speed or dodge chance.
+    - Eye injuries affect accuracy or FOV range.
+  - Integrate with healing systems:
+    - Normal rest/potions handle temporary HP/status.
+    - Permanent injuries require special treatment (see healer below).
+- [ ] Healer / surgeon NPC for permanent injuries
+  - Add a dedicated healer (e.g., in towns or temples) who can treat permanent injuries for gold.
+  - Healing options:
+    - Remove or mitigate permanent penalties caused by missing digits/limbs/eyes, deep scars, etc.
+    - Possibly leave cosmetic marks while removing mechanical penalties.
+  - Balancing:
+    - Cost scales with severity and number of injuries.
+    - May require rare components or reputational thresholds for the most serious fixes.
+  - UI:
+    - Clear menu explaining what each treatment does, its cost, and what remains (cosmetic vs mechanical).
+
 - [ ] Friendly followers / party system
   - Allow the player to have friendly characters that follow them (party members/henchmen).
   - Followers can fight alongside the player and can die permanently.
