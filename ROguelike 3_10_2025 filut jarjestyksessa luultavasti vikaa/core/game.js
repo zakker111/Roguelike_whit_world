@@ -1347,7 +1347,6 @@ import {
       } catch (_) {}
     }
   }
-  }
 
   // Hand decay helpers delegated to inventory_decay facade
   function usingTwoHanded() {
