@@ -449,6 +449,38 @@ function buildFollowerView(ctx, runtime) {
   const glyph = (def && def.glyph) || runtime.glyph || "?";
   const color = (def && def.color) || runtime.color || "#ffffff";
 
+  // Follower equipment and inventory are stored on the follower record and are
+  // exposed to the UI as-is for read-only display in Phase 3.
+  let equipment = null;
+  try {
+    if (rec && rec.equipment && typeof rec.equipment === "object") {
+      equipment = {
+        left: rec.equipment.left || null,
+        right: rec.equipment.right || null,
+        head: rec.equipment.head || null,
+        torso: rec.equipment.torso || null,
+        legs: rec.equipment.legs || null,
+        hands: rec.equipment.hands || null,
+      };
+    } else if (runtime && runtime.equipment && typeof runtime.equipment === "object") {
+      equipment = {
+        left: runtime.equipment.left || null,
+        right: runtime.equipment.right || null,
+        head: runtime.equipment.head || null,
+        torso: runtime.equipment.torso || null,
+        legs: runtime.equipment.legs || null,
+        hands: runtime.equipment.hands || null,
+      };
+    }
+  } catch (_) {}
+
+  let inventory = [];
+  try {
+    if (rec && Array.isArray(rec.inventory)) {
+      inventory = rec.inventory.slice();
+    }
+  } catch (_) {}
+
   return {
     id,
     name,
@@ -468,6 +500,8 @@ function buildFollowerView(ctx, runtime) {
     hint,
     glyph,
     color,
+    equipment,
+    inventory,
   };
 }
 

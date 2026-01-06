@@ -8,7 +8,7 @@
  *
  * `view` is a plain object built by core/bridge/ui_orchestration.js with fields:
  *   { id, name, level, hp, maxHp, atk, def, faction, roles, race, subrace, background,
- *     tags, personalityTags, temperament, hint, glyph, color }
+ *     tags, personalityTags, temperament, hint, glyph, color, equipment, inventory }
  */
 
 let _panel = null;
@@ -88,6 +88,8 @@ function buildContent(ctx, view) {
   const personality = Array.isArray(v.personalityTags) && v.personalityTags.length ? v.personalityTags : null;
   const temperament = v.temperament && typeof v.temperament === "object" ? v.temperament : null;
   const hint = esc(v.hint || "");
+  const equipment = v.equipment && typeof v.equipment === "object" ? v.equipment : null;
+  const inventory = Array.isArray(v.inventory) ? v.inventory : null;
 
   const lines = [];
 
@@ -146,19 +148,54 @@ function buildContent(ctx, view) {
     }
   }
 
-  // Equipment placeholders (Phase 2: read-only, no items yet)
-  lines.push("<div style='margin-top:8px;'>Equipment (coming later):</div>");
-  const eqLines = [
-    "Left hand: (none)",
-    "Right hand: (none)",
-    "Head: (none)",
-    "Torso: (none)",
-    "Legs: (none)",
-    "Hands: (none)"
-  ];
-  lines.push("<ul style='margin:4px 0 0 16px;'>" +
-    eqLines.map(t => `<li>${t}</li>`).join("") +
-    "</ul>");
+  // Equipment (read-only view)
+  const formatItem = (it) => {
+    if (!it) return "(none)";
+    const base = esc(it.name || it.id || it.type || "item");
+    const parts = [];
+    if (typeof it.atk === "number") parts.push(`+${Number(it.atk).toFixed(1)} atk`);
+    if (typeof it.def === "number") parts.push(`+${Number(it.def).toFixed(1)} def`);
+    if (it.kind === "potion") {
+      const heal = typeof it.heal === "number" ? it.heal : 3;
+      parts.push(`+${heal} HP`);
+    }
+    const extra = parts.length ? ` (${parts.join(", ")})` : "";
+    const count = typeof it.count === "number" && it.count > 1 ? ` x${it.count}` : "";
+    return `${base}${extra}${count}`;
+  };
+
+  lines.push("<div style='margin-top:8px;'>Equipment:</div>");
+  if (equipment) {
+    const slotDefs = [
+      { key: "left", label: "Left hand" },
+      { key: "right", label: "Right hand" },
+      { key: "head", label: "Head" },
+      { key: "torso", label: "Torso" },
+      { key: "legs", label: "Legs" },
+      { key: "hands", label: "Hands" },
+    ];
+    lines.push("<ul style='margin:4px 0 0 16px;'>" +
+      slotDefs.map(({ key, label }) => {
+        const it = equipment[key] || null;
+        return `<li>${label}: ${esc(formatItem(it))}</li>`;
+      }).join("") +
+      "</ul>");
+  } else {
+    lines.push("<ul style='margin:4px 0 0 16px;'>" +
+      ["Left hand", "Right hand", "Head", "Torso", "Legs", "Hands"]
+        .map(lbl => `<li>${lbl}: (none)</li>`).join("") +
+      "</ul>");
+  }
+
+  // Inventory (read-only view)
+  lines.push("<div style='margin-top:8px;'>Inventory:</div>");
+  if (inventory && inventory.length) {
+    lines.push("<ul style='margin:4px 0 0 16px;'>" +
+      inventory.map((it, idx) => `<li>${idx + 1}. ${esc(formatItem(it))}</li>`).join("") +
+      "</ul>");
+  } else {
+    lines.push("<div style=\"margin-left:12px; margin-top:2px; color:#9ca3af;\">(empty)</div>");
+  }
 
   if (hint) {
     lines.push(`<div style="margin-top:8px; font-size:12px; color:#9ca3af;">${hint}</div>`);
