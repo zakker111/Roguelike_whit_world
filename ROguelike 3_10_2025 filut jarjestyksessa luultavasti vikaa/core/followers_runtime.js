@@ -69,7 +69,18 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
 }
 
 export function spawnInDungeon(ctx) {
-  if (!ctx || ctx.mode !== "dungeon") return;
+  // Generic spawn helper for any \"dungeon-like\" combat map:
+  // - ctx.mode === \"dungeon\"  (classic floors and towers)
+  // - ctx.mode === \"encounter\" (overworld skirmish maps)
+  // - ctx.mode === \"region\"    (ruins encounters inside Region Map)
+  if (
+    !ctx ||
+    (ctx.mode !== "dungeon" &&
+      ctx.mode !== "encounter" &&
+      ctx.mode !== "region")
+  ) {
+    return;
+  }
   try {
     const p = ctx.player;
     if (!p) return;
@@ -92,6 +103,17 @@ export function spawnInDungeon(ctx) {
     try {
       if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
         ctx.occupancy.setEnemy(follower.x, follower.y);
+      }
+    } catch (_) {}
+
+    // Light log so it's clear when the ally is present, without spamming.
+    try {
+      if (ctx.log) {
+        const label = follower.name || "Your ally";
+        let where = "dungeon";
+        if (ctx.mode === "encounter") where = "encounter";
+        else if (ctx.mode === "region") where = "ruins";
+        ctx.log(`${label} joins you in the ${where}.`, "info");
       }
     } catch (_) {}
   } catch (_) {}
