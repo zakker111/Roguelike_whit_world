@@ -67,6 +67,24 @@ export function drawNPCs(ctx, view) {
         glyph = "G";
         color = "#2563eb";
       }
+    } else if (n._isFollower) {
+      // Use follower visuals from data/entities/followers.json when available
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const list = GD && Array.isArray(GD.followers) ? GD.followers : null;
+        const fid = n._followerId || "guard_follower";
+        if (list) {
+          const def = list.find(f => f && String(f.id) === String(fid));
+          glyph = (def && def.glyph) ? def.glyph : "G";
+          color = (def && def.color) ? def.color : "#2563eb";
+        } else {
+          glyph = "G";
+          color = "#2563eb";
+        }
+      } catch (_) {
+        glyph = "G";
+        color = "#2563eb";
+      }
     } else if (n.isShopkeeper || n._shopRef) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
