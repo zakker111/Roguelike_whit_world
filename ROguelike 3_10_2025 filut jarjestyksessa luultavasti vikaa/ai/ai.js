@@ -649,6 +649,38 @@ export function enemiesAct(ctx) {
           try {
             const killerType = String(e.type || "enemy");
 
+            // Follower-specific weapon lookup: prefer actual equipped weapon names.
+            function weaponNameForFollower(ctxLocal, followerEntity) {
+              try {
+                if (!ctxLocal || !ctxLocal.player || !Array.isArray(ctxLocal.player.followers)) return null;
+                if (!followerEntity || !followerEntity._isFollower) return null;
+                const fid = followerEntity._followerId != null ? String(followerEntity._followerId) : String(followerEntity.type || "");
+                if (!fid) return null;
+                const rec = ctxLocal.player.followers.find(f => f && String(f.id) === fid);
+                if (!rec || !rec.equipment || typeof rec.equipment !== "object") return null;
+                const eq = rec.equipment;
+                // Prefer right hand, then left, then any hand item with atk, then any named item.
+                const candidates = [];
+                if (eq.right) candidates.push(eq.right);
+                if (eq.left) candidates.push(eq.left);
+                // If neither hand had something, scan all slots for an equipped weapon-like item.
+                if (!candidates.length) {
+                  const slots = ["head", "torso", "legs", "hands"];
+                  for (let i = 0; i < slots.length; i++) {
+                    const it = eq[slots[i]];
+                    if (it && (typeof it.atk === "number" || typeof it.name === "string")) {
+                      candidates.push(it);
+                    }
+                  }
+                }
+                const pick = candidates.find(it => typeof it.atk === "number") || candidates[0];
+                if (!pick) return null;
+                return pick.name || pick.id || null;
+              } catch (_) {
+                return null;
+              }
+            }
+
             function rngPick(r) {
               try {
                 const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
@@ -714,7 +746,15 @@ export function enemiesAct(ctx) {
               } catch (_) { return null; }
             }
 
-            const weapName = weaponNameFromEnemyPool(killerType);
+            // Prefer real follower weapon name when the killer is a follower; fall back to enemy loot pool.
+            let weapName = null;
+            if (e && e._isFollower) {
+              weapName = weaponNameForFollower(ctx, e);
+            }
+            if (!weapName) {
+              weapName = weaponNameFromEnemyPool(killerType);
+            }
+
             const viaStr = weapName ? `with ${weapName}` : "melee";
             target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: weapName, via: viaStr };
           } catch (_) {}
