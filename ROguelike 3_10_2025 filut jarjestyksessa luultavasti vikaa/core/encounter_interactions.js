@@ -264,129 +264,159 @@ function interactProp(ctx, p) {
         }
       } catch (_) {}
 
-      // Spawn a freed ally next to the player, mirroring tower captive behavior,
-      // and mark them as a recruitable follower candidate.
+      // Try to turn the freed captive into a permanent follower guard when possible.
+      // If follower caps or systems prevent this, fall back to spawning a simple
+      // one-encounter ally who will *not* be recruitable afterwards.
       try {
-        const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
-        const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
-        if (rows && cols) {
-          const T = ctx.TILES;
-          const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : (p.x | 0);
-          const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : (p.y | 0);
-
-          const dirs = [
-            { x: 1, y: 0 },
-            { x: -1, y: 0 },
-            { x: 0, y: 1 },
-            { x: 0, y: -1 },
-          ];
-          const inBounds = (x, y) => y >= 0 && y < rows && x >= 0 && x < cols;
-          const hasEnemyAt = (x, y) =>
-            Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y);
-          const hasCorpseAt = (x, y) =>
-            Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y);
-          const hasPropAt = (x, y) =>
-            Array.isArray(ctx.encounterProps) && ctx.encounterProps.some(pr => pr && pr.x === x && pr.y === y);
-
-          let sx = null;
-          let sy = null;
-          for (let i = 0; i < dirs.length; i++) {
-            const nx = px + dirs[i].x;
-            const ny = py + dirs[i].y;
-            if (!inBounds(nx, ny)) continue;
-            const tile = ctx.map[ny][nx];
-            if (tile !== T.FLOOR && tile !== T.DOOR && tile !== T.STAIRS) continue;
-            if (hasEnemyAt(nx, ny)) continue;
-            if (hasCorpseAt(nx, ny)) continue;
-            if (hasPropAt(nx, ny)) continue;
-            sx = nx;
-            sy = ny;
-            break;
-          }
-
-          if (sx == null || sy == null) {
-            log(ctx, "You free the captive, but there's no room for them to stand and fight here.", "info");
-          } else {
-            const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
-            let ally = null;
-            if (EM && typeof EM.getTypeDef === "function") {
-              let type = "guard";
-              let def = EM.getTypeDef(type);
-              if (!def) {
-                type = "bandit";
-                def = EM.getTypeDef(type);
-              }
-              if (def) {
-                const depth = 1;
-                let rfn = ctx.rng;
+        let convertedToFollower = false;
+        try {
+          const FR =
+            ctx.FollowersRuntime ||
+            getMod(ctx, "FollowersRuntime") ||
+            (typeof window !== "undefined" ? window.FollowersRuntime : null);
+          const archetypeId = "guard_follower";
+          if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
+            const check = FR.canHireFollower(ctx, archetypeId);
+            if (check.ok) {
+              const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+              if (ok) {
+                convertedToFollower = true;
+                // Spawn follower allies in this encounter map (spawnInDungeon handles
+                // ctx.mode === "encounter" as a generic combat map).
                 try {
-                  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-                  if (RU && typeof RU.getRng === "function") {
-                    rfn = RU.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+                  if (typeof FR.spawnInDungeon === "function") {
+                    FR.spawnInDungeon(ctx);
                   }
                 } catch (_) {}
-                if (typeof rfn !== "function") rfn = () => 0.5;
-                const level =
-                  EM.levelFor && typeof EM.levelFor === "function"
-                    ? EM.levelFor(type, depth, rfn)
-                    : depth;
-                const glyph =
-                  (def.glyph && def.glyph.length) ? def.glyph : (type && type.length ? type.charAt(0) : "?");
-                const hp = def.hp ? def.hp(depth) : 16;
-                const atk = def.atk ? def.atk(depth) : 3;
-                const xp = def.xp ? def.xp(depth) : 0;
+                log(ctx, "The freed guard swears to follow you as a loyal companion.", "good");
+              } else {
+                log(ctx, "The freed guard cannot join you right now, but will fight beside you.", "info");
+              }
+            } else if (check.reason) {
+              log(ctx, check.reason, "info");
+            }
+          }
+        } catch (_) {}
 
+        if (!convertedToFollower) {
+          // Spawn a freed ally next to the player, mirroring tower captive behavior,
+          // but without any recruit flags so they cannot be hired multiple times.
+          const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+          const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+          if (rows && cols) {
+            const T = ctx.TILES;
+            const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : (p.x | 0);
+            const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : (p.y | 0);
+
+            const dirs = [
+              { x: 1, y: 0 },
+              { x: -1, y: 0 },
+              { x: 0, y: 1 },
+              { x: 0, y: -1 },
+            ];
+            const inBounds = (x, y) => y >= 0 && y < rows && x >= 0 && x < cols;
+            const hasEnemyAt = (x, y) =>
+              Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y);
+            const hasCorpseAt = (x, y) =>
+              Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y);
+            const hasPropAt = (x, y) =>
+              Array.isArray(ctx.encounterProps) && ctx.encounterProps.some(pr => pr && pr.x === x && pr.y === y);
+
+            let sx = null;
+            let sy = null;
+            for (let i = 0; i < dirs.length; i++) {
+              const nx = px + dirs[i].x;
+              const ny = py + dirs[i].y;
+              if (!inBounds(nx, ny)) continue;
+              const tile = ctx.map[ny][nx];
+              if (tile !== T.FLOOR && tile !== T.DOOR && tile !== T.STAIRS) continue;
+              if (hasEnemyAt(nx, ny)) continue;
+              if (hasCorpseAt(nx, ny)) continue;
+              if (hasPropAt(nx, ny)) continue;
+              sx = nx;
+              sy = ny;
+              break;
+            }
+
+            if (sx == null || sy == null) {
+              log(ctx, "You free the captive, but there's no room for them to stand and fight here.", "info");
+            } else {
+              const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+              let ally = null;
+              if (EM && typeof EM.getTypeDef === "function") {
+                let type = "guard";
+                let def = EM.getTypeDef(type);
+                if (!def) {
+                  type = "bandit";
+                  def = EM.getTypeDef(type);
+                }
+                if (def) {
+                  const depth = 1;
+                  let rfn = ctx.rng;
+                  try {
+                    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+                    if (RU && typeof RU.getRng === "function") {
+                      rfn = RU.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+                    }
+                  } catch (_) {}
+                  if (typeof rfn !== "function") rfn = () => 0.5;
+                  const level =
+                    EM.levelFor && typeof EM.levelFor === "function"
+                      ? EM.levelFor(type, depth, rfn)
+                      : depth;
+                  const glyph =
+                    (def.glyph && def.glyph.length) ? def.glyph : (type && type.length ? type.charAt(0) : "?");
+                  const hp = def.hp ? def.hp(depth) : 16;
+                  const atk = def.atk ? def.atk(depth) : 3;
+                  const xp = def.xp ? def.xp(depth) : 0;
+
+                  ally = {
+                    x: sx,
+                    y: sy,
+                    type,
+                    glyph,
+                    hp,
+                    maxHp: hp,
+                    atk,
+                    xp,
+                    level,
+                    faction: def.faction || "guard",
+                    announced: false,
+                    // Do not target the player; only fight hostile factions.
+                    _ignorePlayer: true,
+                  };
+                }
+              }
+
+              if (!ally) {
+                // Fallback: simple generic ally if enemy registry is missing.
                 ally = {
                   x: sx,
                   y: sy,
-                  type,
-                  glyph,
-                  hp,
-                  maxHp: hp,
-                  atk,
-                  xp,
-                  level,
-                  faction: def.faction || "guard",
+                  type: "rescued_guard",
+                  glyph: "G",
+                  hp: 18,
+                  maxHp: 18,
+                  atk: 3,
+                  xp: 0,
+                  level: 1,
+                  faction: "guard",
                   announced: false,
-                  // Do not target the player; only fight hostile factions.
                   _ignorePlayer: true,
-                  // Mark as a recruit candidate so bumping them can open a hire prompt.
-                  _recruitCandidate: true,
-                  _recruitFollowerId: "guard_follower",
                 };
               }
+
+              if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+              ctx.enemies.push(ally);
+
+              try {
+                if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
+                  ctx.occupancy.setEnemy(ally.x, ally.y);
+                }
+              } catch (_) {}
+
+              log(ctx, "The freed captive arms themselves and is ready to fight beside you.", "good");
             }
-
-            if (!ally) {
-              // Fallback: simple generic ally if enemy registry is missing.
-              ally = {
-                x: sx,
-                y: sy,
-                type: "rescued_guard",
-                glyph: "G",
-                hp: 18,
-                maxHp: 18,
-                atk: 3,
-                xp: 0,
-                level: 1,
-                faction: "guard",
-                announced: false,
-                _ignorePlayer: true,
-                _recruitCandidate: true,
-                _recruitFollowerId: "guard_follower",
-              };
-            }
-
-            if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
-            ctx.enemies.push(ally);
-
-            try {
-              if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
-                ctx.occupancy.setEnemy(ally.x, ally.y);
-              }
-            } catch (_) {}
-
-            log(ctx, "The freed captive arms themselves and is ready to fight beside you.", "good");
           }
         }
       } catch (_) {}
