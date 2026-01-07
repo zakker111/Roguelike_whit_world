@@ -278,17 +278,98 @@ function interactProp(ctx, p) {
           if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
             const check = FR.canHireFollower(ctx, archetypeId);
             if (check.ok) {
+              const prevLen =
+                ctx && ctx.player && Array.isArray(ctx.player.followers)
+                  ? ctx.player.followers.length
+                  : 0;
               const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
               if (ok) {
                 convertedToFollower = true;
-                // Spawn follower allies in this encounter map (spawnInDungeon handles
-                // ctx.mode === "encounter" as a generic combat map).
+                let spawned = false;
                 try {
-                  if (typeof FR.spawnInDungeon === "function") {
-                    FR.spawnInDungeon(ctx);
+                  const Followers =
+                    ctx.Followers ||
+                    getMod(ctx, "Followers") ||
+                    (typeof window !== "undefined" ? window.Followers : null);
+                  const pPlayer = ctx.player;
+                  const followers =
+                    pPlayer && Array.isArray(pPlayer.followers) ? pPlayer.followers : null;
+                  let rec = null;
+                  if (followers && followers.length > prevLen) {
+                    rec = followers[followers.length - 1];
+                  }
+                  if (Followers && typeof Followers.createRuntimeFollower === "function" && rec) {
+                    const ally = Followers.createRuntimeFollower(ctx, rec);
+                    if (ally) {
+                      // Find a free tile near the player, same rules as the fallback ally.
+                      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+                      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+                      if (rows && cols) {
+                        const T = ctx.TILES;
+                        const px =
+                          pPlayer && typeof pPlayer.x === "number"
+                            ? (pPlayer.x | 0)
+                            : (ctx.player.x | 0);
+                        const py =
+                          pPlayer && typeof pPlayer.y === "number"
+                            ? (pPlayer.y | 0)
+                            : (ctx.player.y | 0);
+                        const dirs = [
+                          { x: 1, y: 0 },
+                          { x: -1, y: 0 },
+                          { x: 0, y: 1 },
+                          { x: 0, y: -1 },
+                        ];
+                        const inBounds = (x, y) => y >= 0 && y < rows && x >= 0 && x < cols;
+                        const hasEnemyAt = (x, y) =>
+                          Array.isArray(ctx.enemies) &&
+                          ctx.enemies.some(e => e && e.x === x && e.y === y);
+                        const hasCorpseAt = (x, y) =>
+                          Array.isArray(ctx.corpses) &&
+                          ctx.corpses.some(c => c && c.x === x && c.y === y);
+                        const hasPropAt = (x, y) =>
+                          Array.isArray(ctx.encounterProps) &&
+                          ctx.encounterProps.some(pr => pr && pr.x === x && pr.y === y);
+                        let sx = null;
+                        let sy = null;
+                        for (let i = 0; i < dirs.length; i++) {
+                          const nx = px + dirs[i].x;
+                          const ny = py + dirs[i].y;
+                          if (!inBounds(nx, ny)) continue;
+                          const tile = ctx.map[ny][nx];
+                          if (tile !== T.FLOOR && tile !== T.DOOR && tile !== T.STAIRS) continue;
+                          if (hasEnemyAt(nx, ny)) continue;
+                          if (hasCorpseAt(nx, ny)) continue;
+                          if (hasPropAt(nx, ny)) continue;
+                          sx = nx;
+                          sy = ny;
+                          break;
+                        }
+                        if (sx != null && sy != null) {
+                          ally.x = sx;
+                          ally.y = sy;
+                          if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+                          ctx.enemies.push(ally);
+                          try {
+                            if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
+                              ctx.occupancy.setEnemy(ally.x, ally.y);
+                            }
+                          } catch (_) {}
+                          spawned = true;
+                        }
+                      }
+                    }
                   }
                 } catch (_) {}
-                log(ctx, "The freed guard swears to follow you as a loyal companion.", "good");
+                if (spawned) {
+                  log(ctx, "The freed guard swears to follow you as a loyal companion.", "good");
+                } else {
+                  log(
+                    ctx,
+                    "The freed guard swears to follow you as a loyal companion, but cannot find room to stand here.",
+                    "info"
+                  );
+                }
               } else {
                 log(ctx, "The freed guard cannot join you right now, but will fight beside you.", "info");
               }
