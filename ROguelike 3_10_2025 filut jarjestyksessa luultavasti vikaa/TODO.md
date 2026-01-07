@@ -103,6 +103,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
         - On their turn, if below threshold and a potion is available, the follower consumes a potion instead of attacking, restoring HP and consuming one potion item.
     - Follower death drops:
       - When a follower dies, all of their equipped items and inventory items should be dropped as loot on the ground (added to the corpse/loot at their death location) so the player can recover their gear.
+    - Follower injuries and scars:
+      - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
+      - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
     - Simple follower AI improvements:
       - Trail the player without blocking doors/entrances when possible.
       - Continue to prioritize nearby hostiles using LOS-based targeting.
