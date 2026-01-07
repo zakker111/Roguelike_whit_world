@@ -94,12 +94,17 @@ Towns and Wild Seppo
 - Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)
-- Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled. Movement respects region tile walkability: you cannot step onto WATER/RIVER/MOUNTAIN or non-walkable RUIN_WALL tiles.
+- Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled. Movement respects region tile walkability: you cannot step onto WATER/RIVER/MOUNTAIN or non-walkable RUIN_WALL tiles. Region Map consults the “region” tileset in tiles.json first, then falls back to overworld rules when deciding walkability and LOS.
 - Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel. In ruins, corpses/chests also log detailed cause-of-death flavor (who/what killed them, wound, weapon/likely cause) before the loot or “nothing” lines.
 - Neutral animals (deer/fox/boar) are rare:
   - At most one spawns in sufficiently wild areas; many tiles have none.
   - If animals were seen here previously, future visits re‑spawn only with a low chance (seeded).
   - Clearing animals marks the tile as cleared; future spawns are skipped.
+- Ruins on Region Map:
+  - RUINS tiles open a small local map centered on the ruin; walls are drawn from a dedicated RUIN_WALL tile where available (falling back to mountains), with several gaps forming entrances and a cleared interior ring for movement.
+  - A small group of hostiles (e.g., skeletons, bandits, ghosts) and 1–2 lootable chests are placed inside the ruins; layouts and walkability are data-driven when tiles.json entries exist.
+- Followers in Region Map and ruins:
+  - Active followers travel with you into Region Map and ruins; they spawn near your position when space allows (never at distant map corners) and use the same region walkability rules as the player, including snowy forests.
 - Blood decals placed in Region Map (ruins fights, animals, etc.) fade over time each turn, mirroring dungeon behavior so stains do not accumulate permanently.
 - Fishing: if you stand next to WATER/RIVER, have a fishing pole, and press G, you can start a short fishing mini-game. Each attempt advances time and wears the pole; success yields fish or, rarely, other items. The mini-game has no on-screen Cancel button; use Escape to cancel.
 

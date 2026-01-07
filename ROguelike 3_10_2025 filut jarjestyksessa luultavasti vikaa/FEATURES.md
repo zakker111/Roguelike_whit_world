@@ -474,10 +474,10 @@ These exist partially in code or design but are **known unstable** or not yet im
     - Player defaults include a single follower record in `player.followers`, normalized and persisted on the save.
   - Spawning and modes:
     - Dungeons / towers / encounters / region-map:
-      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set.
-      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player.
+      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set; in encounters and Region Map they are placed within a small radius around the player (not at distant corners), and they skip spawning entirely if no nearby tile is free.
+      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player (or hold position in `wait` mode).
     - Towns / castles:
-      - A follower NPC is spawned near the gate/player with roles `["follower"]` and `_isFollower/_followerId` markers.
+      - A follower NPC is spawned near the gate/player with roles `[\"follower\"]` and `_isFollower/_followerId` markers.
       - Town tick logic keeps the follower NPC within a short distance of the player as they move through town.
   - Persistence and death:
     - Dungeon/town/region save snapshots explicitly exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
