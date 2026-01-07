@@ -129,9 +129,17 @@ function buildContent(ctx, view) {
   const modeLabel = mode === "wait" ? "Waiting here" : "Following you";
   lines.push(
     "<div style='margin-top:4px; font-size:12px;'>Mode: " +
-      `<span style="font-weight:500;">${modeLabel}</span>` +
-      ` <span data-fcmd="mode" data-mode="follow" style="color:#60a5fa; cursor:pointer; margin-left:8px;">[Follow]</span>` +
-      ` <span data-fcmd="mode" data-mode="wait" style="color:#60a5fa; cursor:pointer; margin-left:4px;">[Wait here]</span>` +
+      `<span style=\"font-weight:500;\">${modeLabel}</span>` +
+      ` <span data-fcmd=\"mode\" data-mode=\"follow\" style=\"color:#60a5fa; cursor:pointer; margin-left:8px;\">[Follow]</span>` +
+      ` <span data-fcmd=\"mode\" data-mode=\"wait\" style=\"color:#60a5fa; cursor:pointer; margin-left:4px;\">[Wait here]</span>` +
+    "</div>"
+  );
+
+  // Dismiss / part ways action
+  lines.push(
+    "<div style='margin-top:4px; font-size:12px; color:#f97316;'>" +
+      "<span data-fcmd=\"dismiss\" style=\"cursor:pointer;\">[Part ways]</span>" +
+      "<span style=\"color:#9ca3af;\"> (permanently remove this follower)</span>" +
     "</div>"
   );
 
@@ -259,7 +267,7 @@ function bindCommands() {
       try {
         const FI = (typeof window !== "undefined" && window.FollowersItems) ? window.FollowersItems : null;
         const FR = (typeof window !== "undefined" && window.FollowersRuntime) ? window.FollowersRuntime : null;
-        if (!FI && cmd !== "mode") return;
+        if (!FI && cmd !== "mode" && cmd !== "dismiss") return;
 
         if (cmd === "take") {
           const idx = parseInt(el.getAttribute("data-index") || "-1", 10);
@@ -283,6 +291,11 @@ function bindCommands() {
           const mode = el.getAttribute("data-mode") || "";
           if ((mode === "follow" || mode === "wait") && typeof FR?.setFollowerMode === "function") {
             did = !!FR.setFollowerMode(_ctxForCommands, fid, mode);
+          }
+
+        } else if (cmd === "dismiss") {
+          if (typeof FR?.dismissFollower === "function") {
+            did = !!FR.dismissFollower(_ctxForCommands, fid);
           }
 
         } else if (cmd === "equip") {
@@ -321,6 +334,11 @@ function bindCommands() {
 
       // If we changed something, ask UIOrchestration to rebuild the follower view and panel.
       if (did) {
+        // For dismiss, close the panel instead of reopening it (follower is gone).
+        if (cmd === "dismiss") {
+          try { hide(); } catch (_) {}
+          return;
+        }
         try {
           const UIO = (typeof window !== "undefined" && window.UIOrchestration) ? window.UIOrchestration : null;
           if (UIO && typeof UIO.showFollower === "function") {

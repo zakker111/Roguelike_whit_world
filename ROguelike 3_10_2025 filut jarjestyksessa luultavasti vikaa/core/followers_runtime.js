@@ -380,7 +380,7 @@ export function setFollowerMode(ctx, followerId, mode) {
   const fidStr = String(followerId || "");
   if (!fidStr) return false;
 
-  for (let i = 0; i < followers.length; i++) {
+  for (let i = 0; i &lt; followers.length; i++) {
     const f = followers[i];
     if (!f) continue;
     if (String(f.id || "") === fidStr) {
@@ -433,6 +433,79 @@ export function setFollowerMode(ctx, followerId, mode) {
   return true;
 }
 
+// Permanently dismiss a follower (unhire / part ways).
+// Removes the follower record from player.followers and any live actors/NPCs
+// for that follower from the current map.
+export function dismissFollower(ctx, followerId) {
+  if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return false;
+  const fidStr = String(followerId || "");
+  if (!fidStr) return false;
+
+  const followers = ctx.player.followers;
+  let removed = false;
+  let name = "Follower";
+
+  // Remove the follower record
+  try {
+    for (let i = followers.length - 1; i &gt;= 0; i--) {
+      const f = followers[i];
+      if (!f) continue;
+      if (String(f.id || "") !== fidStr) continue;
+      name = f.name || name;
+      followers.splice(i, 1);
+      removed = true;
+      break;
+    }
+  } catch (_) {}
+
+  if (!removed) return false;
+
+  // Remove any live dungeon/encounter/region follower actors.
+  try {
+    if (Array.isArray(ctx.enemies)) {
+      for (let i = ctx.enemies.length - 1; i &gt;= 0; i--) {
+        const e = ctx.enemies[i];
+        if (!e || !e._isFollower) continue;
+        const eid = String(e._followerId || e.id || e.type || "");
+        if (eid !== fidStr) continue;
+        try {
+          if (ctx.occupancy && typeof ctx.occupancy.clearEnemy === "function") {
+            ctx.occupancy.clearEnemy(e.x | 0, e.y | 0);
+          }
+        } catch (_) {}
+        ctx.enemies.splice(i, 1);
+      }
+    }
+  } catch (_) {}
+
+  // Remove any follower NPCs in town.
+  try {
+    if (Array.isArray(ctx.npcs)) {
+      for (let i = ctx.npcs.length - 1; i &gt;= 0; i--) {
+        const n = ctx.npcs[i];
+        if (!n || !n._isFollower) continue;
+        const nid = String(n._followerId || "");
+        if (nid !== fidStr) continue;
+        try {
+          if (ctx.occupancy && typeof ctx.occupancy.clearNPC === "function") {
+            ctx.occupancy.clearNPC(n.x | 0, n.y | 0);
+          }
+        } catch (_) {}
+        ctx.npcs.splice(i, 1);
+      }
+    }
+  } catch (_) {}
+
+  // Log a short flavor line so the player knows the follower is gone.
+  try {
+    if (ctx.log) {
+      ctx.log(`${name} returns to their own path.`, "info");
+    }
+  } catch (_) {}
+
+  return true;
+}
+
 if (typeof window !== "undefined") {
   window.FollowersRuntime = {
     spawnInDungeon,
@@ -440,5 +513,6 @@ if (typeof window !== "undefined") {
     syncFollowersFromDungeon,
     syncFollowersFromTown,
     setFollowerMode,
+    dismissFollower,
   };
 }
