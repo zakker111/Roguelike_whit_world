@@ -36,6 +36,74 @@ function getFollowersCaps(ctx) {
   return { maxActive, maxPerType };
 }
 
+// Ensure follower records have unique ids per follower and a separate
+// archetypeId used for per-type caps and definition lookup. This runs once
+// per loaded player and is safe for old saves that only carried `id` as the
+// archetype id (e.g. \"guard_follower\").
+function normalizeFollowerRecords(ctx) {
+  try {
+    const p = ctx && ctx.player;
+    if (!p || !Array.isArray(p.followers)) return;
+    if (p._followersNormalized) return;
+
+    const followers = p.followers;
+    const usedIds = new Set();
+    let seq = (typeof p._followerSeq === "number" && p._followerSeq >= 0) ? (p._followerSeq | 0) : 0;
+
+    for (let i = 0; i < followers.length; i++) {
+      const f = followers[i];
+      if (!f) continue;
+
+      // Derive archetype id: prefer explicit archetypeId, then base portion of id.
+      let arch = "";
+      if (typeof f.archetypeId === "string" && f.archetypeId.trim()) {
+        arch = f.archetypeId.trim();
+      } else {
+        const rawId = String(f.id || "").trim();
+        const hashIdx = rawId.indexOf("#");
+        arch = hashIdx >= 0 ? rawId.slice(0, hashIdx) : rawId;
+        if (!arch) arch = "follower";
+      }
+      f.archetypeId = arch;
+
+      // Start from existing id when present, otherwise use archetype id.
+      let id = String(f.id || "").trim();
+      if (!id) id = arch;
+
+      // Track numeric suffix for future hires when id already uses the pattern archetype#N.
+      const hashIdx = id.indexOf("#");
+      if (hashIdx >= 0) {
+        const suffix = id.slice(hashIdx + 1);
+        const n = Number(suffix);
+        if (!Number.isNaN(n) && n > seq) seq = n;
+      }
+
+      // Ensure uniqueness across all follower ids.
+      if (usedIds.has(id)) {
+        const base = arch || "follower";
+        let n = seq;
+        // Find the next free suffix
+        // Example: guard_follower#1, guard_follower#2, ...
+        for (;;) {
+          n += 1;
+          const cand = `${base}#${n}`;
+          if (!usedIds.has(cand)) {
+            id = cand;
+            seq = n;
+            break;
+          }
+        }
+      }
+
+      f.id = id;
+      usedIds.add(id);
+    }
+
+    p._followerSeq = seq;
+    p._followersNormalized = true;
+  } catch (_) {}
+}
+
 // Resolve the list of follower archetypes defined in data/entities/followers.json
 // via GameData.followers. Returns an array; never throws.
 export function getFollowerArchetypes(ctx) {
@@ -131,8 +199,13 @@ export function canHireFollower(ctx, archetypeId) {
   let sameKind = 0;
   for (let i = 0; i < p.followers.length; i++) {
     const f = p.followers[i];
-    if (!f || !f.id) continue;
-    if (String(f.id).trim() !== fid) continue;
+    if (!f) continue;
+    const baseId = String(f.archetypeId || f.id || "").trim();
+    if (!baseId) continue;
+    // Strip any per-follower suffix (e.g. guard_follower#2 -> guard_follower)
+    const hashIdx = baseId.indexOf("#");
+    const archId = hashIdx >= 0 ? baseId.slice(0, hashIdx) : baseId;
+    if (archId !== fid) continue;
     if (f.enabled === false) continue;
     if (typeof f.hp === "number" && f.hp <= 0) continue;
     sameKind++;
@@ -153,6 +226,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
   if (!ctx || !ctx.player) return false;
   const p = ctx.player;
   if (!Array.isArray(p.followers)) p.followers = [];
+  // Ensure existing followers have unique ids/archetypeIds before adding a new one
+  normalizeFollowerRecords(ctx);
 
   const check = canHireFollower(ctx, archetypeId);
   if (!check.ok) {
@@ -179,7 +254,15 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
   }
   if (!def) return false;
 
-  const rec = { id: String(def.id), enabled: true };
+  // Assign a unique per-follower id while keeping a separate archetypeId that
+  // points back to the definition in followers.json. New ids use the pattern
+  // \"<archetypeId>#N\" so they remain human-readable and debuggable.
+  let seq = (typeof p._followerSeq === "number" && p._followerSeq >= 0) ? (p._followerSeq | 0) : 0;
+  seq += 1;
+  p._followerSeq = seq;
+  const uniqueId = `${def.id}#${seq}`;
+
+  const rec = { id: uniqueId, archetypeId: String(def.id), enabled: true };
 
   // Basic stats: start at baseHp and level 1 (or def.level if provided).
   const level =
@@ -239,6 +322,9 @@ function getActiveFollowerRecords(ctx, maxCount) {
   const cap =
     typeof maxCount === "number" && maxCount > 0 ? maxCount : caps.maxActive;
   try {
+    // Normalize follower ids/archetypes once per player so multi-follower
+    // parties can distinguish individual allies of the same archetype.
+    normalizeFollowerRecords(ctx);
     const p = ctx && ctx.player;
     if (!p || !Array.isArray(p.followers)) return out;
     for (let i = 0; i < p.followers.length; i++) {
@@ -548,6 +634,7 @@ export function spawnInTown(ctx) {
 export function syncFollowersFromDungeon(ctx) {
   if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers) || !Array.isArray(ctx.enemies)) return;
   try {
+    normalizeFollowerRecords(ctx);
     const followers = ctx.player.followers;
     for (let i = 0; i < ctx.enemies.length; i++) {
       const e = ctx.enemies[i];
@@ -562,6 +649,7 @@ export function syncFollowersFromDungeon(ctx) {
 export function syncFollowersFromTown(ctx) {
   if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers) || !Array.isArray(ctx.npcs)) return;
   try {
+    normalizeFollowerRecords(ctx);
     const followers = ctx.player.followers;
     // HP is not tracked on town NPCs for now, but we keep this hook in place for future extensions.
     // For now this is a no-op aside from ensuring the list is well-formed.
