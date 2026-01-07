@@ -10,19 +10,36 @@
 
 import { createRuntimeFollower, syncRecordFromRuntime } from "../entities/followers.js";
 
-function getActiveFollowerRecord(ctx) {
+// Hard cap for how many followers can be active at once in the party.
+// This applies to dungeon/encounter/region and town spawns.
+const MAX_FOLLOWERS_ACTIVE = 3;
+
+// Return up to `maxCount` active follower records (enabled and alive) from
+// player.followers, in array order.
+function getActiveFollowerRecords(ctx, maxCount) {
+  const out = [];
+  const cap =
+    typeof maxCount === "number" && maxCount > 0 ? maxCount : MAX_FOLLOWERS_ACTIVE;
   try {
     const p = ctx && ctx.player;
-    if (!p || !Array.isArray(p.followers)) return null;
+    if (!p || !Array.isArray(p.followers)) return out;
     for (let i = 0; i < p.followers.length; i++) {
       const f = p.followers[i];
       if (!f) continue;
       if (f.enabled === false) continue;
       if (typeof f.hp === "number" && f.hp <= 0) continue;
-      return f;
+      out.push(f);
+      if (out.length >= cap) break;
     }
   } catch (_) {}
-  return null;
+  return out;
+}
+
+// Back-compat: return the first active follower record, preserving existing
+// behavior for any callers that still expect a single record.
+function getActiveFollowerRecord(ctx) {
+  const list = getActiveFollowerRecords(ctx, 1);
+  return list.length ? list[0] : null;
 }
 
 // Local helper to mirror TownRuntime.isFreeTownFloor without creating a
@@ -149,37 +166,71 @@ export function spawnInDungeon(ctx) {
     const p = ctx.player;
     if (!p) return;
     if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
-    // Avoid spawning duplicates if follower is already present
-    const existing = ctx.enemies.find(e => e && e._isFollower);
-    if (existing) return;
 
-    const rec = getActiveFollowerRecord(ctx);
-    if (!rec) return;
+    const records = getActiveFollowerRecords(ctx, MAX_FOLLOWERS_ACTIVE);
+    if (!records.length) return;
 
-    const follower = createRuntimeFollower(ctx, rec);
-    const pos = findSpawnTileNearPlayer(ctx);
-    if (!pos) return;
-    follower.x = pos.x | 0;
-    follower.y = pos.y | 0;
+    let spawned = 0;
 
-    ctx.enemies.push(follower);
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i];
+      if (!rec || !rec.id) continue;
 
-    try {
-      if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
-        ctx.occupancy.setEnemy(follower.x, follower.y);
+      // Avoid spawning duplicates for this specific follower id
+      try {
+        const already = ctx.enemies.some(
+          (e) => e && e._isFollower && e._followerId === rec.id
+        );
+        if (already) continue;
+      } catch (_) {}
+
+      let follower = null;
+      try {
+        follower = createRuntimeFollower(ctx, rec);
+      } catch (_) {
+        follower = null;
       }
-    } catch (_) {}
+      if (!follower) continue;
 
-    // Light log so it's clear when the ally is present, without spamming.
-    try {
-      if (ctx.log) {
-        const label = follower.name || "Your ally";
-        let where = "dungeon";
-        if (ctx.mode === "encounter") where = "encounter";
-        else if (ctx.mode === "region") where = "region map";
-        ctx.log(`${label} joins you in the ${where}.`, "info");
-      }
-    } catch (_) {}
+      const pos = findSpawnTileNearPlayer(ctx);
+      if (!pos) continue;
+
+      follower.x = pos.x | 0;
+      follower.y = pos.y | 0;
+
+      ctx.enemies.push(follower);
+
+      try {
+        if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
+          ctx.occupancy.setEnemy(follower.x, follower.y);
+        }
+      } catch (_) {}
+
+      spawned++;
+
+      // Light log so it's clear when each ally is present, without spamming.
+      try {
+        if (ctx.log) {
+          const label = follower.name || "Your ally";
+          let where = "dungeon";
+          if (ctx.mode === "encounter") where = "encounter";
+          else if (ctx.mode === "region") where = "region map";
+          ctx.log(`${label} joins you in the ${where}.`, "info");
+        }
+      } catch (_) {}
+    }
+
+    // If no follower could find a spawn tile, emit a single helpful log.
+    if (!spawned) {
+      try {
+        if (ctx.log) {
+          ctx.log(
+            "Your followers cannot find room to stand nearby in this area.",
+            "info"
+          );
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
 }
 
@@ -189,58 +240,103 @@ export function spawnInTown(ctx) {
     const p = ctx.player;
     if (!p) return;
     if (!Array.isArray(ctx.npcs)) ctx.npcs = [];
-    // Avoid duplicates within a single town visit
-    const existing = ctx.npcs.find(n => n && n._isFollower);
-    if (existing) return;
 
-    const rec = getActiveFollowerRecord(ctx);
-    if (!rec) {
-      try { ctx.log && ctx.log("No active follower available to accompany you in town.", "info"); } catch (_) {}
+    const records = getActiveFollowerRecords(ctx, MAX_FOLLOWERS_ACTIVE);
+    if (!records.length) {
+      try {
+        ctx.log &&
+          ctx.log(
+            "No active followers available to accompany you in town.",
+            "info"
+          );
+      } catch (_) {}
       return;
     }
 
-    const followerActor = createRuntimeFollower(ctx, rec);
-    // Try a slightly larger radius around the player so castle gates and
-    // narrow town entrances still find a nearby tile.
-    const pos = findSpawnTileNearPlayer(ctx, 8);
-    if (!pos) {
-      try { ctx.log && ctx.log("Your follower cannot find room to stand nearby in this town.", "info"); } catch (_) {}
-      return;
+    let spawned = 0;
+
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i];
+      if (!rec || !rec.id) continue;
+
+      // Avoid duplicates for this specific follower id within a single town visit
+      try {
+        const exists = ctx.npcs.some(
+          (n) => n && n._isFollower && n._followerId === rec.id
+        );
+        if (exists) continue;
+      } catch (_) {}
+
+      let followerActor = null;
+      try {
+        followerActor = createRuntimeFollower(ctx, rec);
+      } catch (_) {
+        followerActor = null;
+      }
+      if (!followerActor) continue;
+
+      // Try a slightly larger radius around the player so castle gates and
+      // narrow town entrances still find a nearby tile.
+      const pos = findSpawnTileNearPlayer(ctx, 8);
+      if (!pos) {
+        try {
+          ctx.log &&
+            ctx.log(
+              `${followerActor.name || "Your follower"} cannot find room to stand nearby in this town.`,
+              "info"
+            );
+        } catch (_) {}
+        continue;
+      }
+
+      const npc = {
+        x: pos.x | 0,
+        y: pos.y | 0,
+        name: followerActor.name || "Follower",
+        lines: [
+          "I've got your back.",
+          "Lead the way.",
+          "I'll guard you."
+        ],
+        roles: ["follower"],
+        _isFollower: true,
+        _followerId: followerActor._followerId,
+        _followerMode: rec.mode || "follow",
+      };
+
+      ctx.npcs.push(npc);
+
+      try {
+        if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
+          ctx.occupancy.setNPC(npc.x, npc.y);
+        }
+      } catch (_) {}
+
+      spawned++;
+
+      // Light log so it's visible that each ally is present in town.
+      try {
+        if (ctx.log) {
+          const label = npc.name || "Your ally";
+          ctx.log(`${label} accompanies you in town.`, "info");
+          // Debug-friendly hint: where the follower spawned, so it's easier to
+          // verify during testing (especially in large castles).
+          ctx.log(`(Follower position: ${npc.x},${npc.y})`, "info");
+        }
+      } catch (_) {}
     }
 
-    const npc = {
-      x: pos.x | 0,
-      y: pos.y | 0,
-      name: followerActor.name || "Follower",
-      lines: [
-        "I've got your back.",
-        "Lead the way.",
-        "I'll guard you."
-      ],
-      roles: ["follower"],
-      _isFollower: true,
-      _followerId: followerActor._followerId,
-      _followerMode: rec.mode || "follow",
-    };
-
-    ctx.npcs.push(npc);
-
-    try {
-      if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
-        ctx.occupancy.setNPC(npc.x, npc.y);
-      }
-    } catch (_) {}
-
-    // Light log so it's visible that the ally is present in town.
-    try {
-      if (ctx.log) {
-        const label = npc.name || "Your ally";
-        ctx.log(`${label} accompanies you in town.`, "info");
-        // Debug-friendly hint: where the follower spawned, so it's easier to
-        // verify during testing (especially in large castles).
-        ctx.log(`(Follower position: ${npc.x},${npc.y})`, "info");
-      }
-    } catch (_) {}
+    // If we had active followers but none could spawn, emit a single fallback log.
+    if (!spawned) {
+      try {
+        if (ctx.log) {
+          ctx.log(
+            "Your followers cannot find room to stand nearby in this town.",
+            "info"
+          );
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
 }
 
