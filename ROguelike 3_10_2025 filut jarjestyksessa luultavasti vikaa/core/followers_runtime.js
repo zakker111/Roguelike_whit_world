@@ -568,7 +568,7 @@ export function setFollowerMode(ctx, followerId, mode) {
   const fidStr = String(followerId || "");
   if (!fidStr) return false;
 
-  for (let i = 0; i &lt; followers.length; i++) {
+  for (let i = 0; i < followers.length; i++) {
     const f = followers[i];
     if (!f) continue;
     if (String(f.id || "") === fidStr) {
@@ -635,7 +635,7 @@ export function dismissFollower(ctx, followerId) {
 
   // Remove the follower record
   try {
-    for (let i = followers.length - 1; i &gt;= 0; i--) {
+    for (let i = followers.length - 1; i >= 0; i--) {
       const f = followers[i];
       if (!f) continue;
       if (String(f.id || "") !== fidStr) continue;
@@ -651,7 +651,7 @@ export function dismissFollower(ctx, followerId) {
   // Remove any live dungeon/encounter/region follower actors.
   try {
     if (Array.isArray(ctx.enemies)) {
-      for (let i = ctx.enemies.length - 1; i &gt;= 0; i--) {
+      for (let i = ctx.enemies.length - 1; i >= 0; i--) {
         const e = ctx.enemies[i];
         if (!e || !e._isFollower) continue;
         const eid = String(e._followerId || e.id || e.type || "");
@@ -669,7 +669,7 @@ export function dismissFollower(ctx, followerId) {
   // Remove any follower NPCs in town.
   try {
     if (Array.isArray(ctx.npcs)) {
-      for (let i = ctx.npcs.length - 1; i &gt;= 0; i--) {
+      for (let i = ctx.npcs.length - 1; i >= 0; i--) {
         const n = ctx.npcs[i];
         if (!n || !n._isFollower) continue;
         const nid = String(n._followerId || "");
