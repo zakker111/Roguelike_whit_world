@@ -23,4 +23,4 @@
 - sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
 - in some towns, ground/terrain tinting still changes incorrectly or inconsistently (tiles changing biome color unexpectedly)
 - animals/creatures on the Region Map sometimes use odd or incorrect glyphs (verify animal glyph mapping in region map overlays)
-- Seppo's True Blade on followers currently counts as two separate hand weapons for attack when treated as two-handed; should behave damage-wise as a single blade (no double-stacking follower attack)
+- [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage

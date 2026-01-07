@@ -56,10 +56,13 @@ export function aggregateFollowerAtkDef(def, record) {
   let defense = baseDef;
 
   const slots = ["left", "right", "head", "torso", "legs", "hands"];
+  const seen = new Set();
+
   for (let i = 0; i < slots.length; i++) {
-    const s = slots[i];
-    const it = eq[s];
+    const it = eq[slots[i]];
     if (!it) continue;
+    if (seen.has(it)) continue;
+    seen.add(it);
     if (typeof it.atk === "number") atk += it.atk;
     if (typeof it.def === "number") defense += it.def;
   }

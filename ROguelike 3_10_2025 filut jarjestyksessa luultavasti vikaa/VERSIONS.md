@@ -12,6 +12,11 @@ v1.61.4 — Follower death drops and potion use
     - Follower actors (`_isFollower === true`) now check their own follower record inventory for `kind === "potion"` when below a low-HP threshold (~35% of max HP).
     - If a potion is available, the follower drinks it instead of attacking, healing themselves and consuming one potion from follower inventory.
     - The follower record’s `hp`/`maxHp` fields are updated to reflect the healed runtime HP so dungeon/town/region persistence stays in sync.
+- Fixed: Two-handed hand weapons (including Seppo’s True Blade) no longer double-count Attack/Defense when the same item object is equipped in both hands.
+  - entities/equip_common.js:
+    - `aggregateFollowerAtkDef` now tracks equipped items in a small Set and only adds each item’s atk/def once, even if referenced by multiple slots (e.g., left/right for two-handed weapons).
+  - entities/player.js:
+    - `getAttack` and `getDefense` now use a Set to ensure each equipped item contributes its atk/def only once across all relevant slots, so two-handed weapons behave as a single blade rather than double-stacking damage for the player.
 - Changed: Followers cannot equip potions or other non-equipment items.
   - core/followers_items.js:
     - `giveItemToFollower` now only allows items with `kind === "equip"` to occupy follower equipment slots; non-equip items are always added to follower inventory, even when a slot is specified.

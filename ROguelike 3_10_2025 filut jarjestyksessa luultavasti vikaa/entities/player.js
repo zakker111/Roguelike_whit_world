@@ -244,9 +244,19 @@ export function createInitial() {
 export function getAttack(player) {
   let bonus = 0;
   const eq = player.equipment || {};
-  if (eq.left && typeof eq.left.atk === "number") bonus += eq.left.atk;
-  if (eq.right && typeof eq.right.atk === "number") bonus += eq.right.atk;
-  if (eq.hands && typeof eq.hands.atk === "number") bonus += eq.hands.atk;
+  const seen = new Set();
+
+  const addAtk = (item) => {
+    if (!item || typeof item.atk !== "number") return;
+    if (seen.has(item)) return;
+    seen.add(item);
+    bonus += item.atk;
+  };
+
+  addAtk(eq.left);
+  addAtk(eq.right);
+  addAtk(eq.hands);
+
   const levelBonus = Math.floor((player.level - 1) / 2);
   return round1(player.atk + bonus + levelBonus);
 }
@@ -254,12 +264,22 @@ export function getAttack(player) {
 export function getDefense(player) {
   let def = 0;
   const eq = player.equipment || {};
-  if (eq.left && typeof eq.left.def === "number") def += eq.left.def;
-  if (eq.right && typeof eq.right.def === "number") def += eq.right.def;
-  if (eq.head && typeof eq.head.def === "number") def += eq.head.def;
-  if (eq.torso && typeof eq.torso.def === "number") def += eq.torso.def;
-  if (eq.legs && typeof eq.legs.def === "number") def += eq.legs.def;
-  if (eq.hands && typeof eq.hands.def === "number") def += eq.hands.def;
+  const seen = new Set();
+
+  const addDef = (item) => {
+    if (!item || typeof item.def !== "number") return;
+    if (seen.has(item)) return;
+    seen.add(item);
+    def += item.def;
+  };
+
+  addDef(eq.left);
+  addDef(eq.right);
+  addDef(eq.head);
+  addDef(eq.torso);
+  addDef(eq.legs);
+  addDef(eq.hands);
+
   return round1(def);
 }
 
