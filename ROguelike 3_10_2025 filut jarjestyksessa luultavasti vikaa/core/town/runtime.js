@@ -153,6 +153,13 @@ function spawnInnFollowerHires(ctx) {
         ctx.occupancy.setNPC(npc.x, npc.y);
       }
     } catch (_) {}
+
+    // Light log so players know there is someone for hire in the inn.
+    try {
+      if (ctx.log) {
+        ctx.log(`${npc.name} is staying at the inn and looking for work.`, "info");
+      }
+    } catch (_) {}
   } catch (_) {}
 }
 
