@@ -542,11 +542,31 @@ export function spawnInDungeon(ctx) {
     const records = getActiveFollowerRecords(ctx, caps.maxActive);
     if (!records.length) return;
 
+    // Build a set of followerIds already present on this map so repeated
+    // spawnInDungeon calls (e.g., when re-entering or layering encounters)
+    // do not create duplicate runtime allies for the same follower record.
+    const existingFollowerIds = new Set();
+    try {
+      if (Array.isArray(ctx.enemies)) {
+        for (let i = 0; i < ctx.enemies.length; i++) {
+          const e = ctx.enemies[i];
+          if (!e || !e._isFollower) continue;
+          if (!e._followerId && !e.id) continue;
+          const fid = String(e._followerId || e.id);
+          if (fid) existingFollowerIds.add(fid);
+        }
+      }
+    } catch (_) {}
+
     let spawned = 0;
 
     for (let i = 0; i < records.length; i++) {
       const rec = records[i];
       if (!rec || !rec.id) continue;
+
+      // Skip if this follower already has a live runtime ally on this map.
+      const recId = String(rec.id);
+      if (recId && existingFollowerIds.has(recId)) continue;
 
       let follower = null;
       try {
@@ -563,6 +583,7 @@ export function spawnInDungeon(ctx) {
       follower.y = pos.y | 0;
 
       ctx.enemies.push(follower);
+      existingFollowerIds.add(recId);
 
       try {
         if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
