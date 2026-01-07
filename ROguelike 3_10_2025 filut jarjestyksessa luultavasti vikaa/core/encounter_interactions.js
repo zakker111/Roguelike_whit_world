@@ -225,11 +225,126 @@ function interactProp(ctx, p) {
   }
   if (type === "captive") {
     try {
+      // Remove this captive prop so it cannot be freed multiple times.
+      try {
+        const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : null;
+        if (props) {
+          const idx = props.indexOf(p);
+          if (idx >= 0) props.splice(idx, 1);
+        }
+      } catch (_) {}
+
       if (ctx.encounterObjective && ctx.encounterObjective.type === "rescueTarget" && !ctx.encounterObjective.rescued) {
         ctx.encounterObjective.rescued = true;
         log(ctx, "You free the captive! Now reach an exit (>) to leave.", "good");
       } else {
         log(ctx, "You help the captive to their feet.", "info");
+      }
+
+      // In the Rescue Captive encounter, freeing the captive can spawn a
+      // recruitable ally based on followers.json.
+      const info = ctx.encounterInfo || {};
+      const tplId = String(info.id || "").toLowerCase();
+      if (tplId === "rescue_captive") {
+        try {
+          const FR =
+            ctx.FollowersRuntime ||
+            getMod(ctx, "FollowersRuntime") ||
+            (typeof window !== "undefined" ? window.FollowersRuntime : null);
+          if (FR && typeof FR.pickRandomFollowerArchetype === "function") {
+            const archetype = FR.pickRandomFollowerArchetype(ctx, { skipHired: true });
+            if (archetype && archetype.id) {
+              const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+              const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+              if (rows && cols) {
+                const T = ctx.TILES;
+                const px = p.x | 0;
+                const py = p.y | 0;
+                const dirs = [
+                  { x: 1, y: 0 },
+                  { x: -1, y: 0 },
+                  { x: 0, y: 1 },
+                  { x: 0, y: -1 },
+                ];
+                const inBounds = (x, y) => y >= 0 && y < rows && x >= 0 && x < cols;
+                const hasEnemyAt = (x, y) =>
+                  Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y);
+                const hasCorpseAt = (x, y) =>
+                  Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y);
+                const hasPropAt = (x, y) =>
+                  Array.isArray(ctx.encounterProps) && ctx.encounterProps.some(pr => pr && pr.x === x && pr.y === y);
+
+                let sx = null;
+                let sy = null;
+                for (let i = 0; i < dirs.length; i++) {
+                  const nx = px + dirs[i].x;
+                  const ny = py + dirs[i].y;
+                  if (!inBounds(nx, ny)) continue;
+                  const tile = ctx.map[ny][nx];
+                  if (tile !== T.FLOOR && tile !== T.DOOR && tile !== T.STAIRS) continue;
+                  if (hasEnemyAt(nx, ny)) continue;
+                  if (hasCorpseAt(nx, ny)) continue;
+                  if (hasPropAt(nx, ny)) continue;
+                  sx = nx;
+                  sy = ny;
+                  break;
+                }
+
+                if (sx == null || sy == null) {
+                  log(ctx, "You free the captive, but there's no room for them to stand and fight here.", "info");
+                } else {
+                  const glyph =
+                    typeof archetype.glyph === "string" && archetype.glyph.length
+                      ? archetype.glyph
+                      : (String(archetype.id || "").charAt(0) || "?");
+                  const color =
+                    typeof archetype.color === "string" && archetype.color.length
+                      ? archetype.color
+                      : "#ffffff";
+                  const baseHp =
+                    typeof archetype.baseHp === "number" && archetype.baseHp > 0 ? archetype.baseHp : 16;
+                  const baseAtk =
+                    typeof archetype.baseAtk === "number" ? archetype.baseAtk : 3;
+                  const level =
+                    typeof archetype.level === "number" && archetype.level > 0
+                      ? (archetype.level | 0)
+                      : 1;
+
+                  const ally = {
+                    x: sx,
+                    y: sy,
+                    type: String(archetype.id),
+                    glyph,
+                    color,
+                    hp: baseHp,
+                    maxHp: baseHp,
+                    atk: baseAtk,
+                    xp: 0,
+                    level,
+                    faction: archetype.faction || "guard",
+                    announced: false,
+                    // Do not target the player; only fight hostile factions.
+                    _ignorePlayer: true,
+                    // Mark as a recruit candidate so bumping them can open a hire prompt.
+                    _recruitCandidate: true,
+                    _recruitFollowerId: String(archetype.id),
+                  };
+
+                  if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+                  ctx.enemies.push(ally);
+
+                  try {
+                    if (ctx.occupancy && typeof ctx.occupancy.setEnemy === "function") {
+                      ctx.occupancy.setEnemy(ally.x, ally.y);
+                    }
+                  } catch (_) {}
+
+                  log(ctx, "The freed captive arms themselves and is ready to fight beside you.", "good");
+                }
+              }
+            }
+          }
+        } catch (_) {}
       }
     } catch (_) {}
     return true;
