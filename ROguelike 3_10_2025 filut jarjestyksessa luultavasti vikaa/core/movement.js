@@ -287,12 +287,72 @@ export function tryMove(ctx, dx, dy) {
 
     // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
     // Followers are treated specially: bump opens the follower inspect panel instead of attacking
-    // or prompting.
+    // or prompting. Recruitable follower candidates (rescued captives, inn hires) are handled
+    // first: bump opens a hire prompt instead of attacking or toggling guard hostility.
     try {
       let enemy = null;
       const enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
       if (enemy) {
+        // Recruitable follower candidates: bump opens a hire prompt instead of attacking.
+        try {
+          if (enemy._recruitCandidate && enemy._recruitFollowerId) {
+            const FR = mod("FollowersRuntime");
+            const UIO = mod("UIOrchestration");
+            if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
+              const archetypeId = String(enemy._recruitFollowerId || "");
+              if (archetypeId) {
+                const check = FR.canHireFollower(ctx, archetypeId);
+                if (!check.ok) {
+                  try {
+                    if (ctx.log && check.reason) ctx.log(check.reason, "info");
+                  } catch (_) {}
+                  return true;
+                }
+
+                // Try to resolve a friendly label from follower definitions.
+                let label = "Follower";
+                try {
+                  if (typeof FR.getFollowerArchetypes === "function") {
+                    const defs = FR.getFollowerArchetypes(ctx) || [];
+                    for (let i = 0; i < defs.length; i++) {
+                      const d = defs[i];
+                      if (!d || !d.id) continue;
+                      if (String(d.id) === archetypeId) {
+                        label = d.name || label;
+                        break;
+                      }
+                    }
+                  }
+                } catch (_) {}
+
+                const prompt = `${label} offers to travel with you as a follower. Accept?`;
+                const onOk = () => {
+                  try {
+                    const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+                    if (!ok && ctx.log) {
+                      ctx.log("They cannot join you right now.", "info");
+                    }
+                  } catch (_) {}
+                };
+                const onCancel = () => {
+                  try {
+                    if (ctx.log) ctx.log("You decide to travel alone for now.", "info");
+                  } catch (_) {}
+                };
+
+                if (UIO && typeof UIO.showConfirm === "function") {
+                  UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+                } else {
+                  onOk();
+                }
+                // Hiring (or declining) does not consume a combat turn beyond this bump.
+                return true;
+              }
+            }
+          }
+        } catch (_) {}
+
         // Followers: open inspect panel instead of prompting for attack.
         if (enemy._isFollower) {
           const UIO = mod("UIOrchestration");
@@ -301,6 +361,77 @@ export function tryMove(ctx, dx, dy) {
           }
           // Inspecting a follower does not consume a turn.
           return true;
+        }
+
+        const fac = String(enemy.faction || "").toLowerCase();
+        const isGuard = fac === "guard" || String(enemy.type || "").toLowerCase() === "guard";
+        // Do not treat recruit candidates as neutral guards for the attack-confirm prompt.
+        const neutralGuard = isGuard && enemy._ignorePlayer && !enemy._recruitCandidate;
+        if (neutralGuard) {
+          const UIO = mod("UIOrchestration");
+          const C = mod("Combat");
+          if (UIO && typeof UIO.showConfirm === "function" && C && typeof C.playerAttackEnemy === "function") {
+            const text = "Do you want to attack the guard? This will make all guards hostile to you.";
+            const enemyRef = enemy;
+            // Pass null for position so the confirm dialog is centered on the game.
+            UIO.showConfirm(ctx, text, null,
+              () => {
+                try {
+                  C.playerAttackEnemy(ctx, enemyRef);
+                  applyRefresh(ctx);
+                  if (typeof ctx.turn === "function") ctx.turn();
+                } catch (_) {}
+              },
+              () => {}
+            );
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+                return true;
+              }
+
+              // Try to resolve a friendly label from follower definitions.
+              let label = "Follower";
+              try {
+                if (typeof FR.getFollowerArchetypes === "function") {
+                  const defs = FR.getFollowerArchetypes(ctx) || [];
+                  for (let i = 0; i < defs.length; i++) {
+                    const d = defs[i];
+                    if (!d || !d.id) continue;
+                    if (String(d.id) === archetypeId) {
+                      label = d.name || label;
+                      break;
+                    }
+                  }
+                }
+              } catch (_) {}
+
+              const prompt = `${label} offers to travel with you as a follower. Accept?`;
+              const onOk = () => {
+                try {
+                  const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+                  if (!ok && ctx.log) {
+                    ctx.log("They cannot join you right now.", "info");
+                  }
+                } catch (_) {}
+              };
+              const onCancel = () => {
+                try {
+                  if (ctx.log) ctx.log("You decide to travel alone for now.", "info");
+                } catch (_) {}
+              };
+
+              if (UIO && typeof UIO.showConfirm === "function") {
+                UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+              } else {
+                onOk();
+              }
+              // Hiring (or declining) does not consume a combat turn beyond this bump.
+              return true;
+            }
+          }
         }
 
         const fac = String(enemy.faction || "").toLowerCase();
