@@ -92,6 +92,8 @@ import {
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
 } from "./god/facade.js";
+// Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
+import "./followers_items.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();
@@ -983,6 +985,15 @@ import {
           const UIO = modHandle("UIOrchestration");
           if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
         },
+        // Follower inspect panel
+        isFollowerOpen: () => {
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isFollowerOpen === "function" && UIO.isFollowerOpen(getCtx()));
+        },
+        onHideFollower: () => {
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideFollower === "function") UIO.hideFollower(getCtx());
+        },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
         onLoot: () => doAction(),
@@ -1313,7 +1324,7 @@ import {
   }
   
   
-  
+
   {
     const UIH = modHandle("UI");
     if (UIH && typeof UIH.init === "function") {

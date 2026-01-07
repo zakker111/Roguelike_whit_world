@@ -523,7 +523,8 @@ export function enemiesAct(ctx) {
 
       if (target.kind === "player") {
         if (rv() < ctx.getPlayerBlockChance(loc)) {
-          ctx.log(`You block the ${e.type || "enemy"}'s attack to your ${loc.part}.`, "block", { category: "Combat", side: "player" });
+          const attackerName = e.name || Cap(e.type || "enemy");
+          ctx.log(`You block ${attackerName}'s attack to your ${loc.part}.`, "block", { category: "Combat", side: "player" });
           if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
             ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
           }
@@ -559,8 +560,10 @@ export function enemiesAct(ctx) {
         const dmg = ctx.enemyDamageAfterDefense(raw);
         player.hp -= dmg;
         try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
-        if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
-        else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
+
+        const attackerName = e.name || Cap(e.type || "enemy");
+        if (isCrit) ctx.log(`Critical! ${attackerName} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
+        else ctx.log(`${attackerName} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
         if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
           const dur = 1 + Math.floor(rv() * 2);
@@ -623,12 +626,24 @@ export function enemiesAct(ctx) {
         const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
         if (rv() < blockChance) {
           try {
+            const attackerName = e.name || Cap(e.type || "enemy");
+            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
             ctx.log && ctx.log(
-              `${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack to the ${loc.part}.`,
+              `${defenderName} blocks ${attackerName}'s attack to the ${loc.part}.`,
               "block",
               { category: "Combat", side: "enemy" }
             );
           } catch (_) {}
+
+          // Follower weapon decay on blocked attack (always light)
+          if (isFollower) {
+            try {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerHands === "function") {
+                FI.decayFollowerHands(ctx, e._followerId || e.type || e.id, { light: true });
+              }
+            } catch (_) {}
+          }
         } else {
           const level = (typeof e.level === "number" && e.level > 0) ? e.level : 1;
           const typeScale = (typeof e.damageScale === "number" && e.damageScale > 0) ? e.damageScale : 1.0;
@@ -640,9 +655,71 @@ export function enemiesAct(ctx) {
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
 
+          // Follower weapon decay after a successful hit (light vs normal based on crit)
+          if (isFollower) {
+            try {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerHands === "function") {
+                FI.decayFollowerHands(ctx, e._followerId || e.type || e.id, { light: !isCrit });
+              }
+            } catch (_) {}
+          }
+
+          // If the defender is a follower, apply armor decay on the hit location
+          try {
+            if (target.ref && target.ref._isFollower) {
+              const FI = (typeof window !== "undefined" ? window.FollowersItems : null);
+              if (FI && typeof FI.decayFollowerEquipped === "function") {
+                const part = loc.part;
+                const armorSlot = (part === "torso" || part === "head" || part === "legs" || part === "hands") ? part : null;
+                if (armorSlot) {
+                  const critWear = isCrit ? 1.6 : 1.0;
+                  let wear = 0.5;
+                  if (part === "torso") wear = randFloat(0.8, 2.0, 1);
+                  else if (part === "head") wear = randFloat(0.3, 1.0, 1);
+                  else if (part === "legs") wear = randFloat(0.4, 1.3, 1);
+                  else if (part === "hands") wear = randFloat(0.3, 1.0, 1);
+                  FI.decayFollowerEquipped(ctx, target.ref._followerId || target.ref.type || target.ref.id, armorSlot, wear * critWear);
+                }
+              }
+            }
+          } catch (_) {}
+
           // Record last hit so death flavor can attribute killer, hit location, and likely weapon
           try {
             const killerType = String(e.type || "enemy");
+
+            // Follower-specific weapon lookup: prefer actual equipped weapon names.
+            function weaponNameForFollower(ctxLocal, followerEntity) {
+              try {
+                if (!ctxLocal || !ctxLocal.player || !Array.isArray(ctxLocal.player.followers)) return null;
+                if (!followerEntity || !followerEntity._isFollower) return null;
+                const fid = followerEntity._followerId != null ? String(followerEntity._followerId) : String(followerEntity.type || "");
+                if (!fid) return null;
+                const rec = ctxLocal.player.followers.find(f => f && String(f.id) === fid);
+                if (!rec || !rec.equipment || typeof rec.equipment !== "object") return null;
+                const eq = rec.equipment;
+                // Prefer right hand, then left, then any hand item with atk, then any named item.
+                const candidates = [];
+                if (eq.right) candidates.push(eq.right);
+                if (eq.left) candidates.push(eq.left);
+                // If neither hand had something, scan all slots for an equipped weapon-like item.
+                if (!candidates.length) {
+                  const slots = ["head", "torso", "legs", "hands"];
+                  for (let i = 0; i < slots.length; i++) {
+                    const it = eq[slots[i]];
+                    if (it && (typeof it.atk === "number" || typeof it.name === "string")) {
+                      candidates.push(it);
+                    }
+                  }
+                }
+                const pick = candidates.find(it => typeof it.atk === "number") || candidates[0];
+                if (!pick) return null;
+                return pick.name || pick.id || null;
+              } catch (_) {
+                return null;
+              }
+            }
 
             function rngPick(r) {
               try {
@@ -709,9 +786,27 @@ export function enemiesAct(ctx) {
               } catch (_) { return null; }
             }
 
-            const weapName = weaponNameFromEnemyPool(killerType);
+            // Prefer real follower weapon name when the killer is a follower; fall back to enemy loot pool.
+            let weapName = null;
+            if (e && e._isFollower) {
+              weapName = weaponNameForFollower(ctx, e);
+            }
+            if (!weapName) {
+              weapName = weaponNameFromEnemyPool(killerType);
+            }
+
             const viaStr = weapName ? `with ${weapName}` : "melee";
-            target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: weapName, via: viaStr };
+            const killerDisplayName = e.name || Cap(e.type || "enemy");
+            target.ref._lastHit = {
+              by: killerType,
+              part: loc.part,
+              crit: isCrit,
+              dmg,
+              weapon: weapName,
+              via: viaStr,
+              killerName: killerDisplayName,
+              isFollower: !!(e && e._isFollower)
+            };
           } catch (_) {}
 
           try {
@@ -722,15 +817,17 @@ export function enemiesAct(ctx) {
             }
           } catch (_) {}
           try {
+            const attackerName = e.name || Cap(e.type || "enemy");
+            const defenderName = target.ref.name || Cap(target.ref.type || "enemy");
             if (isCrit) {
               ctx.log(
-                `Critical! ${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                `Critical! ${attackerName} hits ${defenderName}'s ${loc.part} for ${dmg}.`,
                 "crit",
                 { category: "Combat", side: "enemy" }
               );
             } else {
               ctx.log(
-                `${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                `${attackerName} hits ${defenderName}'s ${loc.part} for ${dmg}.`,
                 "info",
                 { category: "Combat", side: "enemy" }
               );

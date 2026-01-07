@@ -5,13 +5,76 @@
     "glyph": "G",
     "color": "#000000",
     "faction": "guard",
-    "roles": ["follower", "melee"],
+    "roles": ["follower", "melee", "frontline"],
     "baseHp": 20,
     "baseAtk": 3,
     "baseDef": 1,
     "equip": {
       "weapon": "iron_sword",
       "armor": "leather_armor"
-    }
+    },
+    "race": "humanoid",
+    "subrace": "human",
+    "background": "guard",
+    "tags": ["starter", "frontline"],
+    "personalityTags": ["brave", "steady"],
+    "temperament": {
+      "aggression": 0.7,
+      "courage": 0.8,
+      "loyalty": 0.9,
+      "fleeHpFrac": 0.15,
+      "tauntFrequency": 0.1
+    },
+    "pref": {
+      "weaponTags": ["guard_favored", "sword", "shield"],
+      "armorTags": ["heavy_armor", "guard_favored"],
+      "primarySlot": "right",
+      "secondarySlot": "left",
+      "buffs": {
+        "matchedWeaponAtkMult": 0.08,
+        "matchedArmorDefMult": 0.06
+      }
+    },
+    "namePool": ["Arne", "Tuula", "Kari", "Liisa", "Oskari"],
+    "hint": "Tough frontline ally with decent armor."
+  },
+  {
+    "id": "thief_follower",
+    "name": "Thief Ally",
+    "glyph": "t",
+    "color": "#c59d5f",
+    "faction": "guard",
+    "roles": ["follower", "melee", "skirmisher", "thief"],
+    "baseHp": 18,
+    "baseAtk": 4,
+    "baseDef": 1,
+    "equip": {
+      "weapon": "dagger",
+      "armor": "leather_armor"
+    },
+    "race": "humanoid",
+    "subrace": "elf",
+    "background": "bandit",
+    "tags": ["light_armor", "agile", "stealthy"],
+    "personalityTags": ["angry", "reckless"],
+    "temperament": {
+      "aggression": 0.9,
+      "courage": 0.4,
+      "loyalty": 0.7,
+      "fleeHpFrac": 0.35,
+      "tauntFrequency": 0.3
+    },
+    "pref": {
+      "weaponTags": ["thief_favored", "light_weapon", "dagger"],
+      "armorTags": ["light_armor", "thief_favored"],
+      "primarySlot": "right",
+      "secondarySlot": "left",
+      "buffs": {
+        "matchedWeaponAtkMult": 0.10,
+        "matchedArmorDefMult": 0.04
+      }
+    },
+    "namePool": ["Nella", "Eero", "Sade", "Riku", "Maarit"],
+    "hint": "Fast, lightly armored ally who excels at quick strikes."
   }
 ]

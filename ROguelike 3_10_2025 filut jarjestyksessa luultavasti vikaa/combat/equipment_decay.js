@@ -6,6 +6,7 @@
  * - decayEquipped(player, slot, amount, hooks?)
  * - decayAttackHands(player, rng, opts?, hooks?)  // opts: { twoHanded?: boolean, light?: boolean }
  * - decayBlockingHands(player, rng, opts?, hooks?)
+ * - decayEquippedGeneric(actor, slot, amount, hooks?) // generic helper for non-player actors (e.g., followers)
  */
 
 import { attachGlobal } from "../utils/global.js";
@@ -155,10 +156,41 @@ export function decayBlockingHands(player, rng, opts, hooks) {
   }
 }
 
+// Generic decay helper for any actor with an equipment object.
+// Does not call Player.decayEquipped or Flavor.onBreak; intended for
+// followers and other non-player actors.
+export function decayEquippedGeneric(actor, slot, amount, hooks) {
+  hooks = hooks || {};
+  const log = hooks.log || (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function" ? window.Logger.log : (() => {}));
+  const updateUI = hooks.updateUI || (() => {});
+  const onInventoryChange = hooks.onInventoryChange || (() => {});
+  const onBreak = typeof hooks.onBreak === "function" ? hooks.onBreak : null;
+
+  if (!actor || !actor.equipment) return;
+  const it = actor.equipment[slot];
+  if (!it) return;
+
+  const before = it.decay || 0;
+  it.decay = Math.min(100, round1(before + amount));
+  if (it.decay >= 100) {
+    const name = it.name || "item";
+    log(`${name.charAt(0).toUpperCase()}${name.slice(1)} breaks and is destroyed.`, "info");
+    actor.equipment[slot] = null;
+    updateUI();
+    onInventoryChange();
+    if (onBreak) {
+      try { onBreak({ actor, slot, item: it }); } catch (_) {}
+    }
+  } else if (Math.floor(before) !== Math.floor(it.decay)) {
+    onInventoryChange();
+  }
+}
+
 // Back-compat: attach to window via helper
 attachGlobal("EquipmentDecay", {
   initialDecay,
   decayEquipped,
   decayAttackHands,
   decayBlockingHands,
+  decayEquippedGeneric,
 });

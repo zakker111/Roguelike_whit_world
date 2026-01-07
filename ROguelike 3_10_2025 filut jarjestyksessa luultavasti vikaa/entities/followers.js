@@ -7,6 +7,7 @@
  */
 
 import { getGameData } from "../utils/access.js";
+import { aggregateFollowerAtkDef } from "./equip_common.js";
 
 function getFollowersList(ctx) {
   try {
@@ -45,7 +46,49 @@ export function createRuntimeFollower(ctx, record) {
     throw new Error(`Follower definition not found for id=${record.id}`);
   }
 
-  const name = record.name || def.name;
+  let name = record.name;
+  const shouldPersonalize =
+    !name ||
+    name === def.name ||
+    name === "Follower";
+
+  if (shouldPersonalize) {
+    // Prefer a data-driven namePool when available so followers get a unique
+    // identity without requiring every record to carry a hard-coded name.
+    try {
+      if (Array.isArray(def.namePool) && def.namePool.length > 0) {
+        let rfn = null;
+        try {
+          if (ctx && typeof ctx.rng === "function") {
+            rfn = ctx.rng;
+          } else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+            rfn = window.RNGUtils.getRng();
+          }
+        } catch (_) {}
+        if (typeof rfn !== "function") {
+          rfn = Math.random;
+        }
+        const idx = def.namePool.length === 1
+          ? 0
+          : (Math.floor(rfn() * def.namePool.length) % def.namePool.length);
+        const baseName = String(def.namePool[idx] ?? "").trim();
+        const archetypeName = typeof def.name === "string" && def.name.trim() ? def.name.trim() : "";
+        if (baseName) {
+          const trimmed = archetypeName.replace(/\s+Ally$/i, "");
+          name = trimmed ? `${baseName} the ${trimmed}` : baseName;
+        }
+      }
+    } catch (_) {}
+    if (!name) {
+      name = def.name;
+    }
+    if (name) {
+      try {
+        record.name = name;
+      } catch (_) {}
+    }
+  }
+
   if (!name) {
     throw new Error(`Follower name missing for id=${record.id}`);
   }
@@ -97,6 +140,11 @@ export function createRuntimeFollower(ctx, record) {
     throw new Error(`Follower color missing for id=${record.id}`);
   }
 
+  // Aggregate final Attack/Defense from base stats plus equipped gear via shared helper.
+  const agg = aggregateFollowerAtkDef(def, record);
+  const finalAtk = typeof agg.atk === "number" ? agg.atk : baseAtk;
+  const finalDef = typeof agg.def === "number" ? agg.def : baseDef;
+
   return {
     x: 0,
     y: 0,
@@ -107,8 +155,8 @@ export function createRuntimeFollower(ctx, record) {
     color,
     hp,
     maxHp,
-    atk: baseAtk,
-    def: baseDef,
+    atk: finalAtk,
+    def: finalDef,
     level,
     announced: false,
     _isFollower: true,

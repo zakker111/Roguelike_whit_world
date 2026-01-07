@@ -11,21 +11,11 @@
  * - UI-agnostic: only uses hooks for side effects.
  */
 
+import { isCursedSeppoBlade } from "./equip_common.js";
+
 const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.round1 === "function")
   ? window.PlayerUtils.round1
   : (n) => Math.round(n * 10) / 10;
-
-// Helper: identify Seppo's True Blade (cursed two-handed weapon)
-function isCursedSeppoBlade(item) {
-  if (!item) return false;
-  try {
-    const id = String(item.id || "").toLowerCase();
-    const name = String(item.name || "");
-    if (id === "seppos_true_blade") return true;
-    if (/seppo's true blade/i.test(name)) return true;
-  } catch (_) {}
-  return false;
-}
 
 function defaultDescribe(item) {
   try {

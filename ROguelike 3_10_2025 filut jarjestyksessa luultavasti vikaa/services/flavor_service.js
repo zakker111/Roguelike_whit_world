@@ -98,7 +98,30 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
   }
 
   const killerRaw = (lastHit?.by) || "unknown";
-  const killedBy = killerNames[killerRaw] || killerRaw;
+  let killedBy = killerNames[killerRaw] || killerRaw;
+
+  // If the killer matches a player follower archetype id, prefer the
+  // follower's current personalized name (e.g., "Oskari the Guard") over
+  // a raw id like "guard_follower". This works for all follower types,
+  // not just the default guard.
+  try {
+    if (ctx && ctx.player && Array.isArray(ctx.player.followers) && killerRaw && killerRaw !== "player") {
+      const followers = ctx.player.followers;
+      const fid = String(killerRaw);
+      const hit = followers.find(f => f && String(f.id) === fid);
+      if (hit && hit.name && typeof hit.name === "string") {
+        killedBy = hit.name;
+      }
+    }
+  } catch (_) {}
+  // If lastHit carries an explicit killerName (e.g., from follower runtime),
+  // prefer that over any generic mapping.
+  try {
+    if (lastHit && typeof lastHit.killerName === "string" && lastHit.killerName.trim()) {
+      killedBy = lastHit.killerName.trim();
+    }
+  } catch (_) {}
+
   // Prefer exact weapon if known, else try to provide a likely cause phrase
   const via = lastHit?.weapon ? `${lastHit.weapon}` : null;
   let likely = null;
@@ -109,10 +132,24 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
                         : weaponKind === "burn" ? "fire"
                         : weaponKind === "freeze" ? "ice"
                         : null;
-    likely = fromWeaponKind || likelyCauseFromKillerName(killedBy);
+
+    // Avoid guessing weapon type from killer name when the killer is a follower.
+    // For followers we either know the exact weapon via lastHit.weapon or we
+    // leave the cause unspecified rather than implying \"sword\".
+    let fromKiller = null;
+    const isFollowerKiller = !!(lastHit && lastHit.isFollower);
+    if (!isFollowerKiller) {
+      fromKiller = likelyCauseFromKillerName(killedBy);
+    }
+
+    likely = fromWeaponKind || fromKiller;
   }
 
-  const victim = capitalize(String(enemy?.type || "enemy"));
+  // Use the enemy's display name when available (e.g., follower names like
+  // "Oskari the Guard") so corpses for allies and named foes show their
+  // proper identity instead of raw type ids (guard_follower, thief_follower, etc.).
+  const victimSource = (enemy && enemy.name) ? enemy.name : (enemy && enemy.type) ? enemy.type : "enemy";
+  const victim = capitalize(String(victimSource));
 
   return { victim, killedBy, wound, via, likely };
 }

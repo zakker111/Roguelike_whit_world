@@ -35,6 +35,18 @@ export function tryMoveDungeon(ctx, dx, dy) {
   } catch (_) { enemy = null; }
 
   if (enemy) {
+    // Followers: bump-to-inspect instead of attacking.
+    try {
+      if (enemy._isFollower) {
+        const UIO = ctx.UIOrchestration || getMod(ctx, "UIOrchestration") || (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.showFollower === "function") {
+          UIO.showFollower(ctx, enemy);
+        }
+        // Inspecting a follower does not consume a combat turn.
+        return true;
+      }
+    } catch (_) {}
+
     // Use shared Combat.playerAttackEnemy so dungeon/encounter attacks go through the
     // unified combat pipeline (crit, bleed/limp, torch fire, GOD status effects, etc.).
     const C = (ctx && ctx.Combat) || (typeof window !== "undefined" ? window.Combat : null);

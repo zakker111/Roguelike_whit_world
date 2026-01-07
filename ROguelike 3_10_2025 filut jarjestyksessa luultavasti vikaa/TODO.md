@@ -78,32 +78,38 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Visuals:
       - Follower glyph/color are defined only in `followers.json` and rendered consistently in town, dungeon, and region views with a distinct backdrop.
   - Next steps:
-    - Unique follower identity:
-      - Followers should receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
+    - Unique follower identity (DONE):
+      - Followers receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
       - Names are persisted in `player.followers` so the same named follower is seen across dungeons/towns until permanent death.
-    - Follower inspect / stats panel:
-      - Bumping into a follower in town or dungeon should offer a “Follower” / “Inspect follower” button.
-      - Opens a small panel that shows:
-        - Follower name, level, HP/max HP, base attack/defense, and faction/role.
-        - The same style of equipment slots as the player (left hand, right hand, head, torso, legs, hands).
-    - Shared equipment management:
+    - Follower inspect / stats panel (DONE):
+      - Bumping into a follower in dungeon/encounter mode opens a read-only follower inspect panel instead of attacking or prompting to attack.
+      - Talking/bumping a follower NPC in town opens the same follower inspect panel instead of generic chatter or shop text.
+      - Panel shows follower name, level, HP/max HP, base attack/defense, faction/role, traits/temperament, and placeholder equipment slots (for future inventory/gear work).
+    - Shared equipment management (DONE):
       - From the follower panel, allow equipping/unequipping items for the follower using items from the player’s inventory:
         - Equip/unequip follower left-hand/right-hand and armor slots.
         - When the player unequips an item from the follower, that item is moved into the follower’s personal inventory.
         - When equipping a new item on the follower from the player’s inventory, the replaced item moves into the follower’s inventory.
-    - Follower inventory:
+    - Follower inventory (DONE):
       - Each follower has a unique inventory separate from the player’s:
         - Displayed in the follower panel similarly to the player’s inventory list.
         - Items can be transferred:
           - Player → follower: “Give” or “Equip” to send items to the follower (equipped items go into slots, others into follower inventory).
           - Follower → player: “Take” to move items from follower inventory back into the player’s inventory.
-      - Items taken from followers should behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+      - Items taken from followers behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+    - Follower equipment parity, decay, curses, and preferences (DONE):
+      - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear), and follower combat stats update immediately when gear changes.
+      - Follower weapons and armor decay when they attack, are blocked, or are hit; when a piece of gear breaks, followers automatically equip the best replacement from their own inventory using simple, archetype-specific preferences.
+      - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player: it occupies both hands, cannot be unequipped or replaced by other hand weapons until it breaks, and is tracked as a known damage-stacking bug to fix later.
     - Follower potion use:
       - Followers can drink their own potions when their HP is low, if they have potions in their personal inventory:
         - Define a low-HP threshold (e.g., ≤ 30% maxHp or a fixed HP value) per follower or archetype.
         - On their turn, if below threshold and a potion is available, the follower consumes a potion instead of attacking, restoring HP and consuming one potion item.
     - Follower death drops:
       - When a follower dies, all of their equipped items and inventory items should be dropped as loot on the ground (added to the corpse/loot at their death location) so the player can recover their gear.
+    - Follower injuries and scars:
+      - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
+      - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
     - Simple follower AI improvements:
       - Trail the player without blocking doors/entrances when possible.
       - Continue to prioritize nearby hostiles using LOS-based targeting.
@@ -153,6 +159,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Optionally highlight the player when they are inside or outside an enemy’s detection range.
   - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
+- [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
+  - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
+  - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
+  - Clean up duplicated Seppo-specific logic in player and follower code to route through the shared data-driven system.
 - [ ] Smoketest runner:
   - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
   - Make smoketest positions exact in tiles; only use nudge around NPC interaction or enemy interaction.

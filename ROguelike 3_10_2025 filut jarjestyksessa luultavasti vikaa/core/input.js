@@ -134,6 +134,18 @@ export function init(handlers) {
       return;
     }
 
+    // Follower inspect gating: block movement and other keys while open; Esc closes it
+    if (_handlers.isFollowerOpen && _handlers.isFollowerOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      if (isEsc) {
+        e.preventDefault();
+        _handlers.onHideFollower && _handlers.onHideFollower();
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
+
     if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";
       if (e.key && (e.key.toLowerCase() === "i" || isEsc)) {
