@@ -1,5 +1,95 @@
 # Game Version History
-Last updated: 2025-12-20 02:30 UTC
+Last updated: 2026-01-07 18:00 UTC
+
+v1.61.3 — Follower equipment, decay, curses, and preferences (Phase 3)
+- Added: Shared equipment helpers for followers and player.
+  - entities/equip_common.js:
+    - Exposes `equipmentScoreBase(item)`, `isCursedSeppoBlade(item)`, `aggregateFollowerAtkDef(def, record)`, and `followerPreferredScore(item, followerDef, followerRecord)`, attached to `window.EquipCommon` for diagnostics.
+    - `aggregateFollowerAtkDef` is the single source of truth for follower Attack/Defense derived from base stats plus equipped gear.
+  - entities/player_equip.js:
+    - Player Seppo’s True Blade curse logic is now implemented via shared `isCursedSeppoBlade` from EquipCommon instead of a local helper.
+
+- Added: Generic equipment decay for non-player actors.
+  - combat/equipment_decay.js:
+    - New `decayEquippedGeneric(actor, slot, amount, hooks)` handles wear/breakage for any actor with an `equipment` object, without player-specific behavior.
+    - Attached to `window.EquipmentDecay` alongside existing player decay helpers.
+
+- Added: Follower equipment and inventory management API.
+  - core/followers_items.js:
+    - Introduces `giveItemToFollower`, `takeInventoryItemFromFollower`, `equipFollowerItemFromInventory`, `unequipFollowerSlot`, `decayFollowerEquipped`, and `decayFollowerHands`.
+    - Maintains per-follower `equipment` and `inventory` on the follower record and recomputes runtime Attack/Defense after any gear change using `aggregateFollowerAtkDef`.
+    - Exposed as `window.FollowersItems` for UI, GOD, and diagnostics.
+
+- Added: Interactive follower panel for equipment and inventory.
+  - ui/components/follower_modal.js:
+    - Follower inspect panel now shows a full equipment section (left/right hand, head, torso, legs, hands) and follower inventory.
+    - Supports actions:
+      - `[Equip]` from follower inventory into an appropriate slot.
+      - `[Unequip]` from a slot back into follower inventory.
+      - `[Give]` from player inventory into follower (slot-aware when targeting a specific slot).
+      - `[Take]` from follower inventory back into player inventory.
+    - After each action, the modal asks `UIOrchestration.showFollower` to rebuild the follower view so Attack/Defense and gear reflect the new state immediately.
+
+- Changed: Follower Attack/Defense in the panel now reflect gear (parity with combat stats).
+  - core/bridge/ui_orchestration.js:
+    - `buildFollowerView(ctx, runtime)`:
+      - Still prefers runtime `atk/def` from the live follower actor when available.
+      - When called with a stub (e.g., from the follower panel), now falls back to `aggregateFollowerAtkDef(def, rec)` to compute Attack/Defense from the follower definition and record (including equipment), instead of just using baseAtk/baseDef.
+    - Effect: Attack and Defense values in the follower panel update immediately when equipping/unequipping follower gear, without requiring a new bump to refresh runtime stats.
+
+- Added: Follower decay and auto-equipping of replacement gear.
+  - core/followers_items.js:
+    - `decayFollowerHands(ctx, followerId, opts)` applies weapon decay to the main attacking hand after follower attacks/blocks, similar to player hand decay (light vs normal amounts).
+    - `decayFollowerEquipped(ctx, followerId, slot, amount)` applies decay to a specific slot and, on break, invokes `autoEquipBestFollowerItem` to equip the best replacement from the follower’s inventory.
+    - `autoEquipBestFollowerItem(ctx, rec, followerId, slot)`:
+      - Searches follower inventory for the best item for the target slot, using `followerPreferredScore` when a follower definition is available, or a simple atk+def score otherwise.
+      - Handles two-handed hand weapons by occupying both hands and bumping any existing hand items back into inventory.
+  - ai/ai.js:
+    - When followers attack enemies:
+      - Calls `FollowersItems.decayFollowerHands(ctx, followerId, { light: !isCrit })` on successful hits.
+      - Calls `FollowersItems.decayFollowerHands(ctx, followerId, { light: true })` when the attack is blocked.
+    - When followers are hit by enemies:
+      - For torso/head/legs/hands hit locations, calls `FollowersItems.decayFollowerEquipped` on the corresponding armor slot with wear amounts mirroring the player’s armor decay.
+    - Effect: Follower weapons and armor now wear down over time and are replaced automatically from follower inventory when they break.
+
+- Added: Cursed Seppo’s True Blade behavior for followers.
+  - Shared detection:
+    - `EquipCommon.isCursedSeppoBlade(item)` now used by both player and follower code.
+  - core/followers_items.js:
+    - When equipping Seppo’s True Blade (or any two-handed hand weapon) on a follower:
+      - Equipping into either hand sets both `left` and `right` to the blade and pushes any previous hand items into follower inventory.
+    - While a cursed Seppo blade is in the follower’s hands:
+      - Giving or equipping a different hand weapon into left/right is blocked with a curse log message.
+      - Attempting to unequip the blade from either hand is blocked with a curse log message.
+    - Curse is lifted when the blade breaks via decay; subsequent hand weapons can be equipped normally again.
+  - BUGS.md:
+    - New entry notes that Seppo’s True Blade currently counts as two hand weapons when summing follower damage (double-count bug to fix in a later version).
+
+- Added: Follower gear preferences and preference-aware auto-equip.
+  - data/entities/items.json:
+    - Added `tags` to key weapons and armor (e.g., `\"weapon\"`, `\"sword\"`, `\"shield\"`, `\"heavy_armor\"`, `\"light_armor\"`, `\"guard_favored\"`, `\"thief_favored\"`, `\"light_weapon\"`, `\"dagger\"`).
+  - data/entities/followers.json:
+    - `guard_follower.pref` and `thief_follower.pref` describe preferred weapon and armor tags, primary/secondary hand, and small buff multipliers (e.g., `matchedWeaponAtkMult`, `matchedArmorDefMult`).
+  - entities/equip_common.js:
+    - `followerPreferredScore(item, followerDef, followerRecord)`:
+      - Wraps `equipmentScoreBase` and applies a small multiplier when item tags match weaponTags/armorTags for that follower archetype.
+      - Used by `autoEquipBestFollowerItem` to slightly favor class-appropriate weapons and armor when auto-equipping after breaks.
+    - Effect: Guards naturally prefer sword+shield and heavy armor; thieves prefer daggers/light weapons and light armor, while still using any available gear when necessary.
+
+- Improved: Death flavor attribution for follower kills.
+  - ai/ai.js:
+    - When an enemy dies to a follower:
+      - `_lastHit` now records `weapon` (prefer follower’s actual equipped weapon name), `via` string (“with <weapon>” or “melee”), a `killerName` (follower’s current name), and `isFollower` flag.
+      - This improves death flavor text attribution so corpses and logs reference the correct named follower and weapon instead of generic enemy loot guesses.
+
+- Docs and planning:
+  - TODO.md:
+    - Follower section updated with additional future work:
+      - Follower injuries/scars mirroring the player’s lasting injury system.
+      - Follower experience/leveling (growth over time without full-heal on level up).
+      - Data-driven special item effects (curses, on-break, on-equip) to eventually replace hardcoded Seppo logic.
+  - BUGS.md:
+    - Added a bug entry for Seppo’s True Blade damage stacking as two hand weapons for followers.
 
 v1.61.2 — Follower inspect panel (Phase 2) and bump-to-inspect behavior
 - Added: Read-only follower inspect / stats panel.

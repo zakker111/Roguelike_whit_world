@@ -85,18 +85,22 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Bumping into a follower in dungeon/encounter mode opens a read-only follower inspect panel instead of attacking or prompting to attack.
       - Talking/bumping a follower NPC in town opens the same follower inspect panel instead of generic chatter or shop text.
       - Panel shows follower name, level, HP/max HP, base attack/defense, faction/role, traits/temperament, and placeholder equipment slots (for future inventory/gear work).
-    - Shared equipment management:
+    - Shared equipment management (DONE):
       - From the follower panel, allow equipping/unequipping items for the follower using items from the player’s inventory:
         - Equip/unequip follower left-hand/right-hand and armor slots.
         - When the player unequips an item from the follower, that item is moved into the follower’s personal inventory.
         - When equipping a new item on the follower from the player’s inventory, the replaced item moves into the follower’s inventory.
-    - Follower inventory:
+    - Follower inventory (DONE):
       - Each follower has a unique inventory separate from the player’s:
         - Displayed in the follower panel similarly to the player’s inventory list.
         - Items can be transferred:
           - Player → follower: “Give” or “Equip” to send items to the follower (equipped items go into slots, others into follower inventory).
           - Follower → player: “Take” to move items from follower inventory back into the player’s inventory.
-      - Items taken from followers should behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+      - Items taken from followers behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+    - Follower equipment parity, decay, curses, and preferences (DONE):
+      - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear), and follower combat stats update immediately when gear changes.
+      - Follower weapons and armor decay when they attack, are blocked, or are hit; when a piece of gear breaks, followers automatically equip the best replacement from their own inventory using simple, archetype-specific preferences.
+      - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player: it occupies both hands, cannot be unequipped or replaced by other hand weapons until it breaks, and is tracked as a known damage-stacking bug to fix later.
     - Follower potion use:
       - Followers can drink their own potions when their HP is low, if they have potions in their personal inventory:
         - Define a low-HP threshold (e.g., ≤ 30% maxHp or a fixed HP value) per follower or archetype.

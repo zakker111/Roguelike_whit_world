@@ -466,33 +466,55 @@ These exist partially in code or design but are **known unstable** or not yet im
   - Followers with inventories, basic commands, morale, and persistence.
 
 - Current status (experimental, first-pass implementation):
-  - Data-driven archetype:
-    - One basic guard-style follower archetype (“Guard Ally”) is defined in `data/entities/followers.json` with glyph, color, base stats, faction, and equipment.
+  - Data-driven archetypes and names:
+    - Guard-style follower archetype (“Guard Ally”) and a thief-style archetype are defined in `data/entities/followers.json` with glyph, color, base stats, faction, tags, and equipment hints.
+    - Each follower generated from these archetypes receives a unique name from a per-archetype `namePool` (e.g., “Arne the Guard”), persisted in `player.followers` so the same named ally appears across all modes until death.
     - `GameData.followers` is the single source of truth for follower visuals/stats.
   - Player follower slot:
     - Player defaults include a single follower record in `player.followers`, normalized and persisted on the save.
   - Spawning and modes:
     - Dungeons / towers / encounters / region-map:
       - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set.
-      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies.
-      - When no hostile is visible, the follower moves to stay near the player.
+      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player.
     - Towns / castles:
       - A follower NPC is spawned near the gate/player with roles `["follower"]` and `_isFollower/_followerId` markers.
-      - Town tick logic causes the follower NPC to stay within a few tiles of the player as they move through the town.
+      - Town tick logic keeps the follower NPC within a short distance of the player as they move through town.
   - Persistence and death:
     - Dungeon/town/region save snapshots explicitly exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
     - Follower HP/level from dungeon/encounter/region runs are synced back into `player.followers` on exit.
     - When a follower dies in combat, their corresponding record is removed from `player.followers`, and they will not respawn anywhere (permanent death for that run).
-  - Visual consistency:
+  - Visual consistency and logging:
     - Follower glyph/color are taken from `followers.json` and rendered consistently in all modes (town, dungeon, region) with a distinct background to differentiate them from normal enemies/NPCs.
+    - Combat logs, corpse flavor, and kill attributions use follower display names and (where possible) their actual equipped weapon names instead of raw type IDs.
+  - Follower inspect panel:
+    - Bumping into a follower in dungeons/encounters/region-map, or talking/bumping them in towns/castles, opens a follower inspect panel instead of attacking or generic chatter.
+    - The panel shows follower name, level, HP/max HP, Attack, Defense, faction/roles, tags, personality, temperament, and an archetype `hint`.
+  - Equipment and inventory:
+    - The follower panel includes:
+      - A full equipment view for follower slots (left/right hand, head, torso, legs, hands).
+      - A follower inventory list.
+      - A truncated player inventory list for item transfer.
+    - Supported interactions:
+      - `[Equip]` items from follower inventory into appropriate slots (hands/head/torso/legs/hands).
+      - `[Unequip]` slot items back into follower inventory.
+      - `[Give]` items from player inventory to follower inventory (or directly into a slot when a slot is specified).
+      - `[Take]` items from follower inventory back into the player’s inventory.
+    - After each change, follower Attack/Defense are recomputed from base stats + gear and immediately reflected in the panel.
+  - Equipment parity, decay, curses, and preferences:
+    - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear) via shared helpers.
+    - Follower weapons and armor decay when they attack, are blocked, or are hit; when an equipped item breaks, the follower automatically equips the best replacement from their own inventory, based on total atk+def and simple class preferences.
+    - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player:
+      - Equipping it occupies both hands and moves any existing hand items to inventory.
+      - While it is equipped, followers cannot unequip it or equip other hand weapons; curse lifts when it breaks.
+    - Follower archetypes carry soft preferences (e.g., guards favor sword+shield and heavy armor; thieves favor daggers/light weapons and light armor) that slightly bias auto-equip choices without forbidding non-preferred gear.
 
 - Not yet implemented (planned; see `TODO.md`):
-  - Multiple followers / true party system and party size limits.
-  - Unique random names per follower from a name pool, persisted across modes.
-  - Follower inspect/stats panel with equipment slots and follower-specific inventory.
-  - Player-driven equipment management for followers (equip/unequip from player inventory, follower inventory, and item transfers).
+  - Multiple followers / true party system and party size limits, with command UI (Attack / Follow / Wait here).
   - Followers drinking potions from their own inventory when low on HP.
-  - Command UI (Attack / Follow / Wait here), follower morale, and richer behavior tuning.
+  - Follower death drops (dropping all follower-equipped and inventory items as loot on follower death).
+  - Follower injuries and scars (persistent follower wounds and scars similar to the player’s, visible in the follower panel and treatable by healers).
+  - Follower experience and leveling (followers gain XP and levels, but do not receive a full heal when leveling).
+  - Fully data-driven special item effects (curses and on-hit/on-break behaviors) instead of bespoke Seppo-specific code.
 
 ### 12.3 GOD Arena mode
 
