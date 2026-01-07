@@ -314,9 +314,7 @@ function townNPCsAct(ctx) {
     const rnd = rngFor(ctx);
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(rnd() * (i + 1));
-      const tmp = order[i];
-      order[i] = order[j];
-      order[j] = tmp;
+      const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
     }
   }
 
@@ -361,6 +359,12 @@ function townNPCsAct(ctx) {
 
   for (const idx of order) {
     const n = npcs[idx];
+    if (!n) continue;
+    // Followers: town movement is handled in core/town/runtime tick; skip generic TownAI logic.
+    try {
+      if (n._isFollower) continue;
+    } catch (_) {}
+
     ensureHome(ctx, n);
 
     if (shouldSkipThisTick(n, idx)) continue;
