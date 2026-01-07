@@ -125,16 +125,27 @@ function autoEquipBestFollowerItem(ctx, rec, followerId, slot) {
     }
   }
 
-  if (bestIdx < 0) return;
+  if (bestIdx &lt; 0) return;
   const item = inv[bestIdx];
   inv.splice(bestIdx, 1);
 
   const eq = ensureFollowerEquipment(rec);
-  // Put any existing item from that slot back into inventory
-  if (eq[slot]) {
-    inv.push(eq[slot]);
+
+  // Two-handed weapons occupy both hands and bump any existing hand items to inventory.
+  if (item && item.kind === "equip" &amp;&amp; item.slot === "hand" &amp;&amp; item.twoHanded &amp;&amp; (slot === "left" || slot === "right")) {
+    const prevL = eq.left;
+    const prevR = eq.right;
+    eq.left = item;
+    eq.right = item;
+    if (prevL &amp;&amp; prevL !== item) inv.push(prevL);
+    if (prevR &amp;&amp; prevR !== item) inv.push(prevR);
+  } else {
+    // Put any existing item from that slot back into inventory
+    if (eq[slot]) {
+      inv.push(eq[slot]);
+    }
+    eq[slot] = item;
   }
-  eq[slot] = item;
 
   try {
     if (ctx.log) {
@@ -232,6 +243,17 @@ function followerLabel(rec) {
   if (!rec) return "your follower";
   if (typeof rec.name === "string" && rec.name.trim()) return rec.name.trim();
   return "your follower";
+}
+
+function followerHandsHaveCursedBlade(eq) {
+  if (!eq || typeof eq !== "object") return false;
+  const left = eq.left || null;
+  const right = eq.right || null;
+  return (
+    (left && right && left === right && isCursedSeppoBlade(left)) ||
+    (left && isCursedSeppoBlade(left)) ||
+    (right && isCursedSeppoBlade(right))
+  );
 }
 
 /**
@@ -349,15 +371,18 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
   if (!slot || !Object.prototype.hasOwnProperty.call(eq, slot)) return false;
 
   const idx = followerIndex | 0;
-  if (idx < 0 || idx >= finv.length) return false;
+  if (idx &lt; 0 || idx &gt;= finv.length) return false;
   const item = finv[idx];
   if (!item) return false;
+
+  const isHandEquip = item.kind === "equip" &amp;&amp; item.slot === "hand";
+  const twoHanded = !!item.twoHanded;
 
   // Seppo's True Blade curse: if follower already has the cursed blade in hands,
   // block equipping any other hand weapon.
   try {
-    if ((slot === "left" || slot === "right") && item.kind === "equip" && item.slot === "hand") {
-      if (followerHandsHaveCursedBlade(eq) && !isCursedSeppoBlade(item)) {
+    if ((slot === "left" || slot === "right") &amp;&amp; isHandEquip) {
+      if (followerHandsHaveCursedBlade(eq) &amp;&amp; !isCursedSeppoBlade(item)) {
         if (ctx.log) {
           ctx.log(`Cursed: The blade refuses to be replaced on ${followerLabel(rec)}; they cannot wield another weapon until it breaks.`, "info");
         }
@@ -369,11 +394,21 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
   // Remove from inventory
   finv.splice(idx, 1);
 
-  // Move existing equipment to inventory, then equip new item
-  if (eq[slot]) {
-    finv.push(eq[slot]);
+  // Two-handed weapons occupy both hands and bump any existing hand items to inventory.
+  if (isHandEquip &amp;&amp; twoHanded &amp;&amp; (slot === "left" || slot === "right")) {
+    const prevL = eq.left;
+    const prevR = eq.right;
+    eq.left = item;
+    eq.right = item;
+    if (prevL &amp;&amp; prevL !== item) finv.push(prevL);
+    if (prevR &amp;&amp; prevR !== item) finv.push(prevR);
+  } else {
+    // Move existing equipment to inventory, then equip new item
+    if (eq[slot]) {
+      finv.push(eq[slot]);
+    }
+    eq[slot] = item;
   }
-  eq[slot] = item;
 
   // Update runtime stats so follower damage/defense reflect new gear
   try { recomputeFollowerRuntimeStats(ctx, followerId); } catch (_) {}
@@ -385,7 +420,7 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
       ctx.log(`${who} equips ${label} (${slot}).`, "info");
     }
   } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try { ctx.updateUI &amp;&amp; ctx.updateUI(); } catch (_) {}
 
   return true;
 }
