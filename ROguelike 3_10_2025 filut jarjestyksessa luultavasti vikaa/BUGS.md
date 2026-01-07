@@ -7,6 +7,13 @@
 - multirun in smoketest skips first multirun 
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
+- [FIXED] Followers in Region Map and ruins would sometimes multiply or spawn far from the player:
+  - In some ruins runs, spawnInDungeon was invoked twice (once on entering Region Map and once during RUINS encounter setup), which created duplicate runtime allies for the same follower.
+  - In encounters and Region Map, follower spawn logic could fall back to arbitrarily distant tiles when no nearby spot was found, leading to allies appearing at remote corners of the map.
+  - Now:
+    - RegionMapRuntime only calls FollowersRuntime.spawnInDungeon once per Region Map entry; the ruins-specific encounter no longer re-spawns followers.
+    - FollowersRuntime.spawnInDungeon tracks existing follower actors via _followerId and will not create a second runtime ally for the same follower on the current map.
+    - findSpawnTileNearPlayer uses a larger local radius for encounters/Region Map and refuses to fall back to distant tiles; when no nearby spot is free, followers simply do not spawn and a log line explains that they cannot find room nearby.
 - [FIXED] in dungeons when enemies fight each other they are logged (which is good for debugging purposes), but they gave player XP when they killed each other
 - in dungeons enemies seems to show behind walls(not line of sight)
 - in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
