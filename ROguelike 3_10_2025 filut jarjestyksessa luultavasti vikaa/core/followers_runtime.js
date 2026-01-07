@@ -235,8 +235,9 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
 // player.followers, in array order.
 function getActiveFollowerRecords(ctx, maxCount) {
   const out = [];
+  const caps = getFollowersCaps(ctx);
   const cap =
-    typeof maxCount === "number" && maxCount > 0 ? maxCount : MAX_FOLLOWERS_ACTIVE;
+    typeof maxCount === "number" && maxCount > 0 ? maxCount : caps.maxActive;
   try {
     const p = ctx && ctx.player;
     if (!p || !Array.isArray(p.followers)) return out;
@@ -394,14 +395,6 @@ export function spawnInDungeon(ctx) {
       const rec = records[i];
       if (!rec || !rec.id) continue;
 
-      // Avoid spawning duplicates for this specific follower id
-      try {
-        const already = ctx.enemies.some(
-          (e) => e && e._isFollower && e._followerId === rec.id
-        );
-        if (already) continue;
-      } catch (_) {}
-
       let follower = null;
       try {
         follower = createRuntimeFollower(ctx, rec);
@@ -459,7 +452,8 @@ export function spawnInTown(ctx) {
     if (!p) return;
     if (!Array.isArray(ctx.npcs)) ctx.npcs = [];
 
-    const records = getActiveFollowerRecords(ctx, MAX_FOLLOWERS_ACTIVE);
+    const caps = getFollowersCaps(ctx);
+    const records = getActiveFollowerRecords(ctx, caps.maxActive);
     if (!records.length) {
       try {
         ctx.log &&
@@ -476,14 +470,6 @@ export function spawnInTown(ctx) {
     for (let i = 0; i < records.length; i++) {
       const rec = records[i];
       if (!rec || !rec.id) continue;
-
-      // Avoid duplicates for this specific follower id within a single town visit
-      try {
-        const exists = ctx.npcs.some(
-          (n) => n && n._isFollower && n._followerId === rec.id
-        );
-        if (exists) continue;
-      } catch (_) {}
 
       let followerActor = null;
       try {
