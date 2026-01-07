@@ -11,9 +11,30 @@
 import { createRuntimeFollower, syncRecordFromRuntime } from "../entities/followers.js";
 import { getGameData, getRNGUtils } from "../utils/access.js";
 
-// Hard cap for how many followers can be active at once in the party.
-// This applies to dungeon/encounter/region and town spawns.
-const MAX_FOLLOWERS_ACTIVE = 3;
+// Hard caps for followers. Defaults can be overridden via data/config/config.json
+// under cfg.followers.{maxActive,maxPerType} so tuning does not require code edits.
+const DEFAULT_MAX_FOLLOWERS_ACTIVE = 3;
+const DEFAULT_MAX_FOLLOWERS_PER_TYPE = 2;
+
+// Resolve caps from GameData.config.followers when available; otherwise use defaults.
+function getFollowersCaps(ctx) {
+  let maxActive = DEFAULT_MAX_FOLLOWERS_ACTIVE;
+  let maxPerType = DEFAULT_MAX_FOLLOWERS_PER_TYPE;
+  try {
+    const GD = getGameData(ctx);
+    const cfg = GD && GD.config;
+    const fc = cfg && cfg.followers;
+    if (fc) {
+      if (typeof fc.maxActive === "number" && fc.maxActive > 0) {
+        maxActive = fc.maxActive | 0;
+      }
+      if (typeof fc.maxPerType === "number" && fc.maxPerType > 0) {
+        maxPerType = fc.maxPerType | 0;
+      }
+    }
+  } catch (_) {}
+  return { maxActive, maxPerType };
+}
 
 // Resolve the list of follower archetypes defined in data/entities/followers.json
 // via GameData.followers. Returns an array; never throws.
@@ -96,21 +117,29 @@ export function canHireFollower(ctx, archetypeId) {
     return result;
   }
 
-  // Party size cap
-  if (p.followers.length >= MAX_FOLLOWERS_ACTIVE) {
+  const caps = getFollowersCaps(ctx);
+  const maxActive = caps.maxActive;
+  const maxPerType = caps.maxPerType;
+
+  // Party size cap (all active followers)
+  if (p.followers.length >= maxActive) {
     result.reason = "You already travel with as many followers as you can handle.";
     return result;
   }
 
-  // Simple rule for now: only one follower per archetype id.
+  // Per-archetype cap: limit how many active followers of a given kind you can have.
+  let sameKind = 0;
   for (let i = 0; i < p.followers.length; i++) {
     const f = p.followers[i];
     if (!f || !f.id) continue;
     if (String(f.id).trim() !== fid) continue;
     if (f.enabled === false) continue;
     if (typeof f.hp === "number" && f.hp <= 0) continue;
-    result.reason = "You already travel with someone of that kind.";
-    return result;
+    sameKind++;
+    if (sameKind >= maxPerType) {
+      result.reason = "You already travel with enough followers of that kind.";
+      return result;
+    }
   }
 
   result.ok = true;
@@ -355,7 +384,8 @@ export function spawnInDungeon(ctx) {
     if (!p) return;
     if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
 
-    const records = getActiveFollowerRecords(ctx, MAX_FOLLOWERS_ACTIVE);
+    const caps = getFollowersCaps(ctx);
+    const records = getActiveFollowerRecords(ctx, caps.maxActive);
     if (!records.length) return;
 
     let spawned = 0;
