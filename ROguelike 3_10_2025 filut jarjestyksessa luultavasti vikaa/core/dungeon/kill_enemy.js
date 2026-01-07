@@ -8,6 +8,7 @@ export function killEnemy(ctx, enemy) {
 
   // If this enemy is a player follower/ally, permanently remove it from the
   // player's followers list so it does not respawn on future entries.
+  let followerRecord = null;
   try {
     if (enemy._isFollower && enemy._followerId && ctx.player && Array.isArray(ctx.player.followers)) {
       const followers = ctx.player.followers;
@@ -16,6 +17,7 @@ export function killEnemy(ctx, enemy) {
         const f = followers[i];
         if (!f) continue;
         if (String(f.id) === String(enemy._followerId)) {
+          followerRecord = f;
           removedName = f.name || enemy.name || "Your follower";
           followers.splice(i, 1);
           break;
