@@ -34,4 +34,8 @@
   - When starting the quest encounter from the `E` marker, followers often log “Your followers cannot find room to stand nearby in this area.” even on relatively open snow/snow-forest tiles.
   - This suggests a mismatch between the camp-style encounter map, region/encounter walkability, and follower spawn radius/occupancy checks for that specific template.
   - Investigate FollowersRuntime.findSpawnTileNearPlayer and quest_service → EncounterRuntime.enter wiring for the `bandits_farm` quest template to ensure at least one nearby spawn tile is found when the player has space to move in multiple directions.
+- Followers sometimes fail to spawn in random encounters even when the area around the player looks open (especially in snow biomes):
+  - The log “Your followers cannot find room to stand nearby in this area.” appears repeatedly on encounter entry, but the player can still move several tiles in multiple directions.
+  - Root cause unknown; likely interaction between encounter map generators (camp/ambush/ruins), ctx.isWalkable tiles, and occupancy checks in FollowersRuntime.findSpawnTileNearPlayer.
+  - Needs focused repro cases and visual inspection (FOV on, GOD/enemy markers) to see what is actually blocking follower tiles in those encounters.
 - [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage
