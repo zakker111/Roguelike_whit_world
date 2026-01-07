@@ -20,6 +20,7 @@
 
 import { log as fallbackLog } from "../../utils/fallback.js";
 import { getFollowerDef } from "../../entities/followers.js";
+import { aggregateFollowerAtkDef } from "../../entities/equip_common.js";
 
 function U(ctx) {
   try {
@@ -417,12 +418,24 @@ function buildFollowerView(ctx, runtime) {
     maxHp = def.baseHp;
   }
 
-  // Base attack/defense for inspect panel: prefer runtime values, then follower
-  // definition base stats. These are informational only in Phase 2.
+  // Attack/Defense for inspect panel:
+  // - Prefer runtime values (enemy actor stats).
+  // - If missing, aggregate from follower definition + record (includes gear).
+  // - Finally fall back to definition base stats.
   let atk = null;
   let defense = null;
+
   if (typeof runtime.atk === "number") atk = runtime.atk;
   if (typeof runtime.def === "number") defense = runtime.def;
+
+  if ((atk == null || defense == null) && def) {
+    try {
+      const agg = aggregateFollowerAtkDef(def, rec || {});
+      if (atk == null && typeof agg.atk === "number") atk = agg.atk;
+      if (defense == null && typeof agg.def === "number") defense = agg.def;
+    } catch (_) {}
+  }
+
   if (atk == null && def && typeof def.baseAtk === "number") atk = def.baseAtk;
   if (defense == null && def && typeof def.baseDef === "number") defense = def.baseDef;
 
