@@ -1,6 +1,25 @@
 # Game Version History
 Last updated: 2026-01-07 18:00 UTC
 
+v1.61.4 — Follower death drops and potion use
+- Added: Follower death drops with decay preserved.
+  - core/dungeon/kill_enemy.js:
+    - When an enemy marked with `_isFollower` dies, the matching follower record is captured before removal from `ctx.player.followers`.
+    - After normal loot generation, all equipped gear and inventory items from that follower record are merged into the corpse loot array.
+    - Items are pushed by reference so existing decay/wear values are preserved; two-handed items shared between left/right hands only drop once via a small reference-based deduplication set.
+- Added: Follower potion use from their own inventory.
+  - ai/ai.js:
+    - Follower actors (`_isFollower === true`) now check their own follower record inventory for `kind === "potion"` when below a low-HP threshold (~35% of max HP).
+    - If a potion is available, the follower drinks it instead of attacking, healing themselves and consuming one potion from follower inventory.
+    - The follower record’s `hp`/`maxHp` fields are updated to reflect the healed runtime HP so dungeon/town/region persistence stays in sync.
+- Changed: Followers cannot equip potions or other non-equipment items.
+  - core/followers_items.js:
+    - `giveItemToFollower` now only allows items with `kind === "equip"` to occupy follower equipment slots; non-equip items are always added to follower inventory, even when a slot is specified.
+    - `equipFollowerItemFromInventory` returns early when the selected follower inventory item is not equipment, preventing potions/materials from being placed into equipment slots.
+- Docs:
+  - FEATURES.md: follower section updated to describe follower death drops, potion use at low HP, and the fact that potions are used directly from follower inventory (not equipped).
+  - TODO.md: follower potion use and follower death drops marked as implemented in the followers/party system section.
+
 v1.61.3 — Follower equipment, decay, curses, and preferences (Phase 3)
 - Added: Shared equipment helpers for followers and player.
   - entities/equip_common.js:

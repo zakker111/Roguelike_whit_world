@@ -101,12 +101,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear), and follower combat stats update immediately when gear changes.
       - Follower weapons and armor decay when they attack, are blocked, or are hit; when a piece of gear breaks, followers automatically equip the best replacement from their own inventory using simple, archetype-specific preferences.
       - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player: it occupies both hands, cannot be unequipped or replaced by other hand weapons until it breaks, and is tracked as a known damage-stacking bug to fix later.
-    - Follower potion use:
-      - Followers can drink their own potions when their HP is low, if they have potions in their personal inventory:
-        - Define a low-HP threshold (e.g., ≤ 30% maxHp or a fixed HP value) per follower or archetype.
-        - On their turn, if below threshold and a potion is available, the follower consumes a potion instead of attacking, restoring HP and consuming one potion item.
-    - Follower death drops:
-      - When a follower dies, all of their equipped items and inventory items should be dropped as loot on the ground (added to the corpse/loot at their death location) so the player can recover their gear.
+    - Follower potion use (DONE):
+      - Followers drink their own potions from their personal inventory when their HP is low, consuming one potion instead of attacking and updating their saved HP accordingly.
+    - Follower death drops (DONE):
+      - When a follower dies, all of their equipped items and inventory items – with their current decay state – are dropped as corpse loot at their death location so the player can recover their gear.
     - Follower injuries and scars:
       - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
       - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
