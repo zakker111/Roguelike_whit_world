@@ -10,6 +10,8 @@
 
 import { createRuntimeFollower, syncRecordFromRuntime } from "../entities/followers.js";
 import { getGameData, getRNGUtils } from "../utils/access.js";
+import { getTileDef } from "../data/tile_lookup.js";
+import * as World from "../world/world.js";
 
 // Hard caps for followers. Defaults can be overridden via data/config/config.json
 // under cfg.followers.{maxActive,maxPerType} so tuning does not require code edits.
@@ -388,6 +390,49 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
   const isTownLike = mode === "town";
   const isRegionLike = mode === "region";
 
+  function regionWalkableAt(x, y) {
+    // Region Map overlay uses world/region tiles instead of dungeon FLOOR.
+    // Prefer tiles.json "region" properties, then fall back to overworld
+    // World.isWalkable semantics.
+    try {
+      if (!inB(x, y)) return false;
+      const sample = (ctx.region && Array.isArray(ctx.region.map))
+        ? ctx.region.map
+        : ctx.map;
+      const rows = Array.isArray(sample) ? sample.length : 0;
+      const cols = rows && Array.isArray(sample[0]) ? sample[0].length : 0;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+      const t = sample[y][x];
+
+      // Prefer region tileset walkability
+      try {
+        const def = getTileDef("region", t);
+        if (def && def.properties && typeof def.properties.walkable === "boolean") {
+          return !!def.properties.walkable;
+        }
+      } catch (_) {}
+
+      // Fallback to overworld semantics
+      try {
+        if (World && typeof World.isWalkable === "function") {
+          return !!World.isWalkable(t);
+        }
+      } catch (_) {}
+
+      // Last resort: only treat obvious blockers (water/river/mountain) as non-walkable.
+      try {
+        const WT = World && World.TILES;
+        if (WT) {
+          return t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN;
+        }
+      } catch (_) {}
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function tileBlocked(x, y) {
     if (!inB(x, y)) return true;
 
@@ -397,6 +442,27 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
       return !isFreeTownFloorLocal(ctx, x, y);
     }
 
+    // Region Map: treat SNOW/SNOW_FOREST and other region tiles as walkable
+    // using the same rules RegionMapRuntime uses for animals and player movement.
+    if (isRegionLike) {
+      if (!regionWalkableAt(x, y)) return true;
+      if (x === (p.x | 0) && y === (p.y | 0)) return true;
+      if (occ && typeof occ.isFree === "function") {
+        return !occ.isFree(x, y, { ignorePlayer: true });
+      }
+      try {
+        if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
+      } catch (_) {}
+      try {
+        if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return true;
+      } catch (_) {}
+      try {
+        if (Array.isArray(ctx.townProps) && ctx.townProps.some(pr => pr && pr.x === x && pr.y === y)) return true;
+      } catch (_) {}
+      return false;
+    }
+
+    // Default dungeon/encounter walkability via ctx.isWalkable.
     if (!isWalkable(x, y)) return true;
     if (x === (p.x | 0) && y === (p.y | 0)) return true;
     if (occ && typeof occ.isFree === "function") {
