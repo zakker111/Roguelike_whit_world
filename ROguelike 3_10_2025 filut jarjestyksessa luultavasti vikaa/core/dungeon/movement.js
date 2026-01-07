@@ -78,7 +78,17 @@ export function tryMoveDungeon(ctx, dx, dy) {
             const onOk = () => {
               try {
                 const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
-                if (!ok && ctx.log) {
+                if (ok) {
+                  // Prevent recruiting the same captive/guard multiple times by
+                  // disabling the recruit flag on this specific ally actor.
+                  try {
+                    enemy._recruitCandidate = false;
+                    enemy._recruitFollowerId = null;
+                  } catch (_) {}
+                  if (ctx.log) {
+                    ctx.log("They will accompany you after this fight.", "info");
+                  }
+                } else if (ctx.log) {
                   ctx.log("They cannot join you right now.", "info");
                 }
               } catch (_) {}
