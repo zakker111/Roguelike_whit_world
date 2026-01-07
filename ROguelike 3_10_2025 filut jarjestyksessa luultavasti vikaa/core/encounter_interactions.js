@@ -241,12 +241,10 @@ function interactProp(ctx, p) {
         log(ctx, "You help the captive to their feet.", "info");
       }
 
-      // In the Rescue Captive encounter, freeing the captive should also free
-      // a capable ally who can be recruited as a follower, mirroring the tower
-      // captive behavior.
-      const info = ctx.encounterInfo || {};
-      const tplId = String(info.id || "").toLowerCase();
-      if (tplId === "rescue_captive") {
+      // In any rescue-target encounter (Rescue Captive and any future variants),
+      // freeing the captive should also free a capable ally who can be recruited
+      // as a follower, mirroring the tower captive behavior.
+      if (ctx.encounterObjective && ctx.encounterObjective.type === "rescueTarget") {
         try {
           const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
           const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
