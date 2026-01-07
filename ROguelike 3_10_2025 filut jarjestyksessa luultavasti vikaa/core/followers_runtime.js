@@ -483,7 +483,8 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
   }
 
   // Followers should stay reasonably close to the player:
-  // - towns/castles, Region Map, and encounters: search a larger local radius
+  // - towns/castles and Region Map: search a larger local radius only
+  // - encounters: prefer a larger local radius, but allow a full-map fallback (nearest tile) if cramped
   // - dungeon floors: smaller radius, but allow a full-map fallback
   const defaultRadius = (isTownLike || isRegionLike || isEncounterLike) ? 8 : 4;
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
@@ -502,23 +503,31 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     }
   }
 
-  // For towns/castles, Region Map, and encounters, only spawn within a radius of the
+  // For towns/castles and Region Map, only spawn within a radius of the
   // player; do not fall back to arbitrary distant tiles.
-  if (isTownLike || isRegionLike || isEncounterLike) return null;
+  if (isTownLike || isRegionLike) return null;
 
-  // For dungeon maps, allow a broader fallback: scan the whole map for any reasonable
-  // free tile if the immediate area around the player is too cramped (small rooms,
-  // crowded corridors).
+  // For encounter and dungeon maps, allow a broader fallback: scan the whole map for
+  // any reasonable free tile if the immediate area around the player is too cramped.
+  // Always pick the *nearest* free tile to the player so followers do not appear at
+  // distant corners of the map.
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    let best = null;
+    let bestDist = Infinity;
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         if (!inB(x, y)) continue;
         if (tileBlocked(x, y)) continue;
-        return { x, y };
+        const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
+        if (d < bestDist) {
+          bestDist = d;
+          best = { x, y };
+        }
       }
     }
+    if (best) return best;
   } catch (_) {}
 
   return null;
