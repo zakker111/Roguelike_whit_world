@@ -9,10 +9,198 @@
  */
 
 import { createRuntimeFollower, syncRecordFromRuntime } from "../entities/followers.js";
+import { getGameData, getRNGUtils } from "../utils/access.js";
 
 // Hard cap for how many followers can be active at once in the party.
 // This applies to dungeon/encounter/region and town spawns.
 const MAX_FOLLOWERS_ACTIVE = 3;
+
+// Resolve the list of follower archetypes defined in data/entities/followers.json
+// via GameData.followers. Returns an array; never throws.
+export function getFollowerArchetypes(ctx) {
+  try {
+    const GD = getGameData(ctx);
+    if (GD && Array.isArray(GD.followers)) return GD.followers;
+  } catch (_) {}
+  try {
+    if (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.followers)) {
+      return window.GameData.followers;
+    }
+  } catch (_) {}
+  return [];
+}
+
+// Pick a random follower archetype definition, optionally skipping ones the
+// player already has hired (by id).
+export function pickRandomFollowerArchetype(ctx, opts = {}) {
+  const defs = getFollowerArchetypes(ctx);
+  if (!defs || !defs.length) return null;
+
+  const p = ctx && ctx.player;
+  let haveIds = null;
+  if (opts && opts.skipHired && p && Array.isArray(p.followers)) {
+    haveIds = new Set();
+    for (let i = 0; i < p.followers.length; i++) {
+      const f = p.followers[i];
+      if (!f || !f.id) continue;
+      haveIds.add(String(f.id));
+    }
+  }
+
+  const candidates = [];
+  for (let i = 0; i < defs.length; i++) {
+    const def = defs[i];
+    if (!def || !def.id) continue;
+    const idStr = String(def.id);
+    if (haveIds && haveIds.has(idStr)) continue;
+    candidates.push(def);
+  }
+
+  if (!candidates.length) return null;
+
+  let rfn = null;
+  try {
+    const RU = getRNGUtils(ctx);
+    if (RU && typeof RU.getRng === "function") {
+      rfn = RU.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+    }
+  } catch (_) {}
+  if (typeof rfn !== "function") {
+    if (ctx && typeof ctx.rng === "function") rfn = ctx.rng;
+    else rfn = Math.random;
+  }
+
+  const n = candidates.length;
+  const idx = n === 1 ? 0 : (Math.floor(rfn() * n) % n);
+  return candidates[idx] || candidates[0] || null;
+}
+
+// Check whether the player can hire a follower of the given archetype id
+// according to party size and optional per-archetype limits.
+export function canHireFollower(ctx, archetypeId) {
+  const result = { ok: false, reason: "Unknown error." };
+  if (!ctx || !ctx.player) {
+    result.reason = "No player context.";
+    return result;
+  }
+  const p = ctx.player;
+  if (!Array.isArray(p.followers)) {
+    result.ok = true;
+    result.reason = "";
+    return result;
+  }
+
+  const fid = String(archetypeId || "").trim();
+  if (!fid) {
+    result.reason = "Invalid follower type.";
+    return result;
+  }
+
+  // Party size cap
+  if (p.followers.length >= MAX_FOLLOWERS_ACTIVE) {
+    result.reason = "You already travel with as many followers as you can handle.";
+    return result;
+  }
+
+  // Simple rule for now: only one follower per archetype id.
+  for (let i = 0; i < p.followers.length; i++) {
+    const f = p.followers[i];
+    if (!f || !f.id) continue;
+    if (String(f.id).trim() !== fid) continue;
+    if (f.enabled === false) continue;
+    if (typeof f.hp === "number" && f.hp <= 0) continue;
+    result.reason = "You already travel with someone of that kind.";
+    return result;
+  }
+
+  result.ok = true;
+  result.reason = "";
+  return result;
+}
+
+// Hire a follower from a given archetype id, creating a new record on
+// player.followers if possible. Returns true on success.
+export function hireFollowerFromArchetype(ctx, archetypeId) {
+  if (!ctx || !ctx.player) return false;
+  const p = ctx.player;
+  if (!Array.isArray(p.followers)) p.followers = [];
+
+  const check = canHireFollower(ctx, archetypeId);
+  if (!check.ok) {
+    try {
+      if (ctx.log && check.reason) {
+        ctx.log(check.reason, "info");
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  const defs = getFollowerArchetypes(ctx);
+  const fid = String(archetypeId || "").trim();
+  if (!fid || !defs || !defs.length) return false;
+
+  let def = null;
+  for (let i = 0; i < defs.length; i++) {
+    const d = defs[i];
+    if (!d || !d.id) continue;
+    if (String(d.id) === fid) {
+      def = d;
+      break;
+    }
+  }
+  if (!def) return false;
+
+  const rec = { id: String(def.id), enabled: true };
+
+  // Basic stats: start at baseHp and level 1 (or def.level if provided).
+  const level =
+    typeof def.level === "number" && def.level > 0 ? (def.level | 0) : 1;
+  rec.level = level;
+
+  if (typeof def.baseHp === "number" && def.baseHp > 0) {
+    rec.maxHp = def.baseHp;
+    rec.hp = def.baseHp;
+  }
+
+  // Simple default mode and empty inventory/equipment; Player.normalize will
+  // merge schema as needed.
+  rec.mode = "follow";
+  rec.inventory = [];
+  rec.equipment = {
+    left: null,
+    right: null,
+    head: null,
+    torso: null,
+    legs: null,
+    hands: null,
+  };
+
+  // Optional flavor fields copied from definition so the follower panel can
+  // show richer info even before a full normalize cycle.
+  try {
+    if (def.race) rec.race = def.race;
+    if (def.subrace) rec.subrace = def.subrace;
+    if (def.background) rec.background = def.background;
+    if (Array.isArray(def.tags)) rec.tags = def.tags.slice();
+    if (Array.isArray(def.personalityTags)) rec.personalityTags = def.personalityTags.slice();
+    if (def.temperament && typeof def.temperament === "object") {
+      rec.temperament = { ...def.temperament };
+    }
+  } catch (_) {}
+
+  p.followers.push(rec);
+
+  // Log a short confirmation; name will be personalized when a runtime
+  // follower is created via createRuntimeFollower.
+  try {
+    if (ctx.log) {
+      const label = def.name || "Follower";
+      ctx.log(`${label} agrees to travel with you.`, "good");
+    }
+  } catch (_) {}
+
+  return true;
+}
 
 // Return up to `maxCount` active follower records (enabled and alive) from
 // player.followers, in array order.
@@ -514,5 +702,9 @@ if (typeof window !== "undefined") {
     syncFollowersFromTown,
     setFollowerMode,
     dismissFollower,
+    getFollowerArchetypes,
+    pickRandomFollowerArchetype,
+    canHireFollower,
+    hireFollowerFromArchetype,
   };
 }
