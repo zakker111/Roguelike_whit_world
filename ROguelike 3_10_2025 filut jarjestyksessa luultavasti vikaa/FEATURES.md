@@ -263,6 +263,12 @@ This file should describe the **current state**, not the future; update it whene
 - Tavern/Inn:
   - Player can rest (sleep) to heal and advance time.
   - Inn upstairs beds used by NPCs and sometimes player interactions.
+- Quest Board:
+  - Many towns place a Quest Board prop near the plaza or inn. Press `G` on it to open the quest board panel.
+  - The board lists available quests for that town, currently including:
+    - Gather quests (e.g., deliver 10 planks or 10 berries) that check your inventory and consume items on turn-in.
+    - Encounter quests (e.g., “Bandits near the farm”) that place an `E` marker near the town; press `G` on the marker to start the special encounter.
+  - Rewards (typically gold) are claimed by returning to the Quest Board after completing the objective; some gather quests can be accepted and immediately turned in if you already carry the required items.
 - Town gate and transitions:
   - Press `G` at gate tile to exit to overworld.
 - General interactions:
