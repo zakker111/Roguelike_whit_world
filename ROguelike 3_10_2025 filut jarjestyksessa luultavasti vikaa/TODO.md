@@ -152,6 +152,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Optionally highlight the player when they are inside or outside an enemy’s detection range.
   - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
+- [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
+  - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
+  - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
+  - Clean up duplicated Seppo-specific logic in player and follower code to route through the shared data-driven system.
 - [ ] Smoketest runner:
   - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
   - Make smoketest positions exact in tiles; only use nudge around NPC interaction or enemy interaction.
