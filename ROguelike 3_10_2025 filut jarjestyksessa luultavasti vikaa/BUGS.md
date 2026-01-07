@@ -30,4 +30,8 @@
 - sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
 - in some towns, ground/terrain tinting still changes incorrectly or inconsistently (tiles changing biome color unexpectedly)
 - animals/creatures on the Region Map sometimes use odd or incorrect glyphs (verify animal glyph mapping in region map overlays)
+- Quest Board bandit encounter (“Bandits near the farm”) does not always spawn followers correctly:
+  - When starting the quest encounter from the `E` marker, followers often log “Your followers cannot find room to stand nearby in this area.” even on relatively open snow/snow-forest tiles.
+  - This suggests a mismatch between the camp-style encounter map, region/encounter walkability, and follower spawn radius/occupancy checks for that specific template.
+  - Investigate FollowersRuntime.findSpawnTileNearPlayer and quest_service → EncounterRuntime.enter wiring for the `bandits_farm` quest template to ensure at least one nearby spawn tile is found when the player has space to move in multiple directions.
 - [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage
