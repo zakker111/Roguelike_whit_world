@@ -389,6 +389,7 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
   const mode = ctx.mode || "";
   const isTownLike = mode === "town";
   const isRegionLike = mode === "region";
+  const isEncounterLike = mode === "encounter";
 
   function regionWalkableAt(x, y) {
     // Region Map overlay uses world/region tiles instead of dungeon FLOOR.
@@ -481,9 +482,10 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     return false;
   }
 
-  // Encounters and towns/region maps should keep followers close to the player;
-  // use a larger local radius there and only use a small radius for dungeon floors.
-  const defaultRadius =4;
+  // Followers should stay reasonably close to the player:
+  // - towns/castles, Region Map, and encounters: search a larger local radius
+  // - dungeon floors: smaller radius, but allow a full-map fallback
+  const defaultRadius = (isTownLike || isRegionLike || isEncounterLike) ? 8 : 4;
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
     ? maxRadius
     : defaultRadius;
@@ -501,12 +503,12 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
   }
 
   // For towns/castles, Region Map, and encounters, only spawn within a radius of the
-  // player;back to arbitrary distant tiles.
-  if (isTownLike || isRegionLike) return null;
+  // player; do not fall back to arbitrary distant tiles.
+  if (isTownLike || isRegionLike || isEncounterLike) return null;
 
-  // For dungeon/encounter maps, allow a broader fallback: scan the
-  // whole map for any reasonable free tile if the immediate area around
-  // the player is too cramped (small rooms, crowded corridors).
+  // For dungeon maps, allow a broader fallback: scan the whole map for any reasonable
+  // free tile if the immediate area around the player is too cramped (small rooms,
+  // crowded corridors).
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
