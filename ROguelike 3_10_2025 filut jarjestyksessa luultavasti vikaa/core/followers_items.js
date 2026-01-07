@@ -295,7 +295,10 @@ export function giveItemToFollower(ctx, followerId, playerIndex, opts = {}) {
   // Remove from player inventory
   inv.splice(idx, 1);
 
-  if (slot && Object.prototype.hasOwnProperty.call(eq, slot)) {
+  // Only equipment can occupy equipment slots; potions and other items stay in follower inventory.
+  const isEquip = item && item.kind === "equip";
+
+  if (slot && isEquip && Object.prototype.hasOwnProperty.call(eq, slot)) {
     // Move any existing equipment in the slot into follower inventory first.
     if (eq[slot]) {
       finv.push(eq[slot]);
@@ -374,6 +377,8 @@ export function equipFollowerItemFromInventory(ctx, followerId, followerIndex, s
   if (idx < 0 || idx >= finv.length) return false;
   const item = finv[idx];
   if (!item) return false;
+  // Followers should only equip real equipment; potions and other items stay in inventory.
+  if (item.kind !== "equip") return false;
 
   const isHandEquip = item.kind === "equip" && item.slot === "hand";
   const twoHanded = !!item.twoHanded;

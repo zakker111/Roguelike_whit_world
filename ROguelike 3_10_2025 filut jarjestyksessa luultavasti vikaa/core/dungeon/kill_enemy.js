@@ -8,6 +8,7 @@ export function killEnemy(ctx, enemy) {
 
   // If this enemy is a player follower/ally, permanently remove it from the
   // player's followers list so it does not respawn on future entries.
+  let followerRecord = null;
   try {
     if (enemy._isFollower && enemy._followerId && ctx.player && Array.isArray(ctx.player.followers)) {
       const followers = ctx.player.followers;
@@ -16,6 +17,7 @@ export function killEnemy(ctx, enemy) {
         const f = followers[i];
         if (!f) continue;
         if (String(f.id) === String(enemy._followerId)) {
+          followerRecord = f;
           removedName = f.name || enemy.name || "Your follower";
           followers.splice(i, 1);
           break;
@@ -41,6 +43,38 @@ export function killEnemy(ctx, enemy) {
       loot = ctx.Loot.generate(ctx, enemy) || [];
     }
   } catch (_) { loot = []; }
+
+  // If this was a follower, merge their equipped gear and inventory into the corpse loot.
+  // This preserves current decay/wear state by moving the live item objects.
+  if (followerRecord) {
+    try {
+      const eq = followerRecord.equipment && typeof followerRecord.equipment === "object"
+        ? followerRecord.equipment
+        : {};
+      const inv = Array.isArray(followerRecord.inventory) ? followerRecord.inventory : [];
+      const seenItems = new Set();
+      const slots = ["left", "right", "head", "torso", "legs", "hands"];
+
+      // Equipped gear
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        const it = eq && eq[slot];
+        if (!it) continue;
+        if (seenItems.has(it)) continue;
+        loot.push(it);
+        seenItems.add(it);
+      }
+
+      // Inventory items
+      for (let i = 0; i < inv.length; i++) {
+        const it = inv[i];
+        if (!it) continue;
+        if (seenItems.has(it)) continue;
+        loot.push(it);
+        seenItems.add(it);
+      }
+    } catch (_) {}
+  }
 
   // Build flavor metadata from last hit info if available (JSON-driven via FlavorService)
   const last = enemy._lastHit || null;

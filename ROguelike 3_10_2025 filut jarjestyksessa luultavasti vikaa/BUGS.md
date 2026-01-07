@@ -7,6 +7,13 @@
 - multirun in smoketest skips first multirun 
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
+- [FIXED] Followers in Region Map and ruins would sometimes multiply or spawn far from the player:
+  - In some ruins runs, spawnInDungeon was invoked twice (once on entering Region Map and once during RUINS encounter setup), which created duplicate runtime allies for the same follower.
+  - In encounters and Region Map, follower spawn logic could fall back to arbitrarily distant tiles when no nearby spot was found, leading to allies appearing at remote corners of the map.
+  - Now:
+    - RegionMapRuntime only calls FollowersRuntime.spawnInDungeon once per Region Map entry; the ruins-specific encounter no longer re-spawns followers.
+    - FollowersRuntime.spawnInDungeon tracks existing follower actors via _followerId and will not create a second runtime ally for the same follower on the current map.
+    - findSpawnTileNearPlayer uses a larger local radius for encounters/Region Map and refuses to fall back to distant tiles; when no nearby spot is free, followers simply do not spawn and a log line explains that they cannot find room nearby.
 - [FIXED] in dungeons when enemies fight each other they are logged (which is good for debugging purposes), but they gave player XP when they killed each other
 - in dungeons enemies seems to show behind walls(not line of sight)
 - in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
@@ -23,4 +30,12 @@
 - sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
 - in some towns, ground/terrain tinting still changes incorrectly or inconsistently (tiles changing biome color unexpectedly)
 - animals/creatures on the Region Map sometimes use odd or incorrect glyphs (verify animal glyph mapping in region map overlays)
-- Seppo's True Blade on followers currently counts as two separate hand weapons for attack when treated as two-handed; should behave damage-wise as a single blade (no double-stacking follower attack)
+- Quest Board bandit encounter (“Bandits near the farm”) does not always spawn followers correctly:
+  - When starting the quest encounter from the `E` marker, followers often log “Your followers cannot find room to stand nearby in this area.” even on relatively open snow/snow-forest tiles.
+  - This suggests a mismatch between the camp-style encounter map, region/encounter walkability, and follower spawn radius/occupancy checks for that specific template.
+  - Investigate FollowersRuntime.findSpawnTileNearPlayer and quest_service → EncounterRuntime.enter wiring for the `bandits_farm` quest template to ensure at least one nearby spawn tile is found when the player has space to move in multiple directions.
+- Followers sometimes fail to spawn in random encounters even when the area around the player looks open (especially in snow biomes):
+  - The log “Your followers cannot find room to stand nearby in this area.” appears repeatedly on encounter entry, but the player can still move several tiles in multiple directions.
+  - Root cause unknown; likely interaction between encounter map generators (camp/ambush/ruins), ctx.isWalkable tiles, and occupancy checks in FollowersRuntime.findSpawnTileNearPlayer.
+  - Needs focused repro cases and visual inspection (FOV on, GOD/enemy markers) to see what is actually blocking follower tiles in those encounters.
+- [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage

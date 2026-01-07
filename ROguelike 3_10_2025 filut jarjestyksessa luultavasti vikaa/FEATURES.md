@@ -263,6 +263,12 @@ This file should describe the **current state**, not the future; update it whene
 - Tavern/Inn:
   - Player can rest (sleep) to heal and advance time.
   - Inn upstairs beds used by NPCs and sometimes player interactions.
+- Quest Board:
+  - Many towns place a Quest Board prop near the plaza or inn. Press `G` on it to open the quest board panel.
+  - The board lists available quests for that town, currently including:
+    - Gather quests (e.g., deliver 10 planks or 10 berries) that check your inventory and consume items on turn-in.
+    - Encounter quests (e.g., “Bandits near the farm”) that place an `E` marker near the town; press `G` on the marker to start the special encounter.
+  - Rewards (typically gold) are claimed by returning to the Quest Board after completing the objective; some gather quests can be accepted and immediately turned in if you already carry the required items.
 - Town gate and transitions:
   - Press `G` at gate tile to exit to overworld.
 - General interactions:
@@ -474,15 +480,16 @@ These exist partially in code or design but are **known unstable** or not yet im
     - Player defaults include a single follower record in `player.followers`, normalized and persisted on the save.
   - Spawning and modes:
     - Dungeons / towers / encounters / region-map:
-      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set.
-      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player.
+      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set; in encounters and Region Map they are placed within a small radius around the player (not at distant corners), and they skip spawning entirely if no nearby tile is free.
+      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player (or hold position in `wait` mode).
     - Towns / castles:
-      - A follower NPC is spawned near the gate/player with roles `["follower"]` and `_isFollower/_followerId` markers.
+      - A follower NPC is spawned near the gate/player with roles `[\"follower\"]` and `_isFollower/_followerId` markers.
       - Town tick logic keeps the follower NPC within a short distance of the player as they move through town.
   - Persistence and death:
     - Dungeon/town/region save snapshots explicitly exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
     - Follower HP/level from dungeon/encounter/region runs are synced back into `player.followers` on exit.
     - When a follower dies in combat, their corresponding record is removed from `player.followers`, and they will not respawn anywhere (permanent death for that run).
+    - When a follower dies, all of their equipped gear and inventory items (with their current decay/wear) are added to their corpse loot so the player can recover their follower’s equipment.
   - Visual consistency and logging:
     - Follower glyph/color are taken from `followers.json` and rendered consistently in all modes (town, dungeon, region) with a distinct background to differentiate them from normal enemies/NPCs.
     - Combat logs, corpse flavor, and kill attributions use follower display names and (where possible) their actual equipped weapon names instead of raw type IDs.
@@ -500,6 +507,17 @@ These exist partially in code or design but are **known unstable** or not yet im
       - `[Give]` items from player inventory to follower inventory (or directly into a slot when a slot is specified).
       - `[Take]` items from follower inventory back into the player’s inventory.
     - After each change, follower Attack/Defense are recomputed from base stats + gear and immediately reflected in the panel.
+    - Potions and other non-equipment items cannot be equipped into follower slots; followers use potions directly from their inventory when low on HP instead of attacking.
+  - Simple commands (experimental):
+    - Each follower has a basic mode flag stored on their record (`mode`):
+      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
+      - `wait`: hold position, only attacking enemies that move adjacent.
+    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
+  - Simple commands (experimental):
+    - Each follower has a basic mode flag stored on their record (`mode`):
+      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
+      - `wait`: hold position, only attacking enemies that move adjacent.
+    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
   - Equipment parity, decay, curses, and preferences:
     - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear) via shared helpers.
     - Follower weapons and armor decay when they attack, are blocked, or are hit; when an equipped item breaks, the follower automatically equips the best replacement from their own inventory, based on total atk+def and simple class preferences.
@@ -509,9 +527,7 @@ These exist partially in code or design but are **known unstable** or not yet im
     - Follower archetypes carry soft preferences (e.g., guards favor sword+shield and heavy armor; thieves favor daggers/light weapons and light armor) that slightly bias auto-equip choices without forbidding non-preferred gear.
 
 - Not yet implemented (planned; see `TODO.md`):
-  - Multiple followers / true party system and party size limits, with command UI (Attack / Follow / Wait here).
-  - Followers drinking potions from their own inventory when low on HP.
-  - Follower death drops (dropping all follower-equipped and inventory items as loot on follower death).
+  - Multiple followers / true party system and party size limits, with a richer command UI (e.g., Attack / Guard / Follow / Wait here).
   - Follower injuries and scars (persistent follower wounds and scars similar to the player’s, visible in the follower panel and treatable by healers).
   - Follower experience and leveling (followers gain XP and levels, but do not receive a full heal when leveling).
   - Fully data-driven special item effects (curses and on-hit/on-break behaviors) instead of bespoke Seppo-specific code.

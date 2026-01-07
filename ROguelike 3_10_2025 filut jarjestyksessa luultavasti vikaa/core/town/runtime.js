@@ -45,6 +45,13 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
+      // Spawn recruitable follower NPCs in the inn (if present).
+      try {
+        if (typeof spawnInnFollowerHires === "function") {
+          spawnInnFollowerHires(ctx);
+        }
+      } catch (_) {}
+
       // Post-gen refresh via StateSync
       try {
         const SS = ctx.StateSync || getMod(ctx, "StateSync");
@@ -75,6 +82,85 @@ export function spawnGateGreeters(ctx, count) {
     return;
   }
   ctx.log && ctx.log("Town.spawnGateGreeters not available.", "warn");
+}
+
+// Spawn a recruitable follower NPC inside the inn (tavern) when available.
+// Uses FollowersRuntime to pick a follower archetype and marks the NPC as a
+// hire candidate so bumping them opens the hire prompt.
+function spawnInnFollowerHires(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+    if (!ctx.tavern || !ctx.tavern.building) return;
+
+    const FR =
+      ctx.FollowersRuntime ||
+      getMod(ctx, "FollowersRuntime") ||
+      (typeof window !== "undefined" ? window.FollowersRuntime : null);
+    if (!FR || typeof FR.pickRandomFollowerArchetype !== "function") return;
+
+    const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    // Avoid spawning multiple hire NPCs at once.
+    const already = npcs.some(n => n && n._recruitCandidate && n._recruitFollowerId);
+    if (already) return;
+
+    // Pick a follower archetype that the player does not already have, if possible.
+    const archetype = FR.pickRandomFollowerArchetype(ctx, { skipHired: true });
+    if (!archetype || !archetype.id) return;
+
+    const b = ctx.tavern.building;
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (!rows || !cols) return;
+
+    const T = ctx.TILES;
+    let spot = null;
+    for (let y = b.y + 1; y < b.y + b.h - 1 && !spot; y++) {
+      for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
+        const tile = ctx.map[y][x];
+        if (tile !== T.FLOOR && tile !== T.DOOR) continue;
+        if (!isFreeTownFloor(ctx, x, y)) continue;
+        spot = { x, y };
+        break;
+      }
+    }
+    if (!spot) return;
+
+    const baseName = typeof archetype.name === "string" ? archetype.name : "Follower";
+    const trimmed = baseName.replace(/\s+Ally$/i, "");
+    const npcName = trimmed ? `${trimmed} for hire` : "Follower for hire";
+
+    const lines = [
+      "Looking for work.",
+      "I can handle myself in a fight.",
+      "Need another blade at your side?"
+    ];
+
+    const npc = {
+      x: spot.x,
+      y: spot.y,
+      name: npcName,
+      lines,
+      roles: ["follower_hire"],
+      _recruitCandidate: true,
+      _recruitFollowerId: String(archetype.id)
+    };
+
+    ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    ctx.npcs.push(npc);
+
+    try {
+      if (ctx.occupancy && typeof ctx.occupancy.setNPC === "function") {
+        ctx.occupancy.setNPC(npc.x, npc.y);
+      }
+    } catch (_) {}
+
+    // Light log so players know there is someone for hire in the inn.
+    try {
+      if (ctx.log) {
+        ctx.log(`${npc.name} is staying at the inn and looking for work.`, "info");
+      }
+    } catch (_) {}
+  } catch (_) {}
 }
 
 export function isFreeTownFloor(ctx, x, y) {
@@ -137,6 +223,88 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     return arr[0];
   };
   npc = npc || pick(near, ctx.rng);
+
+  // Recruitable follower hire NPCs: bump opens a hire prompt instead of generic chatter/shop.
+  try {
+    if (npc && npc._recruitCandidate && npc._recruitFollowerId) {
+      const FR =
+        ctx.FollowersRuntime ||
+        getMod(ctx, "FollowersRuntime") ||
+        (typeof window !== "undefined" ? window.FollowersRuntime : null);
+      const UIO =
+        ctx.UIOrchestration ||
+        getMod(ctx, "UIOrchestration") ||
+        (typeof window !== "undefined" ? window.UIOrchestration : null);
+
+      if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
+        const archetypeId = String(npc._recruitFollowerId || "");
+        if (archetypeId) {
+          const check = FR.canHireFollower(ctx, archetypeId);
+          if (!check.ok) {
+            try {
+              if (ctx.log && check.reason) ctx.log(check.reason, "info");
+            } catch (_) {}
+            return true;
+          }
+
+          let label = npc.name || "Follower";
+          try {
+            if (typeof FR.getFollowerArchetypes === "function") {
+              const defs = FR.getFollowerArchetypes(ctx) || [];
+              for (let i = 0; i < defs.length; i++) {
+                const d = defs[i];
+                if (!d || !d.id) continue;
+                if (String(d.id) === archetypeId) {
+                  label = d.name || label;
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+
+          const prompt = `${label}: "I can travel with you, if you'll have me."`;
+          const onOk = () => {
+            try {
+              const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+              if (ok) {
+                // Remove this hire NPC from town after they agree to join.
+                try {
+                  if (Array.isArray(ctx.npcs)) {
+                    for (let i = ctx.npcs.length - 1; i >= 0; i--) {
+                      if (ctx.npcs[i] === npc) {
+                        ctx.npcs.splice(i, 1);
+                        break;
+                      }
+                    }
+                  }
+                  if (ctx.occupancy && typeof ctx.occupancy.clearNPC === "function") {
+                    ctx.occupancy.clearNPC(npc.x | 0, npc.y | 0);
+                  }
+                } catch (_) {}
+                if (ctx.log) {
+                  ctx.log(`${label} heads out to accompany you on your travels.`, "info");
+                }
+              } else if (ctx.log) {
+                ctx.log("They cannot join you right now.", "info");
+              }
+            } catch (_) {}
+          };
+          const onCancel = () => {
+            try {
+              if (ctx.log) ctx.log(`${label}: "Maybe another time."`, "info");
+            } catch (_) {}
+          };
+
+          if (UIO && typeof UIO.showConfirm === "function") {
+            UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+          } else {
+            onOk();
+          }
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
 
   // Followers in town: bump opens follower inspect panel instead of generic chatter/shop.
   try {
@@ -1044,12 +1212,29 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
-  // Simple follower NPC behavior: stay near the player in town.
+  // Simple follower NPC behavior: stay near the player in town, unless set to wait.
   try {
     const p = ctx.player;
     if (p && Array.isArray(ctx.npcs)) {
+      const followers = p && Array.isArray(p.followers) ? p.followers : null;
       for (const n of ctx.npcs) {
         if (!n || !n._isFollower) continue;
+
+        // Resolve follower mode from the record (or NPC override) so town followers
+        // can obey simple follow / wait commands.
+        let mode = "follow";
+        try {
+          if (n._followerMode === "wait" || n._followerMode === "follow") {
+            mode = n._followerMode;
+          } else if (followers && n._followerId != null) {
+            const rec = followers.find(f => f && f.id === n._followerId) || null;
+            if (rec && (rec.mode === "wait" || rec.mode === "follow")) {
+              mode = rec.mode;
+            }
+          }
+        } catch (_) {}
+        if (mode === "wait") continue;
+
         const dx = p.x - n.x;
         const dy = p.y - n.y;
         const dist = Math.abs(dx) + Math.abs(dy);

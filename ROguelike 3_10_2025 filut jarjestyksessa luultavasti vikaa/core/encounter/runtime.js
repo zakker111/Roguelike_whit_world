@@ -144,9 +144,17 @@ export function tick(ctx) {
         }
       } else if (obj.type === "rescueTarget") {
         const rescued = !!obj.rescued;
+        // Freeing the captive and spawning an ally is now handled by
+        // EncounterInteractions when the player presses G on the captive.
+        // Here we only handle escort completion and optional guidance.
         if (!rescued && obj.target && obj.target.x === ctx.player.x && obj.target.y === ctx.player.y) {
-          obj.rescued = true;
-          ctx.log && ctx.log("You free the captive! Now reach an exit (>) to leave.", "good");
+          // Optional gentle hint so players learn to press G to free the captive.
+          if (!obj._rescueHintShown) {
+            try {
+              ctx.log && ctx.log("Press G while standing on the captive to free them.", "info");
+            } catch (_) {}
+            obj._rescueHintShown = true;
+          }
         } else if (rescued && here === ctx.TILES.STAIRS) {
           obj.status = "success";
           ctx.log && ctx.log("Objective complete: Escorted the captive to safety.", "good");

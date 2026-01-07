@@ -1,5 +1,152 @@
 # Game Version History
-Last updated: 2026-01-07 18:00 UTC
+Last updated: 2026-01-07 20:15 UTC
+
+v1.62.0 — Infinite overworld runtime, Region Map ruins, and follower spawn fixes
+- World and overworld runtime:
+  - core/world_runtime.js:
+    - Now requires the InfiniteGen module; finite world generation via world/world.js is no longer used at runtime. If InfiniteGen is missing or not initialized, world generation fails fast with a clear error instead of silently falling back.
+    - Generates the initial overworld window by sampling InfiniteGen around a deterministic start position (gen.pickStart), centering the player in the first window so the start POI is visible.
+    - Stores the live windowed map and fog-of-war arrays (seen/visible) on ctx.world so world/town/dungeon/region modes can restore them after transitions.
+    - Provides expandMap/ensureInBounds hooks (via core/world/expand.js) so world edges are expanded in 32‑tile chunks without snapping the camera or player; originX/originY are updated consistently when new tiles are added.
+    - After initial generation, scans the window for POIs (towns/dungeons/ruins) using scanPOIs and spawns a number of travelling caravans between towns based on town count, with dwell times and deterministic routes.
+  - world/world.js and world/world_tiles.js:
+    - TILES now include additional overworld and region-style tiles (RUINS, CASTLE, TOWER, SNOW_FOREST, etc.) and a shared biomeName helper so HUD and Region Map can show human-readable biome names.
+    - isWalkable(tile) prefers data-driven walkable flags from tiles.json when available and falls back to blocking only WATER/RIVER/MOUNTAIN by default for overworld semantics.
+- World module aggregation and modes:
+  - core/world/index.js:
+    - Aggregates core/world helpers (expandMap, tryMovePlayerWorld, tick) and re-exports them along with generate from core/world_runtime.js so world logic can be imported via a single module.
+  - core/modes/modes.js:
+    - Centralizes town/dungeon/region transitions and mode checks, and ensures worldReturnPos/townExitAt/dungeonExitAt are applied via WorldRuntime/TownRuntime/DungeonRuntime instead of ad-hoc code.
+    - Entering towns:
+      - Requires standing exactly on a town or castle tile; stores absolute world coordinates as worldReturnPos for return.
+      - Preserves world fog-of-war references on ctx.world before switching maps so world FOV can be restored on exit.
+      - Uses TownRuntime.generate/TownState.load when available, then moves the player to the gate interior tile and spawns follower NPCs via FollowersRuntime.spawnInTown.
+    - Entering dungeons and towers:
+      - Requires standing exactly on a DUNGEON or TOWER tile; builds a dungeonInfo structure from ctx.world.dungeons or defaults to level 1, marking tower entrances with kind:"tower" and deterministic towerFloors when needed.
+      - Prefers DungeonRuntime.enter to handle entry, towerRun and per-floor meta; falls back to legacy inline generation only when DungeonRuntime is unavailable.
+    - Ruins and Region Map:
+      - EnterRuinsIfOnTile opens RegionMapRuntime from a RUINS tile and logs clear messaging; ruins and region map flows are kept separate from town/dungeon transitions.
+    - Leaving town:
+      - returnToWorldFromTown uses gate geometry (inner perimeter + boundary DOOR) as the single source of truth for “at gate” rather than relying on legacy state.
+      - leaveTownNow delegates to returnToWorldFromTown when in town mode to avoid drift between multiple exit paths.
+- Region Map runtime and ruins encounters:
+  - region_map/region_map_runtime.js:
+    - Region open():
+      - Anchors region tiles around either the player or a nearby RUINS tile; samples a downscaled world around that anchor to build a small region map.
+      - Uses tiles.json “region” tileset metadata first, then overworld World.isWalkable as fallback, when deciding which region tiles are walkable.
+      - Filters the sample to neighbor biomes around the anchor, orients the map based on the surrounding overworld biomes (cardinals + diagonals), and decorates with small ponds, beaches, sparse trees, and berry bushes when not loading a persisted state.
+    - Ruins decoration and encounters:
+      - For RUINS anchors without a persisted region state, draws a broken ring of RUIN_WALL tiles (from the “region” tileset, falling back to MOUNTAIN) around a central footprint, with 3–5 randomized gaps as entrances.
+      - Scatters short ruin wall segments and pillars in the interior and clears a small inner ring around the center for mobility.
+      - Spawns 2–4 enemies (skeletons, bandits, mime ghosts by default) using JSON-defined enemy types only; logs a “fallback enemy spawned” warning if any type is missing from enemies.json.
+      - Places 1–2 lootable chests inside the ruins with bandit-themed loot; uses data-driven Loot.generate when available and falls back to simple gold piles otherwise.
+      - Marks ctx.region._isEncounter so AI/tick logic can treat the region as an active encounter and logs “Hostiles lurk within the ruins!” once.
+    - Animals and neutral wildlife:
+      - Wildlife spawns now depend on local biome fractions (grass/forest only, beach/desert/snow/swamp/mountain biases suppress spawns) and on whether animals have been seen or cleared at this tile before.
+      - Wildlife types (deer/fox/boar or data-driven GameData.animals) are chosen by spawn weights per biome; positions respect walkability and avoid overlapping the player, existing enemies, or the region cursor.
+      - Animal presence, sightings, and “cleared” state are persisted per anchor tile; revisiting tiles where animals were previously seen has a reduced chance of re-spawn.
+      - Killing animals creates corpses and loot; blood decals in Region Map fade over time just like in dungeons.
+    - LOS and FOV:
+      - Region Map installs its own LOS object and a tileTransparent hook that consults tiles.json “region” properties (blocksFOV) and then falls back to overworld rules for walls/ruin walls.
+      - Closing the Region Map restores the previous ctx.los object and tileTransparent function, or removes them if none existed, to avoid breaking dungeon FOV.
+    - Followers in Region Map:
+      - On entering Region Map (ctx.mode = "region"), followers are spawned once via FollowersRuntime.spawnInDungeon so they accompany the player both in generic region views and ruins encounters.
+      - The RUINS-specific encounter no longer calls spawnInDungeon a second time, preventing followers from multiplying when entering ruins.
+    - Region close():
+      - Saves current region state, syncs follower HP/level back to player.followers via FollowersRuntime.syncFollowersFromDungeon, restores ctx.map to the overworld map, and places the player back at the world coordinates where G was pressed.
+- Followers and spawn behavior in dungeons/encounters/region:
+  - core/followers_runtime.js:
+    - Region-aware walkability:
+      - findSpawnTileNearPlayer(ctx) now has a regionWalkableAt(x,y) helper that checks ctx.region.map (or ctx.map) using tiles.json “region” walkable properties first and falls back to World.isWalkable(tile) and a final guard to treat only WATER/RIVER/MOUNTAIN as hard blockers.
+      - This allows followers to spawn on SNOW and SNOW_FOREST tiles in Region Map and ruins as long as those tiles are walkable for the player.
+    - Mode-specific spawn radius:
+      - For dungeon floors, we still allow a broader fallback scan of the whole map if the immediate area around the player is too cramped (small rooms, corridors).
+      - For towns, Region Map, and encounters, followers now only spawn within a local radius around the player (default radius 8 tiles) and will not appear at distant corners of the map; if no tile is available in that radius, spawnInDungeon/spawnInTown logs a “cannot find room nearby” message and does not spawn the follower.
+    - Duplicate prevention:
+      - spawnInDungeon(ctx) now builds a set of followerIds already present among ctx.enemies (via _isFollower/_followerId) and skips spawning a second runtime ally for any follower that already has a live actor on the current map.
+      - This prevents follower duplication when spawnInDungeon is called multiple times on the same map (e.g., Region Map + ruins encounter layering).
+    - Region integration:
+      - Followers are spawned once when entering Region Map and treated like other dungeon/encounter allies; follower HP/level are synced back to player.followers when leaving Region Map.
+- Encounters and special templates:
+  - core/encounter/enter.js:
+    - Caravan ambush:
+      - A dedicated caravan_ambush template builds a road map and uses JSON-defined guard enemy types for caravan defenders; fallback enemy spawns are disabled for this template to avoid non-guard enemies in the scenario.
+      - A “caravan chest” prop in the encounter decor is upgraded into a real chest with caravan-themed loot plus a substantial gold reward, placed near the road center when possible.
+    - Guards vs Bandits:
+      - Guards and bandits spawn in opposing lines near top and bottom edges of a wide, mostly open map; the player is placed to the side of the battle so they can watch both lines charge.
+      - Guards start neutral to the player and ignore them unless attacked; the template logs flavor text when guards win without player aggression.
+    - Full Moon ritual:
+      - Ritual center decor and loot have been refined; the central altar chest now has a richer loot budget and always includes a solid gold reward, with campfires and “stone” benches forming a distinct ritual circle.
+- Followers (summary of related previous versions for context):
+  - v1.61.5–v1.61.1 (see below) introduced:
+    - Per-follower follow/wait modes, follower-specific inspect panels, follower equipment and inventory, potion use, death drops, curse handling (Seppo’s True Blade), and data-driven preferences; these fixes in v1.62.0 improve where and how those followers are spawned across dungeons, encounters, Region Map, and towns.
+- Docs:
+  - README.md:
+    - Overworld section updated to emphasize InfiniteGen-driven streaming, bridges as overlays, and travelling caravans as first-class POIs; Region Map section updated to highlight ruins decoration and wildlife behavior.
+    - Follower mentions updated to note that followers now accompany the player into encounters and Region Map and spawn near the player when space permits.
+  - FEATURES.md:
+    - Experimental followers/party system section updated to describe region-aware spawning, encounter-near-player spawn behavior, and the fact that followers no longer appear at distant corners or multiply on re-entry.
+  - TODO.md:
+    - Followers/party system subsection clarified to mark identity, inspect panel, equipment/inventory, potion use, and death drops as DONE, with AI/morale and multi-follower party still planned; mountain-pass dungeons and GOD Arena remain open tasks.
+
+v1.61.5 — Follower follow/wait mode
+- Added: Simple per-follower command mode (follow / wait).
+  - entities/player.js:
+    - Follower records in `player.followers` now carry a `mode` field normalized to either `follow` (default) or `wait`.
+  - entities/followers.js:
+    - Runtime follower actors created via `createRuntimeFollower` now expose `_followerMode` derived from the follower record.
+  - core/followers_runtime.js:
+    - New `setFollowerMode(ctx, followerId, mode)` helper updates the follower record, any live dungeon/encounter follower actors, and any town follower NPCs, and logs a short confirmation line (“<name> will wait here.” / “<name> will follow you.”).
+    - Town follower NPCs spawned via `spawnInTown` now carry `_followerMode` for quick lookups.
+
+- Changed: AI respects follower mode in combat maps.
+  - ai/ai.js:
+    - Followers now read `_followerMode` each tick:
+      - In `follow` mode, behavior is unchanged: they trail the player when no hostile is visible and move toward visible hostile targets within their LOS.
+      - In `wait` mode:
+        - They no longer move toward the player when idle.
+        - They do not advance toward hostile enemies; they only attack when an enemy becomes adjacent.
+    - This keeps “wait” followers as stationary guards who defend themselves but do not chase.
+
+- Changed: Town follower NPC behavior respects mode.
+  - core/town/runtime.js:
+    - The simple “follow the player in town” step now consults each follower’s `mode` (from `player.followers` or `_followerMode` on the NPC).
+    - Followers in `wait` mode stop trailing the player in town while still being available for interaction (bump/talk) and panel commands.
+
+- Added: Follow / Wait controls in the follower panel.
+  - core/bridge/ui_orchestration.js:
+    - `buildFollowerView(ctx, runtime)` now includes a `mode` field in the view model, derived from the follower record with a default of `follow`.
+  - ui/components/follower_modal.js:
+    - The follower inspect panel shows the current mode (“Following you” / “Waiting here”) and exposes `[Follow]` and `[Wait here]` controls.
+    - New `data-fcmd="mode"` click handler calls `FollowersRuntime.setFollowerMode` with the chosen mode and then re-opens the follower panel via `UIOrchestration.showFollower` to refresh stats and mode display.
+
+- Docs:
+  - FEATURES.md: follower section updated to describe the basic follow/wait mode flag and that it is toggled via the follower panel; richer party commands remain planned.
+  - TODO.md: “Simple follower AI improvements” expanded to mark basic follow/wait mode as partially done, with notes about remaining AI and morale work.
+
+v1.61.4 — Follower death drops and potion use
+- Added: Follower death drops with decay preserved.
+  - core/dungeon/kill_enemy.js:
+    - When an enemy marked with `_isFollower` dies, the matching follower record is captured before removal from `ctx.player.followers`.
+    - After normal loot generation, all equipped gear and inventory items from that follower record are merged into the corpse loot array.
+    - Items are pushed by reference so existing decay/wear values are preserved; two-handed items shared between left/right hands only drop once via a small reference-based deduplication set.
+- Added: Follower potion use from their own inventory.
+  - ai/ai.js:
+    - Follower actors (`_isFollower === true`) now check their own follower record inventory for `kind === "potion"` when below a low-HP threshold (~35% of max HP).
+    - If a potion is available, the follower drinks it instead of attacking, healing themselves and consuming one potion from follower inventory.
+    - The follower record’s `hp`/`maxHp` fields are updated to reflect the healed runtime HP so dungeon/town/region persistence stays in sync.
+- Fixed: Two-handed hand weapons (including Seppo’s True Blade) no longer double-count Attack/Defense when the same item object is equipped in both hands.
+  - entities/equip_common.js:
+    - `aggregateFollowerAtkDef` now tracks equipped items in a small Set and only adds each item’s atk/def once, even if referenced by multiple slots (e.g., left/right for two-handed weapons).
+  - entities/player.js:
+    - `getAttack` and `getDefense` now use a Set to ensure each equipped item contributes its atk/def only once across all relevant slots, so two-handed weapons behave as a single blade rather than double-stacking damage for the player.
+- Changed: Followers cannot equip potions or other non-equipment items.
+  - core/followers_items.js:
+    - `giveItemToFollower` now only allows items with `kind === "equip"` to occupy follower equipment slots; non-equip items are always added to follower inventory, even when a slot is specified.
+    - `equipFollowerItemFromInventory` returns early when the selected follower inventory item is not equipment, preventing potions/materials from being placed into equipment slots.
+- Docs:
+  - FEATURES.md: follower section updated to describe follower death drops, potion use at low HP, and the fact that potions are used directly from follower inventory (not equipped).
+  - TODO.md: follower potion use and follower death drops marked as implemented in the followers/party system section.
 
 v1.61.3 — Follower equipment, decay, curses, and preferences (Phase 3)
 - Added: Shared equipment helpers for followers and player.

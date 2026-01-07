@@ -285,14 +285,73 @@ export function tryMove(ctx, dx, dy) {
       }
     } catch (_) {}
 
-    // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
-    // Followers are treated specially: bump opens the follower inspect panel instead of attacking
-    // or prompting.
+    // Encounter bump logic for guards/followers/recruits:
+    // - Recruitable follower candidates (rescued captives, etc.): bump opens hire prompt.
+    // - Existing followers: bump opens follower inspect panel.
+    // - Neutral guards: bump shows attack confirmation dialog before attacking.
     try {
-      let enemy = null;
       const enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
-      enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
+      const enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
       if (enemy) {
+        // Recruitable follower candidates: bump opens a hire prompt instead of attacking.
+        try {
+          if (enemy._recruitCandidate && enemy._recruitFollowerId) {
+            const FR = mod("FollowersRuntime");
+            const UIO = mod("UIOrchestration");
+            if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
+              const archetypeId = String(enemy._recruitFollowerId || "");
+              if (archetypeId) {
+                const check = FR.canHireFollower(ctx, archetypeId);
+                if (!check.ok) {
+                  try {
+                    if (ctx.log && check.reason) ctx.log(check.reason, "info");
+                  } catch (_) {}
+                  return true;
+                }
+
+                // Try to resolve a friendly label from follower definitions.
+                let label = "Follower";
+                try {
+                  if (typeof FR.getFollowerArchetypes === "function") {
+                    const defs = FR.getFollowerArchetypes(ctx) || [];
+                    for (let i = 0; i < defs.length; i++) {
+                      const d = defs[i];
+                      if (!d || !d.id) continue;
+                      if (String(d.id) === archetypeId) {
+                        label = d.name || label;
+                        break;
+                      }
+                    }
+                  }
+                } catch (_) {}
+
+                const prompt = `${label} offers to travel with you as a follower. Accept?`;
+                const onOk = () => {
+                  try {
+                    const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+                    if (!ok && ctx.log) {
+                      ctx.log("They cannot join you right now.", "info");
+                    }
+                  } catch (_) {}
+                };
+                const onCancel = () => {
+                  try {
+                    if (ctx.log) ctx.log("You decide to travel alone for now.", "info");
+                  } catch (_) {}
+                };
+
+                if (UIO && typeof UIO.showConfirm === "function") {
+                  UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+                } else {
+                  onOk();
+                }
+                // Hiring (or declining) does not consume a combat turn beyond this bump.
+                return true;
+              }
+            }
+          }
+        } catch (_) {}
+
         // Followers: open inspect panel instead of prompting for attack.
         if (enemy._isFollower) {
           const UIO = mod("UIOrchestration");
@@ -305,7 +364,8 @@ export function tryMove(ctx, dx, dy) {
 
         const fac = String(enemy.faction || "").toLowerCase();
         const isGuard = fac === "guard" || String(enemy.type || "").toLowerCase() === "guard";
-        const neutralGuard = isGuard && enemy._ignorePlayer;
+        // Do not treat recruit candidates as neutral guards for the attack-confirm prompt.
+        const neutralGuard = isGuard && enemy._ignorePlayer && !enemy._recruitCandidate;
         if (neutralGuard) {
           const UIO = mod("UIOrchestration");
           const C = mod("Combat");
@@ -329,6 +389,7 @@ export function tryMove(ctx, dx, dy) {
       }
     } catch (_) {}
 
+    // Fall back to DungeonRuntime movement/attack so encounters share combat/move rules with dungeons.
     try {
       const DR = mod("DungeonRuntime");
       if (DR && typeof DR.tryMoveDungeon === "function") {

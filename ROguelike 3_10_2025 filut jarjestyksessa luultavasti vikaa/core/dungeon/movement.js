@@ -35,6 +35,82 @@ export function tryMoveDungeon(ctx, dx, dy) {
   } catch (_) { enemy = null; }
 
   if (enemy) {
+    // Recruitable follower candidates: bump opens a hire prompt instead of attacking.
+    try {
+      if (enemy._recruitCandidate && enemy._recruitFollowerId) {
+        const FR =
+          ctx.FollowersRuntime ||
+          getMod(ctx, "FollowersRuntime") ||
+          (typeof window !== "undefined" ? window.FollowersRuntime : null);
+        const UIO =
+          ctx.UIOrchestration ||
+          getMod(ctx, "UIOrchestration") ||
+          (typeof window !== "undefined" ? window.UIOrchestration : null);
+
+        if (FR && typeof FR.canHireFollower === "function" && typeof FR.hireFollowerFromArchetype === "function") {
+          const archetypeId = String(enemy._recruitFollowerId || "");
+          if (archetypeId) {
+            const check = FR.canHireFollower(ctx, archetypeId);
+            if (!check.ok) {
+              try {
+                if (ctx.log && check.reason) ctx.log(check.reason, "info");
+              } catch (_) {}
+              return true;
+            }
+
+            // Try to resolve a friendly label from follower definitions.
+            let label = "Follower";
+            try {
+              if (typeof FR.getFollowerArchetypes === "function") {
+                const defs = FR.getFollowerArchetypes(ctx) || [];
+                for (let i = 0; i < defs.length; i++) {
+                  const d = defs[i];
+                  if (!d || !d.id) continue;
+                  if (String(d.id) === archetypeId) {
+                    label = d.name || label;
+                    break;
+                  }
+                }
+              }
+            } catch (_) {}
+
+            const prompt = `${label} offers to travel with you as a follower. Accept?`;
+            const onOk = () => {
+              try {
+                const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
+                if (ok) {
+                  // Prevent recruiting the same captive/guard multiple times by
+                  // disabling the recruit flag on this specific ally actor.
+                  try {
+                    enemy._recruitCandidate = false;
+                    enemy._recruitFollowerId = null;
+                  } catch (_) {}
+                  if (ctx.log) {
+                    ctx.log("They will accompany you after this fight.", "info");
+                  }
+                } else if (ctx.log) {
+                  ctx.log("They cannot join you right now.", "info");
+                }
+              } catch (_) {}
+            };
+            const onCancel = () => {
+              try {
+                if (ctx.log) ctx.log("You decide to travel alone for now.", "info");
+              } catch (_) {}
+            };
+
+            if (UIO && typeof UIO.showConfirm === "function") {
+              UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+            } else {
+              onOk();
+            }
+            // Hiring (or declining) does not consume a combat turn beyond this bump.
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+
     // Followers: bump-to-inspect instead of attacking.
     try {
       if (enemy._isFollower) {

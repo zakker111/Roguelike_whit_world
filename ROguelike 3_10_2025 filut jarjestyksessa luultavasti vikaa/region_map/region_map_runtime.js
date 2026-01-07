@@ -1005,6 +1005,8 @@ function open(ctx, size) {
   ctx.mode = "region";
 
   // Spawn player follower/ally into the Region map, if configured.
+  // This is called once on entering region mode so followers are present
+  // for both generic regions and ruins encounters.
   try {
     spawnInDungeon(ctx);
   } catch (_) {}
@@ -1133,14 +1135,6 @@ function open(ctx, size) {
       // Mark encounter-active for AI/tick and guidance
       ctx.region._isEncounter = true;
       try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "info"); } catch (_) {}
-
-      // Spawn player follower/ally into the ruins encounter, if configured.
-      try {
-        const FR = getMod(ctx, "FollowersRuntime") || (typeof window !== "undefined" ? window.FollowersRuntime : null);
-        if (FR && typeof FR.spawnInDungeon === "function") {
-          FR.spawnInDungeon(ctx);
-        }
-      } catch (_) {}
     } catch (_) {}
   })();
 

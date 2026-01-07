@@ -20,6 +20,10 @@
     "dayMinutes": 1440,
     "cycleTurns": 360
   },
+  "followers": {
+    "maxActive": 3,
+    "maxPerType": 2
+  },
   "dev": {
     "injectBadJson": false,
     "godDefaultTypes": ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"],

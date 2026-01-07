@@ -24,14 +24,28 @@ function getFollowersList(ctx) {
 
 // Exported so renderers and other modules can resolve follower visuals
 // (glyph/color/type) from a single data source (data/entities/followers.json).
+// Accepts either a plain archetype id (\"guard_follower\") or a per-follower
+// unique id that embeds the archetype id as a prefix (\"guard_follower#2\").
 export function getFollowerDef(ctx, id) {
   const list = getFollowersList(ctx);
   if (!list || !id) return null;
   const key = String(id);
+  // Direct match first
   for (let i = 0; i < list.length; i++) {
     const def = list[i];
     if (!def) continue;
     if (String(def.id) === key) return def;
+  }
+  // Fallback: strip any suffix like \"#2\" so ids such as \"guard_follower#1\"
+  // still resolve to the archetype definition \"guard_follower\".
+  const hashIdx = key.indexOf("#");
+  if (hashIdx >= 0) {
+    const base = key.slice(0, hashIdx);
+    for (let i = 0; i < list.length; i++) {
+      const def = list[i];
+      if (!def) continue;
+      if (String(def.id) === base) return def;
+    }
   }
   return null;
 }
@@ -162,6 +176,7 @@ export function createRuntimeFollower(ctx, record) {
     _isFollower: true,
     _followerId: record.id || def.id,
     _ignorePlayer: true,
+    _followerMode: record.mode || "follow",
   };
 }
 

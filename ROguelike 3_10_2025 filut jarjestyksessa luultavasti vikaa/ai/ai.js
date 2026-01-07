@@ -275,6 +275,8 @@ export function enemiesAct(ctx) {
   for (const e of enemies) {
     const eFac = factionOf(e);
     const isFollower = !!(e && e._isFollower);
+    const mode = (isFollower && typeof e._followerMode === "string") ? e._followerMode : "follow";
+    const isWaiting = isFollower && mode === "wait";
 
     // Ensure enemies have a maxHp baseline for healing logic.
     if (typeof e.maxHp !== "number" || e.maxHp <= 0) {
@@ -286,7 +288,7 @@ export function enemiesAct(ctx) {
       const isCaravanAmbush = ctx.mode === "encounter"
         && ctx.encounterInfo
         && String(ctx.encounterInfo.id || "").toLowerCase() === "caravan_ambush";
-      const isGuard = (eFac === "guard");
+      const isGuard = (eFac === "guard" && !isFollower);
       if (isCaravanAmbush && isGuard) {
         // Initialize potion count once per enemy: 0–2 potions that heal 6 HP each.
         if (!e._guardPotionsInit) {
@@ -312,6 +314,70 @@ export function enemiesAct(ctx) {
         }
       }
     } catch (_) {}
+
+    // Followers: drink their own potions at low HP when available in follower inventory.
+    if (isFollower) {
+      try {
+        if (typeof e.hp === "number" && typeof e.maxHp === "number" && e.hp > 0 && e.hp < e.maxHp) {
+          const frac = e.hp / e.maxHp;
+          const threshold = 0.35;
+          if (frac <= threshold) {
+            let rec = null;
+            try {
+              const p = ctx && ctx.player;
+              const followersList = p && Array.isArray(p.followers) ? p.followers : null;
+              if (followersList) {
+                const fid = e._followerId != null ? String(e._followerId) : String(e.type || e.id || "");
+                for (let i = 0; i < followersList.length; i++) {
+                  const f = followersList[i];
+                  if (!f) continue;
+                  if (String(f.id || "") === fid) {
+                    rec = f;
+                    break;
+                  }
+                }
+              }
+            } catch (_) {}
+            if (rec && Array.isArray(rec.inventory) && rec.inventory.length) {
+              let idx = -1;
+              let item = null;
+              for (let i = 0; i < rec.inventory.length; i++) {
+                const it = rec.inventory[i];
+                if (!it || it.kind !== "potion") continue;
+                item = it;
+                idx = i;
+                break;
+              }
+              if (item && idx >= 0) {
+                const heal = typeof item.heal === "number" ? item.heal : 3;
+                const before = e.hp;
+                e.hp = Math.min(e.maxHp, e.hp + heal);
+                const healed = e.hp - before;
+                if (healed > 0 && ctx.log) {
+                  const label = rec.name || e.name || "Your follower";
+                  try {
+                    ctx.log(`${label} drinks a potion and recovers ${healed.toFixed(1)} HP.`, "info", { category: "Combat", side: "ally" });
+                  } catch (_) {}
+                }
+                if (item.count && item.count > 1) {
+                  item.count -= 1;
+                } else {
+                  rec.inventory.splice(idx, 1);
+                }
+                try {
+                  rec.hp = e.hp;
+                  if (typeof rec.maxHp !== "number" || rec.maxHp <= 0) {
+                    rec.maxHp = e.maxHp;
+                  }
+                } catch (_) {}
+                // After drinking a potion, the follower spends their turn.
+                continue;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     // Choose a target among player and hostile factions
     // Neutral animals do not target or pursue the player unless made hostile.
@@ -468,39 +534,41 @@ export function enemiesAct(ctx) {
     // If no target (e.g., neutral animal), optionally wander and skip attacks
     if (!target) {
       if (isFollower) {
-        // Followers without a visible hostile target follow the player instead
-        const dxp = player.x - e.x;
-        const dyp = player.y - e.y;
-        const distP = Math.abs(dxp) + Math.abs(dyp);
-        const followRange = 2;
-        if (distP > followRange) {
-          const sx = dxp === 0 ? 0 : (dxp > 0 ? 1 : -1);
-          const sy = dyp === 0 ? 0 : (dyp > 0 ? 1 : -1);
-          const primary = Math.abs(dxp) > Math.abs(dyp)
-            ? [{ x: sx, y: 0 }, { x: 0, y: sy }]
-            : [{ x: 0, y: sy }, { x: sx, y: 0 }];
+        if (!isWaiting) {
+          // Followers without a visible hostile target follow the player instead
+          const dxp = player.x - e.x;
+          const dyp = player.y - e.y;
+          const distP = Math.abs(dxp) + Math.abs(dyp);
+          const followRange = 2;
+          if (distP > followRange) {
+            const sx = dxp === 0 ? 0 : (dxp > 0 ? 1 : -1);
+            const sy = dyp === 0 ? 0 : (dyp > 0 ? 1 : -1);
+            const primary = Math.abs(dxp) > Math.abs(dyp)
+              ? [{ x: sx, y: 0 }, { x: 0, y: sy }]
+              : [{ x: 0, y: sy }, { x: sx, y: 0 }];
 
-          let moved = false;
-          for (const d of primary) {
-            const nx = e.x + d.x;
-            const ny = e.y + d.y;
-            if (isFree(nx, ny)) {
-              occClearEnemy(occ, e.x, e.y);
-              e.x = nx; e.y = ny;
-              occSetEnemy(occ, e.x, e.y);
-              moved = true;
-              break;
-            }
-          }
-          if (!moved) {
-            for (const d of ALT_DIRS) {
+            let moved = false;
+            for (const d of primary) {
               const nx = e.x + d.x;
               const ny = e.y + d.y;
               if (isFree(nx, ny)) {
                 occClearEnemy(occ, e.x, e.y);
                 e.x = nx; e.y = ny;
                 occSetEnemy(occ, e.x, e.y);
+                moved = true;
                 break;
+              }
+            }
+            if (!moved) {
+              for (const d of ALT_DIRS) {
+                const nx = e.x + d.x;
+                const ny = e.y + d.y;
+                if (isFree(nx, ny)) {
+                  occClearEnemy(occ, e.x, e.y);
+                  e.x = nx; e.y = ny;
+                  occSetEnemy(occ, e.x, e.y);
+                  break;
+                }
               }
             }
           }
@@ -846,33 +914,36 @@ export function enemiesAct(ctx) {
       e.immobileTurns -= 1;
       continue;
     } else if (bestDist <= senseRange) {
-      // Move toward chosen target
-      const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
-      const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
-      const primary = Math.abs(dx) > Math.abs(dy) ? [{x:sx,y:0},{x:0,y:sy}] : [{x:0,y:sy},{x:sx,y:0}];
+      // Followers in wait mode do not advance toward hostile enemies; they hold position unless adjacent.
+      if (!(isWaiting && target && target.kind === "enemy")) {
+        // Move toward chosen target
+        const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
+        const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
+        const primary = Math.abs(dx) > Math.abs(dy) ? [{x:sx,y:0},{x:0,y:sy}] : [{x:0,y:sy},{x:sx,y:0}];
 
-      let moved = false;
-      for (const d of primary) {
-        const nx = e.x + d.x;
-        const ny = e.y + d.y;
-        if (isFree(nx, ny)) {
-          occClearEnemy(occ, e.x, e.y);
-          e.x = nx; e.y = ny;
-          occSetEnemy(occ, e.x, e.y);
-          moved = true;
-          break;
-        }
-      }
-      if (!moved) {
-        for (const d of ALT_DIRS) {
+        let moved = false;
+        for (const d of primary) {
           const nx = e.x + d.x;
           const ny = e.y + d.y;
           if (isFree(nx, ny)) {
+            occClearEnemy(occ, e.x, e.y);
+            e.x = nx; e.y = ny;
+            occSetEnemy(occ, e.x, e.y);
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) {
+          for (const d of ALT_DIRS) {
+            const nx = e.x + d.x;
+            const ny = e.y + d.y;
+            if (isFree(nx, ny)) {
               occClearEnemy(occ, e.x, e.y);
               e.x = nx; e.y = ny;
               occSetEnemy(occ, e.x, e.y);
               break;
             }
+          }
         }
       }
     } else if (chance(0.4)) {

@@ -295,7 +295,10 @@ export function doAction(ctx) {
 
     // Delegate prop interactions to EncounterInteractions
     try {
-      const EI = getMod(ctx, "EncounterInteractions") || (typeof window !== "undefined" ? window.EncounterInteractions : null);
+      let EI = getMod(ctx, "EncounterInteractions");
+      if (!EI || typeof EI.interactHere !== "function") {
+        EI = (typeof window !== "undefined" ? window.EncounterInteractions : null);
+      }
       if (EI && typeof EI.interactHere === "function") {
         const handled = !!EI.interactHere(ctx);
         if (handled) return true;
