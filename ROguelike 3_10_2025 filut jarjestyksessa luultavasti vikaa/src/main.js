@@ -96,6 +96,8 @@ import '/core/inventory_flow.js';
 import '/core/town/runtime.js';
 import '/core/dungeon/runtime.js';
 import '/core/encounter/runtime.js';
+// EncounterInteractions: G-based interactions inside encounters (campfires, captives, merchants)
+import '/core/encounter_interactions.js';
 import '/core/bridge/ui_bridge.js';
 import '/region_map/region_map_runtime.js';
 import '/core/facades/occupancy.js';
