@@ -481,7 +481,9 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     return false;
   }
 
-  const defaultRadius = (isTownLike || isRegionLike) ? 8 : 4;
+  // Encounters and towns/region maps should keep followers close to the player;
+  // use a larger local radius there and only use a small radius for dungeon floors.
+  const defaultRadius =4;
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
     ? maxRadius
     : defaultRadius;
@@ -498,8 +500,8 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     }
   }
 
-  // For towns/castles and Region Map, only spawn within a radius of the
-  // player; do not fall back to arbitrary distant tiles.
+  // For towns/castles, Region Map, and encounters, only spawn within a radius of the
+  // player;back to arbitrary distant tiles.
   if (isTownLike || isRegionLike) return null;
 
   // For dungeon/encounter maps, allow a broader fallback: scan the
