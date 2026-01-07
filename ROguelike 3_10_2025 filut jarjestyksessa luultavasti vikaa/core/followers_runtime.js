@@ -220,6 +220,7 @@ export function spawnInTown(ctx) {
       roles: ["follower"],
       _isFollower: true,
       _followerId: followerActor._followerId,
+      _followerMode: rec.mode || "follow",
     };
 
     ctx.npcs.push(npc);
@@ -273,11 +274,75 @@ export function syncFollowersFromTown(ctx) {
   } catch (_) {}
 }
 
+// Simple per-follower mode setter (e.g., follow / wait) used by UI and GOD tools.
+export function setFollowerMode(ctx, followerId, mode) {
+  if (!ctx || !ctx.player || !Array.isArray(ctx.player.followers)) return false;
+  if (mode !== "follow" && mode !== "wait") return false;
+
+  const followers = ctx.player.followers;
+  let rec = null;
+  const fidStr = String(followerId || "");
+  if (!fidStr) return false;
+
+  for (let i = 0; i < followers.length; i++) {
+    const f = followers[i];
+    if (!f) continue;
+    if (String(f.id || "") === fidStr) {
+      rec = f;
+      break;
+    }
+  }
+  if (!rec) return false;
+
+  rec.mode = mode;
+
+  // Update any live dungeon/encounter/region follower actors.
+  try {
+    if (Array.isArray(ctx.enemies)) {
+      for (const e of ctx.enemies) {
+        if (!e || !e._isFollower) continue;
+        const eid = String(e._followerId || e.id || e.type || "");
+        if (eid === fidStr) {
+          e._followerMode = mode;
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Update any follower NPCs in town.
+  try {
+    if (Array.isArray(ctx.npcs)) {
+      for (const n of ctx.npcs) {
+        if (!n || !n._isFollower) continue;
+        const nid = String(n._followerId || "");
+        if (nid === fidStr) {
+          n._followerMode = mode;
+        }
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (ctx.log) {
+      const name = rec.name || "Follower";
+      ctx.log(
+        mode === "wait"
+          ? `${name} will wait here.`
+          : `${name} will follow you.`,
+        "info"
+      );
+    }
+  } catch (_) {}
+
+  return true;
+}
+
 if (typeof window !== "undefined") {
   window.FollowersRuntime = {
     spawnInDungeon,
     spawnInTown,
     syncFollowersFromDungeon,
     syncFollowersFromTown,
+    setFollowerMode,
   };
 }

@@ -147,12 +147,18 @@ export function normalize(p) {
             }
           : undefined;
 
+      // Basic per-follower mode for simple commands (e.g., follow / wait).
+      const mode =
+        f.mode === "wait" || f.mode === "follow"
+          ? f.mode
+          : "follow";
+
       // Prepare inventory/equipment for future phases; keep them normalized but optional.
       const inventory = Array.isArray(f.inventory) ? clone(f.inventory) : [];
       const feq = f.equipment && typeof f.equipment === "object" ? f.equipment : {};
       const equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, feq);
 
-      const out = { id, name, level, hp, maxHp, enabled };
+      const out = { id, name, level, hp, maxHp, enabled, mode };
       if (race) out.race = race;
       if (subrace) out.subrace = subrace;
       if (background) out.background = background;

@@ -1044,12 +1044,29 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
-  // Simple follower NPC behavior: stay near the player in town.
+  // Simple follower NPC behavior: stay near the player in town, unless set to wait.
   try {
     const p = ctx.player;
     if (p && Array.isArray(ctx.npcs)) {
+      const followers = p && Array.isArray(p.followers) ? p.followers : null;
       for (const n of ctx.npcs) {
         if (!n || !n._isFollower) continue;
+
+        // Resolve follower mode from the record (or NPC override) so town followers
+        // can obey simple follow / wait commands.
+        let mode = "follow";
+        try {
+          if (n._followerMode === "wait" || n._followerMode === "follow") {
+            mode = n._followerMode;
+          } else if (followers && n._followerId != null) {
+            const rec = followers.find(f => f && f.id === n._followerId) || null;
+            if (rec && (rec.mode === "wait" || rec.mode === "follow")) {
+              mode = rec.mode;
+            }
+          }
+        } catch (_) {}
+        if (mode === "wait") continue;
+
         const dx = p.x - n.x;
         const dy = p.y - n.y;
         const dist = Math.abs(dx) + Math.abs(dy);

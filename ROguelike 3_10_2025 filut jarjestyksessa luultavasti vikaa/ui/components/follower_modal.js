@@ -93,6 +93,7 @@ function buildContent(ctx, view) {
   const equipment = v.equipment && typeof v.equipment === "object" ? v.equipment : null;
   const inventory = Array.isArray(v.inventory) ? v.inventory : null;
   const playerInv = ctx && ctx.player && Array.isArray(ctx.player.inventory) ? ctx.player.inventory : null;
+  const mode = v.mode === "wait" ? "wait" : "follow";
 
   const lines = [];
 
@@ -123,6 +124,16 @@ function buildContent(ctx, view) {
   if (defVal != null) statParts.push(`Defense ${defVal}`);
   const stats = statParts.join("   •   ");
   lines.push(`<div style="margin-bottom:6px;">${stats}</div>`);
+
+  // Simple command mode: follow / wait
+  const modeLabel = mode === "wait" ? "Waiting here" : "Following you";
+  lines.push(
+    "<div style='margin-top:4px; font-size:12px;'>Mode: " +
+      `<span style="font-weight:500;">${modeLabel}</span>` +
+      ` <span data-fcmd="mode" data-mode="follow" style="color:#60a5fa; cursor:pointer; margin-left:8px;">[Follow]</span>` +
+      ` <span data-fcmd="mode" data-mode="wait" style="color:#60a5fa; cursor:pointer; margin-left:4px;">[Wait here]</span>` +
+    "</div>"
+  );
 
   // Personality / tags
   if (personality || tags) {
@@ -247,24 +258,31 @@ function bindCommands() {
       let did = false;
       try {
         const FI = (typeof window !== "undefined" && window.FollowersItems) ? window.FollowersItems : null;
-        if (!FI) return;
+        const FR = (typeof window !== "undefined" && window.FollowersRuntime) ? window.FollowersRuntime : null;
+        if (!FI && cmd !== "mode") return;
 
         if (cmd === "take") {
           const idx = parseInt(el.getAttribute("data-index") || "-1", 10);
-          if (idx >= 0 && typeof FI.takeInventoryItemFromFollower === "function") {
+          if (idx >= 0 && typeof FI?.takeInventoryItemFromFollower === "function") {
             did = !!FI.takeInventoryItemFromFollower(_ctxForCommands, fid, idx);
           }
 
         } else if (cmd === "unequip") {
           const slot = el.getAttribute("data-slot") || "";
-          if (slot && typeof FI.unequipFollowerSlot === "function") {
+          if (slot && typeof FI?.unequipFollowerSlot === "function") {
             did = !!FI.unequipFollowerSlot(_ctxForCommands, fid, slot);
           }
 
         } else if (cmd === "give") {
           const pidx = parseInt(el.getAttribute("data-pindex") || "-1", 10);
-          if (pidx >= 0 && typeof FI.giveItemToFollower === "function") {
+          if (pidx >= 0 && typeof FI?.giveItemToFollower === "function") {
             did = !!FI.giveItemToFollower(_ctxForCommands, fid, pidx);
+          }
+
+        } else if (cmd === "mode") {
+          const mode = el.getAttribute("data-mode") || "";
+          if ((mode === "follow" || mode === "wait") && typeof FR?.setFollowerMode === "function") {
+            did = !!FR.setFollowerMode(_ctxForCommands, fid, mode);
           }
 
         } else if (cmd === "equip") {

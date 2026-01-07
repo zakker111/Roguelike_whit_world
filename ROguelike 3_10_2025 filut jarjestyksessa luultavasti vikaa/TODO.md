@@ -109,6 +109,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
       - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
     - Simple follower AI improvements:
+      - Basic follow / wait mode (PARTIAL DONE):
+        - Each follower has a simple `mode` field (`follow` / `wait`) stored on their record.
+        - Mode can be toggled from the follower panel (opened by bumping/talking); in `wait` mode followers hold position and only attack adjacent enemies.
       - Trail the player without blocking doors/entrances when possible.
       - Continue to prioritize nearby hostiles using LOS-based targeting.
       - Later: basic morale/retreat logic (e.g., avoid charging into hopeless fights when low on HP and out of potions).

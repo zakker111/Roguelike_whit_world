@@ -502,6 +502,16 @@ These exist partially in code or design but are **known unstable** or not yet im
       - `[Take]` items from follower inventory back into the player’s inventory.
     - After each change, follower Attack/Defense are recomputed from base stats + gear and immediately reflected in the panel.
     - Potions and other non-equipment items cannot be equipped into follower slots; followers use potions directly from their inventory when low on HP instead of attacking.
+  - Simple commands (experimental):
+    - Each follower has a basic mode flag stored on their record (`mode`):
+      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
+      - `wait`: hold position, only attacking enemies that move adjacent.
+    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
+  - Simple commands (experimental):
+    - Each follower has a basic mode flag stored on their record (`mode`):
+      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
+      - `wait`: hold position, only attacking enemies that move adjacent.
+    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
   - Equipment parity, decay, curses, and preferences:
     - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear) via shared helpers.
     - Follower weapons and armor decay when they attack, are blocked, or are hit; when an equipped item breaks, the follower automatically equips the best replacement from their own inventory, based on total atk+def and simple class preferences.
@@ -511,7 +521,7 @@ These exist partially in code or design but are **known unstable** or not yet im
     - Follower archetypes carry soft preferences (e.g., guards favor sword+shield and heavy armor; thieves favor daggers/light weapons and light armor) that slightly bias auto-equip choices without forbidding non-preferred gear.
 
 - Not yet implemented (planned; see `TODO.md`):
-  - Multiple followers / true party system and party size limits, with command UI (Attack / Follow / Wait here).
+  - Multiple followers / true party system and party size limits, with a richer command UI (e.g., Attack / Guard / Follow / Wait here).
   - Follower injuries and scars (persistent follower wounds and scars similar to the player’s, visible in the follower panel and treatable by healers).
   - Follower experience and leveling (followers gain XP and levels, but do not receive a full heal when leveling).
   - Fully data-driven special item effects (curses and on-hit/on-break behaviors) instead of bespoke Seppo-specific code.

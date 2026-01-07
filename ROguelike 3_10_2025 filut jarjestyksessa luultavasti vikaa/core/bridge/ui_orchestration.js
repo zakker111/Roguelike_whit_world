@@ -494,6 +494,11 @@ function buildFollowerView(ctx, runtime) {
     }
   } catch (_) {}
 
+  // Simple per-follower mode for commands (e.g., follow / wait); default to follow.
+  const mode = (rec && (rec.mode === "wait" || rec.mode === "follow"))
+    ? rec.mode
+    : "follow";
+
   return {
     id,
     name,
@@ -515,6 +520,7 @@ function buildFollowerView(ctx, runtime) {
     color,
     equipment,
     inventory,
+    mode,
   };
 }
 

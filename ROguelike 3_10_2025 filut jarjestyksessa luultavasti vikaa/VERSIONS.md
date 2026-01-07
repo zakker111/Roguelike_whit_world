@@ -1,5 +1,40 @@
 # Game Version History
-Last updated: 2026-01-07 18:00 UTC
+Last updated: 2026-01-07 18:30 UTC
+
+v1.61.5 — Follower follow/wait mode
+- Added: Simple per-follower command mode (follow / wait).
+  - entities/player.js:
+    - Follower records in `player.followers` now carry a `mode` field normalized to either `follow` (default) or `wait`.
+  - entities/followers.js:
+    - Runtime follower actors created via `createRuntimeFollower` now expose `_followerMode` derived from the follower record.
+  - core/followers_runtime.js:
+    - New `setFollowerMode(ctx, followerId, mode)` helper updates the follower record, any live dungeon/encounter follower actors, and any town follower NPCs, and logs a short confirmation line (“<name> will wait here.” / “<name> will follow you.”).
+    - Town follower NPCs spawned via `spawnInTown` now carry `_followerMode` for quick lookups.
+
+- Changed: AI respects follower mode in combat maps.
+  - ai/ai.js:
+    - Followers now read `_followerMode` each tick:
+      - In `follow` mode, behavior is unchanged: they trail the player when no hostile is visible and move toward visible hostile targets within their LOS.
+      - In `wait` mode:
+        - They no longer move toward the player when idle.
+        - They do not advance toward hostile enemies; they only attack when an enemy becomes adjacent.
+    - This keeps “wait” followers as stationary guards who defend themselves but do not chase.
+
+- Changed: Town follower NPC behavior respects mode.
+  - core/town/runtime.js:
+    - The simple “follow the player in town” step now consults each follower’s `mode` (from `player.followers` or `_followerMode` on the NPC).
+    - Followers in `wait` mode stop trailing the player in town while still being available for interaction (bump/talk) and panel commands.
+
+- Added: Follow / Wait controls in the follower panel.
+  - core/bridge/ui_orchestration.js:
+    - `buildFollowerView(ctx, runtime)` now includes a `mode` field in the view model, derived from the follower record with a default of `follow`.
+  - ui/components/follower_modal.js:
+    - The follower inspect panel shows the current mode (“Following you” / “Waiting here”) and exposes `[Follow]` and `[Wait here]` controls.
+    - New `data-fcmd="mode"` click handler calls `FollowersRuntime.setFollowerMode` with the chosen mode and then re-opens the follower panel via `UIOrchestration.showFollower` to refresh stats and mode display.
+
+- Docs:
+  - FEATURES.md: follower section updated to describe the basic follow/wait mode flag and that it is toggled via the follower panel; richer party commands remain planned.
+  - TODO.md: “Simple follower AI improvements” expanded to mark basic follow/wait mode as partially done, with notes about remaining AI and morale work.
 
 v1.61.4 — Follower death drops and potion use
 - Added: Follower death drops with decay preserved.

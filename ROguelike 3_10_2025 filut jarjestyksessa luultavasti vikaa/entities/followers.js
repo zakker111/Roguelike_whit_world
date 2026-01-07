@@ -162,6 +162,7 @@ export function createRuntimeFollower(ctx, record) {
     _isFollower: true,
     _followerId: record.id || def.id,
     _ignorePlayer: true,
+    _followerMode: record.mode || "follow",
   };
 }
 
