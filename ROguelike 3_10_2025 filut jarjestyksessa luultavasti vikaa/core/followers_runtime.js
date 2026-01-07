@@ -288,7 +288,7 @@ function isFreeTownFloorLocal(ctx, x, y) {
   return true;
 }
 
-function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
+function findSpawnTileNearPlayer(ctx, maxRadius) {
   if (!ctx || !ctx.player || typeof ctx.inBounds !== "function" || typeof ctx.isWalkable !== "function") {
     return null;
   }
@@ -329,9 +329,10 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
     return false;
   }
 
+  const defaultRadius = (isTownLike || isRegionLike) ? 8 : 4;
   const rMax = (typeof maxRadius === "number" && maxRadius > 0)
     ? maxRadius
-    : ((isTownLike || isRegionLike) ? 8 : 4);
+    : defaultRadius;
 
   // First, try tiles near the player in an expanding diamond.
   for (let r = 1; r <= rMax; r++) {
@@ -346,10 +347,10 @@ function findSpawnTileNearPlayer(ctx, maxRadius = 4) {
   }
 
   // For towns/castles and Region Map, only spawn within a radius of the
-  // player; do notn arbitrary distant tile.
-  if (mode === "town") return null;
+  // player; do not fall back to arbitrary distant tiles.
+  if (isTownLike || isRegionLike) return null;
 
-  // For dungeon/encounter/region maps, allow a broader fallback: scan the
+  // For dungeon/encounter maps, allow a broader fallback: scan the
   // whole map for any reasonable free tile if the immediate area around
   // the player is too cramped (small rooms, crowded corridors).
   try {
