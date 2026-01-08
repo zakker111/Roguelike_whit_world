@@ -45,10 +45,21 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
-      // Spawn recruitable follower NPCs in the inn (if present).
+      // Spawn recruitable follower NPCs in the inn (if present) with a modest rarity gate.
       try {
         if (typeof spawnInnFollowerHires === "function") {
-          spawnInnFollowerHires(ctx);
+          let rfn = null;
+          try {
+            if (typeof ctx.rng === "function") rfn = ctx.rng;
+            else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+              rfn = window.RNGUtils.getRng(undefined);
+            }
+          } catch (_) {}
+          const roll = typeof rfn === "function" ? rfn() : Math.random();
+          // ~25% chance per town generation when below cap.
+          if (roll < 0.25) {
+            spawnInnFollowerHires(ctx);
+          }
         }
       } catch (_) {}
 
@@ -86,16 +97,13 @@ export function spawnGateGreeters(ctx, count) {
 
 // Spawn a recruitable follower NPC inside the inn (tavern) when available.
 // Uses FollowersRuntime to pick a follower archetype and marks the NPC as a
-// hire candidate so bumping them opens the hire prompt. Offers are intentionally
-// gated by follower caps and tavern presence; rarity gates can be layered on
-// top by callers (e.g., TownState.load).
+// hire candidate so bumping them opens the hire prompt. Offers are gated by
+// follower caps, tavern presence, and a separate rarity roll performed by
+// callers (TownRuntime.generate and TownState.load).
 function spawnInnFollowerHires(ctx) {
   try {
     if (!ctx || ctx.mode !== "town") return;
-    if (!ctx.tavern || !ctx.tavern.building) {
-      try { ctx.log && ctx.log("[DEBUG] No inn/tavern present in this town (no hireable followers).", "info"); } catch (_) {}
-      return;
-    }
+    if (!ctx.tavern || !ctx.tavern.building) return;
 
     const FR =
       ctx.FollowersRuntime ||
@@ -123,14 +131,11 @@ function spawnInnFollowerHires(ctx) {
       }
     } catch (_) {}
 
-    // Spawn helper: for testing, force an inn hire spawn whenever other
-    // conditions pass. When tuning for production, reintroduce a random
-    // chance gate here.
+    // Caller has already applied a rarity gate. Here we only enforce caps and
+    // tavern presence; no additional randomness.
     try {
-      // Intentionally no additional rarity gate during testing.
-    } catch (_) {
-      // If RNG or other helpers fail, silently skip.
-    }
+      // No-op; kept as a hook for future per-town tuning if needed.
+    } catch (_) {}
 
     // Pick a follower archetype that the player does not already have, if possible.
     const archetype = FR.pickRandomFollowerArchetype(ctx, { skipHired: true });
