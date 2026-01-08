@@ -140,6 +140,34 @@ export function normalize(p) {
       const feq = f.equipment && typeof f.equipment === "object" ? f.equipment : {};
       const equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, feq);
 
+      // Normalize follower injuries to mirror the player injury system:
+      // each entry becomes { name, healable, durationTurns }.
+      let injuries = [];
+      try {
+        if (Array.isArray(f.injuries)) {
+          injuries = f.injuries.map((inj) => {
+            if (!inj) return null;
+            if (typeof inj === "string") {
+              const name = inj;
+              const permanent = /scar|missing finger/i.test(name);
+              return {
+                name,
+                healable: !permanent,
+                durationTurns: permanent ? 0 : 40
+              };
+            }
+            const name = inj.name || "injury";
+            const healable = typeof inj.healable === "boolean"
+              ? inj.healable
+              : !(/scar|missing finger/i.test(name));
+            const durationTurns = healable ? Math.max(0, (inj.durationTurns | 0)) : 0;
+            return { name, healable, durationTurns };
+          }).filter(Boolean);
+        }
+      } catch (_) {
+        injuries = [];
+      }
+
       const out = { id, name, level, hp, maxHp, enabled, mode };
       if (race) out.race = race;
       if (subrace) out.subrace = subrace;
@@ -149,6 +177,7 @@ export function normalize(p) {
       if (temperament) out.temperament = temperament;
       out.inventory = inventory;
       out.equipment = equipment;
+      out.injuries = injuries;
       return out;
     }).filter(Boolean);
   } catch (_) {}

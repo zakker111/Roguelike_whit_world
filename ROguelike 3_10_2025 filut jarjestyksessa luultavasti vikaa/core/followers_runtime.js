@@ -239,7 +239,7 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
   p._followerSeq = seq;
   const uniqueId = `${def.id}#${seq}`;
 
-  const rec = { id: uniqueId, archetypeId: String(def.id), enabled: true };
+  const rec = { id: uniqueId, archetypeId: String(def.id), enabled: true, injuries: [] };
 
   // Basic stats: start at baseHp and level 1 (or def.level if provided).
   const level =
