@@ -920,15 +920,16 @@ export function enemiesAct(ctx) {
 
             const viaStr = weapName ? `with ${weapName}` : "melee";
             const killerDisplayName = e.name || Cap(e.type || "enemy");
+            const isFollowerKiller = !!(e && e._isFollower);
             target.ref._lastHit = {
-              by: killerType,
+              by: isFollowerKiller ? "follower" : killerType,
               part: loc.part,
               crit: isCrit,
               dmg,
               weapon: weapName,
               via: viaStr,
-              killerName: killerDisplayName,
-              isFollower: !!(e && e._isFollower)
+              killerName: isFollowerKiller ? (e._followerId || killerDisplayName) : killerDisplayName,
+              isFollower: isFollowerKiller
             };
           } catch (_) {}
 
