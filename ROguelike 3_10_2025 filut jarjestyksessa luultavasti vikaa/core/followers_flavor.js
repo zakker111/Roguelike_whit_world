@@ -118,7 +118,7 @@ export function logFollowerCritTaken(ctx, actor, loc, dmg) {
     if (!tmpl) return;
     const msg = formatLine(tmpl, rec, actor);
     if (!msg) return;
-    if (ctx.log) ctx.log(msg, "flavor");
+    if (ctx.log) ctx.log(msg, "info");
     touchFlavorCooldown(actor, 6);
   } catch (_) {}
 }
@@ -136,7 +136,7 @@ export function logFollowerCritDealt(ctx, actor, loc, dmg) {
     if (!tmpl) return;
     const msg = formatLine(tmpl, rec, actor);
     if (!msg) return;
-    if (ctx.log) ctx.log(msg, "flavor");
+    if (ctx.log) ctx.log(msg, "info");
     touchFlavorCooldown(actor, 5);
   } catch (_) {}
 }
