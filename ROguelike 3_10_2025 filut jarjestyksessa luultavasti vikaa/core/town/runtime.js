@@ -119,20 +119,13 @@ function spawnInnFollowerHires(ctx) {
       }
     } catch (_) {}
 
-    // Rare chance to have a follower-for-hire present in this town.
+    // Spawn helper: for testing, force an inn hire spawn whenever other
+    // conditions pass. When tuning for production, reintroduce a random
+    // chance gate here.
     try {
-      const rfn =
-        (typeof ctx.rng === "function")
-          ? ctx.rng
-          : ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
-              ? window.RNGUtils.getRng(undefined)
-              : null);
-      const roll = typeof rfn === "function" ? rfn() : Math.random();
-      // ~25% chance per town generation when below cap.
-      if (!(roll < 0.25)) return;
+      // Intentionally no additional rarity gate during testing.
     } catch (_) {
-      // If RNG fails for some reason, fall back to not spawning.
-      return;
+      // If RNG or other helpers fail, silently skip.
     }
 
     // Pick a follower archetype that the player does not already have, if possible.

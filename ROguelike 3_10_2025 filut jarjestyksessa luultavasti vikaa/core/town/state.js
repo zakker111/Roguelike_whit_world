@@ -442,24 +442,14 @@ function applyState(ctx, st, x, y) {
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
-  // After restoring a persisted town, allow a small chance that a new follower-for-hire
-  // appears at the inn, provided none is currently present and the party is below cap.
+  // After restoring a persisted town, allow a follower-for-hire spawn attempt
+  // at the inn, provided none is currently present and the party is below cap.
+  // For testing, this is invoked on every load; spawnInnFollowerHires itself
+  // still enforces caps and uniqueness.
   try {
     const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
     if (TR && typeof TR.spawnInnFollowerHires === "function") {
-      // Use a much smaller chance on reload than on first generation so towns do not
-      // continuously spawn hirelings every time you re-enter.
-      let rfn = null;
-      try {
-        if (typeof ctx.rng === "function") rfn = ctx.rng;
-        else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-          rfn = window.RNGUtils.getRng(undefined);
-        }
-      } catch (_) {}
-      const roll = typeof rfn === "function" ? rfn() : Math.random();
-      if (roll < 0.15) {
-        TR.spawnInnFollowerHires(ctx);
-      }
+      TR.spawnInnFollowerHires(ctx);
     }
   } catch (_) {}
 
