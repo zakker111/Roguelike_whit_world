@@ -499,6 +499,14 @@ function buildFollowerView(ctx, runtime) {
     ? rec.mode
     : "follow";
 
+  // Mirror player injury system: expose follower injuries to the inspect view.
+  let injuries = [];
+  try {
+    if (rec && Array.isArray(rec.injuries)) {
+      injuries = rec.injuries.slice();
+    }
+  } catch (_) {}
+
   return {
     id,
     name,
@@ -521,6 +529,7 @@ function buildFollowerView(ctx, runtime) {
     equipment,
     inventory,
     mode,
+    injuries,
   };
 }
 
