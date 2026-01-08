@@ -89,6 +89,7 @@ function buildContent(ctx, view) {
   const tags = Array.isArray(v.tags) && v.tags.length ? v.tags : null;
   const personality = Array.isArray(v.personalityTags) && v.personalityTags.length ? v.personalityTags : null;
   const temperament = v.temperament && typeof v.temperament === "object" ? v.temperament : null;
+  const injuries = Array.isArray(v.injuries) ? v.injuries : null;
   const hint = esc(v.hint || "");
   const equipment = v.equipment && typeof v.equipment === "object" ? v.equipment : null;
   const inventory = Array.isArray(v.inventory) ? v.inventory : null;
@@ -167,6 +168,29 @@ function buildContent(ctx, view) {
     if (pieces.length) {
       lines.push("<div style='margin-top:6px;'>Temperament:</div>");
       lines.push(`<div style="margin-left:12px; margin-top:2px; color:#cbd5e1;">${pieces.join("  •  ")}</div>`);
+    }
+  }
+
+  // Injuries / scars (mirror player injury display)
+  if (injuries && injuries.length) {
+    lines.push("<div style='margin-top:6px;'>Injuries:</div>");
+    const items = injuries.slice(0, 16).map((inj) => {
+      if (!inj) return null;
+      if (typeof inj === "string") {
+        // Legacy format: show as a simple name
+        return `<li style="color:#f97316;">${esc(inj)}</li>`;
+      }
+      const name = esc(inj.name || "injury");
+      const healable = !!inj.healable;
+      const dur = inj.durationTurns | 0;
+      const isHealing = healable && dur > 0;
+      const isScar = !healable || dur <= 0;
+      const color = isScar ? "#f87171" : "#fbbf24"; // red for permanent, amber for healing
+      const detail = isScar ? "(scar)" : `(heals in ${dur} turns)`;
+      return `<li style="color:${color};">${name} <span style="color:#9ca3af;">${detail}</span></li>`;
+    }).filter(Boolean);
+    if (items.length) {
+      lines.push(`<ul style="margin:4px 0 0 16px;">${items.join("")}</ul>`);
     }
   }
 
