@@ -25,7 +25,7 @@ function getFollowersCaps(ctx) {
   try {
     const GD = getGameData(ctx);
     const cfg = GD && GD.config;
-    const fc = cfg && fc.followers;
+    const fc = cfg && cfg.followers;
     if (fc && typeof fc.maxActive === "number" && fc.maxActive > 0) {
       maxActive = fc.maxActive | 0;
     }

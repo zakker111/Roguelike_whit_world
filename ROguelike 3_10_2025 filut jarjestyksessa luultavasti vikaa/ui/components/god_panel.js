@@ -138,6 +138,11 @@ export function init(UI) {
     if (typeof UI.handlers.onGodSpawnStairs === "function") UI.handlers.onGodSpawnStairs();
   });
 
+  const hireFollowerBtn = byId("god-hire-follower-btn");
+  hireFollowerBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodHireFollower === "function") UI.handlers.onGodHireFollower();
+  });
+
   // Status effect test buttons
   const applyBleedBtn = byId("god-apply-bleed-btn");
   applyBleedBtn?.addEventListener("click", () => {

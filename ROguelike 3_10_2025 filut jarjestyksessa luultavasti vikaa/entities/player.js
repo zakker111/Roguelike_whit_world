@@ -40,28 +40,9 @@ export const defaults = {
     { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk: 3.8, tier: 3, twoHanded: true, decay: 35 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
-  // Basic follower/ally slot for early testing. This record is data-normalized in normalize()
-  // and can be expanded later when a richer party system is added.
-  followers: [
-    {
-      id: "guard_follower",
-      level: 1,
-      hp: 20,
-      maxHp: 20,
-      enabled: true,
-      // Provide a simple default weapon so the follower starts with visible gear.
-      // This is cosmetic for now; follower combat still uses baseAtk/baseDef.
-      equipment: {
-        left: null,
-        right: { kind: "equip", slot: "hand", name: "iron sword", atk: 1.5, tier: 2, decay: 20 },
-        head: null,
-        torso: null,
-        legs: null,
-        hands: null,
-      },
-      inventory: []
-    }
-  ],
+  // Followers / party allies start empty by default; acquisition happens in-game
+  // (e.g., via inn hiring or scripted events) instead of a baked-in starter ally.
+  followers: [],
   injuries: [],
   // Passive skills
   // Combat: increment with attacks; provide small damage buffs
@@ -99,6 +80,7 @@ export function normalize(p) {
   // { id, name, level, hp, maxHp, enabled, inventory, equipment, ...optional flavor fields }
   try {
     if (!Array.isArray(p.followers)) {
+      // Start with an empty party unless an existing save provides followers.
       p.followers = Array.isArray(defaults.followers) ? clone(defaults.followers) : [];
     }
     p.followers = p.followers.map((f) => {
