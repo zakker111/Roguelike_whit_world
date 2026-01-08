@@ -122,6 +122,56 @@ function buildContent(ctx) {
     } catch (_) { return ""; }
   })();
 
+  // Party / followers summary
+  const partyHTML = (function () {
+    try {
+      if (!p || !Array.isArray(p.followers)) {
+        return "<div style='margin-top:10px;'>Party: 0/3 followers</div>" +
+               "<ul style='margin:4px 0 0 14px;'><li>(no followers)</li></ul>";
+      }
+      const followers = p.followers.filter(f => {
+        if (!f) return false;
+        if (f.enabled === false) return false;
+        if (typeof f.hp === "number" && f.hp <= 0) return false;
+        return true;
+      });
+      let maxFollowers = 3;
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const cfg = GD && GD.config;
+        const fc = cfg && cfg.followers;
+        if (fc && typeof fc.maxActive === "number" && fc.maxActive > 0) {
+          maxFollowers = fc.maxActive | 0;
+        }
+      } catch (_) {}
+      const header = `<div style='margin-top:10px;'>Party: ${followers.length}/${maxFollowers} followers</div>`;
+      if (!followers.length) {
+        return header + "<ul style='margin:4px 0 0 14px;'><li>(no followers)</li></ul>";
+      }
+      const list = followers.map((f) => {
+        const name = f.name || "Follower";
+        const level = (typeof f.level === "number" && f.level > 0) ? f.level : 1;
+        const hpPart = (typeof f.hp === "number" && typeof f.maxHp === "number")
+          ? ` — HP ${f.hp.toFixed(1)}/${f.maxHp.toFixed(1)}`
+          : "";
+        let role = "";
+        try {
+          if (f.archetypeId) role = String(f.archetypeId);
+          else if (f.id) {
+            const raw = String(f.id);
+            const idx = raw.indexOf("#");
+            role = idx >= 0 ? raw.slice(0, idx) : raw;
+          }
+        } catch (_) {}
+        const roleStr = role ? ` (${role})` : "";
+        return `<li>${name}${roleStr} — Level ${level}${hpPart}</li>`;
+      }).join("");
+      return header + `<ul style='margin:4px 0 0 14px;'>${list}</ul>`;
+    } catch (_) {
+      return "";
+    }
+  })();
+
   const html = [
     "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Character Sheet</div>",
     `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
@@ -129,6 +179,7 @@ function buildContent(ctx) {
     `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
     "<div style='margin-top:6px;'>Injuries:</div>",
     `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
+    partyHTML,
     skillsHTML
   ].join("");
 
