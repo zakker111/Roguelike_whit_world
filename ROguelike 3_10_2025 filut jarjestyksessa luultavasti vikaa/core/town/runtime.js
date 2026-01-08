@@ -87,11 +87,15 @@ export function spawnGateGreeters(ctx, count) {
 // Spawn a recruitable follower NPC inside the inn (tavern) when available.
 // Uses FollowersRuntime to pick a follower archetype and marks the NPC as a
 // hire candidate so bumping them opens the hire prompt. Offers are intentionally
-// rare and only appear when the party is below the follower cap.
+// gated by follower caps and tavern presence; rarity gates can be layered on
+// top by callers (e.g., TownState.load).
 function spawnInnFollowerHires(ctx) {
   try {
     if (!ctx || ctx.mode !== "town") return;
-    if (!ctx.tavern || !ctx.tavern.building) return;
+    if (!ctx.tavern || !ctx.tavern.building) {
+      try { ctx.log && ctx.log("[DEBUG] No inn/tavern present in this town (no hireable followers).", "info"); } catch (_) {}
+      return;
+    }
 
     const FR =
       ctx.FollowersRuntime ||
@@ -1113,7 +1117,20 @@ export function startBanditsAtGateEvent(ctx) {
 }
 
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy, startBanditsAtGateEvent };
+  window.TownRuntime = {
+    generate,
+    ensureSpawnClear,
+    spawnGateGreeters,
+    isFreeTownFloor,
+    talk,
+    tryMoveTown,
+    tick,
+    returnToWorldIfAtGate,
+    applyLeaveSync,
+    rebuildOccupancy,
+    startBanditsAtGateEvent,
+    spawnInnFollowerHires,
+  };
 }
 
 // Back-compat: tick implementation (retained)
