@@ -170,6 +170,61 @@ function townNpcAttack(ctx, attacker, defender) {
     }
   } catch (_) {}
 
+  // Persistent injuries/scars for follower NPCs in town combat, mirroring the
+  // player's injury system but applied to follower records when they are hit.
+  try {
+    if (defender && defender._isFollower && ctx && ctx.player && Array.isArray(ctx.player.followers)) {
+      const followers = ctx.player.followers;
+      const fid = defender._followerId != null
+        ? String(defender._followerId)
+        : String(defender.type || defender.id || "");
+      let rec = null;
+      for (let i = 0; i < followers.length; i++) {
+        const f = followers[i];
+        if (!f) continue;
+        if (String(f.id || "") === fid) {
+          rec = f;
+          break;
+        }
+      }
+      if (rec) {
+        if (!Array.isArray(rec.injuries)) rec.injuries = [];
+        const injuries = rec.injuries;
+        const addInjuryFollower = (name, opts) => {
+          if (!name) return;
+          const exists = injuries.some(it =>
+            typeof it === "string" ? it === name : it && it.name === name
+          );
+          if (exists) return;
+          const healable = !opts || opts.healable !== false;
+          const durationTurns = healable
+            ? Math.max(10, (opts && opts.durationTurns) | 0)
+            : 0;
+          injuries.push({ name, healable, durationTurns });
+          if (injuries.length > 24) injuries.splice(0, injuries.length - 24);
+          try {
+            const label = rec.name || defender.name || "Your follower";
+            ctx.log && ctx.log(`${label} suffers ${name}.`, "warn");
+          } catch (_) {}
+        };
+        const rInj = rnd();
+        if (loc.part === "hands") {
+          if (isCrit && rInj < 0.08) addInjuryFollower("missing finger", { healable: false, durationTurns: 0 });
+          else if (rInj < 0.20) addInjuryFollower("bruised knuckles", { healable: true, durationTurns: 30 });
+        } else if (loc.part === "legs") {
+          if (isCrit && rInj < 0.10) addInjuryFollower("sprained ankle", { healable: true, durationTurns: 80 });
+          else if (rInj < 0.25) addInjuryFollower("bruised leg", { healable: true, durationTurns: 40 });
+        } else if (loc.part === "head") {
+          if (isCrit && rInj < 0.12) addInjuryFollower("facial scar", { healable: false, durationTurns: 0 });
+          else if (rInj < 0.20) addInjuryFollower("black eye", { healable: true, durationTurns: 60 });
+        } else if (loc.part === "torso") {
+          if (isCrit && rInj < 0.10) addInjuryFollower("deep scar", { healable: false, durationTurns: 0 });
+          else if (rInj < 0.22) addInjuryFollower("rib bruise", { healable: true, durationTurns: 50 });
+        }
+      }
+    }
+  } catch (_) {}
+
   // Logging
   const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
   const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
