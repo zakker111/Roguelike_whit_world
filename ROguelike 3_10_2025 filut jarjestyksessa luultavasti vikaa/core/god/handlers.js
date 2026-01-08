@@ -49,13 +49,24 @@ export function install(getCtx) {
       if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
       const c = getCtx(); c.log("GOD: spawnStairsHere not available.", "warn");
     },
-    onGodHireFollower: () => {
+    // Hire a specific follower archetype selected from the GOD panel chooser.
+    onGodHireFollower: (archId) => {
       const c = getCtx();
       try {
+        const id = String(archId || "").trim();
+        if (!id) {
+          c.log("GOD: No follower archetype selected.", "warn");
+          return;
+        }
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const defs = GD && Array.isArray(GD.followers) ? GD.followers : null;
         if (!defs || !defs.length) {
           c.log("GOD: No follower definitions loaded (GameData.followers is empty).", "warn");
+          return;
+        }
+        const def = defs.find(d => d && String(d.id) === id) || null;
+        if (!def) {
+          c.log(`GOD: Follower archetype '${id}' not found in GameData.followers.`, "warn");
           return;
         }
         const FR = c.FollowersRuntime || (typeof window !== "undefined" ? window.FollowersRuntime : null);
@@ -65,28 +76,19 @@ export function install(getCtx) {
           c.log("GOD: FollowersRuntime.hireFollowerFromArchetype not available.", "warn");
           return;
         }
-        let chosen = null;
-        for (let i = 0; i < defs.length; i++) {
-          const def = defs[i];
-          if (!def || !def.id) continue;
-          const fid = String(def.id);
-          if (canHire) {
-            const res = canHire(c, fid);
-            if (!res || !res.ok) continue;
+        if (canHire) {
+          const res = canHire(c, def.id);
+          if (!res || !res.ok) {
+            c.log(res && res.reason ? `GOD: Cannot hire follower: ${res.reason}` : "GOD: Cannot hire follower (cap or invalid).", "warn");
+            return;
           }
-          chosen = def;
-          break;
         }
-        if (!chosen) {
-          c.log("GOD: Cannot hire any further followers (party likely at cap).", "warn");
-          return;
-        }
-        const ok = hire(c, chosen.id);
+        const ok = hire(c, def.id);
         if (!ok) {
-          c.log(`GOD: Failed to hire follower '${chosen.id}'.`, "warn");
+          c.log(`GOD: Failed to hire follower '${def.id}'.`, "warn");
           return;
         }
-        const label = chosen.name || chosen.id || "follower";
+        const label = def.name || def.id || "follower";
         c.log(`[GOD] Hired follower archetype '${label}'.`, "good");
         if (typeof c.updateUI === "function") c.updateUI();
       } catch (e) {
