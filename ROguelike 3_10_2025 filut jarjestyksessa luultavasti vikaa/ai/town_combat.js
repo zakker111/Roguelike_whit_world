@@ -12,7 +12,6 @@
  */
 
 import { getRNGUtils, getMod } from "../utils/access.js";
-import { logFollowerCritTaken } from "../core/followers_flavor.js";
 
 // Local RNG helper (mirrors rngFor in town_ai.js)
 function rngFor(ctx) {
@@ -204,8 +203,9 @@ function townNpcAttack(ctx, attacker, defender) {
 
   // Follower-specific flavor for town combat criticals.
   try {
-    if (defender && defender._isFollower && isCrit) {
-      logFollowerCritTaken(ctx, defender, loc, dmg);
+    const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
+    if (FF && typeof FF.logFollowerCritTaken === "function" && defender && defender._isFollower && isCrit) {
+      FF.logFollowerCritTaken(ctx, defender, loc, dmg);
     }
   } catch (_) {}
 }

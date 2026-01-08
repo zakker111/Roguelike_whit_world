@@ -158,4 +158,3 @@ export function logFollowerFlee(ctx, actor) {
     touchFlavorCooldown(actor, 4);
   } catch (_) {}
 }
-}
