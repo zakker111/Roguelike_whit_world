@@ -130,12 +130,15 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) {}
 
-  // Award XP only if the last hit was by the player
+  // Award XP when the last hit was by the player or by a follower ally.
   const xp = (typeof enemy.xp === "number") ? enemy.xp : 5;
   let awardXp = false;
   try {
-    const byStr = (enemy._lastHit && enemy._lastHit.by) ? String(enemy._lastHit.by).toLowerCase() : "";
-    awardXp = (byStr === "player");
+    const last = enemy._lastHit || null;
+    const byStr = last && last.by ? String(last.by).toLowerCase() : "";
+    // Player kills: by === "player"
+    // Follower kills: last.isFollower is true (set by AI when killer is a follower)
+    awardXp = (byStr === "player") || !!(last && last.isFollower);
   } catch (_) { awardXp = false; }
   if (awardXp) {
     try {
