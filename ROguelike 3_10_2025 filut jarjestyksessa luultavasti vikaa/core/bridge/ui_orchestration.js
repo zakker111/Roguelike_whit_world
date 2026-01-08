@@ -462,6 +462,10 @@ function buildFollowerView(ctx, runtime) {
   const glyph = (def && def.glyph) || runtime.glyph || "?";
   const color = (def && def.color) || runtime.color || "#ffffff";
 
+  // Simple follower XP view: mirror normalized follower record when present.
+  const xp = rec && typeof rec.xp === "number" ? rec.xp : 0;
+  const xpNext = rec && typeof rec.xpNext === "number" && rec.xpNext > 0 ? rec.xpNext : 0;
+
   // Follower equipment and inventory are stored on the follower record and are
   // exposed to the UI as-is for read-only display in Phase 3.
   let equipment = null;
@@ -530,6 +534,8 @@ function buildFollowerView(ctx, runtime) {
     inventory,
     mode,
     injuries,
+    xp,
+    xpNext,
   };
 }
 

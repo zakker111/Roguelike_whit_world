@@ -85,6 +85,8 @@ function buildContent(ctx, view) {
   const hpStr = (hp != null && maxHp != null) ? `HP ${hp}/${maxHp}` : "";
   const atk = typeof v.atk === "number" ? v.atk : null;
   const defVal = typeof v.def === "number" ? v.def : null;
+  const xp = typeof v.xp === "number" ? v.xp : null;
+  const xpNext = typeof v.xpNext === "number" && v.xpNext > 0 ? v.xpNext : null;
   const roles = Array.isArray(v.roles) && v.roles.length ? v.roles : null;
   const tags = Array.isArray(v.tags) && v.tags.length ? v.tags : null;
   const personality = Array.isArray(v.personalityTags) && v.personalityTags.length ? v.personalityTags : null;
@@ -124,7 +126,12 @@ function buildContent(ctx, view) {
   if (atk != null) statParts.push(`Attack ${atk}`);
   if (defVal != null) statParts.push(`Defense ${defVal}`);
   const stats = statParts.join("   •   ");
-  lines.push(`<div style="margin-bottom:6px;">${stats}</div>`);
+  lines.push(`<div style="margin-bottom:4px;">${stats}</div>`);
+  if (xpNext != null && xp != null) {
+    lines.push(
+      `<div style="font-size:12px; color:#9ca3af; margin-bottom:6px;">XP: ${xp} / ${xpNext}</div>`
+    );
+  }
 
   // Simple command mode: follow / wait
   const modeLabel = mode === "wait" ? "Waiting here" : "Following you";

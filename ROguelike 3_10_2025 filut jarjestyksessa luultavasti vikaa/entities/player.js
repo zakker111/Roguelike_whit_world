@@ -97,6 +97,13 @@ export function normalize(p) {
       if (hp <= 0) hp = 1;
       const enabled = f.enabled !== false;
 
+      // Simple XP model for followers: track xp/xpNext similarly to the player.
+      const xp = Math.max(0, (typeof f.xp === "number" ? f.xp : 0) | 0);
+      const xpNext =
+        typeof f.xpNext === "number" && f.xpNext > 0
+          ? (f.xpNext | 0)
+          : 20;
+
       // Optional flavor fields: keep them if present so future phases can rely on them.
       const race = typeof f.race === "string" ? f.race : undefined;
       const subrace = typeof f.subrace === "string" ? f.subrace : undefined;
@@ -168,7 +175,7 @@ export function normalize(p) {
         injuries = [];
       }
 
-      const out = { id, name, level, hp, maxHp, enabled, mode };
+      const out = { id, name, level, hp, maxHp, enabled, mode, xp, xpNext };
       if (race) out.race = race;
       if (subrace) out.subrace = subrace;
       if (background) out.background = background;
@@ -400,6 +407,36 @@ export function gainXP(player, amount, hooks = {}) {
     player.xpNext = Math.floor(player.xpNext * 1.3 + 10);
     if (hooks.log) hooks.log(`You are now level ${player.level}. Max HP increased.`, "good");
   }
+
+  // Share XP with active followers so they can level alongside the player.
+  try {
+    const followers = Array.isArray(player.followers) ? player.followers : null;
+    if (followers && followers.length && amount > 0) {
+      const share = Math.max(1, Math.floor(amount * 0.5)); // simple 50% share
+      for (let i = 0; i < followers.length; i++) {
+        const f = followers[i];
+        if (!f || f.enabled === false) continue;
+        if (typeof f.hp === "number" && f.hp <= 0) continue;
+        if (typeof f.xp !== "number") f.xp = 0;
+        if (typeof f.xpNext !== "number" || f.xpNext <= 0) f.xpNext = 20;
+        f.xp += share;
+        let leveled = false;
+        while (f.xp >= f.xpNext) {
+          f.xp -= f.xpNext;
+          f.level = Math.max(1, ((f.level | 0) || 1) + 1);
+          f.maxHp = (typeof f.maxHp === "number" ? f.maxHp : 10) + 2;
+          f.hp = f.maxHp;
+          f.xpNext = Math.floor(f.xpNext * 1.25 + 5);
+          leveled = true;
+          if (hooks.log) hooks.log(`${f.name || "Your follower"} reaches level ${f.level}.`, "good");
+        }
+        if (leveled && hooks.onFollowerLeveled) {
+          try { hooks.onFollowerLeveled(f); } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+
   if (hooks.updateUI) hooks.updateUI();
 }
 
