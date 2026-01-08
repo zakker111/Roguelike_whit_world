@@ -72,11 +72,11 @@ export function ensureUtils(ctx) {
   // RNG must come from ctx.rng or RNGUtils; no RNGFallback/Math.random in Phase B
   let rng = null;
   try {
-    if (typeof ctx.rng === "function") {
-      rng = ctx.rng;
-    } else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-      rng = window.RNGUtils.getRng();
-    }
+    if (window.Flavor) ctx.Flavor = window.Flavor;
+  } catch (_) {}
+
+  try {
+    if (window.FollowersFlavor) ctx.FollowersFlavor = window.FollowersFlavor;
   } catch (_) {}
 
   const round1 = (ctx.PlayerUtils && typeof ctx.PlayerUtils.round1 === "function")

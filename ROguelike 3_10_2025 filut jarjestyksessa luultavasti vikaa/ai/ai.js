@@ -274,6 +274,12 @@ export function enemiesAct(ctx) {
 
   for (const e of enemies) {
     const eFac = factionOf(e);
+    // Cool down follower flavor barks so they don't spam logs.
+    try {
+      if (e && e._isFollower && typeof e._flavorCd === "number" && e._flavorCd > 0) {
+        e._flavorCd -= 1;
+      }
+    } catch (_) {}
     const isFollower = !!(e && e._isFollower);
     const mode = (isFollower && typeof e._followerMode === "string") ? e._followerMode : "follow";
     const isWaiting = isFollower && mode === "wait";
@@ -415,7 +421,14 @@ export function enemiesAct(ctx) {
         // Animals should not speak; suppress panic lines for animal factions
         const fac = factionOf(e);
         if (fac !== "animal" && fac !== "animal_hostile") {
-          try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+          try {
+            const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
+            if (e._isFollower && FF && typeof FF.logFollowerFlee === "function") {
+              FF.logFollowerFlee(ctx, e);
+            } else if (!e._isFollower) {
+              ctx.log("I don't want to die!", "flavor");
+            }
+          } catch (_) {}
         }
         e._panicYellCd = 6;
       }
@@ -955,6 +968,16 @@ export function enemiesAct(ctx) {
                 "info",
                 { category: "Combat", side: "enemy" }
               );
+            }
+          } catch (_) {}
+          // Follower-specific flavor when they land or receive critical hits.
+          try {
+            const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
+            if (FF && typeof FF.logFollowerCritDealt === "function" && e && e._isFollower && isCrit) {
+              FF.logFollowerCritDealt(ctx, e, loc, dmg);
+            }
+            if (FF && typeof FF.logFollowerCritTaken === "function" && target.ref && target.ref._isFollower && isCrit) {
+              FF.logFollowerCritTaken(ctx, target.ref, loc, dmg);
             }
           } catch (_) {}
           if (target.ref.hp <= 0 && typeof ctx.onEnemyDied === "function") {

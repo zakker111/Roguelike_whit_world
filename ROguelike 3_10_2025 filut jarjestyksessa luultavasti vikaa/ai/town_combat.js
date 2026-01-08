@@ -170,23 +170,45 @@ function townNpcAttack(ctx, attacker, defender) {
     }
   } catch (_) {}
 
-  // Persistent injuries/scars for follower NPCs in town combat, mirroring the
-  // player's injury system but applied to follower records when they are hit.
+  // Logging
+  const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
+  const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
   try {
-    if (defender && defender._isFollower && ctx && ctx.player && Array.isArray(ctx.player.followers)) {
-      const followers = ctx.player.followers;
-      const fid = defender._followerId != null
-        ? String(defender._followerId)
-        : String(defender.type || defender.id || "");
-      let rec = null;
-      for (let i = 0; i < followers.length; i++) {
-        const f = followers[i];
-        if (!f) continue;
-        if (String(f.id || "") === fid) {
-          rec = f;
-          break;
-        }
+    if (defender.hp > 0) {
+      if (isCrit) {
+        ctx.log &&
+          ctx.log(
+            `Critical! ${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+            "crit",
+            { category: "Combat", side: "npc" }
+          );
+      } else {
+        ctx.log &&
+          ctx.log(
+            `${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+            "combat",
+            { category: "Combat", side: "npc" }
+          );
       }
+    } else {
+      defender._dead = true;
+      ctx.log &&
+        ctx.log(
+          `${nameA} kills ${nameD}.`,
+          "fatal",
+          { category: "Combat", side: "npc" }
+        );
+    }
+  } catch (_) {}
+
+  // Follower-specific flavor for town combat criticals.
+  try {
+    const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
+    if (FF && typeof FF.logFollowerCritTaken === "function" && defender && defender._isFollower && isCrit) {
+      FF.logFollowerCritTaken(ctx, defender, loc, dmg);
+    }
+  } catch (_) {}
+}
       if (rec) {
         if (!Array.isArray(rec.injuries)) rec.injuries = [];
         const injuries = rec.injuries;
