@@ -108,13 +108,28 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Follower injuries and scars:
       - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
       - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
-    - Simple follower AI improvements:
-      - Basic follow / wait mode (PARTIAL DONE):
-        - Each follower has a simple `mode` field (`follow` / `wait`) stored on their record.
-        - Mode can be toggled from the follower panel (opened by bumping/talking); in `wait` mode followers hold position and only attack adjacent enemies.
-      - Trail the player without blocking doors/entrances when possible.
-      - Continue to prioritize nearby hostiles using LOS-based targeting.
-      - Later: basic morale/retreat logic (e.g., avoid charging into hopeless fights when low on HP and out of potions).
+    - Follower behavior / AI improvements:
+      - Smarter positioning in dungeons, encounters, and towns so followers avoid standing in doorways and blocking the player’s movement when possible.
+      - Better target selection that focuses on low-HP enemies, prioritizes threats near the player, and avoids overextending far ahead of the party.
+      - Simple “tactics” based on archetype:
+        - Thief followers prefer flanking attacks, attacking wounded or distracted targets, and avoiding prolonged front-line tanking.
+        - Guard followers tend to stay closer to the player, hold chokepoints, and prioritize enemies adjacent to or threatening the player.
+      - Mode extensions beyond simple follow/wait:
+        - Add high-level stances such as “Stay behind me” (more defensive/close behavior) and “Aggressive” (pursue enemies more actively).
+    - Follower command UI:
+      - Add a basic party command panel accessible via a hotkey or HUD button:
+        - Global commands such as “All follow” and “All wait”.
+        - Per-follower quick toggles (follow/wait/stance) surfaced more directly than opening individual follower panels.
+      - Later enhancements:
+        - Simple formations (e.g., “line”, “column”, “spread”) that affect how followers position relative to the player.
+        - A “focus my target” command that makes all followers prioritize the enemy currently targeted/attacked by the player.
+    - Follower–healer integration (injury treatment):
+      - Use the existing follower injuries/scars so that healer/surgeon NPCs in towns or temples can treat follower injuries for gold.
+      - Balancing details:
+        - Healable injuries are cheaper to treat; permanent scars may be more expensive or only partially treatable (e.g., remove penalties but keep cosmetic marks).
+      - UI integration:
+        - Extend healer/surgeon dialogs to show a list of followers and their current injuries/scars.
+        - Allow the player to select which follower and which injury to treat, with clear cost and outcome descriptions.
     - Party size & balance:
       - Introduce a configurable party size limit (e.g., 1–3 followers).
       - Ensure follower gear and potion usage are balanced so followers support the player without trivializing combat.
