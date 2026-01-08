@@ -108,53 +108,54 @@ export function tickFollowerFlavorCooldown(ctx) {
 export function logFollowerCritTaken(ctx, actor, loc, dmg) {
   try {
     if (!ctx || !actor || !actor._isFollower) return;
-    if (!canEmitFlavor(actor)) return;
     const rec = followerRecordForActor(ctx, actor);
     if (!rec) return;
     const lines = resolveFlavorPools(ctx, rec, "critTaken");
     if (!lines.length) return;
-    if (!chance(ctx, 0.45)) return;
+    if (!canEmitFlavor(actor)) return;
+    if (!chance(ctx, 0.8)) return; // high during testing
     const tmpl = pick(lines, ctx);
     if (!tmpl) return;
     const msg = formatLine(tmpl, rec, actor);
     if (!msg) return;
     if (ctx.log) ctx.log(msg, "info");
-    touchFlavorCooldown(actor, 6);
+    touchFlavorCooldown(actor, 3);
   } catch (_) {}
 }
 
 export function logFollowerCritDealt(ctx, actor, loc, dmg) {
   try {
     if (!ctx || !actor || !actor._isFollower) return;
-    if (!canEmitFlavor(actor)) return;
     const rec = followerRecordForActor(ctx, actor);
     if (!rec) return;
     const lines = resolveFlavorPools(ctx, rec, "critDealt");
     if (!lines.length) return;
-    if (!chance(ctx, 0.55)) return;
+    if (!canEmitFlavor(actor)) return;
+    if (!chance(ctx, 0.9)) return; // very likely during testing
     const tmpl = pick(lines, ctx);
     if (!tmpl) return;
     const msg = formatLine(tmpl, rec, actor);
     if (!msg) return;
     if (ctx.log) ctx.log(msg, "info");
-    touchFlavorCooldown(actor, 5);
+    touchFlavorCooldown(actor, 2);
   } catch (_) {}
 }
 
 export function logFollowerFlee(ctx, actor) {
   try {
     if (!ctx || !actor || !actor._isFollower) return;
-    if (!canEmitFlavor(actor)) return;
     const rec = followerRecordForActor(ctx, actor);
     if (!rec) return;
     const lines = resolveFlavorPools(ctx, rec, "flee");
     if (!lines.length) return;
-    if (!chance(ctx, 0.5)) return;
+    if (!canEmitFlavor(actor)) return;
+    if (!chance(ctx, 0.8)) return; // high during testing
     const tmpl = pick(lines, ctx);
     if (!tmpl) return;
     const msg = formatLine(tmpl, rec, actor);
     if (!msg) return;
-    if (ctx.log) ctx.log(msg, "flavor");
-    touchFlavorCooldown(actor, 7);
+    if (ctx.log) ctx.log(msg, "info");
+    touchFlavorCooldown(actor, 4);
   } catch (_) {}
+}
 }

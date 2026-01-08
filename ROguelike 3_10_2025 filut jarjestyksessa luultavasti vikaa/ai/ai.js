@@ -26,6 +26,7 @@
  */
 
 import { getTileDef } from "../data/tile_lookup.js";
+import { logFollowerCritTaken, logFollowerCritDealt, logFollowerFlee } from "../core/followers_flavor.js";
 
 // Reusable direction arrays to avoid per-tick allocations
 const ALT_DIRS = Object.freeze([{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]);
@@ -422,10 +423,9 @@ export function enemiesAct(ctx) {
         const fac = factionOf(e);
         if (fac !== "animal" && fac !== "animal_hostile") {
           try {
-            const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
-            if (e._isFollower && FF && typeof FF.logFollowerFlee === "function") {
-              FF.logFollowerFlee(ctx, e);
-            } else if (!e._isFollower) {
+            if (e._isFollower) {
+              logFollowerFlee(ctx, e);
+            } else {
               ctx.log("I don't want to die!", "flavor");
             }
           } catch (_) {}
@@ -972,12 +972,11 @@ export function enemiesAct(ctx) {
           } catch (_) {}
           // Follower-specific flavor when they land or receive critical hits.
           try {
-            const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
-            if (FF && typeof FF.logFollowerCritDealt === "function" && e && e._isFollower && isCrit) {
-              FF.logFollowerCritDealt(ctx, e, loc, dmg);
+            if (e && e._isFollower && isCrit) {
+              logFollowerCritDealt(ctx, e, loc, dmg);
             }
-            if (FF && typeof FF.logFollowerCritTaken === "function" && target.ref && target.ref._isFollower && isCrit) {
-              FF.logFollowerCritTaken(ctx, target.ref, loc, dmg);
+            if (target.ref && target.ref._isFollower && isCrit) {
+              logFollowerCritTaken(ctx, target.ref, loc, dmg);
             }
           } catch (_) {}
           if (target.ref.hp <= 0 && typeof ctx.onEnemyDied === "function") {
