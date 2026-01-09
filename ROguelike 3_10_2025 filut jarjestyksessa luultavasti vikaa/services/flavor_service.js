@@ -100,24 +100,38 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
   const killerRaw = (lastHit?.by) || "unknown";
   let killedBy = killerNames[killerRaw] || killerRaw;
 
-  // If the killer matches a player follower archetype id, prefer the
-  // follower's current personalized name (e.g., "Oskari the Guard") over
-  // a raw id like "guard_follower". This works for all follower types,
-  // not just the default guard.
+  // If the killer is one of the player's followers, prefer the follower's
+  // current personalized name (e.g., "Oskari the Guard") over internal ids.
   try {
-    if (ctx && ctx.player && Array.isArray(ctx.player.followers) && killerRaw && killerRaw !== "player") {
+    if (ctx && ctx.player && Array.isArray(ctx.player.followers)) {
       const followers = ctx.player.followers;
-      const fid = String(killerRaw);
-      const hit = followers.find(f => f && String(f.id) === fid);
+      const candidates = [];
+      if (killerRaw && killerRaw !== "player" && killerRaw !== "follower") {
+        candidates.push(String(killerRaw));
+      }
+      if (lastHit && lastHit.killerName) {
+        candidates.push(String(lastHit.killerName));
+      }
+      let hit = null;
+      for (let i = 0; i < followers.length && !hit; i++) {
+        const f = followers[i];
+        if (!f) continue;
+        const fid = String(f.id || "");
+        const fname = String(f.name || "");
+        if (candidates.includes(fid) || candidates.includes(fname)) {
+          hit = f;
+        }
+      }
       if (hit && hit.name && typeof hit.name === "string") {
         killedBy = hit.name;
       }
     }
   } catch (_) {}
-  // If lastHit carries an explicit killerName (e.g., from follower runtime),
-  // prefer that over any generic mapping.
+  // If lastHit carries an explicit killerName (e.g., from non-follower runtime),
+  // prefer that over any generic mapping, but avoid overriding follower names.
   try {
-    if (lastHit && typeof lastHit.killerName === "string" && lastHit.killerName.trim()) {
+    const isFollowerKiller = !!(lastHit && lastHit.isFollower);
+    if (!isFollowerKiller && lastHit && typeof lastHit.killerName === "string" && lastHit.killerName.trim()) {
       killedBy = lastHit.killerName.trim();
     }
   } catch (_) {}
