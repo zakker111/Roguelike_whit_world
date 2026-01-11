@@ -469,67 +469,92 @@ These exist partially in code or design but are **known unstable** or not yet im
 
 - Intent:
   - Friendly characters that follow the player and fight alongside them.
-  - Followers with inventories, basic commands, morale, and persistence.
+  - Followers with inventories, basic commands, lasting injuries, and persistence.
 
 - Current status (experimental, first-pass implementation):
   - Data-driven archetypes and names:
-    - Guard-style follower archetype (“Guard Ally”) and a thief-style archetype are defined in `data/entities/followers.json` with glyph, color, base stats, faction, tags, and equipment hints.
-    - Each follower generated from these archetypes receives a unique name from a per-archetype `namePool` (e.g., “Arne the Guard”), persisted in `player.followers` so the same named ally appears across all modes until death.
+    - Guard-style follower archetype (“Guard Ally”) and a thief-style archetype are defined in `data/entities/followers.json` with glyph, color, base stats, faction, tags, temperament, and equipment hints.
+    - Each follower generated from these archetypes receives a unique name from a per-archetype `namePool` (e.g., “Arne the Guard”, “Sade the Thief”), persisted in `player.followers` so the same named ally appears across all modes until death.
     - `GameData.followers` is the single source of truth for follower visuals/stats.
-  - Player follower slot:
-    - Player defaults include a single follower record in `player.followers`, normalized and persisted on the save.
+  - Player follower records:
+    - Followers are stored on `player.followers` with:
+      - Identity: `id`, `name`, `archetypeId`, basic stats, and simple role tags.
+      - Equipment and inventory: per-follower `equipment` object and `inventory` array.
+      - Health and durability: `hp`, `maxHp`, and `injuries` mirroring the player’s injury system.
+      - Progression: `level`, `xp`, and `xpNext` so followers can gain levels independently.
+      - Behavior: a simple `mode` flag (`follow` / `wait`) for basic commands.
   - Spawning and modes:
-    - Dungeons / towers / encounters / region-map:
-      - An allied guard-style follower is spawned near the player as an enemy-style actor with `_isFollower` and `_followerId` set; in encounters and Region Map they are placed within a small radius around the player (not at distant corners), and they skip spawning entirely if no nearby tile is free.
-      - Follower AI never targets the player, only hostile factions, and uses LOS-based targeting for enemies; when no hostile is visible, they move to stay near the player (or hold position in `wait` mode).
+    - Dungeons / towers / encounters / Region Map:
+      - Allied follower actors spawn near the player (within a small radius) as enemy-style actors with `_isFollower` and `_followerId` set; they never target the player and use LOS-based targeting for hostiles.
+      - Followers are not spawned if no nearby walkable tile is free; this prevents off-screen or corner spawns.
     - Towns / castles:
-      - A follower NPC is spawned near the gate/player with roles `[\"follower\"]` and `_isFollower/_followerId` markers.
-      - Town tick logic keeps the follower NPC within a short distance of the player as they move through town.
+      - Follower NPCs spawn near the gate/player with roles `[\"follower\"]` and `_isFollower/_followerId` markers and follow the player through town in `follow` mode.
+      - In `wait` mode they hold position but remain interactable.
+  - Inn hiring and party caps:
+    - Town inns can occasionally host recruitable followers-for-hire:
+      - On town generation, there is a modest chance to spawn a follower candidate inside the inn if the player is below the follower cap.
+      - On town re-entry, a smaller chance is applied to spawn new candidates when conditions allow.
+    - Interacting with an inn candidate offers to hire them for gold (e.g., 80g):
+      - On acceptance, gold is deducted, the follower is added to `player.followers`, and the candidate NPC is removed.
+      - On rejection or insufficient gold, clear feedback is logged; no hire occurs.
+    - The Character Sheet shows a “Party: N/3 followers” line, reflecting the current number of active followers and the configured cap.
   - Persistence and death:
-    - Dungeon/town/region save snapshots explicitly exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
-    - Follower HP/level from dungeon/encounter/region runs are synced back into `player.followers` on exit.
-    - When a follower dies in combat, their corresponding record is removed from `player.followers`, and they will not respawn anywhere (permanent death for that run).
-    - When a follower dies, all of their equipped gear and inventory items (with their current decay/wear) are added to their corpse loot so the player can recover their follower’s equipment.
+    - Dungeon/town/region save snapshots exclude follower actors/NPCs; followers are always re-derived from `player.followers` on entry to avoid duplication.
+    - Follower HP/level and injuries from dungeon/encounter/Region runs are synced back into `player.followers` on exit.
+    - When a follower dies in combat, their record is removed from `player.followers`, and they will not respawn (permanent death for that run).
+    - On follower death, all of their equipped items and inventory items (with current decay) are added to their corpse loot so the player can recover gear.
   - Visual consistency and logging:
     - Follower glyph/color are taken from `followers.json` and rendered consistently in all modes (town, dungeon, region) with a distinct background to differentiate them from normal enemies/NPCs.
-    - Combat logs, corpse flavor, and kill attributions use follower display names and (where possible) their actual equipped weapon names instead of raw type IDs.
+    - Combat logs, follower barks, and corpse flavor use follower display names and, where possible, their actual equipped weapon names instead of raw type IDs (no more “guard_follower#1” in corpse lines).
   - Follower inspect panel:
-    - Bumping into a follower in dungeons/encounters/region-map, or talking/bumping them in towns/castles, opens a follower inspect panel instead of attacking or generic chatter.
-    - The panel shows follower name, level, HP/max HP, Attack, Defense, faction/roles, tags, personality, temperament, and an archetype `hint`.
-  - Equipment and inventory:
+    - Bumping into a follower in dungeons/encounters/Region Map, or talking/bumping them in towns/castles, opens a follower inspect panel instead of attacking or generic chatter.
+    - The panel shows follower name, level, HP/max HP, Attack, Defense, faction/roles, tags, personality, temperament, injuries/scars, a short archetype `hint`, equipment slots, and inventory.
+  - Equipment, inventory, and decay:
     - The follower panel includes:
       - A full equipment view for follower slots (left/right hand, head, torso, legs, hands).
-      - A follower inventory list.
-      - A truncated player inventory list for item transfer.
+      - A follower inventory list and a truncated player inventory list for transfers.
     - Supported interactions:
-      - `[Equip]` items from follower inventory into appropriate slots (hands/head/torso/legs/hands).
+      - `[Equip]` items from follower inventory into appropriate slots.
       - `[Unequip]` slot items back into follower inventory.
       - `[Give]` items from player inventory to follower inventory (or directly into a slot when a slot is specified).
       - `[Take]` items from follower inventory back into the player’s inventory.
     - After each change, follower Attack/Defense are recomputed from base stats + gear and immediately reflected in the panel.
-    - Potions and other non-equipment items cannot be equipped into follower slots; followers use potions directly from their inventory when low on HP instead of attacking.
-  - Simple commands (experimental):
-    - Each follower has a basic mode flag stored on their record (`mode`):
-      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
+    - Potions and other non-equipment items cannot be equipped; followers use potions directly from their inventory when low on HP instead of attacking.
+    - Followers use shared equipment aggregation and decay logic:
+      - Weapons and armor decay when they attack, are blocked, or are hit.
+      - When an equipped item breaks, they automatically equip the best replacement from their own inventory based on atk+def and simple class preferences.
+      - Seppo’s True Blade behaves as a cursed two-handed weapon for followers just like for the player (occupies both hands, cannot be unequipped until broken).
+  - Simple commands (follow/wait):
+    - Each follower has a basic `mode` flag stored on their record:
+      - `follow` (default): trail the player and pursue visible hostiles using LOS-based targeting.
       - `wait`: hold position, only attacking enemies that move adjacent.
-    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
-  - Simple commands (experimental):
-    - Each follower has a basic mode flag stored on their record (`mode`):
-      - `follow` (default): trail the player and pursue visible hostiles using existing LOS-based targeting.
-      - `wait`: hold position, only attacking enemies that move adjacent.
-    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower in dungeon, encounter, or town).
-  - Equipment parity, decay, curses, and preferences:
-    - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear) via shared helpers.
-    - Follower weapons and armor decay when they attack, are blocked, or are hit; when an equipped item breaks, the follower automatically equips the best replacement from their own inventory, based on total atk+def and simple class preferences.
-    - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player:
-      - Equipping it occupies both hands and moves any existing hand items to inventory.
-      - While it is equipped, followers cannot unequip it or equip other hand weapons; curse lifts when it breaks.
-    - Follower archetypes carry soft preferences (e.g., guards favor sword+shield and heavy armor; thieves favor daggers/light weapons and light armor) that slightly bias auto-equip choices without forbidding non-preferred gear.
+    - Mode can be toggled from the follower panel (opened by bumping/talking to the follower).
+  - Injuries and scars:
+    - Followers share the player’s injury model:
+      - `injuries` is an array of `{ name, healable, durationTurns }`.
+      - Healable injuries tick down and disappear after their duration; permanent scars remain.
+    - Followers can gain injuries and scars on significant hits and crits (e.g., “bruised leg”, “sprained ankle”, “facial scar”, “deep scar”), both in dungeons and town combat.
+    - The follower panel displays an Injuries section:
+      - Healable injuries in amber with “heals in N turns”.
+      - Permanent scars in red with a “(scar)” label.
+  - Experience and leveling:
+    - Followers gain XP and levels independently of the player:
+      - Only when a follower lands the killing blow on an enemy.
+      - XP is stored on the follower record (`xp`, `xpNext`); the player’s XP is unaffected by follower kills.
+      - On follower level-up, `level` and `maxHp` increase and HP is restored to the new max; `xpNext` scales by a light curve.
+    - The follower panel shows `XP: current / next`, updating as they earn kills.
+  - Combat barks and flavor:
+    - Followers have archetype-specific flavor pools defined in `followers.json`:
+      - Guard and thief followers can emit short lines when:
+        - They land critical hits (`critDealt`).
+        - They take critical hits (`critTaken`).
+        - They panic/flee at low HP (`flee`).
+    - Flavor helpers pick a line from these pools with chance gating and per-follower cooldowns, logging them as `"info"` so they appear in the main log without spamming.
 
 - Not yet implemented (planned; see `TODO.md`):
-  - Multiple followers / true party system and party size limits, with a richer command UI (e.g., Attack / Guard / Follow / Wait here).
-  - Follower injuries and scars (persistent follower wounds and scars similar to the player’s, visible in the follower panel and treatable by healers).
-  - Follower experience and leveling (followers gain XP and levels, but do not receive a full heal when leveling).
+  - Multiple followers / true party system and party size limits, with richer party command UI (e.g., Attack / Guard / Follow / Wait here, global “All follow/all wait”, formations, and “focus my target”).
+  - Follower–healer integration (treating follower injuries and scars for gold, with UI to pick which follower/injury to treat and clear costs/effects).
+  - More nuanced follower AI (positional tactics, archetype-based behavior such as flanking thieves and chokepoint guards, morale and retreat logic).
   - Fully data-driven special item effects (curses and on-hit/on-break behaviors) instead of bespoke Seppo-specific code.
 
 ### 12.3 GOD Arena mode

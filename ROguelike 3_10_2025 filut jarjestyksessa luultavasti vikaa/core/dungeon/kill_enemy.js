@@ -130,14 +130,16 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) {}
 
-  // Award XP only if the last hit was by the player
+  // Award XP to the player when the last hit was by the player.
+  // Followers do not share this XP; they gain their own XP only for kills they land.
   const xp = (typeof enemy.xp === "number") ? enemy.xp : 5;
-  let awardXp = false;
+  let awardPlayerXp = false;
   try {
-    const byStr = (enemy._lastHit && enemy._lastHit.by) ? String(enemy._lastHit.by).toLowerCase() : "";
-    awardXp = (byStr === "player");
-  } catch (_) { awardXp = false; }
-  if (awardXp) {
+    const last = enemy._lastHit || null;
+    const byStr = last && last.by ? String(last.by).toLowerCase() : "";
+    awardPlayerXp = (byStr === "player");
+  } catch (_) { awardPlayerXp = false; }
+  if (awardPlayerXp) {
     try {
       if (ctx.Player && typeof ctx.Player.gainXP === "function") {
         ctx.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
@@ -159,6 +161,60 @@ export function killEnemy(ctx, enemy) {
       }
     } catch (_) {}
   }
+
+  // Award XP directly to a follower when they land the killing blow (no sharing with others).
+  try {
+    const last = enemy._lastHit || null;
+    if (last && last.isFollower && ctx.player && Array.isArray(ctx.player.followers)) {
+      const fid = last && last.isFollower && last.killerName
+        ? String(last.killerName)
+        : null;
+      const followers = ctx.player.followers;
+      // Match on follower id when possible, else by name as a fallback.
+      let rec = null;
+      if (fid) {
+        for (let i = 0; i < followers.length; i++) {
+          const f = followers[i];
+          if (!f) continue;
+          if (String(f.id || "") === fid || String(f.name || "") === fid) {
+            rec = f;
+            break;
+          }
+        }
+      }
+      if (!rec) {
+        // Fallback: match by name from _lastHit.killerName
+        const kName = last.killerName ? String(last.killerName) : null;
+        if (kName) {
+          for (let i = 0; i < followers.length && !rec; i++) {
+            const f = followers[i];
+            if (!f) continue;
+            if (String(f.name || "") === kName) rec = f;
+          }
+        }
+      }
+      if (rec) {
+        if (typeof rec.xp !== "number") rec.xp = 0;
+        if (typeof rec.xpNext !== "number" || rec.xpNext <= 0) rec.xpNext = 20;
+        rec.xp += xp;
+        let leveled = false;
+        while (rec.xp >= rec.xpNext) {
+          rec.xp -= rec.xpNext;
+          rec.level = Math.max(1, ((rec.level | 0) || 1) + 1);
+          rec.maxHp = (typeof rec.maxHp === "number" ? rec.maxHp : 10) + 2;
+          rec.hp = rec.maxHp;
+          rec.xpNext = Math.floor(rec.xpNext * 1.25 + 5);
+          leveled = true;
+          try {
+            ctx.log && ctx.log(`${rec.name || "Your follower"} reaches level ${rec.level}.`, "good");
+          } catch (_) {}
+        }
+        if (leveled && ctx.Player && typeof ctx.Player.forceUpdate === "function") {
+          try { ctx.Player.forceUpdate(ctx.player); } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
 
   // Persist dungeon state so corpses remain on revisit
   try { save(ctx, false); } catch (_) {}

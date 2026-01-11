@@ -122,6 +122,89 @@ function buildContent(ctx) {
     } catch (_) { return ""; }
   })();
 
+  // Party / followers summary
+  const partyHTML = (function () {
+    try {
+      if (!p || !Array.isArray(p.followers)) {
+        return "<div style='margin-top:10px;'>Party: 0/3 followers</div>" +
+               "<ul style='margin:4px 0 0 14px;'><li>(no followers)</li></ul>";
+      }
+      const followers = p.followers.filter(f => {
+        if (!f) return false;
+        if (f.enabled === false) return false;
+        if (typeof f.hp === "number" && f.hp <= 0) return false;
+        return true;
+      });
+      let maxFollowers = 3;
+      let defs = null;
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const cfg = GD && GD.config;
+        const fc = cfg && cfg.followers;
+        if (fc && typeof fc.maxActive === "number" && fc.maxActive > 0) {
+          maxFollowers = fc.maxActive | 0;
+        }
+        if (GD && Array.isArray(GD.followers)) {
+          defs = GD.followers;
+        }
+      } catch (_) {}
+      const header = `<div style='margin-top:10px;'>Party: ${followers.length}/${maxFollowers} followers</div>`;
+      if (!followers.length) {
+        return header + "<ul style='margin:4px 0 0 14px;'><li>(no followers)</li></ul>";
+      }
+      const list = followers.map((f) => {
+        const rawName = f.name || "";
+        // Resolve archetype definition from GameData.followers to get a nicer label
+        let archId = "";
+        try {
+          if (f.archetypeId) archId = String(f.archetypeId);
+          else if (f.id) {
+            const raw = String(f.id);
+            const idx = raw.indexOf("#");
+            archId = idx >= 0 ? raw.slice(0, idx) : raw;
+          }
+        } catch (_) {}
+        let defName = "";
+        if (defs && archId) {
+          try {
+            const def = defs.find(d => d && String(d.id) === archId);
+            if (def && typeof def.name === "string") defName = def.name;
+          } catch (_) {}
+        }
+        // Prefer personalized record name once followers have been instantiated in runtime
+        let displayName = rawName && rawName !== "Follower" ? rawName : "";
+        if (!displayName) {
+          if (defName) {
+            // Strip generic suffix like " Ally" for a shorter role-style label when used as the name
+            const trimmed = defName.replace(/\s+Ally$/i, "");
+            displayName = trimmed || defName;
+          } else if (archId) {
+            displayName = archId;
+          } else {
+            displayName = "Follower";
+          }
+        }
+        // Role label: derived from definition name or archetype id, shown in parens
+        let roleLabel = "";
+        if (defName) {
+          const trimmed = defName.replace(/\s+Ally$/i, "");
+          roleLabel = trimmed || defName;
+        } else if (archId) {
+          roleLabel = archId;
+        }
+        const roleStr = roleLabel ? ` (${roleLabel})` : "";
+        const level = (typeof f.level === "number" && f.level > 0) ? f.level : 1;
+        const hpPart = (typeof f.hp === "number" && typeof f.maxHp === "number")
+          ? ` — HP ${f.hp.toFixed(1)}/${f.maxHp.toFixed(1)}`
+          : "";
+        return `<li>${displayName}${roleStr} — Level ${level}${hpPart}</li>`;
+      }).join("");
+      return header + `<ul style='margin:4px 0 0 14px;'>${list}</ul>`;
+    } catch (_) {
+      return "";
+    }
+  })();
+
   const html = [
     "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Character Sheet</div>",
     `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
@@ -129,6 +212,7 @@ function buildContent(ctx) {
     `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
     "<div style='margin-top:6px;'>Injuries:</div>",
     `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
+    partyHTML,
     skillsHTML
   ].join("");
 

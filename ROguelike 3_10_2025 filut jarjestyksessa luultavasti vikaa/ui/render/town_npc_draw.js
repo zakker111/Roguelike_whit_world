@@ -83,6 +83,16 @@ export function drawNPCs(ctx, view) {
       }
       glyph = def.glyph;
       color = def.color;
+    } else if (n._recruitCandidate && n._recruitFollowerId) {
+      // Inn/town follower-for-hire NPCs: use a darker blue to distinguish them
+      // from regular guards and shopkeepers.
+      glyph = "F";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        color = (pal && pal.followerHire) ? pal.followerHire : "#1d4ed8"; // darker blue
+      } catch (_) {
+        color = "#1d4ed8";
+      }
     } else if (n.isShopkeeper || n._shopRef) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;

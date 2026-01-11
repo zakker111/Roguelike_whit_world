@@ -14,28 +14,23 @@ import { getTileDef } from "../data/tile_lookup.js";
 import * as World from "../world/world.js";
 
 // Hard caps for followers. Defaults can be overridden via data/config/config.json
-// under cfg.followers.{maxActive,maxPerType} so tuning does not require code edits.
+// under cfg.followers.maxActive so tuning does not require code edits.
+// Per-type limits used to exist (maxPerType) but have been removed on purpose;
+// the player can now travel with any mix of archetypes up to the total cap.
 const DEFAULT_MAX_FOLLOWERS_ACTIVE = 3;
-const DEFAULT_MAX_FOLLOWERS_PER_TYPE = 2;
 
 // Resolve caps from GameData.config.followers when available; otherwise use defaults.
 function getFollowersCaps(ctx) {
   let maxActive = DEFAULT_MAX_FOLLOWERS_ACTIVE;
-  let maxPerType = DEFAULT_MAX_FOLLOWERS_PER_TYPE;
   try {
     const GD = getGameData(ctx);
     const cfg = GD && GD.config;
     const fc = cfg && cfg.followers;
-    if (fc) {
-      if (typeof fc.maxActive === "number" && fc.maxActive > 0) {
-        maxActive = fc.maxActive | 0;
-      }
-      if (typeof fc.maxPerType === "number" && fc.maxPerType > 0) {
-        maxPerType = fc.maxPerType | 0;
-      }
+    if (fc && typeof fc.maxActive === "number" && fc.maxActive > 0) {
+      maxActive = fc.maxActive | 0;
     }
   } catch (_) {}
-  return { maxActive, maxPerType };
+  return { maxActive };
 }
 
 // Ensure follower records have unique ids per follower and a separate
@@ -189,32 +184,12 @@ export function canHireFollower(ctx, archetypeId) {
 
   const caps = getFollowersCaps(ctx);
   const maxActive = caps.maxActive;
-  const maxPerType = caps.maxPerType;
 
-  // Party size cap (all active followers)
+  // Party size cap (all active followers). We intentionally allow any mix
+  // of archetypes; there is no longer a per-type limit.
   if (p.followers.length >= maxActive) {
     result.reason = "You already travel with as many followers as you can handle.";
     return result;
-  }
-
-  // Per-archetype cap: limit how many active followers of a given kind you can have.
-  let sameKind = 0;
-  for (let i = 0; i < p.followers.length; i++) {
-    const f = p.followers[i];
-    if (!f) continue;
-    const baseId = String(f.archetypeId || f.id || "").trim();
-    if (!baseId) continue;
-    // Strip any per-follower suffix (e.g. guard_follower#2 -> guard_follower)
-    const hashIdx = baseId.indexOf("#");
-    const archId = hashIdx >= 0 ? baseId.slice(0, hashIdx) : baseId;
-    if (archId !== fid) continue;
-    if (f.enabled === false) continue;
-    if (typeof f.hp === "number" && f.hp <= 0) continue;
-    sameKind++;
-    if (sameKind >= maxPerType) {
-      result.reason = "You already travel with enough followers of that kind.";
-      return result;
-    }
   }
 
   result.ok = true;
@@ -264,7 +239,7 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
   p._followerSeq = seq;
   const uniqueId = `${def.id}#${seq}`;
 
-  const rec = { id: uniqueId, archetypeId: String(def.id), enabled: true };
+  const rec = { id: uniqueId, archetypeId: String(def.id), enabled: true, injuries: [], xp: 0, xpNext: 20 };
 
   // Basic stats: start at baseHp and level 1 (or def.level if provided).
   const level =

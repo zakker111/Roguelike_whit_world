@@ -200,6 +200,14 @@ function townNpcAttack(ctx, attacker, defender) {
         );
     }
   } catch (_) {}
+
+  // Follower-specific flavor for town combat criticals.
+  try {
+    const FF = (typeof window !== "undefined" ? window.FollowersFlavor : null);
+    if (FF && typeof FF.logFollowerCritTaken === "function" && defender && defender._isFollower && isCrit) {
+      FF.logFollowerCritTaken(ctx, defender, loc, dmg);
+    }
+  } catch (_) {}
 }
 
 // Bandit attack against the player using the same damage model as dungeon/encounter enemies.

@@ -29,7 +29,7 @@ export const defaults = {
   xp: 0,
   xpNext: 20,
   inventory: [
-    { kind: "gold", amount: 50, name: "gold" },
+    { kind: "gold", amount: 100, name: "gold" },
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" },
     // Starter tools for early testing — traders will sell these later.
     { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
@@ -40,28 +40,9 @@ export const defaults = {
     { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk: 3.8, tier: 3, twoHanded: true, decay: 35 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
-  // Basic follower/ally slot for early testing. This record is data-normalized in normalize()
-  // and can be expanded later when a richer party system is added.
-  followers: [
-    {
-      id: "guard_follower",
-      level: 1,
-      hp: 20,
-      maxHp: 20,
-      enabled: true,
-      // Provide a simple default weapon so the follower starts with visible gear.
-      // This is cosmetic for now; follower combat still uses baseAtk/baseDef.
-      equipment: {
-        left: null,
-        right: { kind: "equip", slot: "hand", name: "iron sword", atk: 1.5, tier: 2, decay: 20 },
-        head: null,
-        torso: null,
-        legs: null,
-        hands: null,
-      },
-      inventory: []
-    }
-  ],
+  // Followers / party allies start empty by default; acquisition happens in-game
+  // (e.g., via inn hiring or scripted events) instead of a baked-in starter ally.
+  followers: [],
   injuries: [],
   // Passive skills
   // Combat: increment with attacks; provide small damage buffs
@@ -99,6 +80,7 @@ export function normalize(p) {
   // { id, name, level, hp, maxHp, enabled, inventory, equipment, ...optional flavor fields }
   try {
     if (!Array.isArray(p.followers)) {
+      // Start with an empty party unless an existing save provides followers.
       p.followers = Array.isArray(defaults.followers) ? clone(defaults.followers) : [];
     }
     p.followers = p.followers.map((f) => {
@@ -114,6 +96,13 @@ export function normalize(p) {
       if (hp > maxHp) maxHp = hp;
       if (hp <= 0) hp = 1;
       const enabled = f.enabled !== false;
+
+      // Simple XP model for followers: track xp/xpNext similarly to the player.
+      const xp = Math.max(0, (typeof f.xp === "number" ? f.xp : 0) | 0);
+      const xpNext =
+        typeof f.xpNext === "number" && f.xpNext > 0
+          ? (f.xpNext | 0)
+          : 20;
 
       // Optional flavor fields: keep them if present so future phases can rely on them.
       const race = typeof f.race === "string" ? f.race : undefined;
@@ -158,7 +147,35 @@ export function normalize(p) {
       const feq = f.equipment && typeof f.equipment === "object" ? f.equipment : {};
       const equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, feq);
 
-      const out = { id, name, level, hp, maxHp, enabled, mode };
+      // Normalize follower injuries to mirror the player injury system:
+      // each entry becomes { name, healable, durationTurns }.
+      let injuries = [];
+      try {
+        if (Array.isArray(f.injuries)) {
+          injuries = f.injuries.map((inj) => {
+            if (!inj) return null;
+            if (typeof inj === "string") {
+              const name = inj;
+              const permanent = /scar|missing finger/i.test(name);
+              return {
+                name,
+                healable: !permanent,
+                durationTurns: permanent ? 0 : 40
+              };
+            }
+            const name = inj.name || "injury";
+            const healable = typeof inj.healable === "boolean"
+              ? inj.healable
+              : !(/scar|missing finger/i.test(name));
+            const durationTurns = healable ? Math.max(0, (inj.durationTurns | 0)) : 0;
+            return { name, healable, durationTurns };
+          }).filter(Boolean);
+        }
+      } catch (_) {
+        injuries = [];
+      }
+
+      const out = { id, name, level, hp, maxHp, enabled, mode, xp, xpNext };
       if (race) out.race = race;
       if (subrace) out.subrace = subrace;
       if (background) out.background = background;
@@ -167,6 +184,7 @@ export function normalize(p) {
       if (temperament) out.temperament = temperament;
       out.inventory = inventory;
       out.equipment = equipment;
+      out.injuries = injuries;
       return out;
     }).filter(Boolean);
   } catch (_) {}

@@ -442,6 +442,27 @@ function applyState(ctx, st, x, y) {
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
+  // After restoring a persisted town, allow a follower-for-hire spawn attempt
+  // at the inn with a smaller rarity gate, provided none is currently present
+  // and the party is below cap.
+  try {
+    const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+    if (TR && typeof TR.spawnInnFollowerHires === "function") {
+      let rfn = null;
+      try {
+        if (typeof ctx.rng === "function") rfn = ctx.rng;
+        else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+          rfn = window.RNGUtils.getRng(undefined);
+        }
+      } catch (_) {}
+      const roll = typeof rfn === "function" ? rfn() : Math.random();
+      // ~15% chance on town reloads to offer a new hire when conditions allow.
+      if (roll < 0.15) {
+        TR.spawnInnFollowerHires(ctx);
+      }
+    }
+  } catch (_) {}
+
   // Re-link shop references to nearby shopkeepers when loading from persistence.
   // NPC snapshots do not carry _shopRef, so attach by proximity to the shop door or interior.
   (function relinkShopsToKeepers() {

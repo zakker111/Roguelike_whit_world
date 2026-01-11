@@ -36,7 +36,23 @@
       }
     },
     "namePool": ["Arne", "Tuula", "Kari", "Liisa", "Oskari"],
-    "hint": "Tough frontline ally with decent armor."
+    "hint": "Tough frontline ally with decent armor.",
+    "flavor": {
+      "critTaken": [
+        "{name}: \"Still standing!\"",
+        "{name}: \"You'll need more than that.\"",
+        "{name}: \"That one was close.\""
+      ],
+      "critDealt": [
+        "{name}: \"For the town!\"",
+        "{name}: \"Another one down.\"",
+        "{name}: \"Justice served.\""
+      ],
+      "flee": [
+        "{name}: \"Falling back!\"",
+        "{name}: \"I need to regroup!\""
+      ]
+    }
   },
   {
     "id": "thief_follower",
@@ -75,6 +91,21 @@
       }
     },
     "namePool": ["Nella", "Eero", "Sade", "Riku", "Maarit"],
-    "hint": "Fast, lightly armored ally who excels at quick strikes."
+    "hint": "Fast, lightly armored ally who excels at quick strikes.",
+    "flavor": {
+      "critTaken": [
+        "{name}: \"Ouch. That stung.\"",
+        "{name}: \"Not my best dodge.\""
+      ],
+      "critDealt": [
+        "{name}: \"Right between the ribs.\"",
+        "{name}: \"You didn't see that coming.\"",
+        "{name}: \"Easy pickings.\""
+      ],
+      "flee": [
+        "{name}: \"I'm not dying here today.\"",
+        "{name}: \"This is getting too hot.\""
+      ]
+    }
   }
 ]

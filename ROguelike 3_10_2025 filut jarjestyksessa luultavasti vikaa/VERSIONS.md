@@ -1,5 +1,117 @@
 # Game Version History
-Last updated: 2026-01-07 20:15 UTC
+Last updated: 2026-01-11 20:15 UTC
+
+v1.63.0 — Followers Phase 2: injuries, XP/leveling, inn hiring, and flavor
+
+- Followers: injuries and scars (mirroring player system)
+  - entities/player.js:
+    - Follower records in `player.followers` now include an `injuries` array normalized to the same `{ name, healable, durationTurns }` shape as player injuries.
+    - Normalization converts legacy string entries into object form and infers permanence (scars) from names containing “scar” or “missing finger”.
+  - core/engine/turn_loop.js:
+    - Turn loop now decrements `durationTurns` for healable follower injuries each tick, removing them when they reach 0.
+    - Permanent injuries (healable === false) remain indefinitely, just like player scars.
+  - ai/ai.js and ai/town_combat.js:
+    - When followers are hit by enemies (dungeon/encounter/town), they can acquire injuries/scars based on hit location and crits, reusing the same injury names as the player (e.g., “bruised leg”, “sprained ankle”, “facial scar”, “deep scar”, “missing finger”).
+    - Injuries are applied to the follower record (`player.followers`) so they persist across mode transitions.
+  - ui/components/follower_modal.js:
+    - The follower inspect panel now shows an Injuries section similar to the Character Sheet:
+      - Healable injuries are shown in amber with “heals in N turns”.
+      - Permanent scars are shown in red with a “(scar)” label.
+    - The panel only renders the section when there are injuries to show (no extra noise for unhurt followers).
+
+- Followers: XP and leveling (followers grow only from their own kills)
+  - entities/player.js:
+    - Follower records now track `xp` and `xpNext`, normalized with per-follower defaults (`xp = 0`, `xpNext = 20` for new hires).
+    - `Player.gainXP` no longer shares XP with followers; it only affects the player.
+  - core/followers_runtime.js:
+    - Newly hired followers start with `xp: 0` and `xpNext: 20`, so progression is consistent from hire.
+  - core/dungeon/kill_enemy.js:
+    - Player XP:
+      - Only awarded when the last hit on an enemy was by the player (`_lastHit.by === "player"`), as before.
+    - Follower XP:
+      - When `_lastHit.isFollower` is true, the system now awards XP directly to the specific follower that landed the killing blow (no sharing).
+      - Follower XP increases by the enemy’s full `xp` value (default 5 if undefined).
+      - On level-up:
+        - `level += 1`
+        - `maxHp += 2`
+        - `hp` is set to the new `maxHp`
+        - `xpNext` is increased via a light curve (`xpNext = floor(xpNext * 1.25 + 5)`).
+        - A log line announces the level-up: “<name> reaches level N.”
+  - core/bridge/ui_orchestration.js and ui/components/follower_modal.js:
+    - Follower view models now include `xp` and `xpNext`.
+    - The follower modal shows a compact XP line under the stats:
+      - `XP: current / next`, updating as followers earn kills.
+
+- Followers: inn hiring and party visibility polish (Phase 1 completion)
+  - core/town/runtime.js and core/state/town/state.js:
+    - Town generation (`TownRuntime.generate`) now performs a ~25% chance gate to spawn a follower-for-hire NPC at the inn when:
+      - The town has a tavern/inn.
+      - The player’s follower count is below the cap (`config.followers.maxActive`, currently 3).
+      - No existing follower-for-hire is present.
+    - Town reloads (`TownState.applyState`) apply a smaller (~15%) chance to spawn a new follower-for-hire on re-entry, still respecting caps and uniqueness.
+  - core/town/runtime.js (interaction):
+    - Bumping/talking to a recruitable follower NPC at the inn offers to hire them for a fixed gold cost (default 80g).
+    - If the player accepts:
+      - Gold is deducted from the player inventory (kind \"gold\").
+      - `FollowersRuntime.hireFollowerFromArchetype` is called to add the follower to `player.followers`.
+      - The inn NPC is removed and occupancy updated.
+      - A success log line notes that the follower joins for 80g.
+    - If the player cannot afford the cost, the dialog clearly states the price and that they lack sufficient gold; no hire occurs.
+  - entities/player.js:
+    - New runs now start with 100 gold instead of 50 to make early inn hires realistically attainable.
+  - ui/components/character_modal.js:
+    - The Character Sheet now includes a “Party: N/3 followers” block:
+      - Shows total active followers vs. the cap from `config.followers.maxActive`.
+      - Lists each active follower with name, archetype role, level, and HP.
+      - Uses follower archetype names (e.g., Guard, Thief) and personalized follower names (e.g., “Sade the Thief”) for readability.
+
+- Followers: combat flavor and corpse attribution
+  - data/entities/followers.json:
+    - Guard and thief follower archetypes now define an optional `flavor` block:
+      - `critTaken`: short archetype-appropriate barks when the follower takes a critical hit.
+      - `critDealt`: barks when the follower lands a critical hit.
+      - `flee`: barks when the follower panics/flees at low HP.
+    - Example guard lines:
+      - critTaken: “Still standing!”, “You'll need more than that.”
+      - critDealt: “For the town!”, “Another one down.”
+      - flee: “Falling back!”, “I need to regroup!”
+    - Example thief lines:
+      - critTaken: “Ouch. That stung.”, “Not my best dodge.”
+      - critDealt: “Right between the ribs.”, “You didn't see that coming.”
+      - flee: “I'm not dying here today.”, “This is getting too hot.”
+  - core/followers_flavor.js:
+    - New helper module with:
+      - `logFollowerCritTaken(ctx, actor, loc, dmg)`
+      - `logFollowerCritDealt(ctx, actor, loc, dmg)`
+      - `logFollowerFlee(ctx, actor)`
+    - Each helper:
+      - Resolves the follower record and archetype for the actor.
+      - Pulls the appropriate `flavor.*` array from the follower def.
+      - Uses RNGUtils to pick a line with high but gated probability (tuned up for testing, can be lowered later).
+      - Applies a per-follower `_flavorCd` cooldown so the same follower does not spam lines.
+      - Logs lines at `"info"` level so they appear in the default log view.
+  - ai/ai.js and ai/town_combat.js:
+    - Dungeon/encounter:
+      - When a follower lands a crit as attacker, `logFollowerCritDealt` is called.
+      - When a follower takes a crit as defender, `logFollowerCritTaken` is called.
+      - When a follower enters low‑HP panic and would previously say “I don't want to die!”, `logFollowerFlee` is used instead of the generic line.
+    - Town combat:
+      - When defender is a follower and is critically hit, `logFollowerCritTaken` is invoked for town guard/bandit fights.
+  - services/flavor_service.js:
+    - `buildCorpseMeta(ctx, enemy, lastHit)` now resolves follower killers to their personalized names:
+      - If the killer is one of the player's followers (by id or name), `killedBy` is set to the follower’s `name` (e.g., “Sade the Thief”) instead of an internal id such as `guard_follower#1`.
+      - For follower kills, `lastHit.isFollower` prevents generic killerName heuristics from overriding the follower’s proper name.
+      - Resulting corpse lines read “Killed by Sade the Thief.” instead of “Killed by guard_follower#1.”
+
+- Docs:
+  - README.md:
+    - Updated key features to reflect the followers system, including:
+      - Named, data-driven followers with equipment, inventory, death drops, and basic follow/wait commands.
+      - Followers gaining injuries/scars and XP/levels over time through combat.
+      - Rare inn-based follower hiring for gold and party size caps.
+    - Region Map and corpse flavor descriptions now note that follower kills are attributed to the follower’s actual name in corpse descriptions.
+  - TODO.md:
+    - Followers section clarified to distinguish between completed work (identity, inspect panel, equipment, inventory, potion use, death drops, injuries, XP/leveling, basic follow/wait) and planned work (healer integration for follower injuries, richer follower AI and commands, party-wide formations).
 
 v1.62.0 — Infinite overworld runtime, Region Map ruins, and follower spawn fixes
 - World and overworld runtime:

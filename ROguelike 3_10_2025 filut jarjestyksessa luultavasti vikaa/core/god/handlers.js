@@ -49,6 +49,55 @@ export function install(getCtx) {
       if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
       const c = getCtx(); c.log("GOD: spawnStairsHere not available.", "warn");
     },
+    // Hire a specific follower archetype selected from the GOD panel chooser.
+    onGodHireFollower: (archId) => {
+      const c = getCtx();
+      try {
+        const id = String(archId || "").trim();
+        if (!id) {
+          c.log("GOD: No follower archetype selected.", "warn");
+          return;
+        }
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const defs = GD && Array.isArray(GD.followers) ? GD.followers : null;
+        if (!defs || !defs.length) {
+          c.log("GOD: No follower definitions loaded (GameData.followers is empty).", "warn");
+          return;
+        }
+        const def = defs.find(d => d && String(d.id) === id) || null;
+        if (!def) {
+          c.log(`GOD: Follower archetype '${id}' not found in GameData.followers.`, "warn");
+          return;
+        }
+        const FR = c.FollowersRuntime || (typeof window !== "undefined" ? window.FollowersRuntime : null);
+        const canHire = FR && typeof FR.canHireFollower === "function" ? FR.canHireFollower : null;
+        const hire = FR && typeof FR.hireFollowerFromArchetype === "function" ? FR.hireFollowerFromArchetype : null;
+        if (!hire) {
+          c.log("GOD: FollowersRuntime.hireFollowerFromArchetype not available.", "warn");
+          return;
+        }
+        if (canHire) {
+          const res = canHire(c, def.id);
+          if (!res || !res.ok) {
+            c.log(res && res.reason ? `GOD: Cannot hire follower: ${res.reason}` : "GOD: Cannot hire follower (cap or invalid).", "warn");
+            return;
+          }
+        }
+        const ok = hire(c, def.id);
+        if (!ok) {
+          c.log(`GOD: Failed to hire follower '${def.id}'.`, "warn");
+          return;
+        }
+        const label = def.name || def.id || "follower";
+        c.log(`[GOD] Hired follower archetype '${label}'.`, "good");
+        if (typeof c.updateUI === "function") c.updateUI();
+      } catch (e) {
+        try {
+          c.log("GOD: hire follower handler threw an error; see console for details.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
     // FOV/Grid
     onGodSetFov: (v) => {
       try {

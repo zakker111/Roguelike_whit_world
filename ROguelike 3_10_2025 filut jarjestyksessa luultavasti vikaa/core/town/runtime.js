@@ -45,10 +45,21 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
-      // Spawn recruitable follower NPCs in the inn (if present).
+      // Spawn recruitable follower NPCs in the inn (if present) with a modest rarity gate.
       try {
         if (typeof spawnInnFollowerHires === "function") {
-          spawnInnFollowerHires(ctx);
+          let rfn = null;
+          try {
+            if (typeof ctx.rng === "function") rfn = ctx.rng;
+            else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+              rfn = window.RNGUtils.getRng(undefined);
+            }
+          } catch (_) {}
+          const roll = typeof rfn === "function" ? rfn() : Math.random();
+          // ~25% chance per town generation when below cap.
+          if (roll < 0.25) {
+            spawnInnFollowerHires(ctx);
+          }
         }
       } catch (_) {}
 
@@ -86,7 +97,9 @@ export function spawnGateGreeters(ctx, count) {
 
 // Spawn a recruitable follower NPC inside the inn (tavern) when available.
 // Uses FollowersRuntime to pick a follower archetype and marks the NPC as a
-// hire candidate so bumping them opens the hire prompt.
+// hire candidate so bumping them opens the hire prompt. Offers are gated by
+// follower caps, tavern presence, and a separate rarity roll performed by
+// callers (TownRuntime.generate and TownState.load).
 function spawnInnFollowerHires(ctx) {
   try {
     if (!ctx || ctx.mode !== "town") return;
@@ -96,16 +109,41 @@ function spawnInnFollowerHires(ctx) {
       ctx.FollowersRuntime ||
       getMod(ctx, "FollowersRuntime") ||
       (typeof window !== "undefined" ? window.FollowersRuntime : null);
-    if (!FR || typeof FR.pickRandomFollowerArchetype !== "function") return;
+    if (!FR || typeof FR.pickRandomFollowerArchetype !== "function" || typeof FR.canHireFollower !== "function") {
+      return;
+    }
 
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
     // Avoid spawning multiple hire NPCs at once.
     const already = npcs.some(n => n && n._recruitCandidate && n._recruitFollowerId);
     if (already) return;
 
+    // Respect global follower cap: if we cannot hire any archetype at all, skip.
+    // Use a cheap check against one archetype later; here we just avoid work if
+    // player already has as many followers as allowed.
+    try {
+      const p = ctx.player;
+      if (p && Array.isArray(p.followers)) {
+        // If length equals or exceeds maxActive, canHireFollower will fail for any archetype.
+        const caps = typeof FR.getFollowersCaps === "function" ? FR.getFollowersCaps(ctx) : null;
+        const maxActive = caps && typeof caps.maxActive === "number" ? caps.maxActive | 0 : 3;
+        if (p.followers.length >= maxActive) return;
+      }
+    } catch (_) {}
+
+    // Caller has already applied a rarity gate. Here we only enforce caps and
+    // tavern presence; no additional randomness.
+    try {
+      // No-op; kept as a hook for future per-town tuning if needed.
+    } catch (_) {}
+
     // Pick a follower archetype that the player does not already have, if possible.
     const archetype = FR.pickRandomFollowerArchetype(ctx, { skipHired: true });
     if (!archetype || !archetype.id) return;
+
+    // Double-check that this archetype can be hired under caps.
+    const canCheck = FR.canHireFollower(ctx, archetype.id);
+    if (!canCheck || !canCheck.ok) return;
 
     const b = ctx.tavern.building;
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
@@ -247,7 +285,26 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
             return true;
           }
 
+          // Determine hire cost in gold; simple flat price for now.
+          const hirePrice = 80;
+          // Inspect player gold stack in inventory.
+          let goldObj = null;
+          let goldAmt = 0;
+          try {
+            const inv = (ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : [];
+            for (let i = 0; i < inv.length; i++) {
+              const it = inv[i];
+              if (it && it.kind === "gold") {
+                goldObj = it;
+                goldAmt = (typeof it.amount === "number") ? (it.amount | 0) : 0;
+                break;
+              }
+            }
+          } catch (_) {}
+          const canAfford = goldAmt >= hirePrice;
+
           let label = npc.name || "Follower";
+          let archetypeName = "";
           try {
             if (typeof FR.getFollowerArchetypes === "function") {
               const defs = FR.getFollowerArchetypes(ctx) || [];
@@ -255,16 +312,39 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
                 const d = defs[i];
                 if (!d || !d.id) continue;
                 if (String(d.id) === archetypeId) {
-                  label = d.name || label;
+                  archetypeName = d.name || "";
                   break;
                 }
               }
             }
           } catch (_) {}
+          if (!label && archetypeName) label = archetypeName;
 
-          const prompt = `${label}: "I can travel with you, if you'll have me."`;
+          const priceStr = `${hirePrice} gold`;
+          const prompt = canAfford
+            ? `${label}: "I can travel with you for ${priceStr}, if you'll have me."`
+            : `${label}: "I'd ask for ${priceStr}, but you don't seem to have that right now."`;
+
           const onOk = () => {
             try {
+              if (!canAfford) {
+                if (ctx.log) ctx.log("You don't have enough gold to hire them.", "warn");
+                return;
+              }
+              // Re-check caps before finalizing, in case something changed since prompt.
+              const freshCheck = FR.canHireFollower(ctx, archetypeId);
+              if (!freshCheck || !freshCheck.ok) {
+                if (ctx.log && freshCheck && freshCheck.reason) ctx.log(freshCheck.reason, "info");
+                return;
+              }
+              // Ensure a gold stack exists.
+              if (!goldObj) {
+                const inv = (ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : (ctx.player.inventory = []);
+                goldObj = { kind: "gold", amount: 0, name: "gold" };
+                inv.push(goldObj);
+              }
+              goldObj.amount = (goldObj.amount | 0) - hirePrice;
+
               const ok = FR.hireFollowerFromArchetype(ctx, archetypeId);
               if (ok) {
                 // Remove this hire NPC from town after they agree to join.
@@ -282,11 +362,12 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
                   }
                 } catch (_) {}
                 if (ctx.log) {
-                  ctx.log(`${label} heads out to accompany you on your travels.`, "info");
+                  ctx.log(`${label} agrees to join you for ${priceStr}.`, "good");
                 }
               } else if (ctx.log) {
                 ctx.log("They cannot join you right now.", "info");
               }
+              try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
             } catch (_) {}
           };
           const onCancel = () => {
@@ -1041,7 +1122,20 @@ export function startBanditsAtGateEvent(ctx) {
 }
 
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy, startBanditsAtGateEvent };
+  window.TownRuntime = {
+    generate,
+    ensureSpawnClear,
+    spawnGateGreeters,
+    isFreeTownFloor,
+    talk,
+    tryMoveTown,
+    tick,
+    returnToWorldIfAtGate,
+    applyLeaveSync,
+    rebuildOccupancy,
+    startBanditsAtGateEvent,
+    spawnInnFollowerHires,
+  };
 }
 
 // Back-compat: tick implementation (retained)

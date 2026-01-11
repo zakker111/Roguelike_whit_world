@@ -138,6 +138,108 @@ export function init(UI) {
     if (typeof UI.handlers.onGodSpawnStairs === "function") UI.handlers.onGodSpawnStairs();
   });
 
+  // Small chooser for hiring a follower archetype from followers.json.
+  const hireFollowerBtn = byId("god-hire-follower-btn");
+  if (hireFollowerBtn) {
+    let hireMenuEl = null;
+
+    function closeHireMenu() {
+      if (hireMenuEl && hireMenuEl.parentNode) {
+        hireMenuEl.parentNode.removeChild(hireMenuEl);
+      }
+      hireMenuEl = null;
+    }
+
+    function openHireMenu() {
+      closeHireMenu();
+      const rect = hireFollowerBtn.getBoundingClientRect();
+      const menu = document.createElement("div");
+      menu.id = "god-hire-follower-menu";
+      menu.style.position = "fixed";
+      menu.style.left = `${Math.round(rect.left)}px`;
+      menu.style.top = `${Math.round(rect.bottom + 4)}px`;
+      menu.style.zIndex = "32000";
+      menu.style.background = "#020617";
+      menu.style.border = "1px solid #334155";
+      menu.style.borderRadius = "6px";
+      menu.style.padding = "6px 6px";
+      menu.style.minWidth = "210px";
+      menu.style.boxShadow = "0 10px 25px rgba(0,0,0,0.6)";
+
+      let followers = [];
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const defs = GD && Array.isArray(GD.followers) ? GD.followers : null;
+        if (defs && defs.length) followers = defs;
+      } catch (_) {}
+
+      if (!followers.length) {
+        const msg = document.createElement("div");
+        msg.textContent = "No follower definitions loaded.";
+        msg.style.fontSize = "12px";
+        msg.style.color = "#e5e7eb";
+        msg.style.padding = "4px 6px";
+        menu.appendChild(msg);
+      } else {
+        followers.forEach((def) => {
+          if (!def || !def.id) return;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const label = def.name || def.id;
+          btn.textContent = label;
+          btn.style.display = "block";
+          btn.style.width = "100%";
+          btn.style.textAlign = "left";
+          btn.style.padding = "4px 8px";
+          btn.style.margin = "2px 0";
+          btn.style.fontSize = "12px";
+          btn.style.borderRadius = "4px";
+          btn.style.border = "1px solid #1e293b";
+          btn.style.background = "#0b1120";
+          btn.style.color = "#e5e7eb";
+          btn.style.cursor = "pointer";
+          btn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            closeHireMenu();
+            if (typeof UI.handlers.onGodHireFollower === "function") {
+              UI.handlers.onGodHireFollower(def.id);
+            }
+          });
+          btn.addEventListener("mouseenter", () => {
+            btn.style.background = "#111827";
+          });
+          btn.addEventListener("mouseleave", () => {
+            btn.style.background = "#0b1120";
+          });
+          menu.appendChild(btn);
+        });
+      }
+
+      document.body.appendChild(menu);
+      hireMenuEl = menu;
+
+      // Close when clicking outside
+      setTimeout(() => {
+        function onDocClick(ev) {
+          if (!hireMenuEl) {
+            document.removeEventListener("click", onDocClick);
+            return;
+          }
+          if (ev.target === hireFollowerBtn || hireMenuEl.contains(ev.target)) return;
+          closeHireMenu();
+          document.removeEventListener("click", onDocClick);
+        }
+        document.addEventListener("click", onDocClick);
+      }, 0);
+    }
+
+    hireFollowerBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (hireMenuEl) closeHireMenu();
+      else openHireMenu();
+    });
+  }
+
   // Status effect test buttons
   const applyBleedBtn = byId("god-apply-bleed-btn");
   applyBleedBtn?.addEventListener("click", () => {

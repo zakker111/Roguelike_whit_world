@@ -26,6 +26,7 @@
  */
 
 import { getTileDef } from "../data/tile_lookup.js";
+import { logFollowerCritTaken, logFollowerCritDealt, logFollowerFlee } from "../core/followers_flavor.js";
 
 // Reusable direction arrays to avoid per-tick allocations
 const ALT_DIRS = Object.freeze([{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]);
@@ -274,6 +275,12 @@ export function enemiesAct(ctx) {
 
   for (const e of enemies) {
     const eFac = factionOf(e);
+    // Cool down follower flavor barks so they don't spam logs.
+    try {
+      if (e && e._isFollower && typeof e._flavorCd === "number" && e._flavorCd > 0) {
+        e._flavorCd -= 1;
+      }
+    } catch (_) {}
     const isFollower = !!(e && e._isFollower);
     const mode = (isFollower && typeof e._followerMode === "string") ? e._followerMode : "follow";
     const isWaiting = isFollower && mode === "wait";
@@ -415,7 +422,13 @@ export function enemiesAct(ctx) {
         // Animals should not speak; suppress panic lines for animal factions
         const fac = factionOf(e);
         if (fac !== "animal" && fac !== "animal_hostile") {
-          try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+          try {
+            if (e._isFollower) {
+              logFollowerFlee(ctx, e);
+            } else {
+              ctx.log("I don't want to die!", "flavor");
+            }
+          } catch (_) {}
         }
         e._panicYellCd = 6;
       }
@@ -753,6 +766,61 @@ export function enemiesAct(ctx) {
             }
           } catch (_) {}
 
+          // Persistent injuries/scars for followers when they take significant hits, mirroring the
+          // player's injury system but applied to follower records.
+          try {
+            if (target.ref && target.ref._isFollower && ctx && ctx.player && Array.isArray(ctx.player.followers)) {
+              const followers = ctx.player.followers;
+              const fid = target.ref._followerId != null
+                ? String(target.ref._followerId)
+                : String(target.ref.type || target.ref.id || "");
+              let rec = null;
+              for (let i = 0; i < followers.length; i++) {
+                const f = followers[i];
+                if (!f) continue;
+                if (String(f.id || "") === fid) {
+                  rec = f;
+                  break;
+                }
+              }
+              if (rec) {
+                if (!Array.isArray(rec.injuries)) rec.injuries = [];
+                const injuries = rec.injuries;
+                const addInjuryFollower = (name, opts) => {
+                  if (!name) return;
+                  const exists = injuries.some(it =>
+                    typeof it === "string" ? it === name : it && it.name === name
+                  );
+                  if (exists) return;
+                  const healable = !opts || opts.healable !== false;
+                  const durationTurns = healable
+                    ? Math.max(10, (opts && opts.durationTurns) | 0)
+                    : 0;
+                  injuries.push({ name, healable, durationTurns });
+                  if (injuries.length > 24) injuries.splice(0, injuries.length - 24);
+                  try {
+                    const label = rec.name || target.ref.name || "Your follower";
+                    ctx.log && ctx.log(`${label} suffers ${name}.`, "warn");
+                  } catch (_) {}
+                };
+                const rInj = rv();
+                if (loc.part === "hands") {
+                  if (isCrit && rInj < 0.08) addInjuryFollower("missing finger", { healable: false, durationTurns: 0 });
+                  else if (rInj < 0.20) addInjuryFollower("bruised knuckles", { healable: true, durationTurns: 30 });
+                } else if (loc.part === "legs") {
+                  if (isCrit && rInj < 0.10) addInjuryFollower("sprained ankle", { healable: true, durationTurns: 80 });
+                  else if (rInj < 0.25) addInjuryFollower("bruised leg", { healable: true, durationTurns: 40 });
+                } else if (loc.part === "head") {
+                  if (isCrit && rInj < 0.12) addInjuryFollower("facial scar", { healable: false, durationTurns: 0 });
+                  else if (rInj < 0.20) addInjuryFollower("black eye", { healable: true, durationTurns: 60 });
+                } else if (loc.part === "torso") {
+                  if (isCrit && rInj < 0.10) addInjuryFollower("deep scar", { healable: false, durationTurns: 0 });
+                  else if (rInj < 0.22) addInjuryFollower("rib bruise", { healable: true, durationTurns: 50 });
+                }
+              }
+            }
+          } catch (_) {}
+
           // Record last hit so death flavor can attribute killer, hit location, and likely weapon
           try {
             const killerType = String(e.type || "enemy");
@@ -865,15 +933,16 @@ export function enemiesAct(ctx) {
 
             const viaStr = weapName ? `with ${weapName}` : "melee";
             const killerDisplayName = e.name || Cap(e.type || "enemy");
+            const isFollowerKiller = !!(e && e._isFollower);
             target.ref._lastHit = {
-              by: killerType,
+              by: isFollowerKiller ? "follower" : killerType,
               part: loc.part,
               crit: isCrit,
               dmg,
               weapon: weapName,
               via: viaStr,
-              killerName: killerDisplayName,
-              isFollower: !!(e && e._isFollower)
+              killerName: isFollowerKiller ? (e._followerId || killerDisplayName) : killerDisplayName,
+              isFollower: isFollowerKiller
             };
           } catch (_) {}
 
@@ -899,6 +968,15 @@ export function enemiesAct(ctx) {
                 "info",
                 { category: "Combat", side: "enemy" }
               );
+            }
+          } catch (_) {}
+          // Follower-specific flavor when they land or receive critical hits.
+          try {
+            if (e && e._isFollower && isCrit) {
+              logFollowerCritDealt(ctx, e, loc, dmg);
+            }
+            if (target.ref && target.ref._isFollower && isCrit) {
+              logFollowerCritTaken(ctx, target.ref, loc, dmg);
             }
           } catch (_) {}
           if (target.ref.hp <= 0 && typeof ctx.onEnemyDied === "function") {

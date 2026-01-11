@@ -28,6 +28,9 @@ export function tick(ctx) {
   // Injury healing: healable injuries tick down and disappear when reaching 0
   try {
     const player = ctx.player || null;
+    let anyChanged = false;
+
+    // Player injuries
     if (player && Array.isArray(player.injuries) && player.injuries.length) {
       let changed = false;
       player.injuries = player.injuries.map((inj) => {
@@ -44,9 +47,34 @@ export function tick(ctx) {
         }
         return (inj.healable && inj.durationTurns <= 0) ? null : inj;
       }).filter(Boolean);
-      if (changed) {
-        try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+      if (changed) anyChanged = true;
+    }
+
+    // Follower injuries (mirror player injury behavior on their records)
+    if (player && Array.isArray(player.followers) && player.followers.length) {
+      for (let i = 0; i < player.followers.length; i++) {
+        const f = player.followers[i];
+        if (!f || !Array.isArray(f.injuries) || !f.injuries.length) continue;
+        let changedF = false;
+        f.injuries = f.injuries.map((inj) => {
+          if (!inj) return null;
+          if (typeof inj === "string") {
+            const name = inj;
+            const permanent = /scar|missing finger/i.test(name);
+            return { name, healable: !permanent, durationTurns: permanent ? 0 : 40 };
+          }
+          if (inj.healable && (inj.durationTurns | 0) > 0) {
+            inj.durationTurns = (inj.durationTurns | 0) - 1;
+            changedF = true;
+          }
+          return (inj.healable && inj.durationTurns <= 0) ? null : inj;
+        }).filter(Boolean);
+        if (changedF) anyChanged = true;
       }
+    }
+
+    if (anyChanged) {
+      try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
     }
   } catch (_) {}
 
