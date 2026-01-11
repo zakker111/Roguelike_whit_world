@@ -162,6 +162,11 @@ Key features at a glance
   - Two-handed items occupy both hands; unequipping one removes both.
   - One-handed items auto-equip to the empty hand or can be equipped explicitly left/right.
   - Decay increases through combat; breakage is supported.
+- Followers (experimental but fully playable):
+  - Data-driven follower archetypes (`followers.json`) with unique names, traits, and preferred gear (e.g., Guard Ally, Thief Ally).
+  - Followers can be hired rarely at inns for gold, travel with you into dungeons, encounters, Region Map, and towns, and can die permanently.
+  - Each follower has their own inventory, equipment, injuries/scars, and XP/level progression; they gain experience only when they land killing blows.
+  - Simple follow/wait modes and a party summary in the Character Sheet (“Party: N/3 followers”), plus follower inspect panels for gear/injury management.
 - Towns with shops and NPCs; Seppo spawns at most once at a time.
 - Lighting from props:
   - Town: lamps and fireplaces emit light at night/dawn/dusk; small warm glow overlay.
