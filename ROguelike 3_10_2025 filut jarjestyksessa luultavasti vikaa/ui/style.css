@@ -305,6 +305,18 @@ html, body {
   color: var(--accent);
 }
 
+/* Buffed items: subtle visual indicator without cluttering the main label */
+.inv-list li.has-buffs::after {
+  content: " *";
+  color: #ffd700;
+  font-weight: 500;
+}
+
+/* Equipped items with buffs: highlight the item name */
+.slot .name.has-buffs {
+  color: #ffd700;
+}
+
 /* Make GOD panel scrollable on constrained viewports */
 #god-panel {
   max-height: 80vh;
