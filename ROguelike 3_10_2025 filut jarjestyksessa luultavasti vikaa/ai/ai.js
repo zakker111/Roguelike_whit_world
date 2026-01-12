@@ -27,6 +27,7 @@
 
 import { getTileDef } from "../data/tile_lookup.js";
 import { logFollowerCritTaken, logFollowerCritDealt, logFollowerFlee } from "../core/followers_flavor.js";
+import { incrementSeenLifeUseForArmorSlot } from "../combat/item_buffs.js";
 
 // Reusable direction arrays to avoid per-tick allocations
 const ALT_DIRS = Object.freeze([{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]);
@@ -663,6 +664,8 @@ export function enemiesAct(ctx) {
         else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
         else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
         ctx.decayEquipped(loc.part, wear * critWear);
+        // Track armor usage for Seen life buff when the player is hit.
+        incrementSeenLifeUseForArmorSlot(ctx, loc.part);
 
         // Persistent injury tracker (cosmetic role; shown in Character Sheet via F1)
         try {

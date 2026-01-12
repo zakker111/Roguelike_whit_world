@@ -288,6 +288,12 @@ html, body {
   color: var(--muted);
 }
 
+/* Buff tag styling */
+.seen-life-tag {
+  color: #facc15; /* golden */
+  font-weight: 500;
+}
+
 .inv-list {
   margin: 0;
   padding-left: 18px;

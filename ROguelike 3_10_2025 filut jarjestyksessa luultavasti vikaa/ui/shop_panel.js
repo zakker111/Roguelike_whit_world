@@ -123,11 +123,17 @@ function render(ctx) {
     } else {
       try {
         listDiv.innerHTML = '<div style="margin:4px 0 6px 0;color:#e2e8f0;">Items for sale</div>' + _stock.map(function (row, idx) {
-          const name = (ctx.describeItem
+          const baseName = (ctx.describeItem
             ? ctx.describeItem(row.item)
             : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
                 ? window.ItemDescribe.describe(row.item)
                 : (row.item && row.item.name) || "item"));
+          let name = baseName;
+          try {
+            if (row.item && row.item.buffs && row.item.buffs.seenLife) {
+              name = baseName + ' <span class="seen-life-tag">(Seen life)</span>';
+            }
+          } catch (_) {}
           const p = row.price | 0;
           const q = row.qty | 0;
           const disabled = q <= 0 ? 'disabled style="padding:4px 8px;background:#3b4557;color:#9aa3af;border:1px solid #4b5563;border-radius:4px;cursor:not-allowed;"' : 'style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;"';
@@ -158,11 +164,17 @@ function render(ctx) {
     } else {
       try {
         sellDiv.innerHTML = '<div style="margin:8px 0 6px 0;color:#e2e8f0;">Sell from your inventory</div>' + sellables.map(function (row) {
-          const name = (ctx.describeItem
+          const baseName = (ctx.describeItem
             ? ctx.describeItem(row.item)
             : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
                 ? window.ItemDescribe.describe(row.item)
                 : (row.item && row.item.name) || "item"));
+          let name = baseName;
+          try {
+            if (row.item && row.item.buffs && row.item.buffs.seenLife) {
+              name = baseName + ' <span class="seen-life-tag">(Seen life)</span>';
+            }
+          } catch (_) {}
           const p = row.price | 0;
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
                  '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
