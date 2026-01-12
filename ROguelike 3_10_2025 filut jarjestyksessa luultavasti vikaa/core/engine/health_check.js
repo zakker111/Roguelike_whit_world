@@ -196,16 +196,6 @@ export function runHealthCheck(getCtxFn) {
     if (validationProblem) problems.push(validationProblem);
   } catch (_) {}
 
-  // Self-test: always inject a visible failing entry so that the health check
-  // UI can be verified even when all real modules/data are OK. This does not
-  // affect gameplay; it is only a diagnostic log entry.
-  problems.push({
-    severity: "error",
-    code: "health:selftest",
-    label: "Health self-test",
-    message: "FAILED (intentional entry; remove after verifying health check UI).",
-  });
-
   const errors = problems.filter(p => p && p.severity === "error").length;
   const warns = problems.filter(p => p && p.severity === "warn").length;
   const summaryType = errors ? "bad" : (warns ? "warn" : "good");

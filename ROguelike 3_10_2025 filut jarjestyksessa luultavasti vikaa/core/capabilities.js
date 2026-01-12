@@ -176,7 +176,7 @@ try {
     id: "RNG",
     label: "RNG Service",
     modName: "RNG",
-    // Mark as required and list all exported functions so the health check\n    // will fail if the RNG service is not attached to window.\n    required: true,
+    required: true,
     requiredFns: ["init", "applySeed", "autoInit", "rng", "int", "float", "chance", "getSeed"],
     notes: "Core RNG service; required for deterministic gameplay.",
   });
@@ -195,17 +195,6 @@ try {
     required: false,
     requiredFns: ["getInventoryForShop", "buyItem", "sellItem"],
     notes: "Shop inventories and prices; missing data may lead to empty shops.",
-  });
-  // Intentional failing module for testing HealthCheck behavior.
-  // There is no TestMissingModule in ctx or window, so the health report
-  // will always log this as FAILED without affecting gameplay.
-  registerModuleHealth({
-    id: "HealthTestMissingModule",
-    label: "Test module (intentional fail)",
-    modName: "TestMissingModule",
-    required: true,
-    requiredFns: ["init"],
-    notes: "Deliberately missing module to verify HealthCheck boot report.",
   });
 } catch (_) {}
 
