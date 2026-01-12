@@ -621,7 +621,7 @@ export function spawnInTown(ctx) {
         ctx.log &&
           ctx.log(
             "No active followers available to accompany you in town.",
-            "info"
+            "notice"
           );
       } catch (_) {}
       return;
