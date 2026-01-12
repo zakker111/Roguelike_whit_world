@@ -15,6 +15,7 @@
  */
 
 import { getRNGUtils, getMod } from "../utils/access.js";
+import { incrementSeenLifeUse } from "./item_buffs.js";
 function round1(ctx, n) {
   if (ctx && ctx.utils && typeof ctx.utils.round1 === "function") return ctx.utils.round1(n);
   return Math.round(n * 10) / 10;
@@ -403,6 +404,23 @@ export function playerAttackEnemy(ctx, enemy) {
     if (cat.twoHanded) p.skills.twoHand += 1;
     else p.skills.oneHand += 1;
     if (cat.blunt) p.skills.blunt += 1;
+  } catch (_) {}
+
+  // Seen life weapon buff: track uses for equipped weapons.
+  try {
+    const p = ctx.player || null;
+    const eq = p && p.equipment ? p.equipment : null;
+    if (eq) {
+      const seenItems = new Set();
+      const slots = ["left", "right", "hands"];
+      for (let i = 0; i < slots.length; i++) {
+        const it = eq[slots[i]];
+        if (!it || typeof it.atk !== "number") continue;
+        if (seenItems.has(it)) continue;
+        seenItems.add(it);
+        incrementSeenLifeUse(ctx, it, "weapon");
+      }
+    }
   } catch (_) {}
 
   // Decay hands after attack
