@@ -2,8 +2,10 @@
  * ItemBuffs: helpers for permanent equipment buffs/affixes.
  *
  * Currently implemented:
- * - Seen Life: small atk/def buff for weapons and def buff for armor,
- *   applied once per item after a usage threshold.
+ * - Seen Life:
+ *   - Weapons (hand slot): small permanent attack buff only.
+ *   - Armor (head/torso/legs/hands, including shields): permanent defense buff only.
+ *   Applied once per item after a usage threshold.
  *
  * Exports (ESM + window.ItemBuffs):
  * - SEEN_LIFE_HIT_THRESHOLD: number (testing threshold; can be raised later)
@@ -52,8 +54,8 @@ export function hasSeenLife(item) {
 /**
  * Apply the Seen Life buff to an item in-place.
  *
- * - Weapons (slot \"hand\"): gain def and a small atk bonus.
- * - Armor (head/torso/legs/hands): gain def only.
+ * - Weapons (slot "hand"): gain a small permanent attack bonus only.
+ * - Armor (head/torso/legs/hands, including shields): gain permanent defense only.
  *
  * randFloat(min,max,decimals) is preferred for determinism; when absent,
  * a deterministic midpoint is used instead of Math.random.
@@ -73,17 +75,19 @@ export function applySeenLife(item, opts = {}) {
   const isWeapon = opts.isWeapon != null ? !!opts.isWeapon : isWeaponSlot;
   const randFloat = opts.randFloat;
 
-  // Defense bonus for both weapons and armor.
-  const defBonus = pickInRange(randFloat, 0.3, 0.5, 1);
-  // Small attack bonus for weapons only.
+  // Defense bonus only for armor slots (including shields in "hands").
+  const defBonus = isArmorSlot ? pickInRange(randFloat, 0.3, 0.5, 1) : 0;
+  // Small attack bonus only for weapons.
   const atkBonus = isWeapon ? pickInRange(randFloat, 0.1, 0.2, 1) : 0;
 
-  const res = { applied: false, defBonus, atkBonus: isWeapon ? atkBonus : 0 };
+  const res = { applied: false, defBonus, atkBonus };
 
-  const baseDef = typeof item.def === "number" ? item.def : 0;
-  item.def = round1(baseDef + defBonus);
+  if (defBonus > 0) {
+    const baseDef = typeof item.def === "number" ? item.def : 0;
+    item.def = round1(baseDef + defBonus);
+  }
 
-  if (isWeapon && atkBonus > 0) {
+  if (atkBonus > 0) {
     const baseAtk = typeof item.atk === "number" ? item.atk : 0;
     item.atk = round1(baseAtk + atkBonus);
   }
@@ -91,8 +95,8 @@ export function applySeenLife(item, opts = {}) {
   item.buffs = Array.isArray(item.buffs) ? item.buffs : [];
   item.buffs.push({
     id: SEEN_LIFE_ID,
-    defBonus,
-    atkBonus: isWeapon ? atkBonus : undefined,
+    defBonus: defBonus || undefined,
+    atkBonus: atkBonus || undefined,
   });
 
   res.applied = true;
