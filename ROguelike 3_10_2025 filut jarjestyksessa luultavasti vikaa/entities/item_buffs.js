@@ -138,8 +138,9 @@ export function trackHitAndMaybeApplySeenLife(ctx, item, opts = {}) {
     if (ctx && typeof ctx.log === "function") {
       const baseName = item.name || (isWeapon ? "weapon" : "armor");
       const name = String(baseName);
-      ctx.log(`Your ${name} has Seen Life and grows stronger.`, "info", {
-        category: "Buff",
+      // Use a \"golden\" tone (warn) so Seen Life and future buff logs stand out consistently.
+      ctx.log(`Your ${name} has Seen Life and grows stronger.`, "warn", {
+        category: "buff",
         side: "player",
       });
     }
