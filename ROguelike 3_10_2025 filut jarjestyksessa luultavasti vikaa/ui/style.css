@@ -312,11 +312,6 @@ html, body {
   font-weight: 500;
 }
 
-/* Equipped items with buffs: highlight the item name */
-.slot .name.has-buffs {
-  color: #ffd700;
-}
-
 /* Make GOD panel scrollable on constrained viewports */
 #god-panel {
   max-height: 80vh;
