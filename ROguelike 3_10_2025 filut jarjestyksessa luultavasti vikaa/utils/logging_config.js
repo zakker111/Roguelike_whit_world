@@ -155,6 +155,9 @@ export const LogConfig = {
       if (s.includes("smoke")) return "Smoketest";
       if (s.includes("rng")) return "RNG";
       if (s.includes("service")) return "Services";
+
+      // Buff-related messages: treat as Buff category so they can share golden styling.
+      if (s.includes("seen life") || s.startsWith("buff:") || s.includes(" buff ")) return "Buff";
     } catch (_) {}
 
     // 4) Default
