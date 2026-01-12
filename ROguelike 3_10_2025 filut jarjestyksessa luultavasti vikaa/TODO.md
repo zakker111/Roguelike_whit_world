@@ -164,6 +164,57 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Provide GOD/debug commands to force-apply or inspect buffs on items for testing.
     - Add smoke tests or small targeted tests around item generation, buff application, and save/load to ensure buffs behave deterministically and don’t corrupt equipment state.
 
+- [ ] Centralized equipment repair system (future-proof, multiple repair methods)
+  - Add a small `RepairService` that becomes the single place to calculate how much decay can be removed from an item given some resources:
+    - Inputs: `item` (equip with decay 0–100), `source` (e.g., \"blacksmith\", \"kit\", \"spell\"), and an `offer` object (gold offered, kit power, etc.), plus optional `ctx`/player for skills/buffs.
+    - Output: a `repairResult` describing:
+      - `repairPercent` (how many decay percentage points can be removed),
+      - `newDecay` (what decay would be after repair),
+      - `goldCost` and/or `materialsUsed`,
+      - whether we hit full repair before using the full offer (`capped`).
+  - Blacksmith repair as the first source:
+    - Source: `\"blacksmith\"`.
+    - Offer: `goldOffered`.
+    - Cost rule (tunable, stored in config later):
+      - Cost per 1% fixed scales by tier (e.g., tier1=1g, tier2=2g, tier3=4g per 1% decay repaired, adjusted over time).
+      - Compute:
+        - `maxRepairable = item.decay`,
+        - `affordablePercent = floor(goldOffered / costPerPercent)`,
+        - `repairPercent = min(maxRepairable, affordablePercent)`,
+        - `goldCost = repairPercent * costPerPercent`,
+        - `newDecay = item.decay - repairPercent`.
+      - Never overcharge: if the player offers more gold than needed, only charge up to `goldCost` for a full repair and cap at `newDecay = 0`.
+    - Blacksmith UI integration:
+      - Restrict repairs to blacksmith shop pages only: bumping the blacksmith opens their shop, with a **Trade** vs **Repair** toggle.
+      - In **Repair** mode:
+        - Show all eligible equipment items (equipped and optionally inventory) with `0 < decay < 100`.
+        - For each item, display its name (with buff marker if it has Seen Life), current decay, and an input for \"gold to spend\".
+        - Use `RepairService` to preview how much decay that gold can fix and what the new decay would be.
+        - Confirming the repair deducts `goldCost`, sets `item.decay = newDecay`, and shows a player-facing log (e.g., \"Your [item] is repaired to near-new condition.\").
+  - Future repair methods that can plug into the same service:
+    - Repair kits:
+      - `source = \"kit\"`, `offer = { kitPower }` (e.g., fixed 20% or 40% decay reduction).
+      - Engine: `repairPercent = min(item.decay, kitPower)`, `goldCost = 0`, `materialsUsed = [kitItemId]`.
+    - Magic/ritual repairs:
+      - `source = \"spell\"` or `\"ritual\"`, `offer = { spellPower, components }`.
+      - Perform repairs without gold but maybe consume rare materials or reagents.
+    - Buff interactions:
+      - Buffs like \"Unbreaking\" can:
+        - Lower `costPerPercent` for blacksmith repairs, or
+        - Reduce future decay rate handled elsewhere in decay code.
+      - Cursed items might:
+        - Be unrepairable, or
+        - Cost extra to repair, enforced via `RepairService` after checking `item.buffs`.
+  - Data-driven configuration (later):
+    - Move cost and behavior into a small config file (e.g., `data/config/repair.json`):
+      - `baseCostPerPercentByTier`, type modifiers (weapon/armor/shield), and minimum cost per repair.
+      - Kit definitions (small/medium/large repairs), and any special casing for spells/NPC events.
+    - `RepairService` reads these values so balancing repair becomes mostly data work.
+  - Safety and persistence:
+    - Repair functions must only modify `item.decay` and resource counts (gold/materials); do not touch buffs or other stats.
+    - Ensure `decay` is always clamped to [0,100] after repair.
+    - Because decay is already part of the save format, repairs automatically persist with no new fields required.
+
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:
     - A fairly large, open map (big enough to host any prefab layout from towers/towns and generic dungeon rooms).
