@@ -12,6 +12,7 @@
  */
 
 import { getRNGUtils, getMod } from "../utils/access.js";
+import { incrementSeenLifeUseForArmorSlot } from "../combat/item_buffs.js";
 
 // Local RNG helper (mirrors rngFor in town_ai.js)
 function rngFor(ctx) {
@@ -271,7 +272,9 @@ function banditAttackPlayer(ctx, attacker) {
       } catch (_) {}
       try {
         if (typeof ctx.decayEquipped === "function") {
-          ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
+          ctx.decayEquipped(loc.part, wear * critWear);
+          // Track armor usage for Seen life buff when the player is hit in town combat.
+          incrementSeenLifeUseForArmorSlot(ctx, loc.part);
         }
       } catch (_) {}
       return;

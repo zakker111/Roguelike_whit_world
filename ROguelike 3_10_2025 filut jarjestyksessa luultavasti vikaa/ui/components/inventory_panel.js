@@ -134,10 +134,17 @@ export function render(player, describeItem) {
     const html = slots.map(([key, label]) => {
       const it = player.equipment[key];
       if (it) {
-        const name = (typeof describeItem === "function") ? describeItem(it)
+        const baseName = (typeof describeItem === "function") ? describeItem(it)
           : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
               ? window.ItemDescribe.describe(it)
               : (it.name || "item"));
+        let name = baseName;
+        // Highlight Seen life buff in equipment slots.
+        try {
+          if (it.buffs && it.buffs.seenLife) {
+            name = `${baseName} <span class="seen-life-tag">(Seen life)</span>`;
+          }
+        } catch (_) {}
         const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
         const title = `Decay: ${dec.toFixed(0)}%`;
         return `<div class="slot"><strong>${label}:</strong> <span class="name" data-slot="${key}" title="${title}" style="cursor:pointer; text-decoration:underline dotted;">${name}</span></div>`;
@@ -204,6 +211,13 @@ export function render(player, describeItem) {
           label = `${baseLabel}${suffix}`;
         }
 
+        // Decorate Seen life buff in inventory list.
+        try {
+          if (it.buffs && it.buffs.seenLife) {
+            label = `${label} <span class="seen-life-tag">(Seen life)</span>`;
+          }
+        } catch (_) {}
+
         if (it.kind === "equip" && it.slot === "hand") {
           li.dataset.slot = "hand";
           const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
@@ -247,7 +261,7 @@ export function render(player, describeItem) {
           li.style.cursor = "default";
         }
 
-        li.textContent = label;
+        li.innerHTML = label;
         listEl.appendChild(li);
       });
       render._lastInvListKey = key;
