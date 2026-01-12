@@ -19,9 +19,13 @@ import { attachGlobal } from "../utils/global.js";
 
 const SEEN_LIFE_ID = "seen_life";
 
-// Testing threshold: apply Seen Life after the first qualifying hit.
-// When ready for production, this can be raised (e.g., to 100).
-export const SEEN_LIFE_HIT_THRESHOLD = 1;
+// Threshold: number of relevant hits before a Seen Life roll is allowed.
+// For testing, this was 1; for real use, we now require 100 uses.
+export const SEEN_LIFE_HIT_THRESHOLD = 100;
+
+// Per-item chance to gain Seen Life once the threshold is reached.
+// This is intentionally small so not every item will awaken.
+const SEEN_LIFE_PROC_CHANCE = 0.05;
 
 // Armor slots that can receive Seen Life from being hit.
 const ARMOR_SLOTS = new Set(["head", "torso", "legs", "hands"]);
@@ -124,11 +128,31 @@ export function trackHitAndMaybeApplySeenLife(ctx, item, opts = {}) {
   const next = prev + 1;
   item[counterKey] = next;
 
+  // Only consider granting Seen Life once per item.
   if (item.seenLifeRollUsed) return false;
+  // Not enough usage yet: keep counting.
   if (next < SEEN_LIFE_HIT_THRESHOLD) return false;
 
+  // We've reached the threshold: this item gets exactly one roll.
   item.seenLifeRollUsed = true;
   if (hasSeenLife(item)) return false;
+
+  // Small per-item chance once threshold is reached.
+  let proc = false;
+  try {
+    // Prefer ctx.utils.chance when available (deterministic, RNGUtils-backed).
+    if (ctx && ctx.utils && typeof ctx.utils.chance === "function") {
+      proc = ctx.utils.chance(SEEN_LIFE_PROC_CHANCE);
+    } else {
+      // Fallback to RNGUtils.chance if RNG service is present.
+      const RU = (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rng = ctx && typeof ctx.rng === "function" ? ctx.rng : null;
+      if (RU && typeof RU.chance === "function") {
+        proc = RU.chance(SEEN_LIFE_PROC_CHANCE, rng || undefined);
+      }
+    }
+  } catch (_) {}
+  if (!proc) return false;
 
   const randFloat = typeof opts.randFloat === "function" ? opts.randFloat : null;
   const result = applySeenLife(item, { isWeapon, randFloat });
