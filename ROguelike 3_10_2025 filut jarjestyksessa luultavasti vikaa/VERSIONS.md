@@ -1,5 +1,67 @@
 # Game Version History
-Last updated: 2026-01-11 20:15 UTC
+Last updated: 2026-01-12 21:00 UTC
+
+v1.64.0 — Health check, Seen Life equipment buff, and follower UX polish
+
+- Health check and capabilities registry:
+  - core/capabilities.js:
+    - Added `registerModuleHealth` / `getModuleHealthSpecs` and `registerDataHealth` / `getDataHealthSpecs` to declare which engine modules and GameData domains should appear in a boot-time health report.
+    - Pre-registers core modules (WorldRuntime, DungeonRuntime, Player, TurnLoop, Combat, Fallbacks, EquipmentDecay, RNG Service, UIOrchestration, ShopService) and data domains (items, enemies, npcs, consumables, town, tiles, props, encounters, shopPools, shopRules, palette).
+    - Exposes these helpers as `window.Capabilities` for diagnostics and future modules to extend.
+  - core/engine/health_check.js:
+    - New HealthCheck module that:
+      - Reads module specs from Capabilities and checks presence and required functions using ctx-first then window.
+      - Reads data specs and checks that required GameData domains exist and are non-empty.
+      - Runs ValidationRunner and emits a summary (“Validation: X warnings, Y notices.”) as part of the health report.
+      - Logs a summary line: `Health: <errors> errors, <warnings> warnings.` and one line per module/data domain (e.g., `Health: WorldRuntime -> OK`, `Health: Items registry -> FAILED (missing or empty)`).
+    - Exports:
+      - `runHealthCheck(getCtxFn)` for manual use (e.g., via dev tools/GOD).
+      - `scheduleHealthCheck(getCtxFn)` which waits for `GameData.ready` and then runs the health check.
+  - core/engine/game_orchestrator.js:
+    - Wires HealthCheck into boot:
+      - After building GameAPI, calls `scheduleHealthCheck(() => getCtx())` so a full health report is generated at startup without blocking world generation or the main loop.
+  - utils/logging_config.js:
+    - Adjusted log filtering so the `health` category always bypasses the level threshold:
+      - Even when log level is the default `"info"`, `Health: ...` lines (OK/FALLBACK/FAILED) are always visible as long as the Health category is enabled.
+      - Other categories still respect the configured threshold (info/notice/warn/error/fatal).
+  - UI/logger integration:
+    - Health entries appear as structured log lines with type:
+      - `good` → green “OK”
+      - `warn` → amber “FALLBACK”
+      - `bad`  → red “FAILED”
+    - Health lines can be toggled via the GOD log category controls.
+
+- Seen Life equipment buff and item buff UX:
+  - entities/item_buffs.js:
+    - Introduced a scalable buff engine for equipment and implemented the initial `Seen Life` buff:
+      - Weapons (hand slot) track `hitsDealt`; armor and shields (head/torso/legs/hands, including shields in hands) track `hitsTaken`.
+      - When a weapon or armor piece reaches its hit threshold (~100 in production; lower in testing), it gets a single roll to gain the Seen Life buff.
+      - Weapons that gain Seen Life receive a small permanent Attack bonus; armor and shields receive a small permanent Defense bonus. Bonuses are baked directly into `item.atk` / `item.def` and persisted via `item.buffs` records.
+    - Buff records and counters:
+      - Items can carry `item.buffs = [{ id: "seen_life", atkBonus?, defBonus? }, ...]`.
+      - Runtime counters `hitsDealt` / `hitsTaken` accumulate usage; once a buff roll is attempted (`seenLifeRollUsed = true`), no further rolls occur for that item.
+    - Logging:
+      - When Seen Life triggers, a player-facing log entry is emitted:
+        - “Your <item> has Seen Life and grows stronger.”
+      - Buff logs use the `buff` category and are styled in a golden color in the log via existing CSS rules for buff/info logs.
+  - combat/combat.js and ai/ai.js:
+    - After confirmed hits:
+      - Player weapon hits increment `hitsDealt` on the active weapon and call into ItemBuffs to potentially apply Seen Life.
+      - Enemy hits on the player increment `hitsTaken` on the relevant armor piece or shield and similarly check for Seen Life.
+    - Town combat (ai/town_combat.js) uses the same armor hit tracking, allowing Seen Life to trigger from town fights as well.
+  - ui/components/inventory_panel.js and ui/style.css:
+    - Inventory list and equipment UI show buffs in a clean “Phase 2” style:
+      - Items with buffs are marked with a subtle gold indicator (e.g., `*`) via CSS, without changing the main item name color.
+      - Hovering a buffed item shows a tooltip with a “Buffs:” section listing each buff and its effects (e.g., “Seen Life (+0.4 def)”).
+    - This keeps the inventory list compact while still making buffs discoverable and readable on hover.
+
+- Logging and follower UX tweaks:
+  - core/followers_runtime.js:
+    - When entering town with no active followers, the message:
+      - “No active followers available to accompany you in town.”
+      - is now logged at `notice` level instead of `info`, making it more visible in the default log stream.
+  - utils/logging_config.js:
+    - Buff-related logs continue to use the `buff` category with golden styling, and the category heuristics recognize phrases like “seen life” and “ buff ” as buff-related.
 
 v1.63.0 — Followers Phase 2: injuries, XP/leveling, inn hiring, and flavor
 
