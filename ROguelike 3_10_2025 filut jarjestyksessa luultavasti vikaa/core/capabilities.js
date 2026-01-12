@@ -176,9 +176,12 @@ try {
     id: "RNGUtils",
     label: "RNGUtils",
     modName: "RNGUtils",
-    required: false,
-    requiredFns: ["getRng", "float", "int", "chance"],
-    notes: "Central RNG helpers; RNGFacade falls back to deterministic midpoints when absent.",
+    // Mark as required for testing so HealthCheck will report a failure when a
+    // deliberately missing function is listed below. This does not affect
+    // gameplay because the missing function is only used by the health system.
+    required: true,
+    requiredFns: ["getRng", "float", "int", "chance", "healthCheckProbe"],
+    notes: "Central RNG helpers; health check intentionally expects a missing 'healthCheckProbe' for testing.",
   });
   registerModuleHealth({
     id: "UIOrchestration",
