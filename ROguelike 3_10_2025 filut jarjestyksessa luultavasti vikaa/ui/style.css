@@ -154,6 +154,12 @@ html, body {
 .log .entry.info[data-cat="region"] { border-left: 3px solid #5cc9f5; padding-left: 6px; }
 .log .entry.info[data-cat="items"] { border-left: 3px solid #d7ba7d; padding-left: 6px; }
 .log .entry.info[data-cat="enemies"] { border-left: 3px solid #e06c75; padding-left: 6px; }
+.log .entry.info[data-cat="buff"] {
+  color: #ffd700;
+  font-weight: 600;
+  border-left: 3px solid #ffd700;
+  padding-left: 6px;
+}
 
 .loot-panel {
   position: fixed;
@@ -303,6 +309,13 @@ html, body {
 }
 .inv-list li:hover {
   color: var(--accent);
+}
+
+/* Buffed items: subtle visual indicator without cluttering the main label */
+.inv-list li.has-buffs::after {
+  content: " *";
+  color: #ffd700;
+  font-weight: 500;
 }
 
 /* Make GOD panel scrollable on constrained viewports */

@@ -12,6 +12,7 @@
  */
 
 import { getRNGUtils, getMod } from "../utils/access.js";
+import { trackHitAndMaybeApplySeenLife } from "../entities/item_buffs.js";
 
 // Local RNG helper (mirrors rngFor in town_ai.js)
 function rngFor(ctx) {
@@ -393,6 +394,24 @@ function banditAttackPlayer(ctx, attacker) {
       else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
       else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
       ctx.decayEquipped(loc.part, wear * critWear);
+    }
+  } catch (_) {}
+
+  // Armor Seen Life buff: track per-slot hits and apply permanent buffs when threshold is reached.
+  try {
+    if (ctx && ctx.player && ctx.player.equipment) {
+      const eq = ctx.player.equipment;
+      const items = [];
+      if (loc.part === "head" && eq.head) items.push(eq.head);
+      else if (loc.part === "torso" && eq.torso) items.push(eq.torso);
+      else if (loc.part === "legs" && eq.legs) items.push(eq.legs);
+      else if (loc.part === "hands" && eq.hands) items.push(eq.hands);
+      if (items.length) {
+        const randF = (min, max, decimals = 1) => randFloat(min, max, decimals);
+        for (let i = 0; i < items.length; i++) {
+          trackHitAndMaybeApplySeenLife(ctx, items[i], { kind: "armor", randFloat: randF });
+        }
+      }
     }
   } catch (_) {}
 

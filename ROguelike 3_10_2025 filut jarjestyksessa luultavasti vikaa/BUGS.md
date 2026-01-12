@@ -38,4 +38,8 @@
   - The log “Your followers cannot find room to stand nearby in this area.” appears repeatedly on encounter entry, but the player can still move several tiles in multiple directions.
   - Root cause unknown; likely interaction between encounter map generators (camp/ambush/ruins), ctx.isWalkable tiles, and occupancy checks in FollowersRuntime.findSpawnTileNearPlayer.
   - Needs focused repro cases and visual inspection (FOV on, GOD/enemy markers) to see what is actually blocking follower tiles in those encounters.
+- Possible follower state bug after sleeping in town inns:
+  - After travelling to town with active followers, sleeping at the inn, and then returning to the dungeon/encounter, followers sometimes do not follow the player into the dungeon at all.
+  - In some runs, followers later appear only in scripted encounters (e.g., overworld events) and can spawn far away from the player instead of near the player’s position.
+  - Likely related to FollowersRuntime.spawnInDungeon/spawnInTown and syncFollowersFromTown/syncFollowersFromDungeon not fully updating follower runtime state across town sleep/rest flows; needs a focused repro path and inspection of follower record vs runtime actors when using inns.
 - [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage

@@ -155,6 +155,9 @@ export const LogConfig = {
       if (s.includes("smoke")) return "Smoketest";
       if (s.includes("rng")) return "RNG";
       if (s.includes("service")) return "Services";
+
+      // Buff-related messages: treat as Buff category so they can share golden styling.
+      if (s.includes("seen life") || s.startsWith("buff:") || s.includes(" buff ")) return "Buff";
     } catch (_) {}
 
     // 4) Default
@@ -166,6 +169,17 @@ export const LogConfig = {
     const mapped = this._typeMap[t] || "info";
     const lvl = this._levels[mapped] || this._levels.info;
 
+    // Determine category first so we can special-case health diagnostics.
+    const cat = this.extractCategory(msg, opts);
+    this.registerCategory(cat);
+    const catNorm = this.normalizeCategory(cat || "General");
+
+    // Health diagnostics should always be visible regardless of level threshold.
+    // This keeps startup health reports useful even when LOG_LEVEL is "info".
+    if (catNorm === "health") {
+      return this.isCategoryEnabled(cat);
+    }
+
     // Special-case: threshold "info" should show ONLY info-level messages (and synonyms:
     //   info, good, flavor, block, crit)
     // This keeps default deploy quiet and player-facing.
@@ -176,8 +190,6 @@ export const LogConfig = {
       if (lvl < this.getThresholdValue()) return false;
     }
 
-    const cat = this.extractCategory(msg, opts);
-    this.registerCategory(cat);
     return this.isCategoryEnabled(cat);
   },
 

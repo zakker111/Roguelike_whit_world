@@ -8,6 +8,8 @@
  * - hide()
  * - isOpen()
  */
+import { describeItemBuffs } from "/entities/item_buffs.js";
+
 let _UI = null;
 let _equipState = { leftEmpty: true, rightEmpty: true };
 
@@ -139,8 +141,19 @@ export function render(player, describeItem) {
               ? window.ItemDescribe.describe(it)
               : (it.name || "item"));
         const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-        const title = `Decay: ${dec.toFixed(0)}%`;
-        return `<div class="slot"><strong>${label}:</strong> <span class="name" data-slot="${key}" title="${title}" style="cursor:pointer; text-decoration:underline dotted;">${name}</span></div>`;
+        let title = `Decay: ${dec.toFixed(0)}%`;
+        let buffs = [];
+        try {
+          buffs = describeItemBuffs(it, { short: false }) || [];
+        } catch (_) {
+          buffs = [];
+        }
+        const hasBuffs = Array.isArray(buffs) && buffs.length > 0;
+        if (hasBuffs) {
+          title += "\nBuffs:\n" + buffs.map((b) => `  - ${b}`).join("\n");
+        }
+        const cls = hasBuffs ? "name has-buffs" : "name";
+        return `<div class="slot"><strong>${label}:</strong> <span class="${cls}" data-slot="${key}" title="${title}" style="cursor:pointer; text-decoration:underline dotted;">${name}</span></div>`;
       } else {
         return `<div class="slot"><strong>${label}:</strong> <span class="name"><span class='empty'>(empty)</span></span></div>`;
       }
@@ -171,6 +184,17 @@ export function render(player, describeItem) {
       (player.inventory || []).forEach((it, idx) => {
         const li = document.createElement("li");
         li.dataset.index = String(idx);
+
+        // Buff metadata (for hover details and visual marker)
+        let buffLines = null;
+        let hasBuffs = false;
+        try {
+          buffLines = describeItemBuffs(it, { short: false });
+          hasBuffs = Array.isArray(buffLines) && buffLines.length > 0;
+        } catch (_) {
+          buffLines = null;
+          hasBuffs = false;
+        }
 
         // Determine if this material is edible via data (materials.json edible.heal)
         const nm = String(it && (it.type || it.name) || "").toLowerCase();
@@ -245,6 +269,15 @@ export function render(player, describeItem) {
         } else {
           li.style.opacity = "0.7";
           li.style.cursor = "default";
+        }
+
+        if (hasBuffs) {
+          li.classList.add("has-buffs");
+          const buffs = buffLines || [];
+          if (buffs.length) {
+            const extra = "Buffs:\n" + buffs.map((b) => `  - ${b}`).join("\n");
+            li.title = li.title ? `${li.title}\n${extra}` : extra;
+          }
         }
 
         li.textContent = label;

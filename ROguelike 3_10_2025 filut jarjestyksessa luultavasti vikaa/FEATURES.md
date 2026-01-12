@@ -159,6 +159,22 @@ This file should describe the **current state**, not the future; update it whene
     - Strong two-handed named sword with a rare “love” effect that can immobilize enemies.
     - Cursed behavior: once equipped, the blade cannot be unequipped or replaced until broken (decay).
     - Specific price behavior in Seppo’s shop.
+- Experimental permanent buffs (Seen Life):
+  - Certain equipment pieces can awaken and gain a small, permanent stat bonus after heavy use.
+  - Weapons:
+    - Each time you successfully hit an enemy with a weapon, that weapon’s internal “uses” counter increases.
+    - Once a weapon has landed around 100 hits, it gains a small one-time chance to awaken with the **Seen Life** buff, granting a permanent **attack** bonus.
+  - Armor and shields:
+    - Each time you are hit while wearing armor (head/torso/legs/hands), that armor piece’s internal “uses” counter increases.
+    - Once a piece of armor or a shield has absorbed around 100 hits, it gains a small one-time chance to awaken with **Seen Life**, granting a permanent **defense** bonus.
+  - Per-item rules:
+    - Each item gets at most **one roll** for Seen Life when its usage threshold is reached; if it fails, that item will never gain Seen Life.
+    - An item can only have Seen Life once; the buff does not stack on the same item.
+  - UI:
+    - When Seen Life triggers, a golden log line informs the player (“Your [item] has Seen Life and grows stronger.”).
+    - In the inventory/equipment UI, buffed items are marked with a subtle gold indicator, and detailed buff info is shown on hover.
+  - Status:
+    - This system is **experimental** and currently limited to the Seen Life buff; it is intended as a foundation for future equipment buffs.
 
 ---
 

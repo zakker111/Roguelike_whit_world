@@ -134,6 +134,87 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Introduce a configurable party size limit (e.g., 1–3 followers).
       - Ensure follower gear and potion usage are balanced so followers support the player without trivializing combat.
 
+- [ ] Experimental equipment buff system (Seen Life and future buffs)
+  - Generalize the current Seen Life permanent buff into a small, extensible item buff engine:
+    - Keep all buff logic in `entities/item_buffs.js` and avoid scattering buff-specific code across combat/AI modules.
+    - Use a central registry of buff definitions (id, slots allowed, stat effects, trigger conditions, and UI description) instead of hardcoding every buff.
+  - Trigger model:
+    - Continue to use usage-based triggers (hits dealt/taken) for Seen Life, but add well-defined event entry points:
+      - `onWeaponHit(ctx, weapon, info)` for player weapon hits.
+      - `onArmorHit(ctx, armor, info)` for hits taken by equipped armor/shields.
+    - Route all future buff logic through these events so adding a new buff is a matter of hooking into `item_buffs.js`, not editing combat/AI in many places.
+  - Item state:
+    - Keep baked-in stats (atk/def) so existing combat code remains simple.
+    - Normalize item buff metadata into a small `item.buffs` array:
+      - Example: `[{ id: \"seen_life\", data: { atkBonus, defBonus } }, ...]`.
+      - Avoid storing many ad-hoc top-level fields per buff; use a `buffState` or `data` object when additional per-buff counters are needed.
+    - Ensure buffs and their state are serialized with items so buffs persist across saves and mode transitions.
+  - UI and feedback:
+    - Extend `describeItemBuffs(item)` to handle multiple buff types and stackable buffs, generating clear text for hover tooltips and other inspect UIs.
+    - Continue to mark buffed items subtly in the inventory/equipment list (e.g., gold marker) without cluttering the main labels.
+    - Add log helpers to standardize buff-related logs (e.g., using a consistent “buff” category and gold styling) when new buffs trigger.
+  - Future buffs to explore once the engine is stable:
+    - “Blooded”: weapon becomes more dangerous after killing many living enemies (extra damage vs living targets, no effect on undead/constructs).
+    - “Unbreaking”: armor or shields decay more slowly or have a one-time “repair” when breaking.
+    - “Swift”: small dodge or speed bonus when wearing light armor or using certain weapon types.
+    - “Blessed”: minor resistance to specific status effects (bleed, burn, daze) or small passive regeneration under certain conditions (e.g., at dawn).
+    - “Hungry” / “Cursed” affixes for items that have tradeoffs (more power but extra decay, or power but occasional backfire).
+  - Balancing and safety:
+    - Keep early buffs rare and modest to avoid trivializing combat; use per-item thresholds and small probabilities like Seen Life.
+    - Provide GOD/debug commands to force-apply or inspect buffs on items for testing.
+    - Add smoke tests or small targeted tests around item generation, buff application, and save/load to ensure buffs behave deterministically and don’t corrupt equipment state.
+
+- [ ] Centralized equipment repair system (future-proof, multiple repair methods)
+  - Add a small `RepairService` that becomes the single place to calculate how much decay can be removed from an item given some resources:
+    - Inputs: `item` (equip with decay 0–100), `source` (e.g., \"blacksmith\", \"kit\", \"spell\"), and an `offer` object (gold offered, kit power, etc.), plus optional `ctx`/player for skills/buffs.
+    - Output: a `repairResult` describing:
+      - `repairPercent` (how many decay percentage points can be removed),
+      - `newDecay` (what decay would be after repair),
+      - `goldCost` and/or `materialsUsed`,
+      - whether we hit full repair before using the full offer (`capped`).
+  - Blacksmith repair as the first source:
+    - Source: `\"blacksmith\"`.
+    - Offer: `goldOffered`.
+    - Cost rule (tunable, stored in config later):
+      - Cost per 1% fixed scales by tier (e.g., tier1=1g, tier2=2g, tier3=4g per 1% decay repaired, adjusted over time).
+      - Compute:
+        - `maxRepairable = item.decay`,
+        - `affordablePercent = floor(goldOffered / costPerPercent)`,
+        - `repairPercent = min(maxRepairable, affordablePercent)`,
+        - `goldCost = repairPercent * costPerPercent`,
+        - `newDecay = item.decay - repairPercent`.
+      - Never overcharge: if the player offers more gold than needed, only charge up to `goldCost` for a full repair and cap at `newDecay = 0`.
+    - Blacksmith UI integration:
+      - Restrict repairs to blacksmith shop pages only: bumping the blacksmith opens their shop, with a **Trade** vs **Repair** toggle.
+      - In **Repair** mode:
+        - Show all eligible equipment items (equipped and optionally inventory) with `0 < decay < 100`.
+        - For each item, display its name (with buff marker if it has Seen Life), current decay, and an input for \"gold to spend\".
+        - Use `RepairService` to preview how much decay that gold can fix and what the new decay would be.
+        - Confirming the repair deducts `goldCost`, sets `item.decay = newDecay`, and shows a player-facing log (e.g., \"Your [item] is repaired to near-new condition.\").
+  - Future repair methods that can plug into the same service:
+    - Repair kits:
+      - `source = \"kit\"`, `offer = { kitPower }` (e.g., fixed 20% or 40% decay reduction).
+      - Engine: `repairPercent = min(item.decay, kitPower)`, `goldCost = 0`, `materialsUsed = [kitItemId]`.
+    - Magic/ritual repairs:
+      - `source = \"spell\"` or `\"ritual\"`, `offer = { spellPower, components }`.
+      - Perform repairs without gold but maybe consume rare materials or reagents.
+    - Buff interactions:
+      - Buffs like \"Unbreaking\" can:
+        - Lower `costPerPercent` for blacksmith repairs, or
+        - Reduce future decay rate handled elsewhere in decay code.
+      - Cursed items might:
+        - Be unrepairable, or
+        - Cost extra to repair, enforced via `RepairService` after checking `item.buffs`.
+  - Data-driven configuration (later):
+    - Move cost and behavior into a small config file (e.g., `data/config/repair.json`):
+      - `baseCostPerPercentByTier`, type modifiers (weapon/armor/shield), and minimum cost per repair.
+      - Kit definitions (small/medium/large repairs), and any special casing for spells/NPC events.
+    - `RepairService` reads these values so balancing repair becomes mostly data work.
+  - Safety and persistence:
+    - Repair functions must only modify `item.decay` and resource counts (gold/materials); do not touch buffs or other stats.
+    - Ensure `decay` is always clamped to [0,100] after repair.
+    - Because decay is already part of the save format, repairs automatically persist with no new fields required.
+
 - [ ] GOD Arena mode for combat/AI testing
   - Add a GOD panel entry that teleports the player to a special “arena” test map:
     - A fairly large, open map (big enough to host any prefab layout from towers/towns and generic dungeon rooms).

@@ -15,6 +15,8 @@
  */
 
 import { getRNGUtils, getMod } from "../utils/access.js";
+import { trackHitAndMaybeApplySeenLife } from "../entities/item_buffs.js";
+
 function round1(ctx, n) {
   if (ctx && ctx.utils && typeof ctx.utils.round1 === "function") return ctx.utils.round1(n);
   return Math.round(n * 10) / 10;
@@ -129,6 +131,21 @@ export function playerAttackEnemy(ctx, enemy) {
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
+  const randFloatForBuff = (min, max, decimals = 1) => {
+    if (RU && typeof RU.float === "function") {
+      try { return RU.float(min, max, decimals, rng); } catch (_) {}
+    }
+    try {
+      if (ctx && ctx.utils && typeof ctx.utils.randFloat === "function") {
+        return ctx.utils.randFloat(min, max, decimals);
+      }
+    } catch (_) {}
+    const r = (typeof rng === "function") ? rng() : 0.5;
+    const v = min + r * (max - min);
+    const p = Math.pow(10, decimals);
+    return Math.round(v * p) / p;
+  };
+
   // Helper: classify equipped weapon for skill tracking
   function classifyWeapon(p) {
     const eq = (p && p.equipment) ? p.equipment : {};
@@ -139,6 +156,29 @@ export function playerAttackEnemy(ctx, enemy) {
     const name = (left && left.name) || (right && right.name) || "";
     const blunt = /mace|club|hammer|stick/i.test(name);
     return { twoHanded, blunt, oneHand: !twoHanded };
+  }
+
+  function primaryWeaponItem(p) {
+    const eq = (p && p.equipment) ? p.equipment : {};
+    const left = eq.left || null;
+    const right = eq.right || null;
+    if (left && right && left === right && left.twoHanded) return left;
+    if (right && right.slot === "hand") return right;
+    if (left && left.slot === "hand") return left;
+    return null;
+  }
+
+  function maybeApplySeenLifeOnWeaponHit() {
+    try {
+      const p = ctx.player || null;
+      if (!p || !p.equipment) return;
+      const weapon = primaryWeaponItem(p);
+      if (!weapon) return;
+      trackHitAndMaybeApplySeenLife(ctx, weapon, {
+        kind: "weapon",
+        randFloat: randFloatForBuff,
+      });
+    } catch (_) {}
   }
 
   // Hit location
@@ -394,6 +434,11 @@ export function playerAttackEnemy(ctx, enemy) {
       }
     }
   } catch (_) {}
+
+  // Permanent equipment buff: Seen Life for weapons based on usage.
+  // Tracking and application are handled by ItemBuffs; this call is cheap once
+  // the item has already rolled/received the buff.
+  maybeApplySeenLifeOnWeaponHit();
 
   // Passive skill gain on successful hit
   try {

@@ -254,4 +254,130 @@ To keep the project’s history and docs useful:
 
 ---
 
-This PROMPT is the “contract” for how to write, refactor, and extend code in this repo with AI assistance: **data-first, modular, readable, JSON-friendly, performance-aware, and well-tested.**
+## 11. Health Check & Module Registration (Boot Diagnostics)
+
+To keep the engine healthy and make debugging easier, the game runs a **health check** at startup. This produces a boot report in the log so you can see which modules and data are loaded correctly and where fallbacks are being used.
+
+### 11.1 What the health check does
+
+At boot (and on restart), a health check:
+
+- Inspects **core modules** (WorldRuntime, DungeonRuntime, Player, Combat, EquipmentDecay, RNGUtils, UIOrchestration, ShopService, etc.).
+- Inspects key **GameData domains** (items, enemies, npcs, consumables, town, tiles, encounters, shopPools, shopRules, palette, props).
+- Runs the existing **ValidationRunner** over GameData (items/enemies/shops/encounters/palette schemas).
+- Logs a summary line and per-module/data lines such as:
+  - `Health: 0 errors, 3 warnings.`
+  - `Health: WorldRuntime -> OK`
+  - `Health: Combat module -> FALLBACK (using core/fallbacks.js)`
+  - `Health: Items registry -> FAILED (missing or empty)`
+
+Log levels:
+
+- **OK** → type `"good"` (green)
+- **FALLBACK** / degraded but running → type `"warn"` (amber)
+- **FAILED** / missing required module/data → type `"bad"` or `"error"` (red)
+
+All health lines are tagged with `category: "health"` so they are easy to filter.
+
+### 11.2 Capabilities and module health specs
+
+The health system is driven by **module health specs** stored in `core/capabilities.js`. That file exposes:
+
+- `Capabilities.registerModuleHealth(spec)`
+- `Capabilities.getModuleHealthSpecs()`
+
+A health spec has the conceptual shape:
+
+```js
+Capabilities.registerModuleHealth({
+  id: "WorldRuntime",         // stable identifier
+  label: "WorldRuntime",      // user-facing label in logs
+  modName: "WorldRuntime",    // name used to look up the module via ctx / window
+  required: true,             // treat as error if missing
+  requiredFns: ["generate"],  // functions that must exist on the module
+  notes: "Generates overworld maps."
+});
+```
+
+Rules:
+
+- `modName` is the key used with `Capabilities.safeGet(ctx, modName)` and `Capabilities.has(ctx, modName, fnName)`.
+- `required: true` means:
+  - If the module or any of its `requiredFns` is missing, the health check marks it as **FAILED** (error).
+- `required: false` means:
+  - Missing module/functions are treated as **FALLBACK** (warning); the engine may use a degraded behavior or fallback module instead.
+
+When you add a new core module that the engine depends on (e.g. a new runtime, combat ruleset, or central service):
+
+1. Decide if it is **required** or **optional** (has fallbacks).
+2. Register it with `Capabilities.registerModuleHealth` so it automatically appears in the boot report.
+3. Ensure the module is reachable via ctx or `window[modName]` in the same way existing modules are.
+
+### 11.3 GameData health specs
+
+`core/capabilities.js` also maintains **data health specs** for `GameData` domains, via:
+
+- `Capabilities.registerDataHealth(spec)`
+- `Capabilities.getDataHealthSpecs()`
+
+A data health spec looks like:
+
+```js
+Capabilities.registerDataHealth({
+  id: "items",
+  label: "Items registry",
+  path: "items",     // checked as GameData.items
+  required: true     // error if missing or empty
+});
+```
+
+The health check treats:
+
+- `required: true` → missing or empty → **FAILED** (error).
+- `required: false` → missing or empty → **FALLBACK** (warning; engine may use internal defaults).
+
+When you add a new **critical** JSON domain (e.g. new worldgen config, new encounter domain, new balance config), either:
+
+- Register it via `Capabilities.registerDataHealth`, or
+- Extend the health check to include it explicitly.
+
+This keeps data problems visible at boot instead of failing silently or only being discovered mid-run.
+
+### 11.4 When the health check runs
+
+The health check is orchestrated from `core/engine/game_orchestrator.js` via a helper in `core/engine/health_check.js`:
+
+- `HealthCheck.scheduleHealthCheck(getCtxFn)`
+  - Waits for `GameData.ready` when available.
+  - Then calls `HealthCheck.runHealthCheck(getCtxFn)`.
+
+The `start()` function in `GameOrchestrator`:
+
+1. Builds the GameAPI via `buildGameAPI()`.
+2. Schedules the health check: `scheduleHealthCheck(() => getCtx())`.
+3. Proceeds to initialize the world, input, mouse support, and render loop.
+
+This means:
+
+- The game boots as before (no blocking).
+- As soon as data is loaded, you get a **one-shot boot report** showing which modules/data are healthy, degraded, or failing.
+
+### 11.5 Expectations for new code
+
+When you add or significantly change core engine modules or data domains:
+
+- **Modules:**
+  - Register a module health spec in `core/capabilities.js` (or from your module) via `Capabilities.registerModuleHealth`.
+  - Clearly state whether the module is required or optional and which functions must exist.
+- **Data domains:**
+  - Ensure new JSON data is loaded via `GameData`.
+  - If it is critical for normal runs, register a data health spec via `Capabilities.registerDataHealth`.
+- **Fallbacks:**
+  - Use fallbacks sparingly and intentionally.
+  - Rely on the health check to surface degraded configurations at boot rather than trying to log every fallback call site.
+
+This keeps the game startup self-diagnosing: every run has a short, color-coded summary of engine health, and new modules naturally plug into the same system.
+
+---
+
+This PROMPT is the “contract” for how to write, refactor, and extend code in this repo with AI assistance: **data-first, modular, readable, JSON-friendly, performance-aware, health-checked, and well-tested.**
