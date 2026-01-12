@@ -4,10 +4,14 @@
  * Keeps behavior identical but moves side-effects out of game.js.
  */
 
-import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI } from "/core/game.js?v=1.45.2";
+import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI, getCtx } from "/core/game.js?v=1.45.2";
+import { scheduleHealthCheck } from "./health_check.js";
 
 export function start() {
   try { buildGameAPI(); } catch (_) {}
+  // Schedule a startup health check once GameData is ready so we get a boot report
+  // without blocking world generation or the main loop.
+  try { scheduleHealthCheck(() => getCtx()); } catch (_) {}
   try { initWorld(); } catch (_) {}
   try { setupInput(); } catch (_) {}
   try { initMouseSupport(); } catch (_) {}

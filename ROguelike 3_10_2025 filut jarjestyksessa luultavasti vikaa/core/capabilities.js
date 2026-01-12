@@ -54,6 +54,174 @@ export function safeCall(ctx, modName, fnName, ...args) {
   return { ok: false, result: undefined };
 }
 
+// --- Health registration (modules + data) ---
+
+const MODULE_HEALTH_SPECS = [];
+const DATA_HEALTH_SPECS = [];
+
+/**
+ * Register or update a module health spec.
+ * Modules can call this at load time so HealthCheck can include them in the
+ * boot report without hard-coding every module name.
+ */
+export function registerModuleHealth(spec) {
+  if (!spec || typeof spec !== "object") return;
+  const idRaw = spec.id || spec.modName || "";
+  const id = String(idRaw || "").trim();
+  if (!id) return;
+  const label = spec.label ? String(spec.label) : id;
+  const modName = spec.modName ? String(spec.modName) : id;
+  const required = !!spec.required;
+  const requiredFns = Array.isArray(spec.requiredFns) ? spec.requiredFns.filter(Boolean) : [];
+  const notes = spec.notes != null ? String(spec.notes) : undefined;
+
+  const normalized = { id, label, modName, required, requiredFns, notes };
+  const idx = MODULE_HEALTH_SPECS.findIndex((m) => m && m.id === id);
+  if (idx !== -1) MODULE_HEALTH_SPECS[idx] = normalized;
+  else MODULE_HEALTH_SPECS.push(normalized);
+}
+
+/**
+ * Return a shallow copy of registered module health specs.
+ */
+export function getModuleHealthSpecs() {
+  return MODULE_HEALTH_SPECS.slice();
+}
+
+/**
+ * Register or update a data health spec for GameData domains.
+ * Used by HealthCheck to report missing/empty registries.
+ */
+export function registerDataHealth(spec) {
+  if (!spec || typeof spec !== "object") return;
+  const idRaw = spec.id || spec.path || "";
+  const id = String(idRaw || "").trim();
+  if (!id) return;
+  const label = spec.label ? String(spec.label) : id;
+  const path = spec.path ? String(spec.path) : id;
+  const required = !!spec.required;
+  const normalized = { id, label, path, required };
+  const idx = DATA_HEALTH_SPECS.findIndex((d) => d && d.id === id);
+  if (idx !== -1) DATA_HEALTH_SPECS[idx] = normalized;
+  else DATA_HEALTH_SPECS.push(normalized);
+}
+
+/**
+ * Return a shallow copy of registered data health specs.
+ */
+export function getDataHealthSpecs() {
+  return DATA_HEALTH_SPECS.slice();
+}
+
+// Pre-register core engine modules so they appear in the boot health report.
+// New modules should register themselves via Capabilities.registerModuleHealth.
+try {
+  registerModuleHealth({
+    id: "WorldRuntime",
+    label: "WorldRuntime",
+    modName: "WorldRuntime",
+    required: true,
+    requiredFns: ["generate"],
+    notes: "Generates overworld maps.",
+  });
+  registerModuleHealth({
+    id: "DungeonRuntime",
+    label: "DungeonRuntime",
+    modName: "DungeonRuntime",
+    required: true,
+    requiredFns: ["generate"],
+    notes: "Generates dungeon and tower maps.",
+  });
+  registerModuleHealth({
+    id: "Player",
+    label: "Player module",
+    modName: "Player",
+    required: true,
+    requiredFns: ["createInitial", "getAttack", "getDefense", "gainXP"],
+    notes: "Player stats, inventory, equipment, XP/level.",
+  });
+  registerModuleHealth({
+    id: "TurnLoop",
+    label: "TurnLoop",
+    modName: "TurnLoop",
+    required: false,
+    requiredFns: ["tick"],
+    notes: "Centralized turn processing; falls back to inline turn logic when absent.",
+  });
+  registerModuleHealth({
+    id: "Combat",
+    label: "Combat module",
+    modName: "Combat",
+    required: false,
+    requiredFns: ["rollHitLocation", "enemyDamageAfterDefense", "enemyDamageMultiplier"],
+    notes: "If missing, CombatFacade uses core/fallbacks.js.",
+  });
+  registerModuleHealth({
+    id: "Fallbacks",
+    label: "Fallbacks module",
+    modName: "Fallbacks",
+    required: false,
+    requiredFns: ["rollHitLocation", "enemyDamageAfterDefense", "enemyDamageMultiplier"],
+    notes: "Minimal combat/stat formulas used when Combat/Stats are unavailable.",
+  });
+  registerModuleHealth({
+    id: "EquipmentDecay",
+    label: "EquipmentDecay",
+    modName: "EquipmentDecay",
+    required: false,
+    requiredFns: ["decayAttackHands", "decayBlockingHands"],
+    notes: "If missing, InventoryDecayFacade applies simple hands decay with warnings.",
+  });
+  registerModuleHealth({
+    id: "RNGUtils",
+    label: "RNGUtils",
+    modName: "RNGUtils",
+    required: false,
+    requiredFns: ["getRng", "float", "int", "chance"],
+    notes: "Central RNG helpers; RNGFacade falls back to deterministic midpoints when absent.",
+  });
+  registerModuleHealth({
+    id: "UIOrchestration",
+    label: "UIOrchestration",
+    modName: "UIOrchestration",
+    required: false,
+    requiredFns: ["updateStats"],
+    notes: "HUD orchestration; game can still run headless without it.",
+  });
+  registerModuleHealth({
+    id: "ShopService",
+    label: "ShopService",
+    modName: "ShopService",
+    required: false,
+    requiredFns: ["getInventoryForShop", "buyItem", "sellItem"],
+    notes: "Shop inventories and prices; missing data may lead to empty shops.",
+  });
+} catch (_) {}
+
+// Pre-register core GameData domains. New data domains can be added here or via
+// Capabilities.registerDataHealth from other modules.
+try {
+  registerDataHealth({ id: "items", label: "Items registry", path: "items", required: true });
+  registerDataHealth({ id: "enemies", label: "Enemies registry", path: "enemies", required: true });
+  registerDataHealth({ id: "npcs", label: "NPCs registry", path: "npcs", required: true });
+  registerDataHealth({ id: "consumables", label: "Consumables registry", path: "consumables", required: true });
+  registerDataHealth({ id: "town", label: "Town config", path: "town", required: true });
+  registerDataHealth({ id: "tiles", label: "Tiles (world assets)", path: "tiles", required: true });
+  registerDataHealth({ id: "props", label: "Props (world assets)", path: "props", required: false });
+  registerDataHealth({ id: "encounters", label: "Encounter templates", path: "encounters", required: true });
+  registerDataHealth({ id: "shopPools", label: "Shop pools", path: "shopPools", required: false });
+  registerDataHealth({ id: "shopRules", label: "Shop rules", path: "shopRules", required: false });
+  registerDataHealth({ id: "palette", label: "Palette", path: "palette", required: false });
+} catch (_) {}
+
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
-attachGlobal("Capabilities", { safeGet, safeCall, has });
+attachGlobal("Capabilities", {
+  safeGet,
+  safeCall,
+  has,
+  registerModuleHealth,
+  getModuleHealthSpecs,
+  registerDataHealth,
+  getDataHealthSpecs,
+});
