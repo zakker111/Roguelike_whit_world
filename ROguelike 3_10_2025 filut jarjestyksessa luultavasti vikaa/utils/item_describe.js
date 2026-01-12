@@ -10,14 +10,7 @@ export function describe(item) {
     const parts = [];
     if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
     if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
-    let name = item.name || "item";
-    // Append simple Seen life tag for text contexts (logs, plain UI).
-    try {
-      if (item.buffs && item.buffs.seenLife) {
-        name = `${name} (Seen life)`;
-      }
-    } catch (_) {}
-    return `${name}${parts.length ? " (" + parts.join(", ") + ")" : ""}`;
+    return `${item.name}${parts.length ? " (" + parts.join(", ") + ")" : ""}`;
   }
   if (item.kind === "potion") {
     const heal = item.heal ?? 3;
