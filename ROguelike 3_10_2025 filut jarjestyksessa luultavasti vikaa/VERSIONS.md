@@ -59,9 +59,11 @@ v1.64.0 — Health check, Seen Life equipment buff, and follower UX polish
   - core/followers_runtime.js:
     - When entering town with no active followers, the message:
       - “No active followers available to accompany you in town.”
-      - is now logged at `notice` level instead of `info`, making it more visible in the default log stream.
+      - is now logged at `notice` level instead of `info`, so it is treated as higher severity when the log level is raised above the default.
   - utils/logging_config.js:
-    - Buff-related logs continue to use the `buff` category with golden styling, and the category heuristics recognize phrases like “seen life” and “ buff ” as buff-related.
+    - Info-level logs (`info`, `good`, `flavor`, `block`, `crit`) form the default log stream the player sees at the standard `LOG_LEVEL="info"` threshold; `notice` / `warn` / `error` / `fatal` only appear when the log level is increased via the GOD log controls.
+    - Buff-related logs continue to use the `buff` category with golden styling, and the category heuristics recognize phrases like “seen life” and “ buff ” as buff-rela_codetenewd</.
+.
 
 v1.63.0 — Followers Phase 2: injuries, XP/leveling, inn hiring, and flavor
 
