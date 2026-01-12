@@ -11,7 +11,7 @@
  * - Healthy modules/data -> severity "ok" (green)
  */
 
-import { safeGet, has, getModuleHealthSpecs, getDataHealthSpecs } from "../capabilities.js";
+import { has, getModuleHealthSpecs, getDataHealthSpecs } from "../capabilities.js";
 import { run as validationRun, summary as validationSummary } from "../validation_runner.js";
 import { attachGlobal } from "../../utils/global.js";
 
