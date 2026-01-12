@@ -198,12 +198,12 @@ try {
   });
   // Intentional failing module for testing HealthCheck behavior.
   // There is no TestMissingModule in ctx or window, so the health report
-  // will always log this as FAILED (or FALLBACK) without affecting gameplay.
+  // will always log this as FAILED without affecting gameplay.
   registerModuleHealth({
     id: "HealthTestMissingModule",
     label: "Test module (intentional fail)",
     modName: "TestMissingModule",
-    required: false,
+    required: true,
     requiredFns: ["init"],
     notes: "Deliberately missing module to verify HealthCheck boot report.",
   });
