@@ -196,6 +196,17 @@ try {
     requiredFns: ["getInventoryForShop", "buyItem", "sellItem"],
     notes: "Shop inventories and prices; missing data may lead to empty shops.",
   });
+  // Intentional failing module for testing HealthCheck behavior.
+  // There is no TestMissingModule in ctx or window, so the health report
+  // will always log this as FAILED (or FALLBACK) without affecting gameplay.
+  registerModuleHealth({
+    id: "HealthTestMissingModule",
+    label: "Test module (intentional fail)",
+    modName: "TestMissingModule",
+    required: false,
+    requiredFns: ["init"],
+    notes: "Deliberately missing module to verify HealthCheck boot report.",
+  });
 } catch (_) {}
 
 // Pre-register core GameData domains. New data domains can be added here or via
