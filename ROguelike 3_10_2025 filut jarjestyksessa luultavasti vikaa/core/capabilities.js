@@ -173,15 +173,12 @@ try {
     notes: "If missing, InventoryDecayFacade applies simple hands decay with warnings.",
   });
   registerModuleHealth({
-    id: "RNGUtils",
-    label: "RNGUtils",
-    modName: "RNGUtils",
-    // Mark as required for testing so HealthCheck will report a failure when a
-    // deliberately missing function is listed below. This does not affect
-    // gameplay because the missing function is only used by the health system.
-    required: true,
-    requiredFns: ["getRng", "float", "int", "chance", "healthCheckProbe"],
-    notes: "Central RNG helpers; health check intentionally expects a missing 'healthCheckProbe' for testing.",
+    id: "RNG",
+    label: "RNG Service",
+    modName: "RNG",
+    // Mark as required and list all exported functions so the health check\n    // will fail if the RNG service is not attached to window.\n    required: true,
+    requiredFns: ["init", "applySeed", "autoInit", "rng", "int", "float", "chance", "getSeed"],
+    notes: "Core RNG service; required for deterministic gameplay.",
   });
   registerModuleHealth({
     id: "UIOrchestration",
