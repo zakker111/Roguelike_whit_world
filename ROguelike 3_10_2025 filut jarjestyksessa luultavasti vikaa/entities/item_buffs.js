@@ -134,15 +134,18 @@ export function trackHitAndMaybeApplySeenLife(ctx, item, opts = {}) {
   const result = applySeenLife(item, { isWeapon, randFloat });
   if (!result || !result.applied) return false;
 
+  // Prefer using Logger directly so we can pass structured details (category/side)
+  // even when ctx.log is wired through the core log facade which only takes (msg,type).
   try {
-    if (ctx && typeof ctx.log === "function") {
-      const baseName = item.name || (isWeapon ? "weapon" : "armor");
-      const name = String(baseName);
-      // Log as info-level but use the buff category so UI can render it in gold.
-      ctx.log(`Your ${name} has Seen Life and grows stronger.`, "info", {
-        category: "buff",
-        side: "player",
-      });
+    const LG = (ctx && ctx.Logger) || (typeof window !== "undefined" ? window.Logger : null);
+    const baseName = item.name || (isWeapon ? "weapon" : "armor");
+    const name = String(baseName);
+    const msg = `Your ${name} has Seen Life and grows stronger.`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(msg, "info", { category: "buff", side: "player" });
+    } else if (ctx && typeof ctx.log === "function") {
+      // Fallback: no structured category, but still show the message.
+      ctx.log(msg, "info");
     }
   } catch (_) {}
 
