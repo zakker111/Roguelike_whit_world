@@ -312,6 +312,16 @@ html, body {
   font-weight: 500;
 }
 
+/* When hovering items with buffs, highlight the line in a golden/yellow tone */
+.inv-list li.has-buffs:hover {
+  color: #ffd700;
+}
+
+/* When hovering equipped items with buffs, highlight their name in golden/yellow */
+.slot .name.has-buffs:hover {
+  color: #ffd700;
+}
+
 /* Make GOD panel scrollable on constrained viewports */
 #god-panel {
   max-height: 80vh;
