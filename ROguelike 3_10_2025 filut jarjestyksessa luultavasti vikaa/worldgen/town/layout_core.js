@@ -233,3 +233,46 @@ export function buildBaseTown(ctx) {
     info
   };
 }
+
+/**
+ * Build and carve the central plaza.
+ * - Picks plaza size from TOWNCFG.plaza[sizeKey] with safe defaults.
+ * - Carves FLOOR tiles in a rectangle around the center.
+ * - Sets ctx.townPlaza and ctx.townPlazaRect.
+ *
+ * Returns the plaza center and dimensions for use by town_gen.js.
+ */
+export function buildPlaza(ctx, W, H, townSize, TOWNCFG) {
+  const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
+  ctx.townPlaza = { x: plaza.x, y: plaza.y };
+
+  function cfgPlaza(sizeKey) {
+    const d = (TOWNCFG && TOWNCFG.plaza && TOWNCFG.plaza[sizeKey]) || null;
+    if (d) return { w: d.w | 0, h: d.h | 0 };
+    if (sizeKey === "small") return { w: 10, h: 8 };
+    if (sizeKey === "city") return { w: 18, h: 14 };
+    return { w: 14, h: 12 };
+  }
+
+  const plazaDims = cfgPlaza(townSize);
+  const plazaW = plazaDims.w;
+  const plazaH = plazaDims.h;
+
+  for (let yy = (plaza.y - (plazaH / 2)) | 0; yy <= (plaza.y + (plazaH / 2)) | 0; yy++) {
+    for (let xx = (plaza.x - (plazaW / 2)) | 0; xx <= (plaza.x + (plazaW / 2)) | 0; xx++) {
+      if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+      ctx.map[yy][xx] = ctx.TILES.FLOOR;
+    }
+  }
+
+  try {
+    ctx.townPlazaRect = {
+      x0: ((plaza.x - (plazaW / 2)) | 0),
+      y0: ((plaza.y - (plazaH / 2)) | 0),
+      x1: ((plaza.x + (plazaW / 2)) | 0),
+      y1: ((plaza.y + (plazaH / 2)) | 0)
+    };
+  } catch (_) {}
+
+  return { plaza, plazaW, plazaH };
+}

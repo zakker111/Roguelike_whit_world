@@ -24,7 +24,7 @@
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
-import { buildBaseTown } from "./town/layout_core.js";
+import { buildBaseTown, buildPlaza } from "./town/layout_core.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -560,33 +560,8 @@ function repairBuildingPerimeters(ctx, buildings) {
 function generate(ctx) {
   const { rng, W, H, gate, townSize, townKind, townName, TOWNCFG, info } = buildBaseTown(ctx);
 
-  // Plaza
-  const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
-  ctx.townPlaza = { x: plaza.x, y: plaza.y };
-  function cfgPlaza(sizeKey) {
-    const d = (TOWNCFG && TOWNCFG.plaza && TOWNCFG.plaza[sizeKey]) || null;
-    if (d) return { w: d.w | 0, h: d.h | 0 };
-    if (sizeKey === "small") return { w: 10, h: 8 };
-    if (sizeKey === "city") return { w: 18, h: 14 };
-    return { w: 14, h: 12 };
-  }
-  const plazaDims = cfgPlaza(townSize);
-  const plazaW = plazaDims.w, plazaH = plazaDims.h;
-  for (let yy = (plaza.y - (plazaH / 2)) | 0; yy <= (plaza.y + (plazaH / 2)) | 0; yy++) {
-    for (let xx = (plaza.x - (plazaW / 2)) | 0; xx <= (plaza.x + (plazaW / 2)) | 0; xx++) {
-      if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-      ctx.map[yy][xx] = ctx.TILES.FLOOR;
-    }
-  }
-  // Persist exact plaza rectangle bounds for diagnostics and overlay checks
-  try {
-    ctx.townPlazaRect = {
-      x0: ((plaza.x - (plazaW / 2)) | 0),
-      y0: ((plaza.y - (plazaH / 2)) | 0),
-      x1: ((plaza.x + (plazaW / 2)) | 0),
-      y1: ((plaza.y + (plazaH / 2)) | 0),
-    };
-  } catch (_) {}
+  // Plaza (carved via helper; returns center and dimensions)
+  const { plaza, plazaW, plazaH } = buildPlaza(ctx, W, H, townSize, TOWNCFG);
 
   // Roads (deferred): build after buildings and outdoor mask are known
   
