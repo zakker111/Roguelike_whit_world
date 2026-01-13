@@ -13,6 +13,7 @@
  */
 
 import { getGameData, getMod, getRNGUtils } from "../../utils/access.js";
+import { getCastleKeepSizeConfig } from "./config.js";
 
 /**
  * Build the base town layout: map dims + walls + gate + name + biome.
@@ -291,4 +292,165 @@ export function carveBuildingRect(ctx, buildings, bx, by, bw, bh, W, H) {
     }
   }
   buildings.push({ x: bx, y: by, w: bw, h: bh });
+}
+
+/**
+ * Place a castle keep building (for townKind === "castle") near the plaza.
+ * Keeps plaza open and avoids overwriting the gate; uses the same logic that
+ * previously lived in town_gen.js.
+ */
+export function placeCastleKeep(ctx, buildings, W, H, gate, plaza, plazaW, plazaH, townKind, TOWNCFG, rng) {
+  if (townKind !== "castle") return;
+
+  // Scale keep size from plaza size, with bounds tied to town size (data-driven via town.json when available).
+  const keepSize = getCastleKeepSizeConfig(TOWNCFG, ctx.townSize, plazaW, plazaH, W, H);
+  let keepW = keepSize.keepW;
+  let keepH = keepSize.keepH;
+  if (keepW < 10 || keepH < 8) return;
+
+  // Helper: prevent overlapping the town plaza footprint (optionally with a small buffer)
+  function overlapsPlazaRectLocal(bx, by, bw, bh, margin = 0) {
+    const px0 = ((plaza.x - (plazaW / 2)) | 0);
+    const px1 = ((plaza.x + (plazaW / 2)) | 0);
+    const py0 = ((plaza.y - (plazaH / 2)) | 0);
+    const py1 = ((plaza.y + (plazaH / 2)) | 0);
+    const ax0 = bx, ay0 = by;
+    const ax1 = bx + bw - 1, ay1 = by + bh - 1;
+    const bx0 = Math.max(1, px0 - margin), by0 = Math.max(1, py0 - margin);
+    const bx1 = Math.min(W - 2, px1 + margin), by1 = Math.min(H - 2, py1 + margin);
+    const sepX = (ax1 < bx0) || (bx1 < ax0);
+    const sepY = (ay1 < by0) || (by1 < ay0);
+    return !(sepX || sepY);
+  }
+
+  // Start centered on the plaza.
+  let kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
+  let ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+
+  // If this would overlap the plaza rectangle, try shifting the keep to one of the four sides
+  // so the plaza stays open.
+  if (overlapsPlazaRectLocal(kx, ky, keepW, keepH, 0)) {
+    const candidates = [
+      // Below plaza
+      {
+        x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+        y: Math.min(H - keepH - 2, ((plaza.y + (plazaH / 2)) | 0) + 2)
+      },
+      // Above plaza
+      {
+        x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+        y: Math.max(2, ((plaza.y - (plazaH / 2)) | 0) - 2 - keepH)
+      },
+      // Right of plaza
+      {
+        x: Math.min(W - keepW - 2, ((plaza.x + (plazaW / 2)) | 0) + 2),
+        y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+      },
+      // Left of plaza
+      {
+        x: Math.max(2, ((plaza.x - (plazaW / 2)) | 0) - 2 - keepW),
+        y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+      }
+    ];
+    let placedPos = null;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      const cx = Math.max(2, Math.min(W - keepW - 2, c.x));
+      const cy = Math.max(2, Math.min(H - keepH - 2, c.y));
+      if (overlapsPlazaRectLocal(cx, cy, keepW, keepH, 0)) continue;
+      placedPos = { x: cx, y: cy };
+      break;
+    }
+    if (!placedPos) {
+      // No valid non-overlapping placement; skip keep to preserve plaza.
+      return;
+    }
+    kx = placedPos.x;
+    ky = placedPos.y;
+  }
+
+  // Do not overwrite the gate tile.
+  if (kx <= gate.x && gate.x <= kx + keepW - 1 && ky <= gate.y && gate.y <= ky + keepH - 1) {
+    return;
+  }
+
+  // Ensure the area is mostly floor before carving (avoid overlapping existing prefab buildings).
+  let blocked = false;
+  for (let y = ky; y < ky + keepH && !blocked; y++) {
+    for (let x = kx; x < kx + keepW; x++) {
+      if (y <= 0 || x <= 0 || y >= H - 1 || x >= W - 1) { blocked = true; break; }
+      const t = ctx.map[y][x];
+      if (t !== ctx.TILES.FLOOR) { blocked = true; break; }
+    }
+  }
+  if (blocked) return;
+
+  // Carve the keep shell.
+  carveBuildingRect(ctx, buildings, kx, ky, keepW, keepH, W, H);
+
+  // Annotate the most recently added building as the castle keep for diagnostics.
+  const keep = buildings[buildings.length - 1];
+  if (keep) {
+    keep.prefabId = "castle_keep";
+    keep.prefabCategory = "castle";
+  }
+
+  // Luxurious interior furnishing: central hall rug, throne area, side chambers with beds/chests.
+  const innerX0 = kx + 1;
+  const innerY0 = ky + 1;
+  const innerX1 = kx + keepW - 2;
+  const innerY1 = ky + keepH - 2;
+  const midX = (innerX0 + innerX1) >> 1;
+  const midY = (innerY0 + innerY1) >> 1;
+
+  function safeAddProp(x, y, type, name) {
+    try {
+      if (x <= innerX0 || y <= innerY0 || x >= innerX1 || y >= innerY1) return;
+      if (ctx.map[y][x] !== ctx.TILES.FLOOR) return;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return;
+      ctx.townProps.push({ x, y, type, name });
+    } catch (_) {}
+  }
+
+  // Long rug down the central hall.
+  for (let y = innerY0 + 1; y <= innerY1 - 1; y++) {
+    safeAddProp(midX, y, "rug");
+  }
+
+  // Throne area at the far end from the gate: decide orientation by comparing to gate position.
+  let throneY = innerY0 + 1;
+  let tableY = throneY + 1;
+  if (gate.y < ky) {
+    // Gate is above keep -> throne at south end.
+    throneY = innerY1 - 1;
+    tableY = throneY - 1;
+  }
+  safeAddProp(midX, throneY, "chair", "Throne");
+  safeAddProp(midX - 1, throneY, "plant");
+  safeAddProp(midX + 1, throneY, "plant");
+  // High table in front of throne.
+  safeAddProp(midX, tableY, "table");
+
+  // Grand fireplaces on the side walls.
+  safeAddProp(innerX0 + 1, midY, "fireplace");
+  safeAddProp(innerX1 - 1, midY, "fireplace");
+
+  // Side chambers with beds and chests.
+  safeAddProp(innerX0 + 2, innerY0 + 2, "bed");
+  safeAddProp(innerX0 + 3, innerY0 + 2, "chest");
+  safeAddProp(innerX1 - 3, innerY0 + 2, "bed");
+  safeAddProp(innerX1 - 2, innerY0 + 2, "chest");
+
+  safeAddProp(innerX0 + 2, innerY1 - 2, "bed");
+  safeAddProp(innerX0 + 3, innerY1 - 2, "table");
+  safeAddProp(innerX1 - 3, innerY1 - 2, "bed");
+  safeAddProp(innerX1 - 2, innerY1 - 2, "table");
+
+  // Decorative plants and barrels along the walls.
+  for (let x = innerX0 + 2; x <= innerX1 - 2; x += 3) {
+    safeAddProp(x, innerY0 + 1, "plant");
+    safeAddProp(x, innerY1 - 1, "plant");
+  }
+  safeAddProp(innerX0 + 1, innerY0 + 1, "barrel");
+  safeAddProp(innerX1 - 1, innerY0 + 1, "barrel");
 }
