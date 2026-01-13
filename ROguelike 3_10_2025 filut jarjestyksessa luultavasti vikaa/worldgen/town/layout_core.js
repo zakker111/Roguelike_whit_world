@@ -355,9 +355,9 @@ export function placePlazaPrefabStrict(
   trySlipStamp,
   pickPrefab
 ) {
-  // Castle towns keep the plaza clear for the keep; skip plaza prefabs entirely.
-  if (townKind === "castle") return;
-
+  // Note: we no longer skip castle towns here. Original behaviour stamped plaza
+  // prefabs even in castle settlements, and some content relies on those.
+  // The castle keep placement itself already avoids overlapping the plaza.
   try {
     // Guard: if a plaza prefab was already stamped in this generation cycle, skip
     try {
