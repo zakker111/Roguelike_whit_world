@@ -24,7 +24,7 @@
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
-import { buildBaseTown, buildPlaza } from "./town/layout_core.js";
+import { buildBaseTown, buildPlaza, carveBuildingRect } from "./town/layout_core.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -952,14 +952,8 @@ function generate(ctx) {
 
   // --- Hollow rectangle fallback helpers ---
   const placeBuilding = (bx, by, bw, bh) => {
-    for (let yy = by; yy < by + bh; yy++) {
-      for (let xx = bx; xx < bx + bw; xx++) {
-        if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-        const isBorder = (yy === by || yy === by + bh - 1 || xx === bx || xx === bx + bw - 1);
-        ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
-      }
-    }
-    buildings.push({ x: bx, y: by, w: bw, h: bh });
+    // Delegate to layout_core primitive so building shell carving is centralized.
+    carveBuildingRect(ctx, buildings, bx, by, bw, bh, W, H);
   };
 
   // For castle settlements, reserve a "keep" tower building with a luxurious interior.

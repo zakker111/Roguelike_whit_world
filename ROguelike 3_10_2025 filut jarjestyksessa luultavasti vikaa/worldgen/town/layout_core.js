@@ -276,3 +276,19 @@ export function buildPlaza(ctx, W, H, townSize, TOWNCFG) {
 
   return { plaza, plazaW, plazaH };
 }
+
+/**
+ * Carve a hollow rectangle building (walls on border, floor inside) and
+ * append its rect to the buildings list. This is the generic fallback
+ * building primitive shared by town_gen.
+ */
+export function carveBuildingRect(ctx, buildings, bx, by, bw, bh, W, H) {
+  for (let yy = by; yy < by + bh; yy++) {
+    for (let xx = bx; xx < bx + bw; xx++) {
+      if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+      const isBorder = (yy === by || yy === by + bh - 1 || xx === bx || xx === bx + bw - 1);
+      ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+    }
+  }
+  buildings.push({ x: bx, y: by, w: bw, h: bh });
+}
