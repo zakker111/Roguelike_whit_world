@@ -24,7 +24,7 @@
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
-import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInnAndMarkTavern, isAreaClearForBuilding } from "./town/layout_core.js";
+import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInnAndMarkTavern, isAreaClearForBuilding, findBuildingsOverlappingRect, layoutCandidateDoors, layoutEnsureDoor, layoutGetExistingDoor } from "./town/layout_core.js";
 import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 import { addProp, addSignNear, addShopSignInside, dedupeShopSigns, dedupeWelcomeSign, cleanupDanglingProps } from "./town/signs.js";
 import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town/npcs_bootstrap.js";
@@ -189,7 +189,7 @@ function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
       const ry1 = Math.min(ctx.map.length - 2, py1);
 
       // Remove any buildings overlapping the plaza rectangle
-      const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
+      const overl = findBuildingsOverlappingRect(buildings, rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
       if (overl && overl.length) {
         for (let i = 0; i < overl.length; i++) {
           removeBuildingAndProps(overl[i]);
@@ -263,14 +263,6 @@ function generate(ctx) {
     const sepX = (ax1 < bx0) || (bx1 < ax0);
     const sepY = (ay1 < by0) || (by1 < ay0);
     return !(sepX || sepY);
-  }
-  function findBuildingsOverlappingRect(x0, y0, w, h, margin = 0) {
-    const out = [];
-    for (let i = 0; i < buildings.length; i++) {
-      const b = buildings[i];
-      if (rectOverlap(b.x, b.y, b.w, b.h, x0, y0, w, h, margin)) out.push(b);
-    }
-    return out;
   }
   function removeBuildingAndProps(b) {
     try {
@@ -375,7 +367,7 @@ function generate(ctx) {
     TOWNCFG,
     rng,
     (ctx2, pref, bx, by) => stampPrefab(ctx2, pref, bx, by),
-    (x0, y0, w, h, margin) => findBuildingsOverlappingRect(x0, y0, w, h, margin),
+    (x0, y0, w, h, margin) => findBuildingsOverlappingRect(buildings, x0, y0, w, h, margin),
     (b) => removeBuildingAndProps(b),
     (bx, by, bw, bh, margin) => overlapsPlazaRect(bx, by, bw, bh, margin),
     (bx, by, bw, bh) => placeBuilding(bx, by, bw, bh),
@@ -549,30 +541,11 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Doors and shops near plaza (compact): just mark doors and create shop entries
-  function candidateDoors(b) {
-    return [
-      { x: b.x + ((b.w / 2) | 0), y: b.y, ox: 0, oy: -1 },                      // top
-      { x: b.x + b.w - 1, y: b.y + ((b.h / 2) | 0), ox: +1, oy: 0 },            // right
-      { x: b.x + ((b.w / 2) | 0), y: b.y + b.h - 1, ox: 0, oy: +1 },            // bottom
-      { x: b.x, y: b.y + ((b.h / 2) | 0), ox: -1, oy: 0 },                      // left
-    ];
-  }
-  function ensureDoor(b) {
-    const cands = candidateDoors(b);
-    const good = cands.filter(d => inBounds({ map: ctx.map }, d.x + d.ox, d.y + d.oy) && ctx.map[d.y + d.oy][d.x + d.ox] === ctx.TILES.FLOOR);
-    const pick = (good.length ? good : cands)[(Math.floor(ctx.rng() * (good.length ? good.length : cands.length))) % (good.length ? good.length : cands.length)];
-    if (inBounds(ctx, pick.x, pick.y)) ctx.map[pick.y][pick.x] = ctx.TILES.DOOR;
-    return pick;
-  }
-  function getExistingDoor(b) {
-    const cds = candidateDoors(b);
-    for (const d of cds) {
-      if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) return { x: d.x, y: d.y };
-    }
-    const dd = ensureDoor(b);
-    return { x: dd.x, y: dd.y };
-  }
+  // Doors and shops near plaza (compact): just mark doors and create shop entries.
+  // Door placement helpers are now provided by layout_core to keep building geometry centralized.
+  const candidateDoors = (b) => layoutCandidateDoors(b);
+  const ensureDoor = (b) => layoutEnsureDoor(ctx, b);
+  const getExistingDoor = (b) => layoutGetExistingDoor(ctx, b);
 
   // Remove any buildings overlapping the Inn building
   (function cleanupInnOverlap() {
@@ -733,7 +706,7 @@ function generate(ctx) {
         if (trySlipStamp(ctx, pref, bx, by, 2)) return true;
         // If still blocked, remove an overlapping building and try once more,
         // but never remove the tavern/inn building.
-        const overlaps = findBuildingsOverlappingRect(bx, by, pref.size.w, pref.size.h, 0);
+        const overlaps = findBuildingsOverlappingRect(buildings, bx, by, pref.size.w, pref.size.h, 0);
         let toRemove = overlaps;
         try {
           if (ctx.tavern && ctx.tavern.building) {

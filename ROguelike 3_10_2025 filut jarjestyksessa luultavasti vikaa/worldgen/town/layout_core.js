@@ -318,6 +318,69 @@ export function isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, margin = 1) {
 }
 
 /**
+ * Find all buildings whose rect overlaps [x0,y0,w,h] with optional margin.
+ */
+export function findBuildingsOverlappingRect(buildings, x0, y0, w, h, margin = 0) {
+  const out = [];
+  const ax = x0, ay = y0, aw = w, ah = h;
+  const ax0 = ax - margin, ay0 = ay - margin, ax1 = ax + aw - 1 + margin, ay1 = ay + ah - 1 + margin;
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
+    const bx0 = b.x - margin, by0 = b.y - margin, bx1 = b.x + b.w - 1 + margin, by1 = b.y + b.h - 1 + margin;
+    const sepX = (ax1 < bx0) || (bx1 < ax0);
+    const sepY = (ay1 < by0) || (by1 < ay0);
+    if (!(sepX || sepY)) out.push(b);
+  }
+  return out;
+}
+
+/**
+ * Door placement helpers for rectangular buildings. These are geometry-only
+ * and do not depend on Prefabs; they operate on the TILE map + ctx.
+ */
+export function layoutCandidateDoors(b) {
+  return [
+    { x: b.x + ((b.w / 2) | 0), y: b.y, ox: 0, oy: -1 },                      // top
+    { x: b.x + b.w - 1, y: b.y + ((b.h / 2) | 0), ox: +1, oy: 0 },            // right
+    { x: b.x + ((b.w / 2) | 0), y: b.y + b.h - 1, ox: 0, oy: +1 },            // bottom
+    { x: b.x, y: b.y + ((b.h / 2) | 0), ox: -1, oy: 0 },                      // left
+  ];
+}
+
+export function layoutEnsureDoor(ctx, b) {
+  const cands = layoutCandidateDoors(b);
+  const good = cands.filter(d => {
+    const tx = d.x + d.ox;
+    const ty = d.y + d.oy;
+    if (ty < 0 || ty >= ctx.map.length) return false;
+    if (tx < 0 || tx >= ctx.map[0].length) return false;
+    return ctx.map[ty][tx] === ctx.TILES.FLOOR;
+  });
+  const pool = good.length ? good : cands;
+  const idx = (typeof ctx.rng === "function")
+    ? (Math.floor(ctx.rng() * pool.length) % pool.length)
+    : (Math.floor(Math.random() * pool.length) % pool.length);
+  const pick = pool[idx];
+  if (pick && ctx.map[pick.y] && ctx.map[pick.y][pick.x] !== undefined) {
+    ctx.map[pick.y][pick.x] = ctx.TILES.DOOR;
+  }
+  return pick;
+}
+
+export function layoutGetExistingDoor(ctx, b) {
+  const cds = layoutCandidateDoors(b);
+  for (const d of cds) {
+    if (d.y < 0 || d.y >= ctx.map.length) continue;
+    if (d.x < 0 || d.x >= ctx.map[0].length) continue;
+    if (ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+      return { x: d.x, y: d.y };
+    }
+  }
+  const dd = layoutEnsureDoor(ctx, b);
+  return { x: dd.x, y: dd.y };
+}
+
+/**
  * Place a castle keep building (for townKind === "castle") near the plaza.
  * Keeps plaza open and avoids overwriting the gate; uses the same logic that
  * previously lived in town_gen.js. No RNG is currently used, but rng is
