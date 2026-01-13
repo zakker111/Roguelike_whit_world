@@ -28,7 +28,7 @@ import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInn
 import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 import { addProp, addSignNear, addShopSignInside, dedupeShopSigns, dedupeWelcomeSign, cleanupDanglingProps } from "./town/signs.js";
 import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town/npcs_bootstrap.js";
-import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFor, shuffleInPlace } from "./town/shops_core.js";
+import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFor, shuffleInPlace, assignShopsToBuildings } from "./town/shops_core.js";
 import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
 
@@ -777,235 +777,19 @@ function generate(ctx) {
   // Data-first shop selection: use GameData.shops when available (helpers in town/shops_core.js)
   let shopDefs = loadShopDefs(ctx, strictNow);
 
-  // Score buildings by distance to plaza and assign shops to closest buildings
-  const scored = buildings.map(b => ({ b, d: Math.abs((b.x + ((b.w / 2))) - plaza.x) + Math.abs((b.y + ((b.h / 2))) - plaza.y) }));
-  scored.sort((a, b) => a.d - b.d);
-  // Track largest building by area for assigning the inn
-  
-
-  // Vary number of shops by town size (helper in town/shops_core.js)
-  const limit = Math.min(scored.length, shopLimitBySize(townSize));
-
-  // Deterministic sampling helpers for shop presence (helpers in town/shops_core.js)
-
-  // Build shop selection: Inn always included, others sampled by chanceBySize (dedup by type)
-  let innDef = null;
-  const candidateDefs = [];
-  for (let i = 0; i < shopDefs.length; i++) {
-    const d = shopDefs[i];
-    const isInn = String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || ""));
-    if (d.required === true || isInn) { innDef = d; continue; }
-    candidateDefs.push(d);
-  }
-  // Sample presence for non-inn shops
-  let sampled = [];
-  for (const d of candidateDefs) {
-    const ch = chanceFor(d, townSize);
-    if (rng() < ch) sampled.push(d);
-  }
-  // Shuffle and cap, but avoid duplicate types within a single town
-  shuffleInPlace(sampled, rng);
-  const restCap = Math.max(0, limit - (innDef ? 1 : 0));
-  const finalDefs = [];
-  const usedTypes = new Set();
-  if (innDef) {
-    finalDefs.push(innDef);
-    usedTypes.add(String(innDef.type || innDef.name || "").toLowerCase());
-  }
-  // Fill with sampled unique types
-  for (let i = 0; i < sampled.length && finalDefs.length < ((innDef ? 1 : 0) + restCap); i++) {
-    const d = sampled[i];
-    const tKey = String(d.type || d.name || "").toLowerCase();
-    if (usedTypes.has(tKey)) continue;
-    finalDefs.push(d);
-    usedTypes.add(tKey);
-  }
-  // If we still have capacity, pull additional unique types from the full candidate list
-  if (finalDefs.length < ((innDef ? 1 : 0) + restCap)) {
-    for (const d of candidateDefs) {
-      const tKey = String(d.type || d.name || "").toLowerCase();
-      if (usedTypes.has(tKey)) continue;
-      finalDefs.push(d);
-      usedTypes.add(tKey);
-      if (finalDefs.length >= ((innDef ? 1 : 0) + restCap)) break;
-    }
-  }
-
-  // Avoid assigning multiple shops to the same building
-  const usedBuildings = new Set();
-
-  // Assign selected shops to nearest buildings
-  const finalCount = Math.min(finalDefs.length, scored.length);
-  for (let i = 0; i < finalCount; i++) {
-    const def = finalDefs[i];
-    let b = scored[i].b;
-
-    // Prefer the enlarged tavern building for the Inn if available; else nearest to plaza
-    if (String(def.type || "").toLowerCase() === "inn") {
-      if (ctx.tavern && ctx.tavern.building) {
-        b = ctx.tavern.building;
-      } else {
-        // Pick the closest unused building
-        let candidate = null;
-        for (const s of scored) {
-          const key = `${s.b.x},${s.b.y}`;
-          if (!usedBuildings.has(key)) { candidate = s.b; break; }
-        }
-        b = candidate || scored[0].b;
-      }
-    }
-
-    // If chosen building is already used, pick the next nearest unused
-    if (usedBuildings.has(`${b.x},${b.y}`)) {
-      const alt = scored.find(s => !usedBuildings.has(`${s.b.x},${s.b.y}`));
-      if (alt) b = alt.b;
-    }
-
-    // Extra guard: non-inn shops should never occupy the tavern building
-    if (String(def.type || "").toLowerCase() !== "inn" && ctx.tavern && ctx.tavern.building) {
-      const tb = ctx.tavern.building;
-      const isTavernBld = (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h);
-      if (isTavernBld) {
-        const alt = scored.find(s => {
-          const key = `${s.b.x},${s.b.y}`;
-          const isTavern = (s.b.x === tb.x && s.b.y === tb.y && s.b.w === tb.w && s.b.h === tb.h);
-          return !usedBuildings.has(key) && !isTavern;
-        });
-        if (alt) b = alt.b;
-      }
-    }
-
-    usedBuildings.add(`${b.x},${b.y}`);
-
-    // For Inn: prefer using existing double doors on the side facing the plaza if present
-    let door = null;
-    if (String(def.type || "").toLowerCase() === "inn") {
-      // check for any door on the inn building perimeter and pick one closest to plaza
-      const cds = candidateDoors(b);
-      let best = null, bestD2 = Infinity;
-      for (const d of cds) {
-        if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
-          const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
-          if (dd < bestD2) { bestD2 = dd; best = { x: d.x, y: d.y }; }
-        }
-      }
-      door = best || ensureDoor(b);
-    } else {
-      door = ensureDoor(b);
-    }
-    const sched = scheduleFromData(ctx, def);
-    const name = def.name || def.type || "Shop";
-
-    // inside near door
-    const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
-    let inside = null;
-    for (const dxy of inward) {
-      const ix = door.x + dxy.dx, iy = door.y + dxy.dy;
-      const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
-      if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
-    }
-    if (!inside) {
-      const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
-      const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
-      inside = { x: cx, y: cy };
-    }
-
-    ctx.shops.push({
-      x: door.x,
-      y: door.y,
-      type: def.type || "shop",
-      name,
-      openMin: sched.openMin,
-      closeMin: sched.closeMin,
-      alwaysOpen: !!sched.alwaysOpen,
-      building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
-      inside
-    });
-    // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
-    try { addShopSignInside(ctx, W, H, b, { x: door.x, y: door.y }, name); } catch (_) {}
-  }
-
-  // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
-  try {
-    const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn")));
-    if (!hasInn && ctx.tavern && ctx.tavern.building) {
-      const b = ctx.tavern.building;
-      // Prefer existing door on perimeter; otherwise ensure one
-      let doorX = (ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
-      let doorY = (ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
-      if (doorX == null || doorY == null) {
-        const dd = ensureDoor(b);
-        doorX = dd.x; doorY = dd.y;
-      }
-      // Compute an inside tile near the door
-      const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
-      let inside = null;
-      for (let i = 0; i < inward.length; i++) {
-        const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
-        const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
-        if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
-      }
-      if (!inside) {
-        const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
-        const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
-        inside = { x: cx, y: cy };
-      }
-      ctx.shops.push({
-        x: doorX,
-        y: doorY,
-        type: "inn",
-        name: "Inn",
-        openMin: 0,
-        closeMin: 0,
-        alwaysOpen: true,
-        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
-        inside
-      });
-      try { addShopSignInside(ctx, W, H, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
-    }
-  } catch (_) {}
-
-  // Safety: deduplicate Inn entries if any logic created more than one
-  try {
-    if (Array.isArray(ctx.shops)) {
-      const out = [], seenInn = false;
-      for (let i = 0; i < ctx.shops.length; i++) {
-        const s = ctx.shops[i];
-        const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn"));
-        if (isInn) {
-          if (!seenInn) {
-            out.push(s);
-            seenInn = true;
-          } else {
-            // drop duplicate inn
-            continue;
-          }
-        } else {
-          out.push(s);
-        }
-      }
-      ctx.shops = out;
-    }
-    // Ensure ctx.tavern points to the single Inn building if present
-    if (ctx.shops && ctx.shops.length) {
-      const innShop = ctx.shops.find(s => (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn")));
-      if (innShop && innShop.building && innShop.building.x != null) {
-        (function assignInnTavern() {
-          try {
-            const doorX = (innShop.building && innShop.building.door && typeof innShop.building.door.x === "number") ? innShop.building.door.x : innShop.x;
-            const doorY = (innShop.building && innShop.building.door && typeof innShop.building.door.y === "number") ? innShop.building.door.y : innShop.y;
-            ctx.tavern = {
-              building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h },
-              door: { x: doorX, y: doorY }
-            };
-          } catch (_) {
-            ctx.tavern = { building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h }, door: { x: innShop.x, y: innShop.y } };
-          }
-        })();
-        ctx.inn = ctx.tavern;
-      }
-    }
-  } catch (_) {}
+  // High-level shop assignment (moved to town/shops_core.js)
+  assignShopsToBuildings(ctx, {
+    shopDefs,
+    buildings,
+    plaza,
+    townSize,
+    rng,
+    W,
+    H,
+    candidateDoors: (b) => candidateDoors(b),
+    ensureDoor: (b) => ensureDoor(b),
+    addShopSignInside: (ctx2, W2, H2, b2, door2, name2) => addShopSignInside(ctx2, W2, H2, b2, door2, name2),
+  });
 
   // Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door) outside the building.
   dedupeShopSigns(ctx, W, H);
