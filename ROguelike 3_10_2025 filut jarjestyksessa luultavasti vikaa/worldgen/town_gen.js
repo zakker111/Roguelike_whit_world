@@ -1439,7 +1439,7 @@ function generate(ctx) {
           inside
         });
 
-        try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        try { addShopSignInside(ctx, W, H, ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
     } catch (_) {}
   })();
