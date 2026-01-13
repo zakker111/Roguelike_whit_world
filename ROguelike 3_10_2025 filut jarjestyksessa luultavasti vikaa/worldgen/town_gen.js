@@ -27,6 +27,7 @@ import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTo
 import { buildBaseTown, buildPlaza, carveBuildingRect } from "./town/layout_core.js";
 import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 import { addProp, addSignNear, addShopSignInside, dedupeShopSigns, dedupeWelcomeSign, cleanupDanglingProps } from "./town/signs.js";
+import { spawnGateGreeters, enforceGateNPCLimit } from "./town/npcs_bootstrap.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -143,128 +144,7 @@ function ensureSpawnClear(ctx) {
   return true;
 }
 
-function spawnGateGreeters(ctx, count = 4) {
-  if (!ctx.townExitAt) return false;
-  // Clamp to ensure at most one NPC near the gate within a small radius
-  const RADIUS = 2;
-  const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
-  const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
-  const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
-  const RAND = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
-  if (target <= 0) {
-    // Keep player space clear but ensure at least one greeter remains in radius
-    clearAdjacentNPCsAroundPlayer(ctx);
-    try {
-      const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
-      if (nearNow === 0) {
-        const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
-        const lines = [
-          `Welcome to ${ctx.townName || "our town"}.`,
-          "Shops are marked with a flag at their doors.",
-          "Stay as long as you like.",
-          "The plaza is at the center.",
-        ];
-        // Prefer diagonals first to avoid blocking cardinal steps
-        const candidates = [
-          { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 },
-          { x: gx + 2, y: gy }, { x: gx - 2, y: gy }, { x: gx, y: gy + 2 }, { x: gx, y: gy - 2 },
-          { x: gx + 2, y: gy + 1 }, { x: gx + 2, y: gy - 1 }, { x: gx - 2, y: gy + 1 }, { x: gx - 2, y: gy - 1 },
-          { x: gx + 1, y: gy + 2 }, { x: gx + 1, y: gy - 2 }, { x: gx - 1, y: gy + 2 }, { x: gx - 1, y: gy - 2 },
-        ];
-        for (const c of candidates) {
-          if (_isFreeTownFloor(ctx, c.x, c.y) && _manhattan(ctx, ctx.player.x, ctx.player.y, c.x, c.y) > 1) {
-            const name = names[Math.floor(RAND() * names.length) % names.length];
-            ctx.npcs.push({ x: c.x, y: c.y, name, lines, greeter: true });
-            break;
-          }
-        }
-      }
-    } catch (_) {}
-    return true;
-  }
 
-  const dirs = [
-    { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-    { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }
-  ];
-  const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
-  const lines = [
-    `Welcome to ${ctx.townName || "our town"}.`,
-    "Shops are marked with a flag at their doors.",
-    "Stay as long as you like.",
-    "The plaza is at the center.",
-  ];
-  let placed = 0;
-  // two rings around the gate
-  for (let ring = 1; ring <= 2 && placed < target; ring++) {
-    for (const d of dirs) {
-      const x = gx + d.dx * ring;
-      const y = gy + d.dy * ring;
-      if (_isFreeTownFloor(ctx, x, y) && _manhattan(ctx, ctx.player.x, ctx.player.y, x, y) > 1) {
-        const name = names[Math.floor(RAND() * names.length) % names.length];
-        ctx.npcs.push({ x, y, name, lines, greeter: true });
-        placed++;
-        if (placed >= target) break;
-      }
-    }
-  }
-  clearAdjacentNPCsAroundPlayer(ctx);
-  // After clearing adjacency, ensure at least one greeter remains near the gate
-  try {
-    const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
-    if (nearNow === 0) {
-      const name = "Greeter";
-      const lines2 = [
-        `Welcome to ${ctx.townName || "our town"}.`,
-        "Shops are marked with a flag at their doors.",
-        "Stay as long as you like.",
-        "The plaza is at the center.",
-      ];
-      const diag = [
-        { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 }
-      ];
-      for (const c of diag) {
-        if (_isFreeTownFloor(ctx, c.x, c.y)) { ctx.npcs.push({ x: c.x, y: c.y, name, lines: lines2, greeter: true }); break; }
-      }
-    }
-  } catch (_) {}
-  return true;
-}
-
-function enforceGateNPCLimit(ctx, limit = 1, radius = 2) {
-  if (!ctx || !ctx.npcs || !ctx.townExitAt) return;
-  const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
-  const nearIdx = [];
-  for (let i = 0; i < ctx.npcs.length; i++) {
-    const n = ctx.npcs[i];
-    if (_manhattan(ctx, n.x, n.y, gx, gy) <= radius) nearIdx.push({ i, d: _manhattan(ctx, n.x, n.y, gx, gy) });
-  }
-  if (nearIdx.length <= limit) return;
-  // Keep the closest 'limit'; remove others
-  nearIdx.sort((a, b) => a.d - b.d || a.i - b.i);
-  const keepSet = new Set(nearIdx.slice(0, limit).map(o => o.i));
-  const toRemove = nearIdx.slice(limit).map(o => o.i).sort((a, b) => b - a);
-  for (const idx of toRemove) {
-    ctx.npcs.splice(idx, 1);
-  }
-}
-
-function clearAdjacentNPCsAroundPlayer(ctx) {
-  // Ensure the four cardinal neighbors around the player are not all occupied by NPCs
-  const neighbors = [
-    { x: ctx.player.x + 1, y: ctx.player.y },
-    { x: ctx.player.x - 1, y: ctx.player.y },
-    { x: ctx.player.x, y: ctx.player.y + 1 },
-    { x: ctx.player.x, y: ctx.player.y - 1 },
-  ];
-  // If any neighbor has an NPC, remove up to two to keep space
-  for (const pos of neighbors) {
-    const idx = ctx.npcs.findIndex(n => n.x === pos.x && n.y === pos.y);
-    if (idx !== -1) {
-      ctx.npcs.splice(idx, 1);
-    }
-  }
-}
 
 
 
