@@ -543,9 +543,17 @@ function generate(ctx) {
 
   // Doors and shops near plaza (compact): just mark doors and create shop entries.
   // Door placement helpers are now provided by layout_core to keep building geometry centralized.
-  const candidateDoors = (b) => layoutCandidateDoors(b);
-  const ensureDoor = (b) => layoutEnsureDoor(ctx, b);
-  const getExistingDoor = (b) => layoutGetExistingDoor(ctx, b);
+  // Use function declarations (not const) so they are available earlier in generate(), including
+  // when buildInnAndMarkTavern is invoked.
+  function candidateDoors(b) {
+    return layoutCandidateDoors(b);
+  }
+  function ensureDoor(b) {
+    return layoutEnsureDoor(ctx, b);
+  }
+  function getExistingDoor(b) {
+    return layoutGetExistingDoor(ctx, b);
+  }
 
   // Remove any buildings overlapping the Inn building
   (function cleanupInnOverlap() {
