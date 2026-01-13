@@ -25,6 +25,7 @@
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
 import { buildBaseTown, buildPlaza, carveBuildingRect } from "./town/layout_core.js";
+import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -262,33 +263,6 @@ function clearAdjacentNPCsAroundPlayer(ctx) {
       ctx.npcs.splice(idx, 1);
     }
   }
-}
-
-/**
- * Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors).
- * Separated from generate() for clarity.
- */
-function buildOutdoorMask(ctx, buildings, width, height) {
-  try {
-    const rows = height, cols = width;
-    const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-    function insideAnyBuilding(x, y) {
-      for (let i = 0; i < buildings.length; i++) {
-        const B = buildings[i];
-        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-      }
-      return false;
-    }
-    for (let yy = 0; yy < rows; yy++) {
-      for (let xx = 0; xx < cols; xx++) {
-        const t = ctx.map[yy][xx];
-        if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
-          mask[yy][xx] = true;
-        }
-      }
-    }
-    ctx.townOutdoorMask = mask;
-  } catch (_) {}
 }
 
 /**
@@ -2247,74 +2221,7 @@ function generate(ctx) {
   addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
 
   // Windows along building walls (spaced, not near doors)
-  (function placeWindowsOnAll() {
-    function sidePoints(b) {
-      // Exclude corners for aesthetics; only true perimeter segments
-      return [
-        Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y })),              // top
-        Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y + b.h - 1 })),    // bottom
-        Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x, y: b.y + 1 + i })),              // left
-        Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x + b.w - 1, y: b.y + 1 + i })),    // right
-      ];
-    }
-    function isAdjacent(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1; }
-    function nearDoor(x, y) {
-      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-      for (let i = 0; i < dirs.length; i++) {
-        const nx = x + dirs[i].dx, ny = y + dirs[i].dy;
-        if (!inBounds(ctx, nx, ny)) continue;
-        if (ctx.map[ny][nx] === ctx.TILES.DOOR) return true;
-      }
-      return false;
-    }
-    for (let bi = 0; bi < buildings.length; bi++) {
-      const b = buildings[bi];
-      // Skip window auto-placement for prefab-stamped buildings; rely on prefab WINDOW tiles
-      if (b && b.prefabId) continue;
-      const tavB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-      const isTavernBld = !!(tavB && b.x === tavB.x && b.y === tavB.y && b.w === tavB.w && b.h === tavB.h);
-      let candidates = [];
-      const sides = sidePoints(b);
-      for (let si = 0; si < sides.length; si++) {
-        const pts = sides[si];
-        for (let pi = 0; pi < pts.length; pi++) {
-          const p = pts[pi];
-          if (!inBounds(ctx, p.x, p.y)) continue;
-          const t = ctx.map[p.y][p.x];
-          // Only convert solid wall tiles, avoid doors and already-placed windows
-          if (t !== ctx.TILES.WALL) continue;
-          if (nearDoor(p.x, p.y)) continue;
-          candidates.push(p);
-        }
-      }
-      if (!candidates.length) continue;
-      // Limit by perimeter size so larger buildings get a few more windows but not too many
-      let limit = Math.min(3, Math.max(1, Math.floor((b.w + b.h) / 12)));
-      if (isTavernBld) {
-        limit = Math.max(1, Math.floor(limit * 0.7));
-      }
-      limit = Math.max(1, Math.min(limit, 4));
-      const placed = [];
-      let attempts = 0;
-      while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-        const idx = Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * candidates.length);
-        const p = candidates[idx];
-        // Keep spacing: avoid placing next to already placed windows
-        let adjacent = false;
-        for (let j = 0; j < placed.length; j++) {
-          if (isAdjacent(p, placed[j])) { adjacent = true; break; }
-        }
-        if (adjacent) {
-          candidates.splice(idx, 1);
-          continue;
-        }
-        ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
-        placed.push(p);
-        // Remove adjacent candidates to maintain spacing
-        candidates = candidates.filter(c => !isAdjacent(c, p));
-      }
-    }
-  })();
+  placeWindowsOnAll(ctx, buildings);
 
   // Plaza fixtures via prefab only (no fallbacks). For castle settlements, keep the central area
   // clear for the castle keep and skip plaza prefabs.
