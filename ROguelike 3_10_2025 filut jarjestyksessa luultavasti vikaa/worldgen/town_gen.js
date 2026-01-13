@@ -524,7 +524,7 @@ function generate(ctx) {
       const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
       let attempts = 0, successes = 0;
-      while (buildings.length < targetBySize && attempts++ &lt; 600) {
+      while (buildings.length < targetBySize && attempts++ < 600) {
         // Random provisional rectangle within bounds
         const bw = Math.max(6, Math.min(12, 6 + Math.floor((ctx.rng || rng)() * 7)));
         const bh = Math.max(4, Math.min(10, 4 + Math.floor((ctx.rng || rng)() * 7)));
