@@ -222,8 +222,9 @@ export function isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
+import { townTalk } from "./talk.js";
+
 export function talk(ctx, bumpAtX = null, bumpAtY = null) {
-  const { townTalk } = require("./talk.js"); // dynamic require to avoid circular ESM issues in window bundling
   return townTalk(ctx, bumpAtX, bumpAtY);
 }
 
