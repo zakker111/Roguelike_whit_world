@@ -872,7 +872,7 @@ function generate(ctx) {
   let sampled = [];
   for (const d of candidateDefs) {
     const ch = chanceFor(d, townSize);
-    if (rng() &lt; ch) sampled.push(d);
+    if (rng() < ch) sampled.push(d);
   }
   // Shuffle and cap, but avoid duplicate types within a single town
   shuffleInPlace(sampled, rng);
