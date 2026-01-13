@@ -299,6 +299,25 @@ export function carveBuildingRect(ctx, buildings, bx, by, bw, bh, W, H) {
 }
 
 /**
+ * Check that a provisional building rectangle plus a margin is entirely
+ * FLOOR tiles. This is used to enforce a one-tile gap between buildings
+ * so their walls never touch.
+ */
+export function isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, margin = 1) {
+  const x0 = Math.max(1, bx - margin);
+  const y0 = Math.max(1, by - margin);
+  const x1 = Math.min(W - 2, bx + bw - 1 + margin);
+  const y1 = Math.min(H - 2, by + bh - 1 + margin);
+  for (let yy = y0; yy <= y1; yy++) {
+    for (let xx = x0; xx <= x1; xx++) {
+      const t = ctx.map[yy][xx];
+      if (t !== ctx.TILES.FLOOR) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Place a castle keep building (for townKind === "castle") near the plaza.
  * Keeps plaza open and avoids overwriting the gate; uses the same logic that
  * previously lived in town_gen.js. No RNG is currently used, but rng is

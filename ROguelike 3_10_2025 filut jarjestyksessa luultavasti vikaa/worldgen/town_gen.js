@@ -24,7 +24,7 @@
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
-import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInnAndMarkTavern } from "./town/layout_core.js";
+import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInnAndMarkTavern, isAreaClearForBuilding } from "./town/layout_core.js";
 import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 import { addProp, addSignNear, addShopSignInside, dedupeShopSigns, dedupeWelcomeSign, cleanupDanglingProps } from "./town/signs.js";
 import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town/npcs_bootstrap.js";
@@ -404,21 +404,6 @@ function generate(ctx) {
   const blockW = bConf.blockW;
   const blockH = bConf.blockH;
 
-  // Ensure a margin of clear floor around buildings so walls never touch between buildings
-  function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
-    const x0 = Math.max(1, bx - margin);
-    const y0 = Math.max(1, by - margin);
-    const x1 = Math.min(W - 2, bx + bw - 1 + margin);
-    const y1 = Math.min(H - 2, by + bh - 1 + margin);
-    for (let yy = y0; yy <= y1; yy++) {
-      for (let xx = x0; xx <= x1; xx++) {
-        const t = ctx.map[yy][xx];
-        if (t !== ctx.TILES.FLOOR) return false;
-      }
-    }
-    return true;
-  }
-
   // Prevent any building rectangle from overlapping the town plaza footprint (optionally with a small buffer)
   function overlapsPlazaRect(bx, by, bw, bh, margin = 0) {
     // Compute plaza rectangle bounds exactly as carved earlier
@@ -502,7 +487,7 @@ function generate(ctx) {
       // Avoid overlapping the town plaza footprint (with a 1-tile walkway buffer)
       if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
       // Enforce at least one tile of floor margin between buildings
-      if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
+      if (!isAreaClearForBuilding(ctx, W, H, fx, fy, w, h, 1)) continue;
 
       const GD4 = getGameData(ctx);
       const PFB = (GD4 && GD4.prefabs) ? GD4.prefabs : null;
@@ -539,7 +524,7 @@ function generate(ctx) {
       const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
       let attempts = 0, successes = 0;
-      while (buildings.length < targetBySize && attempts++ < 600) {
+      while (buildings.length < targetBySize && attempts++ &lt; 600) {
         // Random provisional rectangle within bounds
         const bw = Math.max(6, Math.min(12, 6 + Math.floor((ctx.rng || rng)() * 7)));
         const bh = Math.max(4, Math.min(10, 4 + Math.floor((ctx.rng || rng)() * 7)));
@@ -547,7 +532,7 @@ function generate(ctx) {
         const by = Math.max(2, Math.min(H - bh - 3, 2 + Math.floor((ctx.rng || rng)() * (H - bh - 4))));
         // Skip near plaza and enforce margin clear
         if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
-        if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) continue;
+        if (!isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, 1)) continue;
         // Pick a prefab that fits
         const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
         if (!candidates.length) continue;
@@ -626,7 +611,7 @@ function generate(ctx) {
         const by = Math.max(q.y0 + 1, Math.min(q.y1 - bh, q.y0 + 1 + Math.floor(ctx.rng() * spanY)));
         if (bx >= q.x1 - 1 || by >= q.y1 - 1) return false;
         if (overlapsPlazaRect(bx, by, bw, bh, 1)) return false;
-        if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) return false;
+        if (!isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, 1)) return false;
         // Strict prefabs: attempt to stamp a house prefab; else carve fallback rectangle
         const GDq = getGameData(ctx);
         const PFB = (GDq && GDq.prefabs) ? GDq.prefabs : null;
@@ -862,7 +847,7 @@ function generate(ctx) {
           // Avoid plaza footprint with a one-tile buffer.
           if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
           // Require a clear floor margin so barracks doesn't merge into other buildings.
-          if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) continue;
+          if (!isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, 1)) continue;
 
           const cxB = bx + ((bw / 2) | 0);
           const cyB = by + ((bh / 2) | 0);
