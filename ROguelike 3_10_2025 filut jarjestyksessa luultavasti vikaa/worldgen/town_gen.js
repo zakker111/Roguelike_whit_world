@@ -1213,19 +1213,19 @@ function generate(ctx) {
       const cy = ctx.townPlaza.y;
 
       // Center well
-      addProp(cx, cy, "well");
+      addProp(ctx, W, H, cx, cy, "well");
 
       // Benches on cardinal directions if floor
-      addProp(cx - 2, cy, "bench");
-      addProp(cx + 2, cy, "bench");
-      addProp(cx, cy - 2, "bench");
-      addProp(cx, cy + 2, "bench");
+      addProp(ctx, W, H, cx - 2, cy, "bench");
+      addProp(ctx, W, H, cx + 2, cy, "bench");
+      addProp(ctx, W, H, cx, cy - 2, "bench");
+      addProp(ctx, W, H, cx, cy + 2, "bench");
 
       // Lamps at diagonals
-      addProp(cx - 3, cy - 3, "lamp");
-      addProp(cx + 3, cy - 3, "lamp");
-      addProp(cx - 3, cy + 3, "lamp");
-      addProp(cx + 3, cy + 3, "lamp");
+      addProp(ctx, W, H, cx - 3, cy - 3, "lamp");
+      addProp(ctx, W, H, cx + 3, cy - 3, "lamp");
+      addProp(ctx, W, H, cx - 3, cy + 3, "lamp");
+      addProp(ctx, W, H, cx + 3, cy + 3, "lamp");
     } catch (_) {}
   })();
 
