@@ -24,7 +24,7 @@
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
 import { getTownBuildingConfig, getInnSizeConfig, getCastleKeepSizeConfig, getTownPopulationTargets } from "./town/config.js";
-import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep } from "./town/layout_core.js";
+import { buildBaseTown, buildPlaza, carveBuildingRect, placeCastleKeep, buildInnAndMarkTavern } from "./town/layout_core.js";
 import { buildOutdoorMask, repairBuildingPerimeters, placeWindowsOnAll } from "./town/windows.js";
 import { addProp, addSignNear, addShopSignInside, dedupeShopSigns, dedupeWelcomeSign, cleanupDanglingProps } from "./town/signs.js";
 import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town/npcs_bootstrap.js";
@@ -362,264 +362,26 @@ function generate(ctx) {
   }
 
   // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
-  (function enlargeInnBuilding() {
-    // Always carve the Inn even if no other buildings exist, to guarantee at least one building
-
-    // Target size: scale from plaza dims and ensure larger minimums by town size
-    let rectUsedInn = null;
-    const sizeKey = townSize;
-    // Make inn a bit smaller than before to keep plaza spacious (data-driven via town.json when available)
-    const innSize = getInnSizeConfig(TOWNCFG, sizeKey);
-    const minW = innSize.minW;
-    const minH = innSize.minH;
-    const scaleW = innSize.scaleW;
-    const scaleH = innSize.scaleH;
-    const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
-    const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
-
-    // Require a clear one-tile floor margin around the Inn so it never connects to other buildings
-    function hasMarginClear(x, y, w, h, margin = 1) {
-      const x0 = Math.max(1, x - margin);
-      const y0 = Math.max(1, y - margin);
-      const x1 = Math.min(W - 2, x + w - 1 + margin);
-      const y1 = Math.min(H - 2, y + h - 1 + margin);
-      for (let yy = y0; yy <= y1; yy++) {
-        for (let xx = x0; xx <= x1; xx++) {
-          // Outside the rect or inside, we require current tiles to be FLOOR (roads/plaza),
-          // not walls/doors/windows of other buildings.
-          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
-        }
-      }
-      return true;
-    }
-
-    // Try to place the Inn on one of the four sides adjacent to the plaza, ensuring margin clear
-    function placeInnRect() {
-      // Start with desired target size and shrink if we cannot find a margin-clear slot
-      let tw = targetW, th = targetH;
-
-      // Attempt multiple shrink steps to satisfy margin without touching other buildings
-      for (let shrink = 0; shrink < 4; shrink++) {
-        const candidates = [];
-
-        // East of plaza
-        candidates.push({
-          side: "westFacing",
-          x: Math.min(W - 2 - tw, ((plaza.x + (plazaW / 2)) | 0) + 2),
-          y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
-        });
-        // West of plaza
-        candidates.push({
-          side: "eastFacing",
-          x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) - 2 - tw),
-          y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
-        });
-        // South of plaza
-        candidates.push({
-          side: "northFacing",
-          x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
-          y: Math.min(H - 2 - th, ((plaza.y + (plazaH / 2)) | 0) + 2)
-        });
-        // North of plaza
-        candidates.push({
-          side: "southFacing",
-          x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
-          y: Math.max(1, ((plaza.y - (plazaH / 2)) | 0) - 2 - th)
-        });
-
-        // Pick the first candidate that fits fully in bounds and has a clear margin
-        for (const c of candidates) {
-          const nx = Math.max(1, Math.min(W - 2 - tw, c.x));
-          const ny = Math.max(1, Math.min(H - 2 - th, c.y));
-          const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
-          // Also ensure the Inn never overlaps the plaza footprint
-          if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 1)) {
-            return { x: nx, y: ny, w: tw, h: th, facing: c.side };
-          }
-        }
-
-        // If none fit with current size, shrink slightly and try again
-        tw = Math.max(minW, tw - 2);
-        th = Math.max(minH, th - 2);
-      }
-
-      // As a last resort, shrink until margin-clear and non-overlap near plaza center
-      for (let extraShrink = 0; extraShrink < 6; extraShrink++) {
-        const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
-        const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
-        const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
-        if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 1)) {
-          return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
-        }
-        tw = Math.max(minW, tw - 2);
-        th = Math.max(minH, th - 2);
-      }
-      // Final minimal placement
-      const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
-      const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
-      return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
-    }
-
-    const innRect = placeInnRect();
-
-    // Prefer prefab-based Inn stamping when available
-    const GD2 = getGameData(ctx);
-    const PFB = (GD2 && GD2.prefabs) ? GD2.prefabs : null;
-    let usedPrefabInn = false;
-    if (PFB && Array.isArray(PFB.inns) && PFB.inns.length) {
-      // Prefer the largest inn prefab that fits, to ensure a roomy tavern
-      const innsSorted = PFB.inns
-        .slice()
-        .filter(p => p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number")
-        .sort((a, b) => (b.size.w * b.size.h) - (a.size.w * a.size.h));
-
-      // Try stamping centered in innRect; if it doesn't fit, shrink rect and retry a few times
-      let bx = innRect.x, by = innRect.y, bw = innRect.w, bh = innRect.h;
-      for (let attempts = 0; attempts < 4 && !usedPrefabInn; attempts++) {
-        const pref = innsSorted.find(p => p.size.w <= bw && p.size.h <= bh) || null;
-        if (pref) {
-          const ox = Math.floor((bw - pref.size.w) / 2);
-          const oy = Math.floor((bh - pref.size.h) / 2);
-          if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
-            usedPrefabInn = true;
-            rectUsedInn = { x: bx + ox, y: by + oy, w: pref.size.w, h: pref.size.h };
-            break;
-          }
-        }
-        bw = Math.max(10, bw - 2);
-        bh = Math.max(8, bh - 2);
-      }
-    }
-
-    // Decide whether to proceed with inn assignment
-    
-    if (!usedPrefabInn) {
-      // Second pass: try stamping an inn prefab anywhere on the map (largest-first), allowing removal of overlapping buildings
-      const GD3 = getGameData(ctx);
-      const PFB2 = (GD3 && GD3.prefabs) ? GD3.prefabs : null;
-      if (PFB2 && Array.isArray(PFB2.inns) && PFB2.inns.length) {
-        const innsSorted2 = PFB2.inns
-          .slice()
-          .filter(function(p){ return p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number"; })
-          .sort(function(a, b){ return (b.size.w * b.size.h) - (a.size.w * a.size.h); });
-        let stamped = false;
-        for (let ip = 0; ip < innsSorted2.length && !stamped; ip++) {
-          const pref = innsSorted2[ip];
-          const wInn = pref.size.w | 0, hInn = pref.size.h | 0;
-          for (let y = 2; y <= H - hInn - 2 && !stamped; y++) {
-            for (let x = 2; x <= W - wInn - 2 && !stamped; x++) {
-              // Try stamping directly
-              if (stampPrefab(ctx, pref, x, y)) {
-                rectUsedInn = { x: x, y: y, w: wInn, h: hInn };
-                usedPrefabInn = true;
-                stamped = true;
-                break;
-              }
-              // If blocked by existing buildings, remove ALL overlaps and try again
-              const overl = findBuildingsOverlappingRect(x, y, wInn, hInn, 0);
-              if (overl && overl.length) {
-                for (let oi = 0; oi < overl.length; oi++) {
-                  removeBuildingAndProps(overl[oi]);
-                }
-                if (stampPrefab(ctx, pref, x, y)) {
-                  rectUsedInn = { x: x, y: y, w: wInn, h: hInn };
-                  usedPrefabInn = true;
-                  stamped = true;
-                  break;
-                }
-              }
-            }
-          }
-        }
-        // Force a plaza-centered placement by clearing overlaps if none were stamped in the scan
-        if (!stamped) {
-          const pref0 = innsSorted2[0];
-          if (pref0 && pref0.size) {
-            const wInn0 = pref0.size.w | 0, hInn0 = pref0.size.h | 0;
-            const fx = Math.max(2, Math.min(W - wInn0 - 2, ((plaza.x - ((wInn0 / 2) | 0)) | 0)));
-            const fy = Math.max(2, Math.min(H - hInn0 - 2, ((plaza.y - ((hInn0 / 2) | 0)) | 0)));
-            const overl0 = findBuildingsOverlappingRect(fx, fy, wInn0, hInn0, 0);
-            if (overl0 && overl0.length) {
-              for (let oi = 0; oi < overl0.length; oi++) {
-                removeBuildingAndProps(overl0[oi]);
-              }
-            }
-            if (stampPrefab(ctx, pref0, fx, fy)) {
-              rectUsedInn = { x: fx, y: fy, w: wInn0, h: hInn0 };
-              usedPrefabInn = true;
-            }
-          }
-        }
-      }
-      // As an absolute fallback, carve a hollow-rectangle Inn near the plaza to guarantee an Inn exists
-      if (!usedPrefabInn) {
-        placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
-        rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
-      }
-    }
-
-    
-
-    // Choose an existing building to replace/represent the inn, prefer the one closest to baseRect center,
-    // and ensure the building record matches the actual stamped inn rectangle so furnishing runs correctly.
-    const baseRect = rectUsedInn || innRect;
-    let targetIdx = -1, bestD = Infinity;
-    const cx = (baseRect.x + (baseRect.w / 2)) | 0;
-    const cy = (baseRect.y + (baseRect.h / 2)) | 0;
-    for (let i = 0; i < buildings.length; i++) {
-      const b = buildings[i];
-      const d = Math.abs((b.x + (b.w / 2)) - cx) + Math.abs((b.y + (b.h / 2)) - cy);
-      if (d < bestD) { bestD = d; targetIdx = i; }
-    }
-    if (targetIdx === -1) {
-      // If none available (shouldn't happen), push a new building record
-      buildings.push({ x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h });
-    } else {
-      const prevB = buildings[targetIdx];
-      buildings[targetIdx] = {
-        x: baseRect.x,
-        y: baseRect.y,
-        w: baseRect.w,
-        h: baseRect.h,
-        prefabId: prevB ? prevB.prefabId : null,
-        prefabCategory: prevB ? prevB.prefabCategory : null
-      };
-    }
-
-    // Record the tavern (Inn) building and its preferred door (closest to plaza)
-    try {
-      const cds = candidateDoors(baseRect);
-      let bestDoor = null, bestD2 = Infinity;
-      for (const d of cds) {
-        if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
-          const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
-          if (dd < bestD2) { bestD2 = dd; bestDoor = { x: d.x, y: d.y }; }
-        }
-      }
-      // Do not auto-carve doors for the inn; rely solely on prefab DOOR tiles.
-      try {
-        const bRec = buildings.find(b => b.x === baseRect.x && b.y === baseRect.y && b.w === baseRect.w && b.h === baseRect.h) || null;
-        const pid = (bRec && typeof bRec.prefabId !== "undefined") ? bRec.prefabId : null;
-        const pcat = (bRec && typeof bRec.prefabCategory !== "undefined") ? bRec.prefabCategory : null;
-        if (bestDoor) {
-          ctx.tavern = {
-            building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat },
-            door: { x: bestDoor.x, y: bestDoor.y }
-          };
-        } else {
-          ctx.tavern = {
-            building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat }
-          };
-        }
-      } catch (_) {
-        if (bestDoor) {
-          ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
-        } else {
-          ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h } };
-        }
-      }
-    } catch (_) {}
-  })();
+  buildInnAndMarkTavern(
+    ctx,
+    buildings,
+    W,
+    H,
+    gate,
+    plaza,
+    plazaW,
+    plazaH,
+    townSize,
+    TOWNCFG,
+    rng,
+    (ctx2, pref, bx, by) => stampPrefab(ctx2, pref, bx, by),
+    (x0, y0, w, h, margin) => findBuildingsOverlappingRect(x0, y0, w, h, margin),
+    (b) => removeBuildingAndProps(b),
+    (bx, by, bw, bh, margin) => overlapsPlazaRect(bx, by, bw, bh, margin),
+    (bx, by, bw, bh) => placeBuilding(bx, by, bw, bh),
+    (b) => candidateDoors(b),
+    (ctx2, x, y) => inBounds(ctx2, x, y)
+  );
 
   function pickPrefab(list, rng) {
     // Delegate to module implementation
