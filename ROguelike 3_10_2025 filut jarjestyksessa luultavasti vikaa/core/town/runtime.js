@@ -16,6 +16,7 @@ import { syncFollowersFromTown } from "../followers_runtime.js";
 import { tickSeppo } from "./seppo_runtime.js";
 import { tickTownFollowers } from "./follower_tick.js";
 import { spawnInnFollowerHires } from "./follower_hires.js";
+import { startBanditsAtGateEvent } from "./bandits_event.js";
 
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
@@ -778,11 +779,6 @@ function startCaravanAmbushEncounter(ctx, npc) {
     }
   } catch (_) {}
 }
-
-
-}
-
-import { startBanditsAtGateEvent } from "./bandits_event.js";
 
 if (typeof window !== "undefined") {
   window.TownRuntime = {
