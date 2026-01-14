@@ -1032,15 +1032,19 @@ import "./followers_items.js";
         log,
         onRngUpdated: (newRng) => { rng = newRng || rng; },
       });
-      // Prefer centralized DeathFlow; fall back to local restart path if needed.
-      const handled = helpers.restartGame();
-      if (handled) return;
+      // Call DeathFlow-based restart if present, but always also run the local reset path
+      try {
+        helpers.restartGame();
+      } catch (_) {}
 
+      // Local reset path (original core/game.js behavior)
       hideGameOver();
       try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
       floor = 1;
       isDead = false;
       try {
+        const ctx = getCtx();
+        try { ctx.isDead = false; } catch (_) {}
         const P = modHandle("Player");
         if (P && typeof P.resetFromDefaults === "function") {
           P.resetFromDefaults(player);
