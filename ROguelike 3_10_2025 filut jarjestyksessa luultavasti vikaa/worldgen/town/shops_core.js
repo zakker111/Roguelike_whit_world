@@ -32,15 +32,16 @@ export function scheduleFromData(ctx, row) {
  */
 export function loadShopDefs(ctx, strictNow) {
   const GD9 = getGameData(ctx);
-  let shopDefs = strictNow
-    ? []
-    : ((GD9 && Array.isArray(GD9.shops)) ? GD9.shops.slice(0) : [
-        { type: "inn",        name: "Inn",        alwaysOpen: true },
-        { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
-        { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
-        { type: "armorer",    name: "Armorer",    open: "08:00", close: "17:00" },
-        { type: "trader",     name: "Trader",     open: "08:00", close: "18:00" },
-      ]);
+  // Always use data-first shops when available; fall back to legacy defaults when GameData.shops
+  // is absent. The strictNow flag is reserved for layout/prefab behavior and should not suppress
+  // generic shop definitions, or towns can end up with only an Inn.
+  let shopDefs = (GD9 && Array.isArray(GD9.shops)) ? GD9.shops.slice(0) : [
+    { type: "inn",        name: "Inn",        alwaysOpen: true },
+    { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
+    { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
+    { type: "armorer",    name: "Armorer",    open: "08:00", close: "17:00" },
+    { type: "trader",     name: "Trader",     open: "08:00", close: "18:00" },
+  ];
 
   try {
     const idxInn = shopDefs.findIndex(d =>
