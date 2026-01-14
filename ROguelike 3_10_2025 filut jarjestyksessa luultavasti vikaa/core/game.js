@@ -30,7 +30,6 @@
  */
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
-import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
 import {
   applySyncAndRefresh as gameStateApplySyncAndRefresh,
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
@@ -42,6 +41,7 @@ import {
   startLoopImpl,
   scheduleAssetsReadyDrawImpl,
 } from "./game_bootstrap.js";
+import { createGodBridge } from "./game_god_bridge.js";
 import {
   initGameTime,
   getClock as gameTimeGetClock,
@@ -94,15 +94,6 @@ import {
   describeItem as invDescribeItem,
   equipIfBetter as invEquipIfBetter
 } from "./facades/inventory_decay.js";
-import {
-  setAlwaysCrit as setAlwaysCritFacade,
-  setCritPart as setCritPartFacade,
-  godSpawnEnemyNearby as godSpawnEnemyNearbyFacade,
-  godSpawnItems as godSpawnItemsFacade,
-  godHeal as godHealFacade,
-  godSpawnStairsHere as godSpawnStairsHereFacade
-} from "./god/facade.js";
-import { godActions, godSeedAndRestart } from "./engine/game_god.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -988,66 +979,34 @@ import "./followers_items.js";
   }
 
   
-  // GOD mode actions (delegated to core/god_facade.js)
-  function godHeal() {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godHeal();
-  }
+  // GOD mode actions (delegated via core/game_god_bridge.js)
+  const godBridge = createGodBridge({
+    getCtx,
+    log,
+    applyCtxSyncAndRefresh,
+    setAlwaysCritFlag: (v) => { alwaysCrit = !!v; },
+    setForcedCritPartFlag: (part) => { forcedCritPart = part; },
+    setRng: (newRng) => { rng = newRng || rng; },
+    setFloor: (v) => { floor = (typeof v === "number") ? (v | 0) : floor; },
+    setIsDead: (v) => { isDead = !!v; },
+    getPlayer: () => player,
+    setModeWorld: () => { mode = "world"; },
+    initWorld: () => initWorld(),
+    modHandle,
+    hideGameOver: () => hideGameOver(),
+  });
 
-  function godSpawnStairsHere() {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnStairsHere();
-  }
-
-  function godSpawnItems(count = 3) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnItems(count);
-  }
-
-  function godSpawnEnemyNearby(count = 1) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnEnemyNearby(count);
-  }
+  const {
+    setAlwaysCrit,
+    setCritPart,
+    godHeal,
+    godSpawnStairsHere,
+    godSpawnItems,
+    godSpawnEnemyNearby,
+    applySeed,
+    rerollSeed,
+    restartGame,
+  } = godBridge;
 
   
   function renderInventoryPanel() {
@@ -1084,123 +1043,11 @@ import "./followers_items.js";
     }
   }
 
-  // GOD: always-crit toggle (delegated to core/god_facade.js)
-  function setAlwaysCrit(v) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    if (actions.setAlwaysCrit(v)) {
-      alwaysCrit = !!v;
-    }
-  }
-
-  // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
-  function setCritPart(part) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    if (actions.setCritPart(part)) {
-      forcedCritPart = part;
-    }
-  }
-
-  // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
-  function applySeed(seedUint32) {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    helpers.applySeed(seedUint32);
-  }
-
-  // GOD: reroll seed using current time (delegated)
-  function rerollSeed() {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    helpers.rerollSeed();
-  }
-
   function hideGameOver() {
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideGameOver === "function") {
       UIO.hideGameOver(getCtx());
     }
-  }
-
-  // Clear persisted game state (towns, dungeons, region map) via core/persistence.js
-  function clearPersistentGameStorage() {
-    try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
-  }
-
-  function restartGame() {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    // Prefer centralized DeathFlow; fall back to local restart path if needed.
-    const handled = helpers.restartGame();
-    if (handled) return;
-
-    hideGameOver();
-    clearPersistentGameStorage();
-    floor = 1;
-    isDead = false;
-    try {
-      const P = modHandle("Player");
-      if (P && typeof P.resetFromDefaults === "function") {
-        P.resetFromDefaults(player);
-      }
-      if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
-    } catch (_) {}
-    // Enter overworld and reroll seed so each new game starts with a fresh world
-    mode = "world";
-    // Try GodControls.rerollSeed which applies and persists a new seed, then regenerates overworld
-    try {
-      const GC = modHandle("GodControls");
-      if (GC && typeof GC.rerollSeed === "function") {
-        GC.rerollSeed(() => getCtx());
-        return;
-      }
-    } catch (_) {}
-    // Fallback: apply a time-based seed via RNG service or direct init, then generate world
-    try {
-      const s = (Date.now() % 0xffffffff) >>> 0;
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
-        window.RNG.applySeed(s);
-        rng = window.RNG.rng;
-        initWorld();
-        return;
-      }
-    } catch (_) {}
-    // Ultimate fallback: no RNG service, just init world (non-deterministic)
-    initWorld();
   }
 
   
