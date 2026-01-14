@@ -38,11 +38,16 @@ import {
 import "./modes/transitions.js";
 import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
-  initTimeWeather,
-  getClock as timeGetClock,
-  getWeatherSnapshot as timeGetWeatherSnapshot,
-  minutesUntil as timeMinutesUntil,
-  advanceTimeMinutes as timeAdvanceTimeMinutes,
+  initGameTime,
+  getClock as gameTimeGetClock,
+  getWeatherSnapshot as gameTimeGetWeatherSnapshot,
+  minutesUntil as gameTimeMinutesUntil,
+  advanceTimeMinutes as gameTimeAdvanceTimeMinutes
+} from "./engine/game_time.js";
+import { runTurn } from "./engine/game_turn.js";
+import { recomputeWithGuard as gameFovRecomputeWithGuard } from "./engine/game_fov.js";
+import { updateCamera as fovCameraUpdate } from "./engine/fov_camera.js";
+import {
   tickTimeAndWeather,
   getMinutesPerTurn,
   getTurnCounter
@@ -92,6 +97,8 @@ import {
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
 } from "./god/facade.js";
+import { godActions, godSeedAndRestart } from "./engine/game_god.js";
+import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
 
@@ -117,7 +124,7 @@ import "./followers_items.js";
   let fovRadius = FOV_DEFAULT;
 
   // Initialize global time and weather runtime (shared across modes)
-  initTimeWeather(CFG);
+  initGameTime(CFG);
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
@@ -152,11 +159,11 @@ import "./followers_items.js";
   // Global time-of-day cycle and visual weather (shared across modes) are managed via
   // the time_weather facade. This keeps core/game.js focused on orchestration logic.
   function getClock() {
-    return timeGetClock();
+    return gameTimeGetClock();
   }
 
   function getWeatherSnapshot(time) {
-    return timeGetWeatherSnapshot(time);
+    return gameTimeGetWeatherSnapshot(time);
   }
 
   
@@ -544,25 +551,17 @@ import "./followers_items.js";
   
 
   function recomputeFOV() {
-    // Centralize FOV recompute via GameFOV; remove inline and legacy fallbacks
-    const GF = modHandle("GameFOV");
-    if (GF && typeof GF.recomputeWithGuard === "function") {
-      const ctx = getCtx();
-      ctx.seen = seen;
-      ctx.visible = visible;
-      GF.recomputeWithGuard(ctx);
-      visible = ctx.visible;
-      seen = ctx.seen;
-    }
+    const ctx = getCtx();
+    ctx.seen = seen;
+    ctx.visible = visible;
+    gameFovRecomputeWithGuard(ctx);
+    visible = ctx.visible;
+    seen = ctx.seen;
   }
 
   
   function updateCamera() {
-    // Centralize camera updates via FOVCamera
-    const FC = modHandle("FOVCamera");
-    if (FC && typeof FC.updateCamera === "function") {
-      FC.updateCamera(getCtx());
-    }
+    fovCameraUpdate(getCtx());
   }
 
   
@@ -634,10 +633,13 @@ import "./followers_items.js";
     return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return timeMinutesUntil(hourTarget, minuteTarget);
+    return gameTimeMinutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    timeAdvanceTimeMinutes(mins, (msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+    gameTimeAdvanceTimeMinutes(mins, {
+      log,
+      rng: () => (typeof rng === "function" ? rng() : Math.random())
+    });
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
@@ -890,118 +892,22 @@ import "./followers_items.js";
   }
 
   function setupInput() {
-    const I = modHandle("Input");
-    if (I && typeof I.init === "function") {
-      I.init({
-        // state queries
-        isDead: () => isDead,
-        isInventoryOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isInventoryOpen === "function" && UIO.isInventoryOpen(getCtx()));
-        },
-        isLootOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx()));
-        },
-        isGodOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isGodOpen === "function" && UIO.isGodOpen(getCtx()));
-        },
-        // Ensure shop modal is part of the modal stack priority
-        isShopOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isShopOpen === "function" && UIO.isShopOpen(getCtx()));
-        },
-        // Smoke config modal priority after Shop
-        isSmokeOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isSmokeOpen === "function" && UIO.isSmokeOpen(getCtx()));
-        },
-        // Sleep modal (Inn beds)
-        isSleepOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isSleepOpen === "function" && UIO.isSleepOpen(getCtx()));
-        },
-        // Confirm dialog gating
-        isConfirmOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isConfirmOpen === "function" && UIO.isConfirmOpen(getCtx()));
-        },
-        // actions
-        onRestart: () => restartGame(),
-        onShowInventory: () => showInventoryPanel(),
-        onHideInventory: () => hideInventoryPanel(),
-        onHideLoot: () => hideLootPanel(),
-        onHideGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
-        },
-        onHideShop: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
-        },
-        onHideSmoke: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
-        },
-        onHideSleep: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
-        },
-        onCancelConfirm: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
-        },
-        onShowGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
-          const UIH = modHandle("UI");
-          if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-        },
-        
-        // Help / Controls + Character Sheet (F1)
-        isHelpOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
-        },
-        onShowHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
-        },
-        onHideHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
-        },
-        // Character Sheet (C)
-        isCharacterOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
-        },
-        onShowCharacter: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showCharacter === "function") UIO.showCharacter(getCtx());
-        },
-        onHideCharacter: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
-        },
-        // Follower inspect panel
-        isFollowerOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isFollowerOpen === "function" && UIO.isFollowerOpen(getCtx()));
-        },
-        onHideFollower: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideFollower === "function") UIO.hideFollower(getCtx());
-        },
-        onMove: (dx, dy) => tryMovePlayer(dx, dy),
-        onWait: () => turn(),
-        onLoot: () => doAction(),
-        onDescend: () => descendIfPossible(),
-        onBrace: () => brace(),
-        adjustFov: (delta) => adjustFov(delta),
-      });
-    }
+    setupInputBridge({
+      modHandle,
+      getCtx,
+      isDead: () => isDead,
+      getFovRadius: () => fovRadius,
+      restartGame,
+      showInventoryPanel,
+      hideInventoryPanel,
+      hideLootPanel,
+      tryMovePlayer,
+      turn,
+      doAction,
+      descendIfPossible,
+      brace,
+      adjustFov,
+    });
   }
           
   
@@ -1079,23 +985,63 @@ import "./followers_items.js";
   
   // GOD mode actions (delegated to core/god_facade.js)
   function godHeal() {
-    try { if (godHealFacade(getCtx())) return; } catch (_) {}
-    log("GOD: heal not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godHeal();
   }
 
   function godSpawnStairsHere() {
-    try { if (godSpawnStairsHereFacade(getCtx())) return; } catch (_) {}
-    log("GOD: spawnStairsHere not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnStairsHere();
   }
 
   function godSpawnItems(count = 3) {
-    try { if (godSpawnItemsFacade(getCtx(), count)) return; } catch (_) {}
-    log("GOD: spawnItems not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnItems(count);
   }
 
   function godSpawnEnemyNearby(count = 1) {
-    try { if (godSpawnEnemyNearbyFacade(getCtx(), count)) return; } catch (_) {}
-    log("GOD: spawnEnemyNearby not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnEnemyNearby(count);
   }
 
   
@@ -1135,48 +1081,62 @@ import "./followers_items.js";
 
   // GOD: always-crit toggle (delegated to core/god_facade.js)
   function setAlwaysCrit(v) {
-    try {
-      const ok = setAlwaysCritFacade(getCtx(), v);
-      if (ok) { alwaysCrit = !!v; return; }
-    } catch (_) {}
-    log("GOD: setAlwaysCrit not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    if (actions.setAlwaysCrit(v)) {
+      alwaysCrit = !!v;
+    }
   }
 
   // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
   function setCritPart(part) {
-    try {
-      const ok = setCritPartFacade(getCtx(), part);
-      if (ok) { forcedCritPart = part; return; }
-    } catch (_) {}
-    log("GOD: setCritPart not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    if (actions.setCritPart(part)) {
+      forcedCritPart = part;
+    }
   }
 
   // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
   function applySeed(seedUint32) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.applySeed === "function") {
-      const ctx = getCtx();
-      GC.applySeed(() => getCtx(), seedUint32);
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    log("GOD: applySeed not available.", "warn");
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    helpers.applySeed(seedUint32);
   }
 
   // GOD: reroll seed using current time (delegated)
   function rerollSeed() {
-    // Always clear persisted game states before rerolling to avoid cross-seed leaks
-    try { clearPersistentGameStorage(); } catch (_) {}
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.rerollSeed === "function") {
-      const ctx = getCtx();
-      GC.rerollSeed(() => getCtx());
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    log("GOD: rerollSeed not available.", "warn");
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    helpers.rerollSeed();
   }
 
   function hideGameOver() {
@@ -1192,13 +1152,17 @@ import "./followers_items.js";
   }
 
   function restartGame() {
-    // Prefer centralized DeathFlow (still invoke, but continue to apply a new seed)
-    try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.restart === "function") {
-        DF.restart(getCtx());
-      }
-    } catch (_) {}
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    // Prefer centralized DeathFlow; fall back to local restart path if needed.
+    const handled = helpers.restartGame();
+    if (handled) return;
+
     hideGameOver();
     clearPersistentGameStorage();
     floor = 1;
@@ -1292,62 +1256,33 @@ import "./followers_items.js";
   function turn() {
     if (isDead) return;
 
-    const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-
-    // Advance global time and visual weather state (non-gameplay)
-    tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
-
-    // Prefer centralized TurnLoop when available
-    try {
-      const TL = modHandle("TurnLoop");
-      if (TL && typeof TL.tick === "function") {
-        const ctxMod = getCtx();
-        TL.tick(ctxMod);
-        // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
-        try {
-          const cPost = getCtx();
-          if (cPost && cPost.mode !== mode) {
-            applyCtxSyncAndRefresh(cPost);
-          }
-        } catch (_) {}
-        // Overworld wildlife hint even when TurnLoop is active
-        try {
-          if (mode === "world") { maybeEmitOverworldAnimalHint(); }
-        } catch (_) {}
-        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        try { perfMeasureTurn(t1 - t0); } catch (_) {}
-        return;
-      }
-    } catch (_) {}
-
-    
+    runTurn({
+      getCtx: () => getCtx(),
+      getMode: () => mode,
+      tickTimeAndWeather,
+      log,
+      rng: () => (typeof rng === "function" ? rng() : Math.random()),
+      applyCtxSyncAndRefresh,
+      maybeEmitOverworldAnimalHint,
+      perfMeasureTurn,
+    });
   }
   
   
 
   {
-    const UIH = modHandle("UI");
-    if (UIH && typeof UIH.init === "function") {
-      UIH.init();
-      if (typeof UIH.setHandlers === "function") {
-        UIH.setHandlers({
-          onEquip: (idx) => equipItemByIndex(idx),
-          onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
-          onUnequip: (slot) => unequipSlot(slot),
-          onDrink: (idx) => drinkPotionByIndex(idx),
-          onEat: (idx) => eatFoodByIndex(idx),
-          onRestart: () => restartGame(),
-          onWait: () => turn()
-        });
-      }
-      // Install GOD-specific handlers via dedicated module
-      try {
-        const GH = modHandle("GodHandlers");
-        if (GH && typeof GH.install === "function") {
-          GH.install(() => getCtx());
-        }
-      } catch (_) {}
-    }
+    initUIHandlersBridge({
+      modHandle,
+      getCtx,
+      equipItemByIndex,
+      equipItemByIndexHand,
+      unequipSlot,
+      drinkPotionByIndex,
+      eatFoodByIndex,
+      restartGame,
+      turn,
+      getFovRadius: () => fovRadius,
+    });
   }
 
   // Hand decay helpers delegated to inventory_decay facade

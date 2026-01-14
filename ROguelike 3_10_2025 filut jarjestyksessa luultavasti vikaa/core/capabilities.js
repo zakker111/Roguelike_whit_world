@@ -149,6 +149,54 @@ try {
     notes: "Centralized turn processing; falls back to inline turn logic when absent.",
   });
   registerModuleHealth({
+    id: "GameTime",
+    label: "GameTime Engine",
+    modName: "GameTime",
+    required: false,
+    requiredFns: ["initGameTime", "getClock", "getWeatherSnapshot", "minutesUntil", "advanceTimeMinutes"],
+    notes: "Centralized time-of-day and weather helpers; wraps time_weather facade.",
+  });
+  registerModuleHealth({
+    id: "GameTurn",
+    label: "GameTurn Engine",
+    modName: "GameTurn",
+    required: false,
+    requiredFns: ["runTurn"],
+    notes: "Per-turn orchestration; drives TurnLoop and perf metrics.",
+  });
+  registerModuleHealth({
+    id: "GameFOV",
+    label: "GameFOV Engine",
+    modName: "GameFOV",
+    required: false,
+    requiredFns: ["recomputeWithGuard"],
+    notes: "FOV recompute with caching/guards; used by core/game.js.",
+  });
+  registerModuleHealth({
+    id: "FOVCamera",
+    label: "FOVCamera Engine",
+    modName: "FOVCamera",
+    required: false,
+    requiredFns: ["updateCamera"],
+    notes: "Camera centering and clamping around the player.",
+  });
+  registerModuleHealth({
+    id: "GameUIBridge",
+    label: "Game UI Bridge",
+    modName: "GameUIBridge",
+    required: false,
+    requiredFns: ["setupInputBridge", "initUIHandlersBridge"],
+    notes: "Bridges core/game.js with Input and UI handler wiring.",
+  });
+  registerModuleHealth({
+    id: "GameGod",
+    label: "Game GOD Engine",
+    modName: "GameGod",
+    required: false,
+    requiredFns: ["godActions", "godSeedAndRestart"],
+    notes: "GOD actions, seed application, and restart helpers.",
+  });
+  registerModuleHealth({
     id: "Combat",
     label: "Combat module",
     modName: "Combat",
