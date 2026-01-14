@@ -125,8 +125,6 @@ export function isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
-import { townTalk } from "./talk.js";
-
 export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   if (ctx.mode !== "town") return false;
   const npcs = ctx.npcs || [];
