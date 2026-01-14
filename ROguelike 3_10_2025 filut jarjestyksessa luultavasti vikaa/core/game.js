@@ -97,6 +97,7 @@ import {
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
 } from "./god/facade.js";
+import { godActions, godSeedAndRestart } from "./engine/game_god.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -984,23 +985,63 @@ import "./followers_items.js";
   
   // GOD mode actions (delegated to core/god_facade.js)
   function godHeal() {
-    try { if (godHealFacade(getCtx())) return; } catch (_) {}
-    log("GOD: heal not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godHeal();
   }
 
   function godSpawnStairsHere() {
-    try { if (godSpawnStairsHereFacade(getCtx())) return; } catch (_) {}
-    log("GOD: spawnStairsHere not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnStairsHere();
   }
 
   function godSpawnItems(count = 3) {
-    try { if (godSpawnItemsFacade(getCtx(), count)) return; } catch (_) {}
-    log("GOD: spawnItems not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnItems(count);
   }
 
   function godSpawnEnemyNearby(count = 1) {
-    try { if (godSpawnEnemyNearbyFacade(getCtx(), count)) return; } catch (_) {}
-    log("GOD: spawnEnemyNearby not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    actions.godSpawnEnemyNearby(count);
   }
 
   
@@ -1040,48 +1081,62 @@ import "./followers_items.js";
 
   // GOD: always-crit toggle (delegated to core/god_facade.js)
   function setAlwaysCrit(v) {
-    try {
-      const ok = setAlwaysCritFacade(getCtx(), v);
-      if (ok) { alwaysCrit = !!v; return; }
-    } catch (_) {}
-    log("GOD: setAlwaysCrit not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    if (actions.setAlwaysCrit(v)) {
+      alwaysCrit = !!v;
+    }
   }
 
   // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
   function setCritPart(part) {
-    try {
-      const ok = setCritPartFacade(getCtx(), part);
-      if (ok) { forcedCritPart = part; return; }
-    } catch (_) {}
-    log("GOD: setCritPart not available.", "warn");
+    const ctx = getCtx();
+    const actions = godActions({
+      ctx,
+      log,
+      setAlwaysCritFacade,
+      setCritPartFacade,
+      godSpawnEnemyNearbyFacade,
+      godSpawnItemsFacade,
+      godHealFacade,
+      godSpawnStairsHereFacade,
+    });
+    if (actions.setCritPart(part)) {
+      forcedCritPart = part;
+    }
   }
 
   // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
   function applySeed(seedUint32) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.applySeed === "function") {
-      const ctx = getCtx();
-      GC.applySeed(() => getCtx(), seedUint32);
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    log("GOD: applySeed not available.", "warn");
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    helpers.applySeed(seedUint32);
   }
 
   // GOD: reroll seed using current time (delegated)
   function rerollSeed() {
-    // Always clear persisted game states before rerolling to avoid cross-seed leaks
-    try { clearPersistentGameStorage(); } catch (_) {}
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.rerollSeed === "function") {
-      const ctx = getCtx();
-      GC.rerollSeed(() => getCtx());
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    log("GOD: rerollSeed not available.", "warn");
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    helpers.rerollSeed();
   }
 
   function hideGameOver() {
@@ -1097,13 +1152,17 @@ import "./followers_items.js";
   }
 
   function restartGame() {
-    // Prefer centralized DeathFlow (still invoke, but continue to apply a new seed)
-    try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.restart === "function") {
-        DF.restart(getCtx());
-      }
-    } catch (_) {}
+    const helpers = godSeedAndRestart({
+      getCtx: () => getCtx(),
+      applyCtxSyncAndRefresh,
+      clearPersistentGameStorage,
+      log,
+      onRngUpdated: (newRng) => { rng = newRng || rng; },
+    });
+    // Prefer centralized DeathFlow; fall back to local restart path if needed.
+    const handled = helpers.restartGame();
+    if (handled) return;
+
     hideGameOver();
     clearPersistentGameStorage();
     floor = 1;
