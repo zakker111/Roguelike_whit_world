@@ -43,6 +43,7 @@ import {
   scheduleAssetsReadyDrawImpl,
 } from "./game_bootstrap.js";
 import { createGodBridge } from "./game_god_bridge.js";
+import { buildGameAPIImpl } from "./game_api_bootstrap.js";
 import { godSeedAndRestart } from "./engine/game_god.js";
 import {
   initGameTime,
@@ -1264,101 +1265,60 @@ import "./followers_items.js";
 
   // Build and expose GameAPI facade (previously executed at import time)
   export function buildGameAPI() {
-    try {
-      if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
-        window.GameAPI = window.GameAPIBuilder.create({
-          getMode: () => mode,
-          getWorld: () => world,
-          getPlayer: () => player,
-          getEnemies: () => enemies,
-          getNPCs: () => npcs,
-          getTownProps: () => townProps,
-          getCorpses: () => corpses,
-          getShops: () => shops,
-          getDungeonExit: () => dungeonExitAt,
-          getTownGate: () => townExitAt,
-          getMap: () => map,
-          getVisible: () => visible,
-          getCamera: () => camera,
-          getOccupancy: () => occupancy,
-          getDecals: () => decals,
-          getPerfStats: () => perfGetPerfStats(),
-          TILES,
-          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-          enterTownIfOnTile: () => enterTownIfOnTile(),
-          enterDungeonIfOnEntrance: () => enterDungeonIfOnEntrance(),
-          isWalkable: (x, y) => isWalkable(x, y),
-          inBounds: (x, y) => inBounds(x, y),
-          updateCamera: () => updateCamera(),
-          recomputeFOV: () => recomputeFOV(),
-          requestDraw: () => requestDraw(),
-          updateUI: () => updateUI(),
-          renderInventoryPanel: () => renderInventoryPanel(),
-          equipItemByIndex: (idx) => equipItemByIndex(idx),
-          equipItemByIndexHand: (idx, hand) => equipItemByIndexHand(idx, hand),
-          unequipSlot: (slot) => unequipSlot(slot),
-          drinkPotionByIndex: (idx) => drinkPotionByIndex(idx),
-          addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
-          getPlayerAttack: () => getPlayerAttack(),
-          getPlayerDefense: () => getPlayerDefense(),
-          isShopOpenNow: (shop) => isShopOpenNow(shop),
-          shopScheduleStr: (shop) => shopScheduleStr(shop),
-          advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
-          getWeather: () => getWeatherSnapshot(),
-          // Mode transitions
-          returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
-          returnToWorldFromTown: () => returnToWorldFromTown(),
-          initWorld: () => initWorld(),
-          // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
-          enterEncounter: (template, biome, difficulty = 1) => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.enterEncounter === "function") {
-              return !!MT.enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Open Region Map at current overworld tile and sync orchestrator state
-          openRegionMap: () => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.openRegionMap === "function") {
-              return !!MT.openRegionMap(ctx, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Start an encounter inside the active Region Map (ctx.mode === "region")
-          startRegionEncounter: (template, biome) => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.startRegionEncounter === "function") {
-              return !!MT.startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Complete the active encounter immediately and sync back to orchestrator state.
-          // Used by special flows like caravan encounters to return to the overworld without
-          // requiring the player to walk to an exit tile.
-          completeEncounter: (outcome = "victory") => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.completeEncounter === "function") {
-              return !!MT.completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, { startEscortAutoTravel });
-            }
-            return false;
-          },
-          // GOD/helpers
-          setAlwaysCrit: (v) => setAlwaysCrit(v),
-          setCritPart: (part) => setCritPart(part),
-          godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
-          godSpawnItems: (count) => godSpawnItems(count),
-          generateLoot: (source) => generateLoot(source),
-          getClock: () => getClock(),
-          getCtx: () => getCtx(),
-          log: (msg, type) => log(msg, type),
-        });
-      }
-    } catch (_) {}
+    buildGameAPIImpl({
+      getCtx,
+      modHandle,
+      getMode: () => mode,
+      getWorld: () => world,
+      getPlayer: () => player,
+      getEnemies: () => enemies,
+      getNPCs: () => npcs,
+      getTownProps: () => townProps,
+      getCorpses: () => corpses,
+      getShops: () => shops,
+      getDungeonExit: () => dungeonExitAt,
+      getTownGate: () => townExitAt,
+      getMap: () => map,
+      getVisible: () => visible,
+      getCamera: () => camera,
+      getOccupancy: () => occupancy,
+      getDecals: () => decals,
+      getPerfStats: () => perfGetPerfStats(),
+      TILES,
+      tryMovePlayer,
+      enterTownIfOnTile,
+      enterDungeonIfOnEntrance,
+      isWalkable,
+      inBounds,
+      updateCamera,
+      recomputeFOV,
+      requestDraw,
+      updateUI,
+      renderInventoryPanel,
+      equipItemByIndex,
+      equipItemByIndexHand,
+      unequipSlot,
+      drinkPotionByIndex,
+      addPotionToInventory,
+      getPlayerAttack,
+      getPlayerDefense,
+      isShopOpenNow,
+      shopScheduleStr,
+      advanceTimeMinutes,
+      getWeatherSnapshot,
+      returnToWorldIfAtExit,
+      returnToWorldFromTown,
+      initWorld,
+      startEscortAutoTravel,
+      setAlwaysCrit,
+      setCritPart,
+      godSpawnEnemyNearby,
+      godSpawnItems,
+      generateLoot,
+      getClock,
+      log,
+      applyCtxSyncAndRefresh,
+    });
   }
 
 
