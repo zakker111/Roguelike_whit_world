@@ -45,6 +45,8 @@ import {
   advanceTimeMinutes as gameTimeAdvanceTimeMinutes
 } from "./engine/game_time.js";
 import { runTurn } from "./engine/game_turn.js";
+import { recomputeWithGuard as gameFovRecomputeWithGuard } from "./engine/game_fov.js";
+import { updateCamera as fovCameraUpdate } from "./engine/fov_camera.js";
 import {
   tickTimeAndWeather,
   getMinutesPerTurn,
@@ -547,25 +549,17 @@ import "./followers_items.js";
   
 
   function recomputeFOV() {
-    // Centralize FOV recompute via GameFOV; remove inline and legacy fallbacks
-    const GF = modHandle("GameFOV");
-    if (GF && typeof GF.recomputeWithGuard === "function") {
-      const ctx = getCtx();
-      ctx.seen = seen;
-      ctx.visible = visible;
-      GF.recomputeWithGuard(ctx);
-      visible = ctx.visible;
-      seen = ctx.seen;
-    }
+    const ctx = getCtx();
+    ctx.seen = seen;
+    ctx.visible = visible;
+    gameFovRecomputeWithGuard(ctx);
+    visible = ctx.visible;
+    seen = ctx.seen;
   }
 
   
   function updateCamera() {
-    // Centralize camera updates via FOVCamera
-    const FC = modHandle("FOVCamera");
-    if (FC && typeof FC.updateCamera === "function") {
-      FC.updateCamera(getCtx());
-    }
+    fovCameraUpdate(getCtx());
   }
 
   
