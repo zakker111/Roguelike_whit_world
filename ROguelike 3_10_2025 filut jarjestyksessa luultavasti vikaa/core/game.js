@@ -38,6 +38,11 @@ import {
 import "./modes/transitions.js";
 import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
+  initMouseSupportImpl,
+  startLoopImpl,
+  scheduleAssetsReadyDrawImpl,
+} from "./game_bootstrap.js";
+import {
   initGameTime,
   getClock as gameTimeGetClock,
   getWeatherSnapshot as gameTimeGetWeatherSnapshot,
@@ -1303,54 +1308,36 @@ import "./followers_items.js";
 
   // Initialize mouse/click support (was previously executed at import time)
   export function initMouseSupport() {
-    try {
-      const IM = modHandle("InputMouse");
-      if (IM && typeof IM.init === "function") {
-        IM.init({
-          canvasId: "game",
-          getMode: () => mode,
-          TILE,
-          getCamera: () => camera,
-          getPlayer: () => ({ x: player.x, y: player.y }),
-          inBounds: (x, y) => inBounds(x, y),
-          isWalkable: (x, y) => isWalkable(x, y),
-          getCorpses: () => corpses,
-          getEnemies: () => enemies,
-          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-          lootCorpse: () => lootCorpse(),
-          doAction: () => doAction(),
-          isAnyModalOpen: () => {
-            const UIO = modHandle("UIOrchestration");
-            return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
-          },
-        });
-      }
-    } catch (_) {}
+    return initMouseSupportImpl({
+      modHandle,
+      getCtx,
+      getMode: () => mode,
+      TILE,
+      getCamera: () => camera,
+      getPlayer: () => ({ x: player.x, y: player.y }),
+      getCorpses: () => corpses,
+      getEnemies: () => enemies,
+      inBounds,
+      isWalkable,
+      tryMovePlayer,
+      lootCorpse,
+      doAction,
+    });
   }
 
   // Start the render loop (or draw once if loop module is unavailable)
   export function startLoop() {
-    const GL = modHandle("GameLoop");
-    if (GL && typeof GL.start === "function") {
-      GL.start(() => getRenderCtx());
-    } else {
-      const R = modHandle("Render");
-      if (R && typeof R.draw === "function") {
-        R.draw(getRenderCtx());
-      }
-    }
+    return startLoopImpl({
+      modHandle,
+      getRenderCtx: () => getRenderCtx(),
+    });
   }
 
   // Request a redraw once assets (e.g., tiles.json) have fully loaded
   export function scheduleAssetsReadyDraw() {
-    try {
-      if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
-        window.GameData.ready.then(() => {
-          // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
-          requestDraw();
-        });
-      }
-    } catch (_) {}
+    return scheduleAssetsReadyDrawImpl({
+      requestDraw: () => requestDraw(),
+    });
   }
 
   // Build and expose GameAPI facade (previously executed at import time)
