@@ -38,11 +38,13 @@ import {
 import "./modes/transitions.js";
 import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
-  initTimeWeather,
-  getClock as timeGetClock,
-  getWeatherSnapshot as timeGetWeatherSnapshot,
-  minutesUntil as timeMinutesUntil,
-  advanceTimeMinutes as timeAdvanceTimeMinutes,
+  initGameTime,
+  getClock as gameTimeGetClock,
+  getWeatherSnapshot as gameTimeGetWeatherSnapshot,
+  minutesUntil as gameTimeMinutesUntil,
+  advanceTimeMinutes as gameTimeAdvanceTimeMinutes
+} from "./engine/game_time.js";
+import {
   tickTimeAndWeather,
   getMinutesPerTurn,
   getTurnCounter
@@ -117,7 +119,7 @@ import "./followers_items.js";
   let fovRadius = FOV_DEFAULT;
 
   // Initialize global time and weather runtime (shared across modes)
-  initTimeWeather(CFG);
+  initGameTime(CFG);
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
@@ -152,11 +154,11 @@ import "./followers_items.js";
   // Global time-of-day cycle and visual weather (shared across modes) are managed via
   // the time_weather facade. This keeps core/game.js focused on orchestration logic.
   function getClock() {
-    return timeGetClock();
+    return gameTimeGetClock();
   }
 
   function getWeatherSnapshot(time) {
-    return timeGetWeatherSnapshot(time);
+    return gameTimeGetWeatherSnapshot(time);
   }
 
   
@@ -634,10 +636,13 @@ import "./followers_items.js";
     return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return timeMinutesUntil(hourTarget, minuteTarget);
+    return gameTimeMinutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    timeAdvanceTimeMinutes(mins, (msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+    gameTimeAdvanceTimeMinutes(mins, {
+      log,
+      rng: () => (typeof rng === "function" ? rng() : Math.random())
+    });
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
