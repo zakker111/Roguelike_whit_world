@@ -44,6 +44,7 @@ import {
   minutesUntil as gameTimeMinutesUntil,
   advanceTimeMinutes as gameTimeAdvanceTimeMinutes
 } from "./engine/game_time.js";
+import { runTurn } from "./engine/game_turn.js";
 import {
   tickTimeAndWeather,
   getMinutesPerTurn,
@@ -1297,35 +1298,16 @@ import "./followers_items.js";
   function turn() {
     if (isDead) return;
 
-    const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-
-    // Advance global time and visual weather state (non-gameplay)
-    tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
-
-    // Prefer centralized TurnLoop when available
-    try {
-      const TL = modHandle("TurnLoop");
-      if (TL && typeof TL.tick === "function") {
-        const ctxMod = getCtx();
-        TL.tick(ctxMod);
-        // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
-        try {
-          const cPost = getCtx();
-          if (cPost && cPost.mode !== mode) {
-            applyCtxSyncAndRefresh(cPost);
-          }
-        } catch (_) {}
-        // Overworld wildlife hint even when TurnLoop is active
-        try {
-          if (mode === "world") { maybeEmitOverworldAnimalHint(); }
-        } catch (_) {}
-        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        try { perfMeasureTurn(t1 - t0); } catch (_) {}
-        return;
-      }
-    } catch (_) {}
-
-    
+    runTurn({
+      getCtx: () => getCtx(),
+      getMode: () => mode,
+      tickTimeAndWeather,
+      log,
+      rng: () => (typeof rng === "function" ? rng() : Math.random()),
+      applyCtxSyncAndRefresh,
+      maybeEmitOverworldAnimalHint,
+      perfMeasureTurn,
+    });
   }
   
   
