@@ -105,7 +105,8 @@ export function init(handlers) {
         e.preventDefault();
         _handlers.onHideSleep && _handlers.onHideSleep();
       } else {
-        e.preventDefault();
+        // Allow browser/default handling (e.g. arrow keys) so the slider works,
+        // but still block game input by returning early.
       }
       return;
     }
