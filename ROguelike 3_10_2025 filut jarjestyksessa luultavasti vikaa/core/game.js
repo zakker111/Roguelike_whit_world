@@ -30,6 +30,7 @@
  */
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
+import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
 import {
   applySyncAndRefresh as gameStateApplySyncAndRefresh,
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
@@ -42,6 +43,7 @@ import {
   scheduleAssetsReadyDrawImpl,
 } from "./game_bootstrap.js";
 import { createGodBridge } from "./game_god_bridge.js";
+import { godSeedAndRestart } from "./engine/game_god.js";
 import {
   initGameTime,
   getClock as gameTimeGetClock,
@@ -994,6 +996,79 @@ import "./followers_items.js";
     initWorld: () => initWorld(),
     modHandle,
     hideGameOver: () => hideGameOver(),
+    // Legacy seed/restart helpers so behavior stays identical
+    applySeed: (seedUint32) => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      helpers.applySeed(seedUint32);
+    },
+    rerollSeed: () => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      helpers.rerollSeed();
+    },
+    restartGame: () => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      // Prefer centralized DeathFlow; fall back to local restart path if needed.
+      const handled = helpers.restartGame();
+      if (handled) return;
+
+      hideGameOver();
+      try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+      floor = 1;
+      isDead = false;
+      try {
+        const P = modHandle("Player");
+        if (P && typeof P.resetFromDefaults === "function") {
+          P.resetFromDefaults(player);
+        }
+        if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
+      } catch (_) {}
+      // Enter overworld and reroll seed so each new game starts with a fresh world
+      mode = "world";
+      // Try GodControls.rerollSeed which applies and persists a new seed, then regenerates overworld
+      try {
+        const GC = modHandle("GodControls");
+        if (GC && typeof GC.rerollSeed === "function") {
+          GC.rerollSeed(() => getCtx());
+          return;
+        }
+      } catch (_) {}
+      // Fallback: apply a time-based seed via RNG service or direct init, then generate world
+      try {
+        const s = (Date.now() % 0xffffffff) >>> 0;
+        if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
+          window.RNG.applySeed(s);
+          rng = window.RNG.rng;
+          initWorld();
+          return;
+        }
+      } catch (_) {}
+      // Ultimate fallback: no RNG service, just init world (non-deterministic)
+      initWorld();
+    },
   });
 
   const {
