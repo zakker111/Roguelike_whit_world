@@ -28,19 +28,19 @@ function handle(name) {
   return null;
 }
 
-export function enterTownIfOnTile(ctx) {
+export function enterTownIfOnTile(ctx, applyCtxSyncAndRefresh) {
   const fn = handle("enterTownIfOnTile");
-  return fn ? !!fn(ctx) : false;
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh) : false;
 }
 
-export function enterDungeonIfOnEntrance(ctx) {
+export function enterDungeonIfOnEntrance(ctx, applyCtxSyncAndRefresh) {
   const fn = handle("enterDungeonIfOnEntrance");
-  return fn ? !!fn(ctx) : false;
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh) : false;
 }
 
-export function enterRuinsIfOnTile(ctx) {
+export function enterRuinsIfOnTile(ctx, applyCtxSyncAndRefresh) {
   const fn = handle("enterRuinsIfOnTile");
-  return fn ? !!fn(ctx) : false;
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh) : false;
 }
 
 export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) {

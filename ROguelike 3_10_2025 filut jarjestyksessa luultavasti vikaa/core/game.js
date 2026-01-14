@@ -38,6 +38,14 @@ import {
 import "./modes/transitions.js";
 import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
+  initMouseSupportImpl,
+  startLoopImpl,
+  scheduleAssetsReadyDrawImpl,
+} from "./game_bootstrap.js";
+import { createGodBridge } from "./game_god_bridge.js";
+import { buildGameAPIImpl } from "./game_api_bootstrap.js";
+import { godSeedAndRestart } from "./engine/game_god.js";
+import {
   initGameTime,
   getClock as gameTimeGetClock,
   getWeatherSnapshot as gameTimeGetWeatherSnapshot,
@@ -89,15 +97,6 @@ import {
   describeItem as invDescribeItem,
   equipIfBetter as invEquipIfBetter
 } from "./facades/inventory_decay.js";
-import {
-  setAlwaysCrit as setAlwaysCritFacade,
-  setCritPart as setCritPartFacade,
-  godSpawnEnemyNearby as godSpawnEnemyNearbyFacade,
-  godSpawnItems as godSpawnItemsFacade,
-  godHeal as godHealFacade,
-  godSpawnStairsHere as godSpawnStairsHereFacade
-} from "./god/facade.js";
-import { godActions, godSeedAndRestart } from "./engine/game_god.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -983,66 +982,111 @@ import "./followers_items.js";
   }
 
   
-  // GOD mode actions (delegated to core/god_facade.js)
-  function godHeal() {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godHeal();
-  }
+  // GOD mode actions (delegated via core/game_god_bridge.js)
+  const godBridge = createGodBridge({
+    getCtx,
+    log,
+    applyCtxSyncAndRefresh,
+    setAlwaysCritFlag: (v) => { alwaysCrit = !!v; },
+    setForcedCritPartFlag: (part) => { forcedCritPart = part; },
+    setRng: (newRng) => { rng = newRng || rng; },
+    setFloor: (v) => { floor = (typeof v === "number") ? (v | 0) : floor; },
+    setIsDead: (v) => { isDead = !!v; },
+    getPlayer: () => player,
+    setModeWorld: () => { mode = "world"; },
+    initWorld: () => initWorld(),
+    modHandle,
+    hideGameOver: () => hideGameOver(),
+    // Legacy seed/restart helpers so behavior stays identical
+    applySeed: (seedUint32) => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      helpers.applySeed(seedUint32);
+    },
+    rerollSeed: () => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      helpers.rerollSeed();
+    },
+    restartGame: () => {
+      const helpers = godSeedAndRestart({
+        getCtx: () => getCtx(),
+        applyCtxSyncAndRefresh,
+        clearPersistentGameStorage: () => {
+          try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+        },
+        log,
+        onRngUpdated: (newRng) => { rng = newRng || rng; },
+      });
+      // Call DeathFlow-based restart if present, but always also run the local reset path
+      try {
+        helpers.restartGame();
+      } catch (_) {}
 
-  function godSpawnStairsHere() {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnStairsHere();
-  }
+      // Local reset path (original core/game.js behavior)
+      hideGameOver();
+      try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
+      floor = 1;
+      isDead = false;
+      try {
+        const ctx = getCtx();
+        try { ctx.isDead = false; } catch (_) {}
+        const P = modHandle("Player");
+        if (P && typeof P.resetFromDefaults === "function") {
+          P.resetFromDefaults(player);
+        }
+        if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
+      } catch (_) {}
+      // Enter overworld and reroll seed so each new game starts with a fresh world
+      mode = "world";
+      // Try GodControls.rerollSeed which applies and persists a new seed, then regenerates overworld
+      try {
+        const GC = modHandle("GodControls");
+        if (GC && typeof GC.rerollSeed === "function") {
+          GC.rerollSeed(() => getCtx());
+          return;
+        }
+      } catch (_) {}
+      // Fallback: apply a time-based seed via RNG service or direct init, then generate world
+      try {
+        const s = (Date.now() % 0xffffffff) >>> 0;
+        if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
+          window.RNG.applySeed(s);
+          rng = window.RNG.rng;
+          initWorld();
+          return;
+        }
+      } catch (_) {}
+      // Ultimate fallback: no RNG service, just init world (non-deterministic)
+      initWorld();
+    },
+  });
 
-  function godSpawnItems(count = 3) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnItems(count);
-  }
-
-  function godSpawnEnemyNearby(count = 1) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    actions.godSpawnEnemyNearby(count);
-  }
+  const {
+    setAlwaysCrit,
+    setCritPart,
+    godHeal,
+    godSpawnStairsHere,
+    godSpawnItems,
+    godSpawnEnemyNearby,
+    applySeed,
+    rerollSeed,
+    restartGame,
+  } = godBridge;
 
   
   function renderInventoryPanel() {
@@ -1079,123 +1123,11 @@ import "./followers_items.js";
     }
   }
 
-  // GOD: always-crit toggle (delegated to core/god_facade.js)
-  function setAlwaysCrit(v) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    if (actions.setAlwaysCrit(v)) {
-      alwaysCrit = !!v;
-    }
-  }
-
-  // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
-  function setCritPart(part) {
-    const ctx = getCtx();
-    const actions = godActions({
-      ctx,
-      log,
-      setAlwaysCritFacade,
-      setCritPartFacade,
-      godSpawnEnemyNearbyFacade,
-      godSpawnItemsFacade,
-      godHealFacade,
-      godSpawnStairsHereFacade,
-    });
-    if (actions.setCritPart(part)) {
-      forcedCritPart = part;
-    }
-  }
-
-  // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
-  function applySeed(seedUint32) {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    helpers.applySeed(seedUint32);
-  }
-
-  // GOD: reroll seed using current time (delegated)
-  function rerollSeed() {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    helpers.rerollSeed();
-  }
-
   function hideGameOver() {
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideGameOver === "function") {
       UIO.hideGameOver(getCtx());
     }
-  }
-
-  // Clear persisted game state (towns, dungeons, region map) via core/persistence.js
-  function clearPersistentGameStorage() {
-    try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
-  }
-
-  function restartGame() {
-    const helpers = godSeedAndRestart({
-      getCtx: () => getCtx(),
-      applyCtxSyncAndRefresh,
-      clearPersistentGameStorage,
-      log,
-      onRngUpdated: (newRng) => { rng = newRng || rng; },
-    });
-    // Prefer centralized DeathFlow; fall back to local restart path if needed.
-    const handled = helpers.restartGame();
-    if (handled) return;
-
-    hideGameOver();
-    clearPersistentGameStorage();
-    floor = 1;
-    isDead = false;
-    try {
-      const P = modHandle("Player");
-      if (P && typeof P.resetFromDefaults === "function") {
-        P.resetFromDefaults(player);
-      }
-      if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
-    } catch (_) {}
-    // Enter overworld and reroll seed so each new game starts with a fresh world
-    mode = "world";
-    // Try GodControls.rerollSeed which applies and persists a new seed, then regenerates overworld
-    try {
-      const GC = modHandle("GodControls");
-      if (GC && typeof GC.rerollSeed === "function") {
-        GC.rerollSeed(() => getCtx());
-        return;
-      }
-    } catch (_) {}
-    // Fallback: apply a time-based seed via RNG service or direct init, then generate world
-    try {
-      const s = (Date.now() % 0xffffffff) >>> 0;
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
-        window.RNG.applySeed(s);
-        rng = window.RNG.rng;
-        initWorld();
-        return;
-      }
-    } catch (_) {}
-    // Ultimate fallback: no RNG service, just init world (non-deterministic)
-    initWorld();
   }
 
   
@@ -1303,153 +1235,94 @@ import "./followers_items.js";
 
   // Initialize mouse/click support (was previously executed at import time)
   export function initMouseSupport() {
-    try {
-      const IM = modHandle("InputMouse");
-      if (IM && typeof IM.init === "function") {
-        IM.init({
-          canvasId: "game",
-          getMode: () => mode,
-          TILE,
-          getCamera: () => camera,
-          getPlayer: () => ({ x: player.x, y: player.y }),
-          inBounds: (x, y) => inBounds(x, y),
-          isWalkable: (x, y) => isWalkable(x, y),
-          getCorpses: () => corpses,
-          getEnemies: () => enemies,
-          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-          lootCorpse: () => lootCorpse(),
-          doAction: () => doAction(),
-          isAnyModalOpen: () => {
-            const UIO = modHandle("UIOrchestration");
-            return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
-          },
-        });
-      }
-    } catch (_) {}
+    return initMouseSupportImpl({
+      modHandle,
+      getCtx,
+      getMode: () => mode,
+      TILE,
+      getCamera: () => camera,
+      getPlayer: () => ({ x: player.x, y: player.y }),
+      getCorpses: () => corpses,
+      getEnemies: () => enemies,
+      inBounds,
+      isWalkable,
+      tryMovePlayer,
+      lootCorpse,
+      doAction,
+    });
   }
 
   // Start the render loop (or draw once if loop module is unavailable)
   export function startLoop() {
-    const GL = modHandle("GameLoop");
-    if (GL && typeof GL.start === "function") {
-      GL.start(() => getRenderCtx());
-    } else {
-      const R = modHandle("Render");
-      if (R && typeof R.draw === "function") {
-        R.draw(getRenderCtx());
-      }
-    }
+    return startLoopImpl({
+      modHandle,
+      getRenderCtx: () => getRenderCtx(),
+    });
   }
 
   // Request a redraw once assets (e.g., tiles.json) have fully loaded
   export function scheduleAssetsReadyDraw() {
-    try {
-      if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
-        window.GameData.ready.then(() => {
-          // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
-          requestDraw();
-        });
-      }
-    } catch (_) {}
+    return scheduleAssetsReadyDrawImpl({
+      requestDraw: () => requestDraw(),
+    });
   }
 
   // Build and expose GameAPI facade (previously executed at import time)
   export function buildGameAPI() {
-    try {
-      if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
-        window.GameAPI = window.GameAPIBuilder.create({
-          getMode: () => mode,
-          getWorld: () => world,
-          getPlayer: () => player,
-          getEnemies: () => enemies,
-          getNPCs: () => npcs,
-          getTownProps: () => townProps,
-          getCorpses: () => corpses,
-          getShops: () => shops,
-          getDungeonExit: () => dungeonExitAt,
-          getTownGate: () => townExitAt,
-          getMap: () => map,
-          getVisible: () => visible,
-          getCamera: () => camera,
-          getOccupancy: () => occupancy,
-          getDecals: () => decals,
-          getPerfStats: () => perfGetPerfStats(),
-          TILES,
-          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-          enterTownIfOnTile: () => enterTownIfOnTile(),
-          enterDungeonIfOnEntrance: () => enterDungeonIfOnEntrance(),
-          isWalkable: (x, y) => isWalkable(x, y),
-          inBounds: (x, y) => inBounds(x, y),
-          updateCamera: () => updateCamera(),
-          recomputeFOV: () => recomputeFOV(),
-          requestDraw: () => requestDraw(),
-          updateUI: () => updateUI(),
-          renderInventoryPanel: () => renderInventoryPanel(),
-          equipItemByIndex: (idx) => equipItemByIndex(idx),
-          equipItemByIndexHand: (idx, hand) => equipItemByIndexHand(idx, hand),
-          unequipSlot: (slot) => unequipSlot(slot),
-          drinkPotionByIndex: (idx) => drinkPotionByIndex(idx),
-          addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
-          getPlayerAttack: () => getPlayerAttack(),
-          getPlayerDefense: () => getPlayerDefense(),
-          isShopOpenNow: (shop) => isShopOpenNow(shop),
-          shopScheduleStr: (shop) => shopScheduleStr(shop),
-          advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
-          getWeather: () => getWeatherSnapshot(),
-          // Mode transitions
-          returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
-          returnToWorldFromTown: () => returnToWorldFromTown(),
-          initWorld: () => initWorld(),
-          // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
-          enterEncounter: (template, biome, difficulty = 1) => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.enterEncounter === "function") {
-              return !!MT.enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Open Region Map at current overworld tile and sync orchestrator state
-          openRegionMap: () => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.openRegionMap === "function") {
-              return !!MT.openRegionMap(ctx, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Start an encounter inside the active Region Map (ctx.mode === "region")
-          startRegionEncounter: (template, biome) => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.startRegionEncounter === "function") {
-              return !!MT.startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh);
-            }
-            return false;
-          },
-          // Complete the active encounter immediately and sync back to orchestrator state.
-          // Used by special flows like caravan encounters to return to the overworld without
-          // requiring the player to walk to an exit tile.
-          completeEncounter: (outcome = "victory") => {
-            const ctx = getCtx();
-            const MT = modHandle("ModesTransitions");
-            if (MT && typeof MT.completeEncounter === "function") {
-              return !!MT.completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, { startEscortAutoTravel });
-            }
-            return false;
-          },
-          // GOD/helpers
-          setAlwaysCrit: (v) => setAlwaysCrit(v),
-          setCritPart: (part) => setCritPart(part),
-          godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
-          godSpawnItems: (count) => godSpawnItems(count),
-          generateLoot: (source) => generateLoot(source),
-          getClock: () => getClock(),
-          getCtx: () => getCtx(),
-          log: (msg, type) => log(msg, type),
-        });
-      }
-    } catch (_) {}
+    buildGameAPIImpl({
+      getCtx,
+      modHandle,
+      getMode: () => mode,
+      getWorld: () => world,
+      getPlayer: () => player,
+      getEnemies: () => enemies,
+      getNPCs: () => npcs,
+      getTownProps: () => townProps,
+      getCorpses: () => corpses,
+      getShops: () => shops,
+      getDungeonExit: () => dungeonExitAt,
+      getTownGate: () => townExitAt,
+      getMap: () => map,
+      getVisible: () => visible,
+      getCamera: () => camera,
+      getOccupancy: () => occupancy,
+      getDecals: () => decals,
+      getPerfStats: () => perfGetPerfStats(),
+      TILES,
+      tryMovePlayer,
+      enterTownIfOnTile,
+      enterDungeonIfOnEntrance,
+      isWalkable,
+      inBounds,
+      updateCamera,
+      recomputeFOV,
+      requestDraw,
+      updateUI,
+      renderInventoryPanel,
+      equipItemByIndex,
+      equipItemByIndexHand,
+      unequipSlot,
+      drinkPotionByIndex,
+      addPotionToInventory,
+      getPlayerAttack,
+      getPlayerDefense,
+      isShopOpenNow,
+      shopScheduleStr,
+      advanceTimeMinutes,
+      getWeatherSnapshot,
+      returnToWorldIfAtExit,
+      returnToWorldFromTown,
+      initWorld,
+      startEscortAutoTravel,
+      setAlwaysCrit,
+      setCritPart,
+      godSpawnEnemyNearby,
+      godSpawnItems,
+      generateLoot,
+      getClock,
+      log,
+      applyCtxSyncAndRefresh,
+    });
   }
 
 
