@@ -97,6 +97,7 @@ import {
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
 } from "./god/facade.js";
+import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
 
@@ -890,118 +891,22 @@ import "./followers_items.js";
   }
 
   function setupInput() {
-    const I = modHandle("Input");
-    if (I && typeof I.init === "function") {
-      I.init({
-        // state queries
-        isDead: () => isDead,
-        isInventoryOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isInventoryOpen === "function" && UIO.isInventoryOpen(getCtx()));
-        },
-        isLootOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx()));
-        },
-        isGodOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isGodOpen === "function" && UIO.isGodOpen(getCtx()));
-        },
-        // Ensure shop modal is part of the modal stack priority
-        isShopOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isShopOpen === "function" && UIO.isShopOpen(getCtx()));
-        },
-        // Smoke config modal priority after Shop
-        isSmokeOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isSmokeOpen === "function" && UIO.isSmokeOpen(getCtx()));
-        },
-        // Sleep modal (Inn beds)
-        isSleepOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isSleepOpen === "function" && UIO.isSleepOpen(getCtx()));
-        },
-        // Confirm dialog gating
-        isConfirmOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isConfirmOpen === "function" && UIO.isConfirmOpen(getCtx()));
-        },
-        // actions
-        onRestart: () => restartGame(),
-        onShowInventory: () => showInventoryPanel(),
-        onHideInventory: () => hideInventoryPanel(),
-        onHideLoot: () => hideLootPanel(),
-        onHideGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
-        },
-        onHideShop: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
-        },
-        onHideSmoke: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
-        },
-        onHideSleep: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
-        },
-        onCancelConfirm: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
-        },
-        onShowGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
-          const UIH = modHandle("UI");
-          if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-        },
-        
-        // Help / Controls + Character Sheet (F1)
-        isHelpOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
-        },
-        onShowHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
-        },
-        onHideHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
-        },
-        // Character Sheet (C)
-        isCharacterOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
-        },
-        onShowCharacter: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showCharacter === "function") UIO.showCharacter(getCtx());
-        },
-        onHideCharacter: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
-        },
-        // Follower inspect panel
-        isFollowerOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isFollowerOpen === "function" && UIO.isFollowerOpen(getCtx()));
-        },
-        onHideFollower: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideFollower === "function") UIO.hideFollower(getCtx());
-        },
-        onMove: (dx, dy) => tryMovePlayer(dx, dy),
-        onWait: () => turn(),
-        onLoot: () => doAction(),
-        onDescend: () => descendIfPossible(),
-        onBrace: () => brace(),
-        adjustFov: (delta) => adjustFov(delta),
-      });
-    }
+    setupInputBridge({
+      modHandle,
+      getCtx,
+      isDead: () => isDead,
+      getFovRadius: () => fovRadius,
+      restartGame,
+      showInventoryPanel,
+      hideInventoryPanel,
+      hideLootPanel,
+      tryMovePlayer,
+      turn,
+      doAction,
+      descendIfPossible,
+      brace,
+      adjustFov,
+    });
   }
           
   
@@ -1307,28 +1212,18 @@ import "./followers_items.js";
   
 
   {
-    const UIH = modHandle("UI");
-    if (UIH && typeof UIH.init === "function") {
-      UIH.init();
-      if (typeof UIH.setHandlers === "function") {
-        UIH.setHandlers({
-          onEquip: (idx) => equipItemByIndex(idx),
-          onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
-          onUnequip: (slot) => unequipSlot(slot),
-          onDrink: (idx) => drinkPotionByIndex(idx),
-          onEat: (idx) => eatFoodByIndex(idx),
-          onRestart: () => restartGame(),
-          onWait: () => turn()
-        });
-      }
-      // Install GOD-specific handlers via dedicated module
-      try {
-        const GH = modHandle("GodHandlers");
-        if (GH && typeof GH.install === "function") {
-          GH.install(() => getCtx());
-        }
-      } catch (_) {}
-    }
+    initUIHandlersBridge({
+      modHandle,
+      getCtx,
+      equipItemByIndex,
+      equipItemByIndexHand,
+      unequipSlot,
+      drinkPotionByIndex,
+      eatFoodByIndex,
+      restartGame,
+      turn,
+      getFovRadius: () => fovRadius,
+    });
   }
 
   // Hand decay helpers delegated to inventory_decay facade
