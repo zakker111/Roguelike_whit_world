@@ -1,5 +1,40 @@
 # Game Version History
-Last updated: 2026-01-12 21:00 UTC
+Last updated: 2026-01-18 00:00 UTC
+
+v1.65.0 — Core/game & world/town refactors, restart robustness, and smoketest bridge
+
+- Core/game.js modularization:
+  - Extracted boot-specific logic (mouse support, render loop start, assets-ready redraw) into core/game_bootstrap.js as dependency-injected helpers (initMouseSupportImpl, startLoopImpl, scheduleAssetsReadyDrawImpl). core/game.js now exports thin wrappers that call these helpers.
+  - Extracted GOD/seed/restart plumbing into core/game_god_bridge.js via createGodBridge(deps), so core/game.js concentrates on orchestrator state while GOD actions and seed flows are wired via injected callbacks.
+  - Extracted GameAPI wiring into core/game_api_bootstrap.js via buildGameAPIImpl(deps); core/game.js now delegates building window.GameAPI to this helper, reducing top-level size.
+  - Kept external APIs (GameAPI, GameUIBridge, GameGod, GameLoop, etc.) and behavior identical so existing UI, GOD panel, and smoketests remain compatible.
+
+- Restart behavior and GOD/seed flows:
+  - Hardened restartGame wiring so DeathFlow.restart(ctx) is invoked when available, but the original local reset path (clearing isDead/floor, resetting player, rerolling seed, and re-initializing the overworld) always runs afterward. This prevents regressions where the player appears restarted but is still flagged as dead, causing input to freeze.
+  - Ensured ctx.isDead and the orchestrator-local isDead flag are both cleared on restart, and that a fresh world is always generated using either GodControls.rerollSeed or RNG.applySeed as appropriate.
+  - Kept applySeed and rerollSeed behavior identical, but routed them through the new GOD bridge so future seed-related tools can be added without bloating core/game.js.
+
+- Mode transitions and town/dungeon entry:
+  - Fixed core/modes/transitions.js wrappers to forward applyCtxSyncAndRefresh into underlying window.Modes.* implementations (enterTownIfOnTile, enterDungeonIfOnEntrance, enterRuinsIfOnTile). This restores proper state syncing after entering towns/dungeons/ruins and fixes a regression where entering town could fail silently or leave ctx unsynced.
+  - core/game.js now consistently uses ModesTransitions (and the new exitToWorld facade) for town/dungeon/world transitions, keeping ctx-first wiring in one place.
+
+- World runtime and POIs:
+  - Removed a duplicate expandMap/ensureInBounds implementation from core/world_runtime.js and fully delegated world expansion and bounds checks to core/world/expand.js, which already contained the canonical logic. This avoids divergence between two copies of the same algorithm.
+  - Extracted POI and caravan helpers out of core/world_runtime.js into core/world_runtime_poi.js (ensurePOIState, addTown, addDungeon, addRuins, spawnDebugCastleNearPlayer, spawnInitialCaravans). WorldRuntime now imports these helpers, leaving generate(ctx) focused on world-window creation and initial camera/FOV setup.
+  - Behavior for towns/dungeons/ruins registration, debug castle placement near the start, and initial caravan spawning remains unchanged; only implementation moved.
+
+- Town runtime simplification:
+  - Extracted the large talk(ctx, bumpAtX, bumpAtY) implementation into a new core/town/talk.js module. TownRuntime now re-exports talk via a thin wrapper that calls talkImpl from the helper.
+  - The extracted talk helper continues to handle:
+    - Recruitable follower hires at the inn (gold cost, cap checks, hire flow, and NPC removal).
+    - Follower inspect panel / dialog when bumping existing followers in town.
+    - Shopkeeper interactions (open/closed shops, inn always open, and attaching shopRefs by proximity when missing).
+    - Generic villager chatter when no special behavior applies.
+  - tryMoveTown(ctx, dx, dy) still delegates to talk(ctx, nx, ny) when bumping NPCs, so bump-to-talk and shop/follower interactions behave exactly as before while TownRuntime becomes easier to maintain.
+
+- Smoketest runner and GameAPI bridge:
+  - Kept the orchestrator-based smoketest runner as the default (?smoketest=1) and ensured it continues to use GameAPI for scenario control, while making it easier to strip or replace in the future by concentrating smoketest orchestration in smoketest/runner/runner.js and exposing a thin legacy shim in smoketest/smoketest_runner.js.
+  - Verified that world/town/dungeon/encounter smoketest scenarios still pass after the refactors, providing coverage for the new modular wiring of GameAPI and GOD/seed flows.
 
 v1.64.0 — Health check, Seen Life equipment buff, and follower UX polish
 
