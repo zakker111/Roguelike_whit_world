@@ -348,6 +348,8 @@ function generate(ctx) {
     return !(sepX || sepY);
   }
 
+  const harborMask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+
   for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
     for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
       let clear = true;
@@ -357,6 +359,19 @@ function generate(ctx) {
         }
       }
       if (!clear) continue;
+      // Skip harbor band for port towns so regular houses do not occupy dock/warehouse space.
+      if (harborMask && ctx.townKind === "port") {
+        let intersectsHarbor = false;
+        for (let yy = by; yy < by + (blockH + 1) && !intersectsHarbor; yy++) {
+          for (let xx = bx; xx < bx + (blockW + 1); xx++) {
+            if (yy >= 0 && yy < H && xx >= 0 && xx < W && harborMask[yy][xx]) {
+              intersectsHarbor = true;
+              break;
+            }
+          }
+        }
+        if (intersectsHarbor) continue;
+      }
       // Strongly varied house sizes:
       // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
       // while respecting per-block bounds and minimums.
@@ -450,6 +465,7 @@ function generate(ctx) {
       if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
       const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
+      const harborMaskLocal = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
       let attempts = 0, successes = 0;
       while (buildings.length < targetBySize && attempts++ < 600) {
         // Random provisional rectangle within bounds
@@ -460,6 +476,19 @@ function generate(ctx) {
         // Skip near plaza and enforce margin clear
         if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
         if (!isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, 1)) continue;
+        // Skip harbor band for port towns so residential fill does not occupy dock space.
+        if (harborMaskLocal && ctx.townKind === "port") {
+          let intersectsHarbor = false;
+          for (let yy = by; yy < by + bh && !intersectsHarbor; yy++) {
+            for (let xx = bx; xx < bx + bw; xx++) {
+              if (yy >= 0 && yy < H && xx >= 0 && xx < W && harborMaskLocal[yy][xx]) {
+                intersectsHarbor = true;
+                break;
+              }
+            }
+          }
+          if (intersectsHarbor) continue;
+        }
         // Pick a prefab that fits
         const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
         if (!candidates.length) continue;

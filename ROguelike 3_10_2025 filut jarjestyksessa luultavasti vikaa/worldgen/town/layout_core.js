@@ -93,6 +93,53 @@ export function buildBaseTown(ctx) {
     if (harborEdge !== "E") ctx.map[y][W - 1] = ctx.TILES.WALL;
   }
 
+  // Reserve a harbor band for port towns so docks/warehouses can be placed without houses crowding the edge.
+  // This is a pure geometry mask; later passes consult townHarborMask to keep the band clear of regular buildings.
+  (function buildHarborBandMask() {
+    try {
+      if (townKind !== "port" || !harborEdge) return;
+      const TOWNCFG_LOCAL = TOWNCFG || getGameData(ctx)?.town || null;
+      let bandDepth = 5;
+      try {
+        if (
+          TOWNCFG_LOCAL &&
+          TOWNCFG_LOCAL.kinds &&
+          TOWNCFG_LOCAL.kinds.port &&
+          TOWNCFG_LOCAL.kinds.port.harbor &&
+          typeof TOWNCFG_LOCAL.kinds.port.harbor.bandDepth === "number"
+        ) {
+          bandDepth = TOWNCFG_LOCAL.kinds.port.harbor.bandDepth | 0;
+        }
+      } catch (_) {}
+      bandDepth = Math.max(2, Math.min(bandDepth, Math.floor(Math.min(W, H) / 3)));
+
+      const mask = Array.from({ length: H }, () => Array(W).fill(false));
+      if (harborEdge === "N") {
+        const maxY = Math.min(H - 2, bandDepth);
+        for (let y = 1; y <= maxY; y++) {
+          for (let x = 1; x < W - 1; x++) mask[y][x] = true;
+        }
+      } else if (harborEdge === "S") {
+        const minY = Math.max(1, H - 1 - bandDepth);
+        for (let y = minY; y < H - 1; y++) {
+          for (let x = 1; x < W - 1; x++) mask[y][x] = true;
+        }
+      } else if (harborEdge === "W") {
+        const maxX = Math.min(W - 2, bandDepth);
+        for (let x = 1; x <= maxX; x++) {
+          for (let y = 1; y < H - 1; y++) mask[y][x] = true;
+        }
+      } else if (harborEdge === "E") {
+        const minX = Math.max(1, W - 1 - bandDepth);
+        for (let x = minX; x < W - 1; x++) {
+          for (let y = 1; y < H - 1; y++) mask[y][x] = true;
+        }
+      }
+
+      ctx.townHarborMask = mask;
+    } catch (_) {}
+  })();
+
   // Gate placement: prefer the edge matching the approach direction, else nearest edge.
   const clampXY = (x, y) => ({ x: Math.max(1, Math.min(W - 2, x)), y: Math.max(1, Math.min(H - 2, y)) });
   const pxy = clampXY(ctx.player.x, ctx.player.y);
