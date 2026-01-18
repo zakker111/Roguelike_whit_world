@@ -89,6 +89,20 @@
         "densityMultiplier": 1.0,
         "minNearPlazaBonus": 0
       }
+    },
+    "port": {
+      "buildings": {
+        "densityMultiplier": 0.9,
+        "minNearPlazaBonus": 0
+      },
+      "harbor": {
+        "bandDepth": 5,
+        "dockLengthBySize": {
+          "small": 12,
+          "big": 18,
+          "city": 24
+        }
+      }
     }
   }
 }
