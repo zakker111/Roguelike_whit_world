@@ -106,7 +106,8 @@ function detectHarborContext(ctx, wx, wy, WT) {
       }
     }
 
-    const MIN_SCORE = 4;
+    // Allow modest water presence to qualify so we get signal while tuning.
+    const MIN_SCORE = 2;
     if (!bestDir || bestScore < MIN_SCORE) return null;
 
     let waterContext = "coast";
@@ -300,24 +301,36 @@ export function enterTownIfOnTile(ctx) {
               ctx.townHarborDir = harborInfo.harborDir;
               ctx.townWaterContext = harborInfo.waterContext;
             } catch (_) {}
+            // Persist harbor metadata on world.towns entry when available
             try {
               if (ctx.world && Array.isArray(ctx.world.towns)) {
                 const rec = ctx.world.towns.find(r => r && r.x === enterWX && r.y === enterWY);
                 if (rec) {
                   if (!rec.harborDir) rec.harborDir = harborInfo.harborDir;
                   if (!rec.harborWater) rec.harborWater = harborInfo.waterContext;
-                  if (!rec._harborLogged && debugPortHarborsEnabled() && ctx.log) {
-                    ctx.log(
-                      `World: detected port town candidate at (${enterWX},${enterWY}) dir=${harborInfo.harborDir} water=${harborInfo.waterContext}.`,
-                      "notice"
-                    );
-                    rec._harborLogged = true;
-                  }
+                  if (!rec._harborLogged) rec._harborLogged = true;
                 }
+              }
+            } catch (_) {}
+            // Debug log regardless of world.towns metadata presence
+            try {
+              if (debugPortHarborsEnabled() && ctx.log) {
+                ctx.log(
+                  `World: harbor scan for town at (${enterWX},${enterWY}) dir=${harborInfo.harborDir} water=${harborInfo.waterContext} score=${harborInfo.score}.`,
+                  "notice"
+                );
               }
             } catch (_) {}
           } else {
             try { ctx.townHarborDir = undefined; ctx.townWaterContext = undefined; } catch (_) {}
+            try {
+              if (debugPortHarborsEnabled() && ctx.log) {
+                ctx.log(
+                  `World: harbor scan found no water-heavy direction for town at (${enterWX},${enterWY}).`,
+                  "notice"
+                );
+              }
+            } catch (_) {}
           }
         } else {
           try { ctx.townHarborDir = undefined; ctx.townWaterContext = undefined; } catch (_) {}
