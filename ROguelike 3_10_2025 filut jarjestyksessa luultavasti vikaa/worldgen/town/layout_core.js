@@ -51,6 +51,20 @@ export function buildBaseTown(ctx) {
       townKind = info.kind;
     }
   } catch (_) {}
+  // Promote suitable coastal/river towns to kind \"port\" when a harbor direction is available.
+  let harborDir = null;
+  try {
+    if (townKind === "town" && ctx && typeof ctx.townHarborDir === "string" && ctx.townHarborDir) {
+      harborDir = ctx.townHarborDir;
+      townKind = "port";
+      try { ctx.townKind = townKind; } catch (_) {}
+      try {
+        if (info && typeof info === "object") {
+          info.kind = "port";
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
   ctx.townKind = townKind;
   if (townKind === "castle" && townSize !== "city") townSize = "city";
 
@@ -69,21 +83,44 @@ export function buildBaseTown(ctx) {
   ctx.map = Array.from({ length: H }, () => Array(W).fill(ctx.TILES.FLOOR));
 
   // Outer walls
-  for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
-  for (let y = 0; y < H; y++) { ctx.map[y][0] = ctx.TILES.WALL; ctx.map[y][W - 1] = ctx.TILES.WALL; }
+  const harborEdge = (townKind === "port" && typeof harborDir === "string") ? harborDir : "";
+  for (let x = 0; x < W; x++) {
+    if (harborEdge !== "N") ctx.map[0][x] = ctx.TILES.WALL;
+    if (harborEdge !== "S") ctx.map[H - 1][x] = ctx.TILES.WALL;
+  }
+  for (let y = 0; y < H; y++) {
+    if (harborEdge !== "W") ctx.map[y][0] = ctx.TILES.WALL;
+    if (harborEdge !== "E") ctx.map[y][W - 1] = ctx.TILES.WALL;
+  }
 
   // Gate placement: prefer the edge matching the approach direction, else nearest edge.
   const clampXY = (x, y) => ({ x: Math.max(1, Math.min(W - 2, x)), y: Math.max(1, Math.min(H - 2, y)) });
   const pxy = clampXY(ctx.player.x, ctx.player.y);
   let gate = null;
+  const isPortTown = (townKind === "port");
 
   // If Modes recorded an approach direction (E/W/N/S), pick corresponding perimeter gate.
   const dir = (typeof ctx.enterFromDir === "string") ? ctx.enterFromDir : "";
-  if (dir) {
+  if (!isPortTown && dir) {
     if (dir === "E") gate = { x: 1, y: pxy.y };           // entered moving east -> came from west -> west edge
     else if (dir === "W") gate = { x: W - 2, y: pxy.y };  // entered moving west -> came from east -> east edge
     else if (dir === "N") gate = { x: pxy.x, y: H - 2 };  // entered moving north -> came from south -> south edge
     else if (dir === "S") gate = { x: pxy.x, y: 1 };      // entered moving south -> came from north -> north edge
+  }
+
+  // For port towns, place the gate on the edge opposite the harbor side, centered.
+  if (isPortTown && !gate && harborEdge) {
+    const midX = (W / 2) | 0;
+    const midY = (H / 2) | 0;
+    if (harborEdge === "N") {
+      gate = { x: midX, y: H - 2 }; // harbor at north -> gate at south
+    } else if (harborEdge === "S") {
+      gate = { x: midX, y: 1 };     // harbor at south -> gate at north
+    } else if (harborEdge === "W") {
+      gate = { x: W - 2, y: midY }; // harbor at west -> gate at east
+    } else if (harborEdge === "E") {
+      gate = { x: 1, y: midY };     // harbor at east -> gate at west
+    }
   }
 
   if (!gate) {
