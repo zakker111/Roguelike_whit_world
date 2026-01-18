@@ -312,9 +312,9 @@ export function enterTownIfOnTile(ctx) {
                 }
               }
             } catch (_) {}
-            // Debug log regardless of world.towns metadata presence
+            // Log harbor scan so it is visible while tuning ports.
             try {
-              if (debugPortHarborsEnabled() && ctx.log) {
+              if (ctx.log) {
                 ctx.log(
                   `World: harbor scan for town at (${enterWX},${enterWY}) dir=${harborInfo.harborDir} water=${harborInfo.waterContext} score=${harborInfo.score}.`,
                   "notice"
@@ -324,7 +324,7 @@ export function enterTownIfOnTile(ctx) {
           } else {
             try { ctx.townHarborDir = undefined; ctx.townWaterContext = undefined; } catch (_) {}
             try {
-              if (debugPortHarborsEnabled() && ctx.log) {
+              if (ctx.log) {
                 ctx.log(
                   `World: harbor scan found no water-heavy direction for town at (${enterWX},${enterWY}).`,
                   "notice"
