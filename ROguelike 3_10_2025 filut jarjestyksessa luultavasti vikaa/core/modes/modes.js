@@ -78,7 +78,9 @@ function detectHarborContext(ctx, wx, wy, WT) {
       { id: "W", dx: -1, dy: 0 },
       { id: "E", dx: 1, dy: 0 },
     ];
-    const MAX_DIST = 8;
+    // Slightly increase scan radius so coastal towns with water a bit further out
+    // still qualify as ports, especially for starting towns near large seas.
+    const MAX_DIST = 10;
     let bestDir = "";
     let bestScore = 0;
     let bestCoast = 0;
@@ -106,8 +108,9 @@ function detectHarborContext(ctx, wx, wy, WT) {
       }
     }
 
-    // Require a stronger water presence in one direction to qualify as a harbor.
-    const MIN_SCORE = 5;
+    // Require a water-heavy direction, but be a bit more permissive so towns that
+    // are clearly coastal in play (like some starting towns) are recognized as ports.
+    const MIN_SCORE = 3;
     if (!bestDir || bestScore < MIN_SCORE) return null;
 
     let waterContext = "coast";
