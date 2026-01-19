@@ -96,7 +96,8 @@
         "minNearPlazaBonus": 0
       },
       "harbor": {
-        "bandDepth": 10,
+        "bandDepth": 20,
+        "waterDepth": 10,
         "dockLengthBySize": {
           "small": 12,
           "big": 18,

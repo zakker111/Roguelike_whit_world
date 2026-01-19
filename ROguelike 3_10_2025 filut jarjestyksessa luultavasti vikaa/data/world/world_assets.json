@@ -234,6 +234,16 @@
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["dungeon", "town"],
         "tags": ["window"]
+      },
+      {
+        "id": 18,
+        "key": "HARBOR_WATER",
+        "name": "Harbor Water",
+        "glyph": "~",
+        "colors": { "fill": "#0b2744", "fg": "#7aa2f7" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["water", "harbor"]
       }
     ],
     "overrides": {

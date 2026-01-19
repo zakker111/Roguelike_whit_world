@@ -1,4 +1,5 @@
 import { getGameData } from "../../utils/access.js";
+import { getTileDefByKey } from "../../data/tile_lookup.js";
 
 /**
  * Harbor prefabs placement for port towns.
@@ -48,20 +49,38 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
     // Carve a shallow water strip along the harbor edge, with short piers extending into the water.
     function carveHarborWaterAndPiers() {
-      const tiles = ctx.TILES || {};
-      const WATER = typeof tiles.WATER === "number" ? tiles.WATER : null;
+      let WATER = null;
+      try {
+        const td = getTileDefByKey("town", "HARBOR_WATER") || null;
+        if (td && typeof td.id === "number") WATER = td.id | 0;
+      } catch (_) {}
       if (WATER == null) return;
 
-      // Water depth limited to a few tiles; derive from harbor band depth when available.
-      let waterDepth = 3;
+      // Water depth: derive from config and harbor band depth to keep a wide water strip
+      // while leaving some dry boardwalk tiles inside the harbor band.
+      let waterDepth = 8;
+      let bandDepthCfg = null;
       try {
         const TOWNCFG = GD && GD.town;
         const harborCfg = TOWNCFG && TOWNCFG.kinds && TOWNCFG.kinds.port && TOWNCFG.kinds.port.harbor;
-        if (harborCfg && typeof harborCfg.waterDepth === "number") {
-          waterDepth = harborCfg.waterDepth | 0;
+        if (harborCfg) {
+          if (typeof harborCfg.waterDepth === "number") {
+            waterDepth = harborCfg.waterDepth | 0;
+          }
+          if (typeof harborCfg.bandDepth === "number") {
+            bandDepthCfg = harborCfg.bandDepth | 0;
+          }
         }
       } catch (_) {}
-      waterDepth = Math.max(1, Math.min(waterDepth, 4));
+
+      const dimCap = Math.floor(Math.min(W, H) / 2) || 16;
+      let maxDepth = dimCap;
+      if (bandDepthCfg && bandDepthCfg > 4) {
+        // Keep at least a few tiles of dry harbor band inside town.
+        maxDepth = Math.min(maxDepth, bandDepthCfg - 3);
+      }
+      maxDepth = Math.max(2, Math.min(maxDepth, 24));
+      waterDepth = Math.max(2, Math.min(waterDepth, maxDepth));
 
       // First, carve water strip along harbor edge within the harbor band.
       if (harborDir === "W" || harborDir === "E") {
