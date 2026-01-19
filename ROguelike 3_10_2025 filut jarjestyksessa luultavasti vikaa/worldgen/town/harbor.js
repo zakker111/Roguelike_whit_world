@@ -430,10 +430,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
           if (!slots.length) return;
 
-          // 0–1 boats per harbor: simple spawn chance and single random slot.
-          const rvPlace = rng ? rng() : Math.random();
-          if (rvPlace < 0.5) return;
-
+          // For debugging: always place exactly one boat per harbor when there is a
+          // valid slot available. We still pick a random slot when multiple exist.
           const pickIdx = Math.floor((rng ? rng() : Math.random()) * slots.length) % slots.length;
           const slot = slots[pickIdx];
           _stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
