@@ -37,6 +37,97 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     const GD = getGameData(ctx);
     const PFB = GD && GD.prefabs ? GD.prefabs : null;
 
+    // Gate-aligned bridge corridor: when the harbor side matches the gate side,
+    // reserve a 4-tile-wide land strip from the gate interior into town and
+    // forbid harbor water/pier carving there. This ensures the player spawn /
+    // gate approach remains dry and readable even for harbors on the gate edge.
+    let gateBridgeMask = null;
+    try {
+      const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
+      const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
+      if (gx != null && gy != null) {
+        let gateSide = "";
+        if (gy === 1) gateSide = "N";
+        else if (gy === H - 2) gateSide = "S";
+        else if (gx === 1) gateSide = "W";
+        else if (gx === W - 2) gateSide = "E";
+
+        if (gateSide && gateSide === harborDir) {
+          const rows = H, cols = W;
+          const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+          const bridgeWidth = 4;
+          const depthMax = Math.max(4, Math.min(8, Math.floor(Math.min(W, H) / 3)));
+
+          if (gateSide === "S") {
+            // Harbor opens to south; gate interior sits on inner row near bottom.
+            // Bridge runs north (toward town interior) from gate, 4 tiles wide in X.
+            let x0 = gx - 1;
+            let x1 = gx + 2;
+            if (x0 < 1) x0 = 1;
+            if (x1 > W - 2) x1 = W - 2;
+            const yEnd = gy;
+            const depth = Math.min(depthMax, Math.max(1, yEnd - 1));
+            const yStart = Math.max(1, yEnd - depth + 1);
+            for (let y = yStart; y <= yEnd; y++) {
+              for (let x = x0; x <= x1; x++) {
+                mask[y][x] = true;
+              }
+            }
+          } else if (gateSide === "N") {
+            // Harbor opens to north; gate interior near top.
+            // Bridge runs south into town, 4 tiles wide in X.
+            let x0 = gx - 1;
+            let x1 = gx + 2;
+            if (x0 < 1) x0 = 1;
+            if (x1 > W - 2) x1 = W - 2;
+            const yStart = gy;
+            const depth = Math.min(depthMax, Math.max(1, (H - 2) - yStart));
+            const yEnd = Math.min(H - 2, yStart + depth - 1);
+            for (let y = yStart; y <= yEnd; y++) {
+              for (let x = x0; x <= x1; x++) {
+                mask[y][x] = true;
+              }
+            }
+          } else if (gateSide === "E") {
+            // Harbor opens to east; gate interior near right edge.
+            // Bridge runs west into town, 4 tiles tall in Y.
+            let y0 = gy - 1;
+            let y1 = gy + 2;
+            if (y0 < 1) y0 = 1;
+            if (y1 > H - 2) y1 = H - 2;
+            const xEnd = gx;
+            const depth = Math.min(depthMax, Math.max(1, xEnd - 1));
+            const xStart = Math.max(1, xEnd - depth + 1);
+            for (let y = y0; y <= y1; y++) {
+              for (let x = xStart; x <= xEnd; x++) {
+                mask[y][x] = true;
+              }
+            }
+          } else if (gateSide === "W") {
+            // Harbor opens to west; gate interior near left edge.
+            // Bridge runs east into town, 4 tiles tall in Y.
+            let y0 = gy - 1;
+            let y1 = gy + 2;
+            if (y0 < 1) y0 = 1;
+            if (y1 > H - 2) y1 = H - 2;
+            const xStart = gx;
+            const depth = Math.min(depthMax, Math.max(1, (W - 2) - xStart));
+            const xEnd = Math.min(W - 2, xStart + depth - 1);
+            for (let y = y0; y <= y1; y++) {
+              for (let x = xStart; x <= xEnd; x++) {
+                mask[y][x] = true;
+              }
+            }
+          }
+
+          gateBridgeMask = mask;
+          try { ctx.townGateBridgeMask = mask; } catch (_) {}
+        }
+      }
+    } catch (_) {
+      gateBridgeMask = null;
+    }
+
     function insideAnyBuildingLocal(x, y) {
       for (let i = 0; i < buildings.length; i++) {
         const B = buildings[i];
@@ -119,6 +210,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const xx = edgeX + dirStep * d;
             if (xx <= 0 || xx >= W - 1) break;
             if (!harborMask[y][xx]) break;
+            // Preserve gate-aligned bridge corridor when present.
+            if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][xx]) continue;
             if (touchesAnyBuildingLocal(xx, y)) break;
             const t = ctx.map[y][xx];
             if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
@@ -141,6 +234,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const yy = edgeY + dirStep * d;
             if (yy <= 0 || yy >= H - 1) break;
             if (!harborMask[yy][x]) break;
+            // Preserve gate-aligned bridge corridor when present.
+            if (gateBridgeMask && gateBridgeMask[yy] && gateBridgeMask[yy][x]) continue;
             if (touchesAnyBuildingLocal(x, yy)) break;
             const t = ctx.map[yy][x];
             if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
@@ -186,6 +281,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const t = ctx.map[ry][rx];
             if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;
             if (insideAnyBuildingLocal(rx, ry)) continue;
+            // Do not treat gate-bridge tiles as pier roots; keep the 4-wide gate
+            // corridor free of piers so the approach stays visually clean.
+            if (gateBridgeMask && gateBridgeMask[ry] && gateBridgeMask[ry][rx]) continue;
             roots.push({ x: rx, y: ry, dx, dy });
             break;
           }
@@ -303,6 +401,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             if (!harborMask[y][x]) continue;
             if (pierMask[y][x]) continue;
             if (insideAnyBuildingLocal(x, y)) continue;
+            // Preserve the gate bridge corridor even if it looks like a wall-hugging
+            // floor tile along the water edge.
+            if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][x]) continue;
 
             const tHere = ctx.map[y][x];
             if (tHere !== ctx.TILES.FLOOR && tHere !== ctx.TILES.ROAD) continue;
@@ -334,6 +435,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           if (!harborMask[y][x]) continue;
           if (pierMask[y][x]) continue;
           if (insideAnyBuildingLocal(x, y)) continue;
+          // Preserve the gate bridge corridor tiles even if they are surrounded by water.
+          if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][x]) continue;
           const tHere = ctx.map[y][x];
           if (tHere !== ctx.TILES.FLOOR && tHere !== ctx.TILES.ROAD) continue;
 
@@ -432,16 +535,18 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
-    function placeDockProps() {
-      const bandCoords = [];
-      for (let y = 1; y < H - 1; y++) {
-        for (let x = 1; x < W - 1; x++) {
-          if (harborMask[y][x] && ctx.map[y][x] === ctx.TILES.FLOOR) {
+      function placeDockProps() {
+        const bandCoords = [];
+        for (let y = 1; y < H - 1; y++) {
+          for (let x = 1; x < W - 1; x++) {
+            if (!harborMask[y][x]) continue;
+            if (ctx.map[y][x] !== ctx.TILES.FLOOR) continue;
+            // Avoid cluttering the gate bridge corridor with crates/barrels/lamps.
+            if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][x]) continue;
             bandCoords.push({ x, y });
           }
         }
-      }
-      if (!bandCoords.length) return;
+        if (!bandCoords.length) return;
 
       // Rough heuristic: choose a handful of tiles along outermost band row/col to decorate.
       const edgeCoords = [];
@@ -496,12 +601,15 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
       // Build a simple list of candidate anchor positions inside the harbor band,
       // but inset by 1 tile from the very edge so buildings don't overlap docks.
+      // Avoid using the gate bridge corridor as a warehouse anchor so the 4-wide
+      // approach from the gate remains visually open.
       const bandCells = [];
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
           if (!harborMask[y][x]) continue;
           // Inset: require at least one tile from outer map border
           if (x <= 1 || y <= 1 || x >= W - 2 || y >= H - 2) continue;
+          if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][x]) continue;
           bandCells.push({ x, y });
         }
       }
