@@ -47,6 +47,21 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       return false;
     }
 
+    // Treat building rectangles (including a one-tile halo) as solid barriers for harbor
+    // water so we never end up with shops/houses visually sitting \"in\" water.
+    function touchesAnyBuildingLocal(x, y) {
+      for (let i = 0; i < buildings.length; i++) {
+        const B = buildings[i];
+        if (!B) continue;
+        const bx0 = B.x - 1;
+        const by0 = B.y - 1;
+        const bx1 = B.x + B.w;
+        const by1 = B.y + B.h;
+        if (x >= bx0 && x <= bx1 && y >= by0 && y <= by1) return true;
+      }
+      return false;
+    }
+
     // Carve a shallow water strip along the harbor edge, with short piers extending into the water.
     function carveHarborWaterAndPiers() {
       let WATER = null;
@@ -102,8 +117,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const xx = edgeX + dirStep * d;
             if (xx <= 0 || xx >= W - 1) break;
             if (!harborMask[y][xx]) break;
-            if (insideAnyBuildingLocal(xx, y)) continue;
-            if (ctx.map[y][xx] === ctx.TILES.FLOOR || ctx.map[y][xx] === ctx.TILES.ROAD) {
+            if (touchesAnyBuildingLocal(xx, y)) break;
+            const t = ctx.map[y][xx];
+            if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
               ctx.map[y][xx] = WATER;
             }
           }
@@ -123,8 +139,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const yy = edgeY + dirStep * d;
             if (yy <= 0 || yy >= H - 1) break;
             if (!harborMask[yy][x]) break;
-            if (insideAnyBuildingLocal(x, yy)) continue;
-            if (ctx.map[yy][x] === ctx.TILES.FLOOR || ctx.map[yy][x] === ctx.TILES.ROAD) {
+            if (touchesAnyBuildingLocal(x, yy)) break;
+            const t = ctx.map[yy][x];
+            if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
               ctx.map[yy][x] = WATER;
             }
           }
@@ -192,7 +209,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      // If the primary boardwalk detection failed (e.g., unusual layouts), fall back to\n      // any harbor-band floor/road tile that touches water. This guarantees at least one\n      // candidate root when there is visible harbor water.\n      if (!boardwalk.length) {\n        const fallback = [];\n        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];\n        for (let y = 1; y < H - 1; y++) {\n          for (let x = 1; x < W - 1; x++) {\n            if (!harborMask[y][x]) continue;\n            const t = ctx.map[y][x];\n            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;\n            let nearWater = false;\n            for (let i = 0; i < dirs.length; i++) {\n              const nx = x + dirs[i].dx;\n              const ny = y + dirs[i].dy;\n              if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;\n              if (!harborMask[ny][nx]) continue;\n              if (ctx.map[ny][nx] === WATER) { nearWater = true; break; }\n            }\n            if (nearWater) fallback.push({ x, y });\n          }\n        }\n        if (fallback.length) {\n          // Use all fallback roots as boardwalk candidates.\n          for (let i = 0; i &lt; fallback.length; i++) boardwalk.push(fallback[i]);\n        }\n      }\n\n      if (!boardwalk.length) return;\n\n      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));\n      let maxPiers = 1;\n      if (maxPossible >= 2) {\n        const rv = rng ? rng() : Math.random();\n        maxPiers = rv &lt; 0.5 ? 1 : 2;\n      }\n      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
+      // If the primary boardwalk detection failed (e.g., unusual layouts), fall back to\n      // any harbor-band floor/road tile that touches water. This guarantees at least one\n      // candidate root when there is visible harbor water.\n      if (!boardwalk.length) {\n        const fallback = [];\n        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];\n        for (let y = 1; y < H - 1; y++) {\n          for (let x = 1; x < W - 1; x++) {\n            if (!harborMask[y][x]) continue;\n            const t = ctx.map[y][x];\n            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;\n            let nearWater = false;\n            for (let i = 0; i < dirs.length; i++) {\n              const nx = x + dirs[i].dx;\n              const ny = y + dirs[i].dy;\n              if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;\n              if (!harborMask[ny][nx]) continue;\n              if (ctx.map[ny][nx] === WATER) { nearWater = true; break; }\n            }\n            if (nearWater) fallback.push({ x, y });\n          }\n        }\n        if (fallback.length) {\n          // Use all fallback roots as boardwalk candidates.\n          for (let i = 0; i < fallback.length; i++) boardwalk.push(fallback[i]);\n        }\n      }\n\n      if (!boardwalk.length) return;\n\n      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));\n      let maxPiers = 1;\n      if (maxPossible >= 2) {\n        const rv = rng ? rng() : Math.random();\n        maxPiers = rv < 0.5 ? 1 : 2;\n      }\n      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
 
       let piersPlaced = 0;
       let boatsPlaced = 0;
