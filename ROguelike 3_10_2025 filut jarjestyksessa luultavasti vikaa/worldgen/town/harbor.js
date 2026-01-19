@@ -262,6 +262,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
         piersPlaced++;
       }
+    }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
     function placeDockProps() {
