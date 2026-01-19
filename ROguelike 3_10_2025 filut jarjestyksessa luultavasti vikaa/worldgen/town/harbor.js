@@ -262,6 +262,44 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
         piersPlaced++;
       }
+
+      // Cleanup: remove non-pier floor tiles that cling to the water on the sea-side
+      // edge of the harbor. These tend to look like continuous quay walls or bridges
+      // along the water; we want open water there and reserve solid ground only for
+      // piers and inland harbor band.
+      const seaDX = harborDir === "E" ? 1 : (harborDir === "W" ? -1 : 0);
+      const seaDY = harborDir === "S" ? 1 : (harborDir === "N" ? -1 : 0);
+      const landDX = -seaDX;
+      const landDY = -seaDY;
+
+      if (seaDX !== 0 || seaDY !== 0) {
+        for (let y = 1; y < H - 1; y++) {
+          for (let x = 1; x < W - 1; x++) {
+            if (!harborMask[y][x]) continue;
+            if (pierMask[y][x]) continue;
+            if (insideAnyBuildingLocal(x, y)) continue;
+
+            const tHere = ctx.map[y][x];
+            if (tHere !== ctx.TILES.FLOOR && tHere !== ctx.TILES.ROAD) continue;
+
+            const sx = x + seaDX;
+            const sy = y + seaDY;
+            const lx = x + landDX;
+            const ly = y + landDY;
+            if (sx <= 0 || sy <= 0 || sx >= W - 1 || sy >= H - 1) continue;
+            if (lx <= 0 || ly <= 0 || lx >= W - 1 || ly >= H - 1) continue;
+
+            const seaTile = ctx.map[sy][sx];
+            const landTile = ctx.map[ly][lx];
+
+            // Only convert if this floor tile has water on the sea side and is not
+            // itself between two water tiles (which would likely be part of a pier).
+            if (seaTile === WATER && landTile !== WATER) {
+              ctx.map[y][x] = WATER;
+            }
+          }
+        }
+      }
     }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
