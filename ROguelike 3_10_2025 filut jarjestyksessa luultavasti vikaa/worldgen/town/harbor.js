@@ -398,8 +398,6 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       }
       ctx.townHarborBuildings = harborBuildings;
     } catch (_) {}
-
-  } catch (_) {}
 }
 
 function _safeAddProp(ctx, W, H, x, y, code) {
