@@ -31,7 +31,7 @@ import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town
 import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFor, shuffleInPlace, assignShopsToBuildings } from "./town/shops_core.js";
 import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
-import { placeHarborPrefabs } from "./town/harbor.js";
+import { prepareHarborZone, placeHarborPrefabs } from "./town/harbor.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -174,6 +174,14 @@ function generate(ctx) {
 
   // Plaza (carved via helper; returns center and dimensions)
   const { plaza, plazaW, plazaH } = buildPlaza(ctx, W, H, townSize, TOWNCFG);
+
+  // For port towns, pre-carve harbor water and shoreline before buildings are placed
+  // so no building ever ends up stamped on water. Non-port towns skip this step.
+  try {
+    if (ctx.townKind === "port" && Array.isArray(ctx.townHarborMask) && ctx.townHarborMask.length && ctx.townHarborDir) {
+      prepareHarborZone(ctx, W, H, gate);
+    }
+  } catch (_) {}
 
   // Roads (deferred): build after buildings and outdoor mask are known
   

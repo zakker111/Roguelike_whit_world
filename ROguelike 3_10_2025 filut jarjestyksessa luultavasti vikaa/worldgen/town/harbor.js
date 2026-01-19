@@ -2,16 +2,217 @@ import { getGameData } from "../../utils/access.js";
 import { getTileDefByKey } from "../../data/tile_lookup.js";
 
 /**
- * Harbor prefabs placement for port towns.
+ * Harbor helpers for port towns.
+ *
+ * This module is being refactored into two stages for ports:
+ *   1) prepareHarborZone(ctx, W, H, gate)    -> ground, shoreline, water masks
+ *   2) placeHarborPrefabs(...)               -> piers, boats, props, warehouses
+ *
+ * Non-port towns do not use these helpers and retain the existing town pipeline.
+ */
+
+/**
+ * Pre-calc harbor ground/water layout for a port town.
  *
  * Responsibilities:
- * - Use ctx.townHarborMask / ctx.townHarborDir / ctx.townKind to locate harbor band.
- * - Stamp simple dock-like props along the open harbor edge (floor + crates/barrels/etc.).
- * - Place 1–2 small \"warehouse\" style buildings just inside the harbor band using existing house prefabs.
- *
- * This module deliberately avoids adding new tiles; docks are visualized via props on FLOOR
- * tiles so pathfinding remains simple.
+ * - Respect ctx.townHarborMask / ctx.townHarborDir.
+ * - Build a 4-tile gate bridge corridor when harbor side == gate side.
+ * - Carve harbor water inside the harbor band before buildings are stamped.
+ * - Derive:
+ *   - ctx.townGateBridgeMask    : 4-wide bridge from gate into town (optional).
+ *   - ctx.townHarborZoneMask    : alias for harbor band.
+ *   - ctx.townHarborWaterMask   : where harbor water actually lives inside band.
+ *   - ctx.townShoreMask         : shoreline band (harbor band minus water).
  */
+export function prepareHarborZone(ctx, W, H, gate) {
+  if (!ctx || ctx.townKind !== "port") return;
+  const harborMask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+  const harborDir = typeof ctx.townHarborDir === "string" ? ctx.townHarborDir : "";
+  if (!harborMask || !harborDir) return;
+
+  const GD = getGameData(ctx);
+
+  // 1) Compute a gate-side bridge mask if harbor side == gate side.
+  let gateBridgeMask = null;
+  try {
+    const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
+    const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
+    if (gx != null && gy != null) {
+      let gateSide = "";
+      if (gy === 1) gateSide = "N";
+      else if (gy === H - 2) gateSide = "S";
+      else if (gx === 1) gateSide = "W";
+      else if (gx === W - 2) gateSide = "E";
+
+      if (gateSide && gateSide === harborDir) {
+        const rows = H, cols = W;
+        const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+        const depthMax = Math.max(4, Math.min(8, Math.floor(Math.min(W, H) / 3)));
+
+        if (gateSide === "S") {
+          let x0 = gx - 1;
+          let x1 = gx + 2;
+          if (x0 < 1) x0 = 1;
+          if (x1 > W - 2) x1 = W - 2;
+          const yEnd = gy;
+          const depth = Math.min(depthMax, Math.max(1, yEnd - 1));
+          const yStart = Math.max(1, yEnd - depth + 1);
+          for (let y = yStart; y <= yEnd; y++) {
+            for (let x = x0; x <= x1; x++) {
+              mask[y][x] = true;
+            }
+          }
+        } else if (gateSide === "N") {
+          let x0 = gx - 1;
+          let x1 = gx + 2;
+          if (x0 < 1) x0 = 1;
+          if (x1 > W - 2) x1 = W - 2;
+          const yStart = gy;
+          const depth = Math.min(depthMax, Math.max(1, (H - 2) - yStart));
+          const yEnd = Math.min(H - 2, yStart + depth - 1);
+          for (let y = yStart; y <= yEnd; y++) {
+            for (let x = x0; x <= x1; x++) {
+              mask[y][x] = true;
+            }
+          }
+        } else if (gateSide === "E") {
+          let y0 = gy - 1;
+          let y1 = gy + 2;
+          if (y0 < 1) y0 = 1;
+          if (y1 > H - 2) y1 = H - 2;
+          const xEnd = gx;
+          const depth = Math.min(depthMax, Math.max(1, xEnd - 1));
+          const xStart = Math.max(1, xEnd - depth + 1);
+          for (let y = y0; y <= y1; y++) {
+            for (let x = xStart; x <= xEnd; x++) {
+              mask[y][x] = true;
+            }
+          }
+        } else if (gateSide === "W") {
+          let y0 = gy - 1;
+          let y1 = gy + 2;
+          if (y0 < 1) y0 = 1;
+          if (y1 > H - 2) y1 = H - 2;
+          const xStart = gx;
+          const depth = Math.min(depthMax, Math.max(1, (W - 2) - xStart));
+          const xEnd = Math.min(W - 2, xStart + depth - 1);
+          for (let y = y0; y <= y1; y++) {
+            for (let x = xStart; x <= xEnd; x++) {
+              mask[y][x] = true;
+            }
+          }
+        }
+
+        gateBridgeMask = mask;
+        try { ctx.townGateBridgeMask = mask; } catch (_) {}
+      }
+    }
+  } catch (_) {
+    gateBridgeMask = null;
+  }
+
+  // 2) Carve harbor water inside harbor band, respecting gate bridge.
+  let WATER = null;
+  try {
+    const td = getTileDefByKey("town", "HARBOR_WATER") || null;
+    if (td && typeof td.id === "number") WATER = td.id | 0;
+  } catch (_) {}
+  if (WATER == null) return;
+
+  let waterDepth = 8;
+  let bandDepthCfg = null;
+  try {
+    const TOWNCFG = GD && GD.town;
+    const harborCfg = TOWNCFG && TOWNCFG.kinds && TOWNCFG.kinds.port && TOWNCFG.kinds.port.harbor;
+    if (harborCfg) {
+      if (typeof harborCfg.waterDepth === "number") waterDepth = harborCfg.waterDepth | 0;
+      if (typeof harborCfg.bandDepth === "number") bandDepthCfg = harborCfg.bandDepth | 0;
+    }
+  } catch (_) {}
+
+  const dimCap = Math.min(60, Math.max(4, Math.min(W, H) - 4)) || 16;
+  let maxDepth = dimCap;
+  if (bandDepthCfg && bandDepthCfg > 4) {
+    maxDepth = Math.min(maxDepth, bandDepthCfg - 3);
+  }
+  maxDepth = Math.max(2, maxDepth);
+  waterDepth = Math.max(2, Math.min(waterDepth, maxDepth));
+
+  // Carve water strip along harbor edge within harbor band. We ignore buildings here
+  // because this runs before the main house layout.
+  if (harborDir === "W" || harborDir === "E") {
+    for (let y = 1; y < H - 1; y++) {
+      let edgeX = null;
+      for (let x = 1; x < W - 1; x++) {
+        if (!harborMask[y][x]) continue;
+        if (edgeX == null || (harborDir === "W" ? x < edgeX : x > edgeX)) {
+          edgeX = x;
+        }
+      }
+      if (edgeX == null) continue;
+      const dirStep = harborDir === "W" ? +1 : -1;
+      for (let d = 0; d < waterDepth; d++) {
+        const xx = edgeX + dirStep * d;
+        if (xx <= 0 || xx >= W - 1) break;
+        if (!harborMask[y][xx]) break;
+        if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][xx]) continue;
+        const t = ctx.map[y][xx];
+        if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
+          ctx.map[y][xx] = WATER;
+        }
+      }
+    }
+  } else if (harborDir === "N" || harborDir === "S") {
+    for (let x = 1; x < W - 1; x++) {
+      let edgeY = null;
+      for (let y = 1; y < H - 1; y++) {
+        if (!harborMask[y][x]) continue;
+        if (edgeY == null || (harborDir === "N" ? y < edgeY : y > edgeY)) {
+          edgeY = y;
+        }
+      }
+      if (edgeY == null) continue;
+      const dirStep = harborDir === "N" ? +1 : -1;
+      for (let d = 0; d < waterDepth; d++) {
+        const yy = edgeY + dirStep * d;
+        if (yy <= 0 || yy >= H - 1) break;
+        if (!harborMask[yy][x]) break;
+        if (gateBridgeMask && gateBridgeMask[yy] && gateBridgeMask[yy][x]) continue;
+        const t = ctx.map[yy][x];
+        if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
+          ctx.map[yy][x] = WATER;
+        }
+      }
+    }
+  }
+
+  // 3) Derive masks: harbor zone, harbor water, shoreline.
+  const harborZoneMask = Array.from({ length: H }, () => Array(W).fill(false));
+  const harborWaterMask = Array.from({ length: H }, () => Array(W).fill(false));
+  const shoreMask = Array.from({ length: H }, () => Array(W).fill(false));
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!harborMask[y][x]) continue;
+      harborZoneMask[y][x] = true;
+      const isBridge = gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][x];
+      const isWater = ctx.map[y][x] === WATER;
+      if (isBridge) {
+        // Gate bridge is always shore/ground.
+        shoreMask[y][x] = true;
+        harborWaterMask[y][x] = false;
+      } else if (isWater) {
+        harborWaterMask[y][x] = true;
+      } else {
+        shoreMask[y][x] = true;
+      }
+    }
+  }
+
+  ctx.townHarborZoneMask = harborZoneMask;
+  ctx.townHarborWaterMask = harborWaterMask;
+  ctx.townShoreMask = shoreMask;
+}
 
 /**
  * Place harbor visuals and buildings for port towns.
@@ -37,95 +238,86 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     const GD = getGameData(ctx);
     const PFB = GD && GD.prefabs ? GD.prefabs : null;
 
-    // Gate-aligned bridge corridor: when the harbor side matches the gate side,
-    // reserve a 4-tile-wide land strip from the gate interior into town and
-    // forbid harbor water/pier carving there. This ensures the player spawn /
-    // gate approach remains dry and readable even for harbors on the gate edge.
-    let gateBridgeMask = null;
+    // Gate-aligned bridge corridor: reuse precomputed mask when available,
+    // otherwise compute a local one for backward-compatibility.
+    let gateBridgeMask = ctx.townGateBridgeMask || null;
     try {
-      const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
-      const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
-      if (gx != null && gy != null) {
-        let gateSide = "";
-        if (gy === 1) gateSide = "N";
-        else if (gy === H - 2) gateSide = "S";
-        else if (gx === 1) gateSide = "W";
-        else if (gx === W - 2) gateSide = "E";
+      if (!gateBridgeMask) {
+        const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
+        const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
+        if (gx != null && gy != null) {
+          let gateSide = "";
+          if (gy === 1) gateSide = "N";
+          else if (gy === H - 2) gateSide = "S";
+          else if (gx === 1) gateSide = "W";
+          else if (gx === W - 2) gateSide = "E";
 
-        if (gateSide && gateSide === harborDir) {
-          const rows = H, cols = W;
-          const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-          const bridgeWidth = 4;
-          const depthMax = Math.max(4, Math.min(8, Math.floor(Math.min(W, H) / 3)));
+          if (gateSide && gateSide === harborDir) {
+            const rows = H, cols = W;
+            const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+            const depthMax = Math.max(4, Math.min(8, Math.floor(Math.min(W, H) / 3)));
 
-          if (gateSide === "S") {
-            // Harbor opens to south; gate interior sits on inner row near bottom.
-            // Bridge runs north (toward town interior) from gate, 4 tiles wide in X.
-            let x0 = gx - 1;
-            let x1 = gx + 2;
-            if (x0 < 1) x0 = 1;
-            if (x1 > W - 2) x1 = W - 2;
-            const yEnd = gy;
-            const depth = Math.min(depthMax, Math.max(1, yEnd - 1));
-            const yStart = Math.max(1, yEnd - depth + 1);
-            for (let y = yStart; y <= yEnd; y++) {
-              for (let x = x0; x <= x1; x++) {
-                mask[y][x] = true;
+            if (gateSide === "S") {
+              let x0 = gx - 1;
+              let x1 = gx + 2;
+              if (x0 < 1) x0 = 1;
+              if (x1 > W - 2) x1 = W - 2;
+              const yEnd = gy;
+              const depth = Math.min(depthMax, Math.max(1, yEnd - 1));
+              const yStart = Math.max(1, yEnd - depth + 1);
+              for (let y = yStart; y <= yEnd; y++) {
+                for (let x = x0; x <= x1; x++) {
+                  mask[y][x] = true;
+                }
+              }
+            } else if (gateSide === "N") {
+              let x0 = gx - 1;
+              let x1 = gx + 2;
+              if (x0 < 1) x0 = 1;
+              if (x1 > W - 2) x1 = W - 2;
+              const yStart = gy;
+              const depth = Math.min(depthMax, Math.max(1, (H - 2) - yStart));
+              const yEnd = Math.min(H - 2, yStart + depth - 1);
+              for (let y = yStart; y <= yEnd; y++) {
+                for (let x = x0; x <= x1; x++) {
+                  mask[y][x] = true;
+                }
+              }
+            } else if (gateSide === "E") {
+              let y0 = gy - 1;
+              let y1 = gy + 2;
+              if (y0 < 1) y0 = 1;
+              if (y1 > H - 2) y1 = H - 2;
+              const xEnd = gx;
+              const depth = Math.min(depthMax, Math.max(1, xEnd - 1));
+              const xStart = Math.max(1, xEnd - depth + 1);
+              for (let y = y0; y <= y1; y++) {
+                for (let x = xStart; x <= xEnd; x++) {
+                  mask[y][x] = true;
+                }
+              }
+            } else if (gateSide === "W") {
+              let y0 = gy - 1;
+              let y1 = gy + 2;
+              if (y0 < 1) y0 = 1;
+              if (y1 > H - 2) y1 = H - 2;
+              const xStart = gx;
+              const depth = Math.min(depthMax, Math.max(1, (W - 2) - xStart));
+              const xEnd = Math.min(W - 2, xStart + depth - 1);
+              for (let y = y0; y <= y1; y++) {
+                for (let x = xStart; x <= xEnd; x++) {
+                  mask[y][x] = true;
+                }
               }
             }
-          } else if (gateSide === "N") {
-            // Harbor opens to north; gate interior near top.
-            // Bridge runs south into town, 4 tiles wide in X.
-            let x0 = gx - 1;
-            let x1 = gx + 2;
-            if (x0 < 1) x0 = 1;
-            if (x1 > W - 2) x1 = W - 2;
-            const yStart = gy;
-            const depth = Math.min(depthMax, Math.max(1, (H - 2) - yStart));
-            const yEnd = Math.min(H - 2, yStart + depth - 1);
-            for (let y = yStart; y <= yEnd; y++) {
-              for (let x = x0; x <= x1; x++) {
-                mask[y][x] = true;
-              }
-            }
-          } else if (gateSide === "E") {
-            // Harbor opens to east; gate interior near right edge.
-            // Bridge runs west into town, 4 tiles tall in Y.
-            let y0 = gy - 1;
-            let y1 = gy + 2;
-            if (y0 < 1) y0 = 1;
-            if (y1 > H - 2) y1 = H - 2;
-            const xEnd = gx;
-            const depth = Math.min(depthMax, Math.max(1, xEnd - 1));
-            const xStart = Math.max(1, xEnd - depth + 1);
-            for (let y = y0; y <= y1; y++) {
-              for (let x = xStart; x <= xEnd; x++) {
-                mask[y][x] = true;
-              }
-            }
-          } else if (gateSide === "W") {
-            // Harbor opens to west; gate interior near left edge.
-            // Bridge runs east into town, 4 tiles tall in Y.
-            let y0 = gy - 1;
-            let y1 = gy + 2;
-            if (y0 < 1) y0 = 1;
-            if (y1 > H - 2) y1 = H - 2;
-            const xStart = gx;
-            const depth = Math.min(depthMax, Math.max(1, (W - 2) - xStart));
-            const xEnd = Math.min(W - 2, xStart + depth - 1);
-            for (let y = y0; y <= y1; y++) {
-              for (let x = xStart; x <= xEnd; x++) {
-                mask[y][x] = true;
-              }
-            }
+
+            gateBridgeMask = mask;
+            try { ctx.townGateBridgeMask = mask; } catch (_) {}
           }
-
-          gateBridgeMask = mask;
-          try { ctx.townGateBridgeMask = mask; } catch (_) {}
         }
       }
     } catch (_) {
-      gateBridgeMask = null;
+      gateBridgeMask = gateBridgeMask || null;
     }
 
     function insideAnyBuildingLocal(x, y) {
@@ -152,7 +344,11 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       return false;
     }
 
-    // Carve a shallow water strip along the harbor edge, then carve piers into that water.
+    // Carve piers and boats into existing harbor water band. When prepareHarborZone()
+    // has already run, harbor water has been carved up-front and ctx.townHarborWaterMask
+    // tracks it. If not, this function falls back to carving a shallow water strip
+    // for backward-compatibility (e.g., tests or tools that still call placeHarborPrefabs
+    // without the newer pre-pass).
     function carveHarborWaterAndPiers() {
       let WATER = null;
       let PIER = ctx.TILES.FLOOR;
@@ -166,8 +362,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         if (tdPier && typeof tdPier.id === "number") PIER = tdPier.id | 0;
       } catch (_) {}
 
-      // Water depth: derive from config and harbor band depth to keep a wide water strip
-      // while leaving some dry harbor band tiles inside the town.
+      // Water depth: derive from config for fallback water carving if needed.
       let waterDepth = 8;
       let bandDepthCfg = null;
       try {
@@ -183,13 +378,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       } catch (_) {}
 
-      // Allow very deep harbors (up to ~40 tiles of water where map size permits).
-      // We cap by map dimensions and harbor band depth so we still leave some town
-      // interior behind the water.
       const dimCap = Math.min(60, Math.max(4, Math.min(W, H) - 4)) || 16;
       let maxDepth = dimCap;
       if (bandDepthCfg && bandDepthCfg > 4) {
-        // Keep at least a few tiles of dry harbor band inside town.
         maxDepth = Math.min(maxDepth, bandDepthCfg - 3);
       }
       maxDepth = Math.max(2, maxDepth);
@@ -199,52 +390,57 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       const pierMask = Array.from({ length: H }, () => Array(W).fill(false));
       ctx.townPierMask = pierMask;
 
-      // First, carve water strip along harbor edge within the harbor band.
-      if (harborDir === "W" || harborDir === "E") {
-        for (let y = 1; y < H - 1; y++) {
-          let edgeX = null;
-          for (let x = 1; x < W - 1; x++) {
-            if (!harborMask[y][x]) continue;
-            if (edgeX == null || (harborDir === "W" ? x < edgeX : x > edgeX)) {
-              edgeX = x;
-            }
-          }
-          if (edgeX == null) continue;
-          const dirStep = harborDir === "W" ? +1 : -1;
-          for (let d = 0; d < waterDepth; d++) {
-            const xx = edgeX + dirStep * d;
-            if (xx <= 0 || xx >= W - 1) break;
-            if (!harborMask[y][xx]) break;
-            // Preserve gate-aligned bridge corridor when present.
-            if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][xx]) continue;
-            if (touchesAnyBuildingLocal(xx, y)) break;
-            const t = ctx.map[y][xx];
-            if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
-              ctx.map[y][xx] = WATER;
-            }
-          }
-        }
-      } else if (harborDir === "N" || harborDir === "S") {
-        for (let x = 1; x < W - 1; x++) {
-          let edgeY = null;
+      const harborWaterMask = Array.isArray(ctx.townHarborWaterMask) ? ctx.townHarborWaterMask : null;
+      const hasPrecarvedWater = !!(harborWaterMask && harborWaterMask.length === H);
+
+      // If prepareHarborZone() has already carved water, we skip the old water strip
+      // carving here and only look for existing harbor water. Otherwise, fall back
+      // to carving a shallow strip as before.
+      if (!hasPrecarvedWater) {
+        if (harborDir === "W" || harborDir === "E") {
           for (let y = 1; y < H - 1; y++) {
-            if (!harborMask[y][x]) continue;
-            if (edgeY == null || (harborDir === "N" ? y < edgeY : y > edgeY)) {
-              edgeY = y;
+            let edgeX = null;
+            for (let x = 1; x < W - 1; x++) {
+              if (!harborMask[y][x]) continue;
+              if (edgeX == null || (harborDir === "W" ? x < edgeX : x > edgeX)) {
+                edgeX = x;
+              }
+            }
+            if (edgeX == null) continue;
+            const dirStep = harborDir === "W" ? +1 : -1;
+            for (let d = 0; d < waterDepth; d++) {
+              const xx = edgeX + dirStep * d;
+              if (xx <= 0 || xx >= W - 1) break;
+              if (!harborMask[y][xx]) break;
+              if (gateBridgeMask && gateBridgeMask[y] && gateBridgeMask[y][xx]) continue;
+              if (touchesAnyBuildingLocal(xx, y)) break;
+              const t = ctx.map[y][xx];
+              if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
+                ctx.map[y][xx] = WATER;
+              }
             }
           }
-          if (edgeY == null) continue;
-          const dirStep = harborDir === "N" ? +1 : -1;
-          for (let d = 0; d < waterDepth; d++) {
-            const yy = edgeY + dirStep * d;
-            if (yy <= 0 || yy >= H - 1) break;
-            if (!harborMask[yy][x]) break;
-            // Preserve gate-aligned bridge corridor when present.
-            if (gateBridgeMask && gateBridgeMask[yy] && gateBridgeMask[yy][x]) continue;
-            if (touchesAnyBuildingLocal(x, yy)) break;
-            const t = ctx.map[yy][x];
-            if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
-              ctx.map[yy][x] = WATER;
+        } else if (harborDir === "N" || harborDir === "S") {
+          for (let x = 1; x < W - 1; x++) {
+            let edgeY = null;
+            for (let y = 1; y < H - 1; y++) {
+              if (!harborMask[y][x]) continue;
+              if (edgeY == null || (harborDir === "N" ? y < edgeY : y > edgeY)) {
+                edgeY = y;
+              }
+            }
+            if (edgeY == null) continue;
+            const dirStep = harborDir === "N" ? +1 : -1;
+            for (let d = 0; d < waterDepth; d++) {
+              const yy = edgeY + dirStep * d;
+              if (yy <= 0 || yy >= H - 1) break;
+              if (!harborMask[yy][x]) break;
+              if (gateBridgeMask && gateBridgeMask[yy] && gateBridgeMask[yy][x]) continue;
+              if (touchesAnyBuildingLocal(x, yy)) break;
+              const t = ctx.map[yy][x];
+              if (t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) {
+                ctx.map[yy][x] = WATER;
+              }
             }
           }
         }
