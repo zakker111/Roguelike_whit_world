@@ -300,7 +300,12 @@ function applyState(ctx, st, x, y) {
         // Bounds and tile check
         if (!inB(x0, y0)) continue;
         const t = ctx.map[y0][x0];
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) continue;
+        const isFloorish =
+          t === ctx.TILES.FLOOR ||
+          t === ctx.TILES.STAIRS ||
+          t === ctx.TILES.ROAD ||
+          t === ctx.TILES.PIER;
+        if (!isFloorish) continue;
         // Interior-only filtering
         const typ = String(p.type || "").toLowerCase();
         if (interiorOnly.has(typ) && !insideAnyBuilding(x0, y0)) continue;
