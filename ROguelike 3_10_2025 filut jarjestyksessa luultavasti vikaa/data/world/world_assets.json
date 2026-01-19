@@ -466,7 +466,7 @@
         "name": "Boat",
         "glyph": "⛵",
         "colors": { "fg": "#e5e7eb" },
-        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["town"],
         "tags": ["decor", "harbor"],
         "variants": [

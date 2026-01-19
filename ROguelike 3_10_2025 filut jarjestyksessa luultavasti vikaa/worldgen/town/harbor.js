@@ -282,19 +282,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         // Require that the pier actually extends into water.
         if (length === 0) continue;
 
-        // Optionally place a small boat just beyond the pier tip on water.
-        if (boatsPlaced < 2) {
-          const rv = rng ? rng() : Math.random();
-          if (rv < 0.85 || boatsPlaced === 0) {
-            const bx = tipX + root.dx;
-            const by = tipY + root.dy;
-            if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1 && harborMask[by][bx]) {
-              _safeAddBoatProp(ctx, W, H, bx, by, WATER);
-              boatsPlaced++;
-            }
-          }
-        }
-
+        // Previously we sometimes placed a tiny one-glyph BOAT prop at the pier tip.
+        // The harbor now uses proper multi-tile boat prefabs instead, so we skip
+        // those decorative glyph boats entirely to avoid confusion and blocking.
         piersPlaced++;
       }
 
