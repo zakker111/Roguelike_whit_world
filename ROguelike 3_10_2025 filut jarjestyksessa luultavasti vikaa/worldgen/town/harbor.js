@@ -537,6 +537,145 @@ function _safeAddBoatProp(ctx, W, H, x, y, waterTile) {
   return false;
 }
 
+/**
+ * Stamp a boat prefab on top of harbor water, converting selected water tiles
+ * into bright ship deck and placing ship props (rails/masts/hatch).
+ *
+ * This is intentionally separate from the generic building prefab stamper:
+ * - It allows stamping directly on water instead of FLOOR/ROAD.
+ * - It uses SHIP_DECK tiles and ship_* props instead of WALL/FLOOR/etc.
+ *
+ * Preconditions:
+ * - prefab.tiles is a size.w × size.h grid using codes:
+ *   - "WATER"      -> leave underlying tile as-is (typically HARBOR_WATER)
+ *   - "SHIP_DECK"  -> convert to deck tile
+ *   - "SHIP_RAIL"  -> deck tile + ship_rail prop
+ *   - "MAST"       -> deck tile + mast prop
+ *   - "SHIP_HATCH" -> deck tile + ship_hatch prop
+ */
+function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTile) {
+  if (!ctx || !prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
+  const w = prefab.size.w | 0;
+  const h = prefab.size.h | 0;
+  if (!w || !h) return false;
+
+  const x0 = bx | 0;
+  const y0 = by | 0;
+  const x1 = x0 + w - 1;
+  const y1 = y0 + h - 1;
+  if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+
+  // Validate row shapes
+  for (let yy = 0; yy < h; yy++) {
+    const row = prefab.tiles[yy];
+    if (!row || row.length !== w) return false;
+  }
+
+  // Resolve ship deck tile id (fallback to FLOOR if lookup fails).
+  let DECK = ctx.TILES.FLOOR;
+  try {
+    const td = getTileDefByKey("town", "SHIP_DECK") || null;
+    if (td && typeof td.id === "number") {
+      DECK = td.id | 0;
+    }
+  } catch (_) {}
+
+  // Ensure boat mask exists and matches map dims.
+  try {
+    const ok =
+      Array.isArray(ctx.townBoatMask) &&
+      ctx.townBoatMask.length === H &&
+      H > 0 &&
+      Array.isArray(ctx.townBoatMask[0]) &&
+      ctx.townBoatMask[0].length === W;
+    if (!ok) {
+      ctx.townBoatMask = Array.from({ length: H }, () => Array(W).fill(false));
+    }
+  } catch (_) {
+    ctx.townBoatMask = Array.from({ length: H }, () => Array(W).fill(false));
+  }
+  const boatMask = ctx.townBoatMask;
+
+  // Ensure props container.
+  try {
+    if (!Array.isArray(ctx.townProps)) ctx.townProps = [];
+  } catch (_) {}
+
+  // First pass: validate that all non-WATER codes sit on harbor water inside the mask.
+  for (let yy = 0; yy < h; yy++) {
+    const row = prefab.tiles[yy];
+    for (let xx = 0; xx < w; xx++) {
+      const codeRaw = row[xx];
+      const code = codeRaw ? String(codeRaw).toUpperCase() : "";
+      if (!code || code === "WATER") continue;
+      const tx = x0 + xx;
+      const ty = y0 + yy;
+      if (tx <= 0 || ty <= 0 || tx >= W - 1 || ty >= H - 1) return false;
+      if (harborMask && (!harborMask[ty] || !harborMask[ty][tx])) return false;
+      const t = ctx.map[ty][tx];
+      if (t !== waterTile) return false;
+    }
+  }
+
+  // Second pass: apply deck tiles and props.
+  for (let yy = 0; yy < h; yy++) {
+    const row = prefab.tiles[yy];
+    for (let xx = 0; xx < w; xx++) {
+      const codeRaw = row[xx];
+      const code = codeRaw ? String(codeRaw).toUpperCase() : "";
+      const tx = x0 + xx;
+      const ty = y0 + yy;
+
+      if (!code || code === "WATER") {
+        continue; // leave underlying water
+      }
+
+      // All ship cells get deck tile + boat mask.
+      ctx.map[ty][tx] = DECK;
+      boatMask[ty][tx] = true;
+
+      // Only one prop per cell; skip if something already exists here.
+      let hasProp = false;
+      if (Array.isArray(ctx.townProps)) {
+        for (let i = 0; i < ctx.townProps.length; i++) {
+          const p = ctx.townProps[i];
+          if (p && p.x === tx && p.y === ty) {
+            hasProp = true;
+            break;
+          }
+        }
+      }
+      if (hasProp) continue;
+
+      if (code === "SHIP_RAIL") {
+        ctx.townProps.push({ x: tx, y: ty, type: "ship_rail", name: null });
+      } else if (code === "MAST") {
+        ctx.townProps.push({ x: tx, y: ty, type: "mast", name: null });
+      } else if (code === "SHIP_HATCH") {
+        ctx.townProps.push({ x: tx, y: ty, type: "ship_hatch", name: null });
+      }
+    }
+  }
+
+  // Record boat metadata for potential AI/interior use.
+  try {
+    const id = prefab && prefab.id ? String(prefab.id) : null;
+    if (id) {
+      if (!Array.isArray(ctx.townBoats)) ctx.townBoats = [];
+      ctx.townBoats.push({
+        id,
+        x: x0,
+        y: y0,
+        w,
+        h,
+        orientation: prefab.orientation || null
+      });
+    }
+  } catch (_) {}
+
+  return true;
+}
+
 function _propTypeFromCode(code) {
   // Map embedded prop codes to prop types used in townProps; current town_props
   // pipeline treats type as id key in GameData.props. Codes used here (CRATE/BARREL/LAMP)
