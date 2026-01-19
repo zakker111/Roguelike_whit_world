@@ -207,8 +207,8 @@ export function drawTownBase(ctx, view) {
               // Boat deck: always draw with ship deck color (darker wood) regardless of biome tint.
               if (ctx.townBoatMask && ctx.townBoatMask[yy] && ctx.townBoatMask[yy][xx]) {
                 fill = "#9b7a48";
-              } else if (type === TILES.FLOOR && ctx.townPierMask && ctx.townPierMask[yy] && ctx.townPierMask[yy][xx]) {
-                // Tint pier floor tiles to a warmer brown so piers stand out against normal floor.
+              } else if (ctx.townPierMask && ctx.townPierMask[yy] && ctx.townPierMask[yy][xx]) {
+                // Tint pier tiles to a warmer brown so piers stand out clearly.
                 fill = "#7b5a35";
               }
             } catch (_) {}
@@ -254,7 +254,7 @@ export function drawTownBase(ctx, view) {
         }
         if (ctx.townBoatMask && ctx.townBoatMask[y] && ctx.townBoatMask[y][x]) {
           fill = "#9b7a48";
-        } else if (type === TILES.FLOOR && ctx.townPierMask && ctx.townPierMask[y] && ctx.townPierMask[y][x]) {
+        } else if (ctx.townPierMask && ctx.townPierMask[y] && ctx.townPierMask[y][x]) {
           fill = "#7b5a35";
         }
       } catch (_) {}

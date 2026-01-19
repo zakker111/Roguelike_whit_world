@@ -155,11 +155,16 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     // Carve a shallow water strip along the harbor edge, then carve piers into that water.
     function carveHarborWaterAndPiers() {
       let WATER = null;
+      let PIER = ctx.TILES.FLOOR;
       try {
         const td = getTileDefByKey("town", "HARBOR_WATER") || null;
         if (td && typeof td.id === "number") WATER = td.id | 0;
       } catch (_) {}
       if (WATER == null) return;
+      try {
+        const tdPier = getTileDefByKey("town", "PIER") || null;
+        if (tdPier && typeof tdPier.id === "number") PIER = tdPier.id | 0;
+      } catch (_) {}
 
       // Water depth: derive from config and harbor band depth to keep a wide water strip
       // while leaving some dry harbor band tiles inside the town.
@@ -327,6 +332,11 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         let tipX = root.x;
         let tipY = root.y;
 
+        // Convert the root tile to pier deck so the shoreline section of the pier
+        // is visually consistent and clearly brown.
+        if (ctx.map[root.y][root.x] === ctx.TILES.FLOOR || ctx.map[root.y][root.x] === ctx.TILES.ROAD) {
+          ctx.map[root.y][root.x] = PIER;
+        }
         pierMask[root.y][root.x] = true;
 
         let length = 0;
@@ -351,8 +361,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
           if (!nextIsWaterBand) break;
 
-          // Carve current water tile into pier floor.
-          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+          // Carve current water tile into pier deck.
+          ctx.map[yy][xx] = PIER;
           pierMask[yy][xx] = true;
           tipX = xx;
           tipY = yy;
@@ -372,7 +382,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             if (!harborMask[sy][sx]) continue;
             if (insideAnyBuildingLocal(sx, sy)) continue;
             if (ctx.map[sy][sx] !== WATER) continue;
-            ctx.map[sy][sx] = ctx.TILES.FLOOR;
+            ctx.map[sy][sx] = PIER;
             pierMask[sy][sx] = true;
           }
         }
@@ -530,6 +540,85 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           _stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
         } catch (_) {
           // Harbor generation should never fail if boat placement has issues.
+        }
+      })();
+
+      // Ensure that at least one boat (if present) is reachable from the town gate
+      // by carving a minimal pier corridor through harbor water (never through
+      // buildings). This avoids cases where boats are visually present but blocked
+      // behind water and walls.
+      (function ensureHarborBoatAccess() {
+        try {
+          const boatMask = ctx.townBoatMask;
+          if (!boatMask) return;
+          const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
+          const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
+          if (gx == null || gy == null) return;
+
+          const rows = H, cols = W;
+          const inBoundsLocal = (x, y) => x > 0 && y > 0 && x < cols - 1 && y < rows - 1;
+          const dirs4 = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+
+          const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
+          const prev = Array.from({ length: rows }, () => Array(cols).fill(null));
+          const q = [];
+          q.push({ x: gx, y: gy });
+          visited[gy][gx] = true;
+
+          let target = null;
+
+          while (q.length) {
+            const cur = q.shift();
+            if (boatMask[cur.y] && boatMask[cur.y][cur.x]) {
+              target = cur;
+              break;
+            }
+            for (let i = 0; i < dirs4.length; i++) {
+              const nx = cur.x + dirs4[i].dx;
+              const ny = cur.y + dirs4[i].dy;
+              if (!inBoundsLocal(nx, ny)) continue;
+              if (visited[ny][nx]) continue;
+              const tile = ctx.map[ny][nx];
+              // Block hard walls and windows; we do not carve through buildings.
+              if (tile === ctx.TILES.WALL || tile === ctx.TILES.WINDOW) continue;
+
+              const inHarborBand = harborMask[ny] && harborMask[ny][nx];
+              const isWaterHere = tile === WATER && inHarborBand;
+              const isBoatDeck = boatMask[ny] && boatMask[ny][nx];
+
+              const isWalkableStatic =
+                tile === ctx.TILES.FLOOR ||
+                tile === ctx.TILES.ROAD ||
+                tile === ctx.TILES.DOOR ||
+                tile === PIER ||
+                isBoatDeck;
+
+              if (!isWalkableStatic && !isWaterHere) continue;
+
+              visited[ny][nx] = true;
+              prev[ny][nx] = { x: cur.x, y: cur.y };
+              q.push({ x: nx, y: ny });
+            }
+          }
+
+          if (!target) return;
+
+          // Reconstruct path and convert any harbor water along it into pier tiles.
+          let cx = target.x;
+          let cy = target.y;
+          while (!(cx === gx && cy === gy)) {
+            const p = prev[cy][cx];
+            if (!p) break;
+            const t = ctx.map[cy][cx];
+            if (t === WATER && harborMask[cy] && harborMask[cy][cx]) {
+              ctx.map[cy][cx] = PIER;
+              pierMask[cy][cx] = true;
+            }
+            cx = p.x;
+            cy = p.y;
+          }
+        } catch (_) {
+          // Access fix is best-effort; never break harbor generation.
         }
       })();
     }
