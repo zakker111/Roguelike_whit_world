@@ -31,6 +31,7 @@ import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town
 import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFor, shuffleInPlace, assignShopsToBuildings } from "./town/shops_core.js";
 import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
+import { placeHarborPrefabs } from "./town/harbor.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -839,6 +840,19 @@ function generate(ctx) {
     prefabId: b.prefabId,
     prefabCategory: b.prefabCategory
   }));
+
+  // Harbor visuals and warehouses for port towns, using reserved harbor band.
+  placeHarborPrefabs(
+    ctx,
+    buildings,
+    W,
+    H,
+    gate,
+    plaza,
+    rng,
+    (ctx2, pref, bx, by) => stampPrefab(ctx2, pref, bx, by),
+    (ctx2, pref, bx, by, maxSlip) => trySlipStamp(ctx2, pref, bx, by, maxSlip)
+  );
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
   buildOutdoorMask(ctx, buildings, W, H);
