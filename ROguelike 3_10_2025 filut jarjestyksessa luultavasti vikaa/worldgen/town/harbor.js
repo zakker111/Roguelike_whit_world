@@ -358,6 +358,89 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           }
         }
       }
+
+      // Boat placement: attempt to place 0–1 large wooden boats parallel to piers
+      // along the harbor band. Currently implemented for east/west harbors so boats
+      // align horizontally with the piers.
+      (function placeHarborBoats() {
+        try {
+          if (!PFB || !Array.isArray(PFB.boats) || !PFB.boats.length) return;
+          if (harborDir !== "W" && harborDir !== "E") return;
+
+          const boats = PFB.boats.filter(b => b && b.size && Array.isArray(b.tiles) && String(b.category || "").toLowerCase() === "boat");
+          if (!boats.length) return;
+
+          const slots = [];
+
+          function boatFitsAt(pref, bx, by) {
+            const w = pref.size.w | 0;
+            const h = pref.size.h | 0;
+            if (!w || !h) return false;
+
+            const x0 = bx | 0;
+            const y0 = by | 0;
+            const x1 = x0 + w - 1;
+            const y1 = y0 + h - 1;
+            if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+
+            // Avoid overlapping existing buildings.
+            if (_rectOverlapsAny(buildings, x0, y0, w, h)) return false;
+
+            // Validate that all non-WATER codes sit on harbor water inside the harbor band.
+            for (let yy = 0; yy < h; yy++) {
+              const row = pref.tiles[yy];
+              if (!row || row.length !== w) return false;
+              for (let xx = 0; xx < w; xx++) {
+                const raw = row[xx];
+                const code = raw ? String(raw).toUpperCase() : "";
+                if (!code || code === "WATER") continue;
+                const tx = x0 + xx;
+                const ty = y0 + yy;
+                if (!harborMask[ty] || !harborMask[ty][tx]) return false;
+                if (ctx.map[ty][tx] !== WATER) return false;
+              }
+            }
+
+            // Require adjacency to a pier along the top or bottom edge of the rectangle
+            // so the boat feels moored alongside the pier.
+            let touchesPier = false;
+            const yTop = y0 - 1;
+            const yBottom = y1 + 1;
+            for (let tx = x0; tx <= x1; tx++) {
+              if (yTop > 0 && pierMask[yTop] && pierMask[yTop][tx]) { touchesPier = true; break; }
+              if (yBottom < H - 1 && pierMask[yBottom] && pierMask[yBottom][tx]) { touchesPier = true; break; }
+            }
+            if (!touchesPier) return false;
+
+            return true;
+          }
+
+          for (let i = 0; i < boats.length; i++) {
+            const pref = boats[i];
+            const w = pref.size.w | 0;
+            const h = pref.size.h | 0;
+            if (!w || !h) continue;
+            for (let by = 1; by <= H - 1 - h; by++) {
+              for (let bx = 1; bx <= W - 1 - w; bx++) {
+                if (!boatFitsAt(pref, bx, by)) continue;
+                slots.push({ x: bx, y: by, prefab: pref });
+              }
+            }
+          }
+
+          if (!slots.length) return;
+
+          // 0–1 boats per harbor: simple spawn chance and single random slot.
+          const rvPlace = rng ? rng() : Math.random();
+          if (rvPlace < 0.5) return;
+
+          const pickIdx = Math.floor((rng ? rng() : Math.random()) * slots.length) % slots.length;
+          const slot = slots[pickIdx];
+          _stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
+        } catch (_) {
+          // Harbor generation should never fail if boat placement has issues.
+        }
+      })();
     }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
