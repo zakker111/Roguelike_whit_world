@@ -37,24 +37,203 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     const GD = getGameData(ctx);
     const PFB = GD && GD.prefabs ? GD.prefabs : null;
 
-    // Cache a list of harbor-tagged buildings for later AI/use (e.g., harbor workers).
-    try {
-      const harborBuildings = [];
-      if (Array.isArray(buildings)) {
-        for (const b of buildings) {
-          if (!b) continue;
-          const id = b.prefabId ? String(b.prefabId).toLowerCase() : "";
-          const cat = b.prefabCategory ? String(b.prefabCategory).toLowerCase() : "";
-          const tags = Array.isArray(b.prefabTags) ? b.prefabTags.map(t => String(t).toLowerCase()) : [];
-          const isHarborLike =
-            id.includes("harbor") ||
-            cat === "harbor" ||
-            tags.includes("harbor");
-          if (isHarborLike) harborBuildings.push(b);
+    function insideAnyBuildingLocal(x, y) {
+      for (let i = 0; i < buildings.length; i++) {
+        const B = buildings[i];
+        if (!B) continue;
+        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+      }
+      return false;
+    }
+
+    // Carve a shallow water strip along the harbor edge, with short piers extending into the water.
+    function carveHarborWaterAndPiers() {
+      const tiles = ctx.TILES || {};
+      const WATER = typeof tiles.WATER === "number" ? tiles.WATER : null;
+      if (WATER == null) return;
+
+      // Water depth limited to a few tiles; derive from harbor band depth when available.
+      let waterDepth = 3;
+      try {
+        const TOWNCFG = GD && GD.town;
+        const harborCfg = TOWNCFG && TOWNCFG.kinds && TOWNCFG.kinds.port && TOWNCFG.kinds.port.harbor;
+        if (harborCfg && typeof harborCfg.waterDepth === "number") {
+          waterDepth = harborCfg.waterDepth | 0;
+        }
+      } catch (_) {}
+      waterDepth = Math.max(1, Math.min(waterDepth, 4));
+
+      // First, carve water strip along harbor edge within the harbor band.
+      if (harborDir === "W" || harborDir === "E") {
+        for (let y = 1; y < H - 1; y++) {
+          let edgeX = null;
+          for (let x = 1; x < W - 1; x++) {
+            if (!harborMask[y][x]) continue;
+            if (edgeX == null || (harborDir === "W" ? x < edgeX : x > edgeX)) {
+              edgeX = x;
+            }
+          }
+          if (edgeX == null) continue;
+          const dirStep = (harborDir === "W") ? +1 : -1;
+          for (let d = 0; d < waterDepth; d++) {
+            const xx = edgeX + dirStep * d;
+            if (xx <= 0 || xx >= W - 1) break;
+            if (!harborMask[y][xx]) break;
+            if (insideAnyBuildingLocal(xx, y)) continue;
+            if (ctx.map[y][xx] === ctx.TILES.FLOOR || ctx.map[y][xx] === ctx.TILES.ROAD) {
+              ctx.map[y][xx] = WATER;
+            }
+          }
+        }
+      } else if (harborDir === "N" || harborDir === "S") {
+        for (let x = 1; x < W - 1; x++) {
+          let edgeY = null;
+          for (let y = 1; y < H - 1; y++) {
+            if (!harborMask[y][x]) continue;
+            if (edgeY == null || (harborDir === "N" ? y < edgeY : y > edgeY)) {
+              edgeY = y;
+            }
+          }
+          if (edgeY == null) continue;
+          const dirStep = (harborDir === "N") ? +1 : -1;
+          for (let d = 0; d < waterDepth; d++) {
+            const yy = edgeY + dirStep * d;
+            if (yy <= 0 || yy >= H - 1) break;
+            if (!harborMask[yy][x]) break;
+            if (insideAnyBuildingLocal(x, yy)) continue;
+            if (ctx.map[yy][x] === ctx.TILES.FLOOR || ctx.map[yy][x] === ctx.TILES.ROAD) {
+              ctx.map[yy][x] = WATER;
+            }
+          }
         }
       }
-      ctx.townHarborBuildings = harborBuildings;
-    } catch (_) {}
+
+      // Next, carve short piers: convert some water columns/rows back to FLOOR to represent wooden piers.
+      const pierLength = Math.max(2, Math.min(4, waterDepth + 1));
+      const bandCoords = [];
+      for (let y = 1; y < H - 1; y++) {
+        for (let x = 1; x < W - 1; x++) {
+          if (harborMask[y][x] && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD)) {
+            bandCoords.push({ x, y });
+          }
+        }
+      }
+      if (!bandCoords.length) return;
+
+      // Collect candidate boardwalk cells just inside the water strip.
+      const boardwalk = [];
+      if (harborDir === "W") {
+        for (let y = 1; y < H - 1; y++) {
+          let minX = null;
+          for (let x = 1; x < W - 1; x++) {
+            if (!harborMask[y][x]) continue;
+            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
+              if (minX == null || x < minX) minX = x;
+            }
+          }
+          if (minX != null) boardwalk.push({ x: minX, y });
+        }
+      } else if (harborDir === "E") {
+        for (let y = 1; y < H - 1; y++) {
+          let maxX = null;
+          for (let x = 1; x < W - 1; x++) {
+            if (!harborMask[y][x]) continue;
+            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
+              if (maxX == null || x > maxX) maxX = x;
+            }
+          }
+          if (maxX != null) boardwalk.push({ x: maxX, y });
+        }
+      } else if (harborDir === "N") {
+        for (let x = 1; x < W - 1; x++) {
+          let minY = null;
+          for (let y = 1; y < H - 1; y++) {
+            if (!harborMask[y][x]) continue;
+            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
+              if (minY == null || y < minY) minY = y;
+            }
+          }
+          if (minY != null) boardwalk.push({ x, y: minY });
+        }
+      } else if (harborDir === "S") {
+        for (let x = 1; x < W - 1; x++) {
+          let maxY = null;
+          for (let y = 1; y < H - 1; y++) {
+            if (!harborMask[y][x]) continue;
+            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
+              if (maxY == null || y > maxY) maxY = y;
+            }
+          }
+          if (maxY != null) boardwalk.push({ x, y: maxY });
+        }
+      }
+
+      if (!boardwalk.length) return;
+
+      const maxPiers = Math.min(4, Math.max(1, Math.floor(boardwalk.length / 4)));
+      let piersPlaced = 0;
+      let attempts = 0;
+      while (piersPlaced < maxPiers && attempts++ < boardwalk.length * 2) {
+        const idx = Math.floor((rng ? rng() : Math.random()) * boardwalk.length);
+        const root = boardwalk[idx];
+        if (!root) continue;
+
+        let okPier = false;
+        if (harborDir === "W" || harborDir === "E") {
+          const step = (harborDir === "W") ? -1 : +1;
+          for (let d = 1; d <= pierLength; d++) {
+            const xx = root.x + step * d;
+            const yy = root.y;
+            if (xx <= 0 || xx >= W - 1) break;
+            if (!harborMask[yy][xx]) break;
+            if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
+            if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
+              okPier = true;
+            } else {
+              okPier = false;
+              break;
+            }
+          }
+          if (okPier) {
+            for (let d = 1; d <= pierLength; d++) {
+              const xx = root.x + step * d;
+              const yy = root.y;
+              if (xx <= 0 || xx >= W - 1) break;
+              if (!harborMask[yy][xx]) break;
+              if (insideAnyBuildingLocal(xx, yy)) continue;
+              ctx.map[yy][xx] = ctx.TILES.FLOOR;
+            }
+            piersPlaced++;
+          }
+        } else if (harborDir === "N" || harborDir === "S") {
+          const step = (harborDir === "N") ? -1 : +1;
+          for (let d = 1; d <= pierLength; d++) {
+            const xx = root.x;
+            const yy = root.y + step * d;
+            if (yy <= 0 || yy >= H - 1) break;
+            if (!harborMask[yy][xx]) break;
+            if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
+            if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
+              okPier = true;
+            } else {
+              okPier = false;
+              break;
+            }
+          }
+          if (okPier) {
+            for (let d = 1; d <= pierLength; d++) {
+              const xx = root.x;
+              const yy = root.y + step * d;
+              if (yy <= 0 || yy >= H - 1) break;
+              if (!harborMask[yy][xx]) break;
+              if (insideAnyBuildingLocal(xx, yy)) continue;
+              ctx.map[yy][xx] = ctx.TILES.FLOOR;
+            }
+            piersPlaced++;
+          }
+        }
+      }
+    }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
     function placeDockProps() {
@@ -153,6 +332,16 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         if (!_rectMostlyInHarborMask(harborMask, bx, by, bw, bh, W, H)) continue;
         // Do not collide with existing buildings
         if (_rectOverlapsAny(buildings, bx, by, bw, bh)) continue;
+        // Ensure we are not stamping on water or other non-floor tiles
+        let anyBad = false;
+        for (let yy = by; yy < by + bh && !anyBad; yy++) {
+          for (let xx = bx; xx < bx + bw; xx++) {
+            if (yy <= 0 || yy >= H - 1 || xx <= 0 || xx >= W - 1) { anyBad = true; break; }
+            const t = ctx.map[yy][xx];
+            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) { anyBad = true; break; }
+          }
+        }
+        if (anyBad) continue;
 
         const ok = stampPrefab(ctx, pref, bx, by) || trySlipStamp(ctx, pref, bx, by, 2);
         if (!ok) continue;
@@ -173,8 +362,29 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       }
     }
 
+    carveHarborWaterAndPiers();
     placeDockProps();
     placeHarborWarehouses();
+
+    // Recompute harbor building list now that warehouses may have been stamped.
+    try {
+      const harborBuildings = [];
+      if (Array.isArray(buildings)) {
+        for (const b of buildings) {
+          if (!b) continue;
+          const id = b.prefabId ? String(b.prefabId).toLowerCase() : "";
+          const cat = b.prefabCategory ? String(b.prefabCategory).toLowerCase() : "";
+          const tags = Array.isArray(b.prefabTags) ? b.prefabTags.map(t => String(t).toLowerCase()) : [];
+          const isHarborLike =
+            id.includes("harbor") ||
+            cat === "harbor" ||
+            tags.includes("harbor");
+          if (isHarborLike) harborBuildings.push(b);
+        }
+      }
+      ctx.townHarborBuildings = harborBuildings;
+    } catch (_) {}
+
   } catch (_) {}
 }
 
