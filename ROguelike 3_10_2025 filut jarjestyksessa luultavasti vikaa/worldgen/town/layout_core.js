@@ -68,6 +68,19 @@ export function buildBaseTown(ctx) {
   ctx.townKind = townKind;
   if (townKind === "castle" && townSize !== "city") townSize = "city";
 
+  // Harbor towns should feel larger and have more space for water + docks.
+  // Promote port town sizes one step up where possible:
+  // - small -> big
+  // - big   -> city
+  // - city  -> city (unchanged)
+  if (townKind === "port") {
+    if (townSize === "small") townSize = "big";
+    else if (townSize === "big") townSize = "city";
+    try {
+      if (info && typeof info === "object") info.size = townSize;
+    } catch (_) {}
+  }
+
   // Size the town map from data/town.json (fallback to previous values).
   const GD = getGameData(ctx);
   const TOWNCFG = (GD && GD.town) || null;
