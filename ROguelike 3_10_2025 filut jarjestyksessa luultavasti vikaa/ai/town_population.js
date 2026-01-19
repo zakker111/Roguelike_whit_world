@@ -401,6 +401,89 @@ function populateTown(ctx) {
     }
   })();
 
+  // Harbor workers / sailors for port towns: extra NPCs with work spots in the harbor band.
+  (function spawnHarborWorkers() {
+    try {
+      if (ctx.townKind !== "port") return;
+      const mask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+      if (!mask || !mask.length) return;
+      const rows = mask.length;
+      const cols = mask[0] ? mask[0].length : 0;
+      if (!rows || !cols) return;
+
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
+      const workerNames =
+        ND && Array.isArray(ND.harborWorkerNames) && ND.harborWorkerNames.length
+          ? ND.harborWorkerNames
+          : ["Dockworker", "Sailor", "Harbor hand"];
+      const workerLines =
+        ND && Array.isArray(ND.harborWorkerLines) && ND.harborWorkerLines.length
+          ? ND.harborWorkerLines
+          : [
+              "Unloading the crates.",
+              "Waiting for the next boat.",
+              "River's calmer today.",
+            ];
+
+      // Candidate free tiles inside the harbor band
+      const bandCells = [];
+      for (let y = 1; y < rows - 1; y++) {
+        for (let x = 1; x < cols - 1; x++) {
+          if (!mask[y][x]) continue;
+          if (!isFreeTownFloor(ctx, x, y)) continue;
+          bandCells.push({ x, y });
+        }
+      }
+      if (!bandCells.length) return;
+
+      const harborBuildings = Array.isArray(ctx.townHarborBuildings)
+        ? ctx.townHarborBuildings
+        : [];
+      const maxWorkers = Math.min(3, bandCells.length);
+      let placed = 0;
+      let attempts = 0;
+
+      while (placed < maxWorkers && attempts++ < 40) {
+        const spot = bandCells[randInt(ctx, 0, bandCells.length - 1)];
+        if (!spot) break;
+        if (ctx.npcs.some(n => n && n.x === spot.x && n.y === spot.y)) continue;
+
+        let home = null;
+        if (harborBuildings.length) {
+          const b = harborBuildings[randInt(ctx, 0, harborBuildings.length - 1)];
+          const pos =
+            randomInteriorSpot(ctx, b) ||
+            (b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
+              ? { x: b.door.x, y: b.door.y }
+              : { x: spot.x, y: spot.y });
+          home = {
+            building: b,
+            x: pos.x,
+            y: pos.y,
+            door:
+              b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
+                ? { x: b.door.x, y: b.door.y }
+                : { x: spot.x, y: spot.y },
+          };
+        }
+
+        const name = workerNames[placed % workerNames.length] || "Harbor worker";
+        npcs.push({
+          x: spot.x,
+          y: spot.y,
+          name,
+          lines: workerLines,
+          isHarborWorker: true,
+          _home: home,
+          _work: { x: spot.x, y: spot.y },
+          _workIsHarbor: true,
+        });
+        placed++;
+      }
+    } catch (_) {}
+  })();
+
   // Pets
   (function spawnPets() {
     const maxCats = 2;
