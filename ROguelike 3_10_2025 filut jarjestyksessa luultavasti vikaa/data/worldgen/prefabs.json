@@ -366,6 +366,42 @@
         ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"],
         ["WATER","WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER","WATER"]
       ]
+    },
+    {
+      "id": "boat_small_vertical",
+      "name": "Harbor Boat (Small, Vertical)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","small","vertical"],
+      "size": { "w": 3, "h": 7 },
+      "orientation": "vertical",
+      "tiles": [
+        ["WATER","SHIP_DECK","WATER"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_RAIL"],
+        ["SHIP_DECK","MAST","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_HATCH","SHIP_DECK"],
+        ["SHIP_DECK","MAST","SHIP_DECK"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_RAIL"],
+        ["WATER","SHIP_DECK","WATER"]
+      ]
+    },
+    {
+      "id": "boat_medium_vertical",
+      "name": "Harbor Boat (Medium, Vertical)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","medium","vertical"],
+      "size": { "w": 5, "h": 9 },
+      "orientation": "vertical",
+      "tiles": [
+        ["WATER","WATER","SHIP_DECK","WATER","WATER"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL"],
+        ["SHIP_DECK","SHIP_DECK","MAST","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_HATCH","SHIP_DECK","MAST","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","MAST","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL"],
+        ["WATER","WATER","SHIP_DECK","WATER","WATER"]
+      ]
     }
   ]
 }

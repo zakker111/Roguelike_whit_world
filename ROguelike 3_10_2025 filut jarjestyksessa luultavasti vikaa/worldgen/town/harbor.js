@@ -658,20 +658,35 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      // Boat placement: attempt to place 0–1 large wooden boats parallel to piers
-      // along the harbor band. Currently implemented for east/west harbors so boats
-      // align horizontally with the piers.
+      // Boat placement: attempt to place at least one wooden boat in every harbor
+      // that has enough water area to fit a prefab. Boats are aligned parallel to
+      // piers: horizontal hulls for W/E harbors, vertical hulls for N/S harbors.
       (function placeHarborBoats() {
         try {
           if (!PFB || !Array.isArray(PFB.boats) || !PFB.boats.length) return;
-          if (harborDir !== "W" && harborDir !== "E") return;
 
-          const boats = PFB.boats.filter(b => b && b.size && Array.isArray(b.tiles) && String(b.category || "").toLowerCase() === "boat");
+          // Select boats compatible with harbor orientation:
+          // - W/E harbors: "parallel" (horizontal) boats.
+          // - N/S harbors: "vertical" boats.
+          const boats = PFB.boats.filter(b => {
+            if (!b || !b.size || !Array.isArray(b.tiles)) return false;
+            if (String(b.category || "").toLowerCase() !== "boat") return false;
+            const ori = String(b.orientation || "parallel").toLowerCase();
+            if (harborDir === "W" || harborDir === "E") {
+              // Accept generic/parallel boats.
+              return ori === "parallel" || ori === "" || ori === "horizontal";
+            }
+            if (harborDir === "N" || harborDir === "S") {
+              return ori === "vertical";
+            }
+            return false;
+          });
           if (!boats.length) return;
 
           const slots = [];
+          const relaxedSlots = [];
 
-          function boatFitsAt(pref, bx, by) {
+          function boatFitsAtCore(pref, bx, by, requirePierAdjacency) {
             const w = pref.size.w | 0;
             const h = pref.size.h | 0;
             if (!w || !h) return false;
@@ -700,18 +715,37 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
               }
             }
 
-            // Require adjacency to a pier along the top or bottom edge of the rectangle
-            // so the boat feels moored alongside the pier.
-            let touchesPier = false;
-            const yTop = y0 - 1;
-            const yBottom = y1 + 1;
-            for (let tx = x0; tx <= x1; tx++) {
-              if (yTop > 0 && pierMask[yTop] && pierMask[yTop][tx]) { touchesPier = true; break; }
-              if (yBottom < H - 1 && pierMask[yBottom] && pierMask[yBottom][tx]) { touchesPier = true; break; }
-            }
-            if (!touchesPier) return false;
+            if (!requirePierAdjacency) return true;
 
+            // Require adjacency to a pier along the side parallel to the hull.
+            let touchesPier = false;
+            if (harborDir === "W" || harborDir === "E") {
+              // Horizontal hull: pier must touch along top or bottom edge.
+              const yTop = y0 - 1;
+              const yBottom = y1 + 1;
+              for (let tx = x0; tx <= x1; tx++) {
+                if (yTop > 0 && pierMask[yTop] && pierMask[yTop][tx]) { touchesPier = true; break; }
+                if (yBottom < H - 1 && pierMask[yBottom] && pierMask[yBottom][tx]) { touchesPier = true; break; }
+              }
+            } else if (harborDir === "N" || harborDir === "S") {
+              // Vertical hull: pier must touch along left or right edge.
+              const xLeft = x0 - 1;
+              const xRight = x1 + 1;
+              for (let ty = y0; ty <= y1; ty++) {
+                if (xLeft > 0 && pierMask[ty] && pierMask[ty][xLeft]) { touchesPier = true; break; }
+                if (xRight < W - 1 && pierMask[ty] && pierMask[ty][xRight]) { touchesPier = true; break; }
+              }
+            }
+
+            if (!touchesPier) return false;
             return true;
+          }
+
+          function boatFitsAt(pref, bx, by) {
+            return boatFitsAtCore(pref, bx, by, true);
+          }
+          function boatFitsAtRelaxed(pref, bx, by) {
+            return boatFitsAtCore(pref, bx, by, false);
           }
 
           for (let i = 0; i < boats.length; i++) {
@@ -721,18 +755,25 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             if (!w || !h) continue;
             for (let by = 1; by <= H - 1 - h; by++) {
               for (let bx = 1; bx <= W - 1 - w; bx++) {
-                if (!boatFitsAt(pref, bx, by)) continue;
-                slots.push({ x: bx, y: by, prefab: pref });
+                if (boatFitsAt(pref, bx, by)) {
+                  slots.push({ x: bx, y: by, prefab: pref });
+                } else if (boatFitsAtRelaxed(pref, bx, by)) {
+                  // Keep as a fallback: boat fits water+band, but not directly against a pier.
+                  relaxedSlots.push({ x: bx, y: by, prefab: pref });
+                }
               }
             }
           }
 
-          if (!slots.length) return;
+          // Prefer boats moored directly against piers; if none fit, fall back to any
+          // valid water rectangle inside the harbor band so that at least one boat
+          // spawns when geometry allows it.
+          let candidates = slots.length ? slots : relaxedSlots;
+          if (!candidates.length) return;
 
-          // For debugging: always place exactly one boat per harbor when there is a
-          // valid slot available. We still pick a random slot when multiple exist.
-          const pickIdx = Math.floor((rng ? rng() : Math.random()) * slots.length) % slots.length;
-          const slot = slots[pickIdx];
+          // Always place exactly one boat per harbor when there is a valid slot.
+          const pickIdx = Math.floor((rng ? rng() : Math.random()) * candidates.length) % candidates.length;
+          const slot = candidates[pickIdx];
           _stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
         } catch (_) {
           // Harbor generation should never fail if boat placement has issues.
