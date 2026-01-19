@@ -244,6 +244,16 @@
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["town"],
         "tags": ["water", "harbor"]
+      },
+      {
+        "id": 19,
+        "key": "SHIP_DECK",
+        "name": "Ship Deck",
+        "glyph": " ",
+        "colors": { "fill": "#c8a26a", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["walkable", "ship", "harbor"]
       }
     ],
     "overrides": {
@@ -586,6 +596,45 @@
         "tags": ["decor", "npc"],
         "variants": [
           { "message": "A weary captive looks at you hopefully.", "style": "info" }
+        ]
+      },
+      {
+        "id": "ship_rail",
+        "key": "SHIP_RAIL",
+        "name": "Ship Rail",
+        "glyph": "│",
+        "colors": { "fg": "#b58b52" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "Sturdy wooden railings keep passengers from the edge.", "style": "info" }
+        ]
+      },
+      {
+        "id": "mast",
+        "key": "MAST",
+        "name": "Mast",
+        "glyph": "†",
+        "colors": { "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "A tall mast rises above the deck.", "style": "info" }
+        ]
+      },
+      {
+        "id": "ship_hatch",
+        "key": "SHIP_HATCH",
+        "name": "Deck Hatch",
+        "glyph": "◈",
+        "colors": { "fg": "#cbd5e1" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "A hatch leads down into the ship's interior.", "style": "info" }
         ]
       }
     ]
