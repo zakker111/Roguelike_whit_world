@@ -111,7 +111,10 @@ export function buildBaseTown(ctx) {
           bandDepth = TOWNCFG_LOCAL.kinds.port.harbor.bandDepth | 0;
         }
       } catch (_) {}
-      bandDepth = Math.max(2, Math.min(bandDepth, Math.floor(Math.min(W, H) / 3)));
+      // Allow a much deeper harbor band for larger water/harbor scenes, but cap so
+      // the harbor does not swallow the entire map. We clamp to at most 60 tiles
+      // or (min(W,H) - 4), whichever is smaller.
+      bandDepth = Math.max(2, Math.min(bandDepth, Math.min(60, Math.min(W, H) - 4)));
 
       const mask = Array.from({ length: H }, () => Array(W).fill(false));
       if (harborEdge === "N") {

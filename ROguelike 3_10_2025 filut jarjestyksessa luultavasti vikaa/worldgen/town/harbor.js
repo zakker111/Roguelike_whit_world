@@ -87,13 +87,16 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       } catch (_) {}
 
-      const dimCap = Math.floor(Math.min(W, H) / 2) || 16;
+      // Allow very deep harbors (up to ~40 tiles of water where map size permits).
+      // We cap by map dimensions and harbor band depth so we still leave some town
+      // interior behind the water.
+      const dimCap = Math.min(60, Math.max(4, Math.min(W, H) - 4)) || 16;
       let maxDepth = dimCap;
       if (bandDepthCfg && bandDepthCfg > 4) {
         // Keep at least a few tiles of dry harbor band inside town.
         maxDepth = Math.min(maxDepth, bandDepthCfg - 3);
       }
-      maxDepth = Math.max(2, Math.min(maxDepth, 24));
+      maxDepth = Math.max(2, maxDepth);
       waterDepth = Math.max(2, Math.min(waterDepth, maxDepth));
 
       // Prepare a pier mask so renderers can tint pier floor differently.
@@ -198,8 +201,16 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         if (rv < 0.5) maxPiers = 1;
       }
 
-      // Target pier length: prefer 5–8 tiles where waterDepth allows it.
-      const pierMaxLen = Math.max(1, Math.min(8, Math.max(5, waterDepth - 3)));
+      // Target pier length: make piers visibly longer than before. Previously they
+      // were roughly 5–8 tiles; now we prefer ~9–14 tiles where waterDepth allows it,
+      // but still keep them much shorter than the full harbor width.
+      const pierMaxLen = Math.max(
+        5,
+        Math.min(
+          15,
+          Math.max(9, Math.floor(waterDepth * 0.5))
+        )
+      );
 
       let piersPlaced = 0;
       let boatsPlaced = 0;
