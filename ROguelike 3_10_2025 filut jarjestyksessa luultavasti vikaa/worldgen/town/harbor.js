@@ -148,14 +148,24 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       }
 
       // Next, carve piers: starting from harbor-band floor/road tiles adjacent to water,
-      // extend wooden walkways across the water.
+      // extend wooden walkways straight out from the shore into the harbor water.
+      // Piers should always be perpendicular to the shoreline, not running along it,
+      // so we restrict directions based on harborDir.
       const roots = [];
-      const dirs = [
-        { dx: 1, dy: 0 },
-        { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },
-        { dx: 0, dy: -1 }
-      ];
+      let dirs;
+      if (harborDir === "W" || harborDir === "E") {
+        // West/East harbors: shoreline runs north–south, so piers go east or west.
+        dirs = [
+          { dx: 1, dy: 0 },
+          { dx: -1, dy: 0 }
+        ];
+      } else {
+        // North/South harbors: shoreline runs east–west, so piers go north or south.
+        dirs = [
+          { dx: 0, dy: 1 },
+          { dx: 0, dy: -1 }
+        ];
+      }
 
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
