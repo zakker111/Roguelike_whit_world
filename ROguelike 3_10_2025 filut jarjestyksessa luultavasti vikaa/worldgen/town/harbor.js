@@ -62,7 +62,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       return false;
     }
 
-    // Carve a shallow water strip along the harbor edge, with short piers extending into the water.
+    // Carve a shallow water strip along the harbor edge, then carve piers into that water.
     function carveHarborWaterAndPiers() {
       let WATER = null;
       try {
@@ -72,7 +72,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       if (WATER == null) return;
 
       // Water depth: derive from config and harbor band depth to keep a wide water strip
-      // while leaving some dry boardwalk tiles inside the harbor band.
+      // while leaving some dry harbor band tiles inside the town.
       let waterDepth = 8;
       let bandDepthCfg = null;
       try {
@@ -112,7 +112,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             }
           }
           if (edgeX == null) continue;
-          const dirStep = (harborDir === "W") ? +1 : -1;
+          const dirStep = harborDir === "W" ? +1 : -1;
           for (let d = 0; d < waterDepth; d++) {
             const xx = edgeX + dirStep * d;
             if (xx <= 0 || xx >= W - 1) break;
@@ -134,7 +134,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             }
           }
           if (edgeY == null) continue;
-          const dirStep = (harborDir === "N") ? +1 : -1;
+          const dirStep = harborDir === "N" ? +1 : -1;
           for (let d = 0; d < waterDepth; d++) {
             const yy = edgeY + dirStep * d;
             if (yy <= 0 || yy >= H - 1) break;
@@ -148,171 +148,91 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      // Next, carve piers: convert some water columns/rows back to FLOOR to represent wooden piers.
-      // Allow longer piers now that the water strip is deeper.
-      const pierLength = Math.max(3, Math.min(8, waterDepth - 2));
-      const bandCoords = [];
+      // Next, carve piers: starting from harbor-band floor/road tiles adjacent to water,
+      // extend wooden walkways across the water.
+      const roots = [];
+      const dirs = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 }
+      ];
+
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
-          if (harborMask[y][x] && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD)) {
-            bandCoords.push({ x, y });
+          if (!harborMask[y][x]) continue;
+          if (ctx.map[y][x] !== WATER) continue;
+          // Find an adjacent land tile in the harbor band that could anchor a pier.
+          for (let i = 0; i < dirs.length; i++) {
+            const dx = dirs[i].dx;
+            const dy = dirs[i].dy;
+            const rx = x - dx;
+            const ry = y - dy;
+            if (rx <= 0 || ry <= 0 || rx >= W - 1 || ry >= H - 1) continue;
+            if (!harborMask[ry][rx]) continue;
+            const t = ctx.map[ry][rx];
+            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;
+            if (insideAnyBuildingLocal(rx, ry)) continue;
+            roots.push({ x: rx, y: ry, dx, dy });
+            break;
           }
         }
       }
-      if (!bandCoords.length) return;
 
-      // Collect candidate boardwalk cells just inside the water strip.
-      const boardwalk = [];
-      if (harborDir === "W") {
-        for (let y = 1; y < H - 1; y++) {
-          let minX = null;
-          for (let x = 1; x < W - 1; x++) {
-            if (!harborMask[y][x]) continue;
-            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
-              if (minX == null || x < minX) minX = x;
-            }
-          }
-          if (minX != null) boardwalk.push({ x: minX, y });
-        }
-      } else if (harborDir === "E") {
-        for (let y = 1; y < H - 1; y++) {
-          let maxX = null;
-          for (let x = 1; x < W - 1; x++) {
-            if (!harborMask[y][x]) continue;
-            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
-              if (maxX == null || x > maxX) maxX = x;
-            }
-          }
-          if (maxX != null) boardwalk.push({ x: maxX, y });
-        }
-      } else if (harborDir === "N") {
-        for (let x = 1; x < W - 1; x++) {
-          let minY = null;
-          for (let y = 1; y < H - 1; y++) {
-            if (!harborMask[y][x]) continue;
-            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
-              if (minY == null || y < minY) minY = y;
-            }
-          }
-          if (minY != null) boardwalk.push({ x, y: minY });
-        }
-      } else if (harborDir === "S") {
-        for (let x = 1; x < W - 1; x++) {
-          let maxY = null;
-          for (let y = 1; y < H - 1; y++) {
-            if (!harborMask[y][x]) continue;
-            if (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.ROAD) {
-              if (maxY == null || y > maxY) maxY = y;
-            }
-          }
-          if (maxY != null) boardwalk.push({ x, y: maxY });
-        }
+      if (!roots.length) return;
+
+      // Limit to 1–2 piers depending on how many roots we have.
+      let maxPiers = Math.min(2, Math.max(1, roots.length));
+      if (maxPiers === 2 && roots.length > 1) {
+        const rv = rng ? rng() : Math.random();
+        if (rv < 0.5) maxPiers = 1;
       }
-
-      // If the primary boardwalk detection failed (e.g., unusual layouts), fall back to\n      // any harbor-band floor/road tile that touches water. This guarantees at least one\n      // candidate root when there is visible harbor water.\n      if (!boardwalk.length) {\n        const fallback = [];\n        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];\n        for (let y = 1; y < H - 1; y++) {\n          for (let x = 1; x < W - 1; x++) {\n            if (!harborMask[y][x]) continue;\n            const t = ctx.map[y][x];\n            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;\n            let nearWater = false;\n            for (let i = 0; i < dirs.length; i++) {\n              const nx = x + dirs[i].dx;\n              const ny = y + dirs[i].dy;\n              if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;\n              if (!harborMask[ny][nx]) continue;\n              if (ctx.map[ny][nx] === WATER) { nearWater = true; break; }\n            }\n            if (nearWater) fallback.push({ x, y });\n          }\n        }\n        if (fallback.length) {\n          // Use all fallback roots as boardwalk candidates.\n          for (let i = 0; i < fallback.length; i++) boardwalk.push(fallback[i]);\n        }\n      }\n\n      if (!boardwalk.length) return;\n\n      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));\n      let maxPiers = 1;\n      if (maxPossible >= 2) {\n        const rv = rng ? rng() : Math.random();\n        maxPiers = rv < 0.5 ? 1 : 2;\n      }\n      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
 
       let piersPlaced = 0;
       let boatsPlaced = 0;
-      let attempts = 0;
-      while (piersPlaced < maxPiers && attempts++ < boardwalk.length * 3) {
-        const idx = Math.floor((rng ? rng() : Math.random()) * boardwalk.length);
-        const root = boardwalk[idx];
+
+      while (piersPlaced < maxPiers && roots.length) {
+        const idx = Math.floor((rng ? rng() : Math.random()) * roots.length);
+        const root = roots.splice(idx, 1)[0];
         if (!root) continue;
 
-        let okPier = false;
-        if (harborDir === "W" || harborDir === "E") {
-          const step = (harborDir === "W") ? -1 : +1;
-          let tipX = root.x;
-          let tipY = root.y;
-          for (let d = 1; d <= pierLength; d++) {
-            const xx = root.x + step * d;
-            const yy = root.y;
-            if (xx <= 0 || xx >= W - 1) break;
-            if (!harborMask[yy][xx]) break;
-            if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
-            if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
-              okPier = true;
-              tipX = xx;
-              tipY = yy;
-            } else {
-              okPier = false;
-              break;
-            }
-          }
-          if (okPier) {
-            // Mark the root cell as part of the pier and extend into the water.
-            pierMask[root.y][root.x] = true;
-            for (let d = 1; d <= pierLength; d++) {
-              const xx = root.x + step * d;
-              const yy = root.y;
-              if (xx <= 0 || xx >= W - 1) break;
-              if (!harborMask[yy][xx]) break;
-              if (insideAnyBuildingLocal(xx, yy)) continue;
-              ctx.map[yy][xx] = ctx.TILES.FLOOR;
-              pierMask[yy][xx] = true;
-            }
+        let tipX = root.x;
+        let tipY = root.y;
 
-            // Optionally place a small boat just beyond the pier tip on water.
-            if (boatsPlaced < 2) {
-              const rv = rng ? rng() : Math.random();
-              if (rv < 0.85 || boatsPlaced === 0) {
-                const bx = tipX + step;
-                const by = tipY;
-                if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1) {
-                  _safeAddBoatProp(ctx, W, H, bx, by, WATER);
-                  boatsPlaced++;
-                }
-              }
-            }
+        pierMask[root.y][root.x] = true;
 
-            piersPlaced++;
-          }
-        } else if (harborDir === "N" || harborDir === "S") {
-          const step = (harborDir === "N") ? -1 : +1;
-          let tipX = root.x;
-          let tipY = root.y;
-          for (let d = 1; d <= pierLength; d++) {
-            const xx = root.x;
-            const yy = root.y + step * d;
-            if (yy <= 0 || yy >= H - 1) break;
-            if (!harborMask[yy][xx]) break;
-            if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
-            if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
-              okPier = true;
-              tipX = xx;
-              tipY = yy;
-            } else {
-              okPier = false;
-              break;
-            }
-          }
-          if (okPier) {
-            pierMask[root.y][root.x] = true;
-            for (let d = 1; d <= pierLength; d++) {
-              const xx = root.x;
-              const yy = root.y + step * d;
-              if (yy <= 0 || yy >= H - 1) break;
-              if (!harborMask[yy][xx]) break;
-              if (insideAnyBuildingLocal(xx, yy)) continue;
-              ctx.map[yy][xx] = ctx.TILES.FLOOR;
-              pierMask[yy][xx] = true;
-            }
+        let length = 0;
+        for (let d = 1; d <= waterDepth; d++) {
+          const xx = root.x + root.dx * d;
+          const yy = root.y + root.dy * d;
+          if (xx <= 0 || yy <= 0 || xx >= W - 1 || yy >= H - 1) break;
+          if (!harborMask[yy][xx]) break;
+          if (insideAnyBuildingLocal(xx, yy)) break;
+          if (ctx.map[yy][xx] !== WATER) break;
+          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+          pierMask[yy][xx] = true;
+          tipX = xx;
+          tipY = yy;
+          length++;
+        }
 
-            if (boatsPlaced < 2) {
-              const rv = rng ? rng() : Math.random();
-              if (rv < 0.85 || boatsPlaced === 0) {
-                const bx = tipX;
-                const by = tipY + step;
-                if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1) {
-                  _safeAddBoatProp(ctx, W, H, bx, by, WATER);
-                  boatsPlaced++;
-                }
-              }
-            }
+        // Require that the pier actually extends into water.
+        if (length === 0) continue;
 
-            piersPlaced++;
+        // Optionally place a small boat just beyond the pier tip on water.
+        if (boatsPlaced < 2) {
+          const rv = rng ? rng() : Math.random();
+          if (rv < 0.85 || boatsPlaced === 0) {
+            const bx = tipX + root.dx;
+            const by = tipY + root.dy;
+            if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1 && harborMask[by][bx]) {
+              _safeAddBoatProp(ctx, W, H, bx, by, WATER);
+              boatsPlaced++;
+            }
           }
         }
+
+        piersPlaced++;
       }
     }
 
