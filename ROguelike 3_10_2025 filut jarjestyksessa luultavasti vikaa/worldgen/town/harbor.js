@@ -37,6 +37,25 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
     const GD = getGameData(ctx);
     const PFB = GD && GD.prefabs ? GD.prefabs : null;
 
+    // Cache a list of harbor-tagged buildings for later AI/use (e.g., harbor workers).
+    try {
+      const harborBuildings = [];
+      if (Array.isArray(buildings)) {
+        for (const b of buildings) {
+          if (!b) continue;
+          const id = b.prefabId ? String(b.prefabId).toLowerCase() : "";
+          const cat = b.prefabCategory ? String(b.prefabCategory).toLowerCase() : "";
+          const tags = Array.isArray(b.prefabTags) ? b.prefabTags.map(t => String(t).toLowerCase()) : [];
+          const isHarborLike =
+            id.includes("harbor") ||
+            cat === "harbor" ||
+            tags.includes("harbor");
+          if (isHarborLike) harborBuildings.push(b);
+        }
+      }
+      ctx.townHarborBuildings = harborBuildings;
+    } catch (_) {}
+
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
     function placeDockProps() {
       const bandCoords = [];
@@ -137,6 +156,18 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
         const ok = stampPrefab(ctx, pref, bx, by) || trySlipStamp(ctx, pref, bx, by, 2);
         if (!ok) continue;
+
+        // Mark this building rect as harbor-tagged for AI and metadata
+        try {
+          const bRect = buildings.find(b => b && b.x === bx && b.y === by && b.w === bw && b.h === bh);
+          if (bRect) {
+            bRect.prefabCategory = bRect.prefabCategory || "harbor";
+            const existingTags = Array.isArray(bRect.prefabTags) ? bRect.prefabTags : [];
+            if (!existingTags.includes("harbor")) {
+              bRect.prefabTags = existingTags.concat(["harbor"]);
+            }
+          }
+        } catch (_) {}
 
         placed++;
       }

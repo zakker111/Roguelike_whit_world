@@ -171,7 +171,10 @@ function populateTown(ctx) {
 
     const buildingsForResidents = townBuildings.filter(b => {
       const id = b && b.prefabId ? String(b.prefabId).toLowerCase() : "";
-      return !id.includes("guard_barracks");
+      const tags = Array.isArray(b.prefabTags) ? b.prefabTags.map(t => String(t).toLowerCase()) : [];
+      const isGuardBarracks = id.includes("guard_barracks") || tags.includes("guard_barracks") || tags.includes("barracks");
+      // Do not spawn generic residents inside guard barracks; allow other buildings including future harbor warehouses.
+      return !isGuardBarracks;
     });
     if (!buildingsForResidents.length) return;
 
