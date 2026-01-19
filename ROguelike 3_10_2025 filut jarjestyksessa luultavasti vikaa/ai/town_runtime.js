@@ -1039,19 +1039,35 @@ function townNPCsAct(ctx) {
     else target = (ctx.tavern && (n._likesInn || n._likesTavern)) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
                                                  : (n._home ? { x: n._home.x, y: n._home.y } : null);
 
-    if (!isHarborWorker && inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
-      const upBed2 = chooseInnUpstairsBed(ctx);
-      if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
+    if (inLateWindow && ctx.tavern && ctx.tavern.building) {
+      if (isHarborWorker) {
+        // Harbor workers: prefer ending the night at the inn, even if they have a separate home.
+        const upBed2 = chooseInnUpstairsBed(ctx);
+        if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
+          continue;
+        }
+        const innB3 = ctx.tavern.building;
+        const seatG = chooseInnSeat(ctx);
+        if (innB3 && seatG && routeIntoBuilding(ctx, occ, n, innB3, seatG)) {
+          continue;
+        }
+        const doorFallback = { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
+        stepTowards(ctx, occ, n, doorFallback.x, doorFallback.y);
+        continue;
+      } else if (!n._home || !insideBuilding(n._home.building, n.x, n.y)) {
+        const upBed2 = chooseInnUpstairsBed(ctx);
+        if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
+          continue;
+        }
+        const innB3 = ctx.tavern.building;
+        const seatG = chooseInnSeat(ctx);
+        if (innB3 && seatG && routeIntoBuilding(ctx, occ, n, innB3, seatG)) {
+          continue;
+        }
+        const doorFallback = { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
+        stepTowards(ctx, occ, n, doorFallback.x, doorFallback.y);
         continue;
       }
-      const innB3 = ctx.tavern.building;
-      const seatG = chooseInnSeat(ctx);
-      if (innB3 && seatG && routeIntoBuilding(ctx, occ, n, innB3, seatG)) {
-        continue;
-      }
-      const doorFallback = { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
-      stepTowards(ctx, occ, n, doorFallback.x, doorFallback.y);
-      continue;
     }
     {
       const tavB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
