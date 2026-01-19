@@ -194,11 +194,17 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
       if (!roots.length) return;
 
-      // Limit to 1–2 piers depending on how many roots we have.
-      let maxPiers = Math.min(2, Math.max(1, roots.length));
-      if (maxPiers === 2 && roots.length > 1) {
+      // Limit to 2–3 piers where we have enough good roots; fall back gracefully
+      // to fewer if the harbor geometry is tight.
+      let maxPiers;
+      if (roots.length >= 3) {
+        // 50/50 chance between 2 and 3 piers when there are plenty of roots.
         const rv = rng ? rng() : Math.random();
-        if (rv < 0.5) maxPiers = 1;
+        maxPiers = rv < 0.5 ? 2 : 3;
+      } else if (roots.length === 2) {
+        maxPiers = 2;
+      } else {
+        maxPiers = 1;
       }
 
       // Target pier length: make piers visibly longer than before. Previously they
@@ -238,7 +244,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           if (length >= pierMaxLen) break;
 
           // Look one step ahead: the next tile in this direction must still be
-          // harbor water, otherwise we would be about to \"bridge\" to land or
+          // harbor water, otherwise we would be about to "bridge" to land or
           // leave no water beyond the pier tip.
           const nx = xx + root.dx;
           const ny = yy + root.dy;
@@ -253,6 +259,24 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           tipX = xx;
           tipY = yy;
           length++;
+
+          // Widen the pier to at least 2 tiles: carve one tile to each side
+          // perpendicular to the pier direction, as long as those tiles are
+          // harbor water and not inside buildings.
+          const sideOffsets =
+            (root.dx !== 0)
+              ? [{ sx: 0, sy: -1 }, { sx: 0, sy: 1 }]
+              : [{ sx: -1, sy: 0 }, { sx: 1, sy: 0 }];
+          for (let si = 0; si < sideOffsets.length; si++) {
+            const sx = xx + sideOffsets[si].sx;
+            const sy = yy + sideOffsets[si].sy;
+            if (sx <= 0 || sy <= 0 || sx >= W - 1 || sy >= H - 1) continue;
+            if (!harborMask[sy][sx]) continue;
+            if (insideAnyBuildingLocal(sx, sy)) continue;
+            if (ctx.map[sy][sx] !== WATER) continue;
+            ctx.map[sy][sx] = ctx.TILES.FLOOR;
+            pierMask[sy][sx] = true;
+          }
         }
 
         // Require that the pier actually extends into water.
