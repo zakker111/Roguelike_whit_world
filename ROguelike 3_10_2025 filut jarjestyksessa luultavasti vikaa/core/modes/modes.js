@@ -106,8 +106,8 @@ function detectHarborContext(ctx, wx, wy, WT) {
       }
     }
 
-    // Allow modest water presence to qualify so we get signal while tuning.
-    const MIN_SCORE = 2;
+    // Require a stronger water presence in one direction to qualify as a harbor.
+    const MIN_SCORE = 5;
     if (!bestDir || bestScore < MIN_SCORE) return null;
 
     let waterContext = "coast";
