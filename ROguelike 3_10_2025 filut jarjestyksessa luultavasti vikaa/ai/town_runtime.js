@@ -979,7 +979,9 @@ function townNPCsAct(ctx) {
 
     if (ctx.rng() < 0.35) continue;
 
-    if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
+    const isHarborWorker = !!n.isHarborWorker || !!n._workIsHarbor;
+
+    if (!isHarborWorker && phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
       const innB2 = ctx.tavern.building;
       if (n._innSeatGoal && innB2 && insideBuilding(innB2, n.x, n.y) &&
           n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
@@ -1001,7 +1003,7 @@ function townNPCsAct(ctx) {
       }
     }
 
-    if ((phase === "evening" || phase === "night") && !n._benchSeatGoal) {
+    if (!isHarborWorker && (phase === "evening" || phase === "night") && !n._benchSeatGoal) {
       let baseBenchChance = inLateWindow ? 0.12 : 0.20;
       if (isRainy) baseBenchChance *= 0.4;
       if (isHeavyRain) baseBenchChance *= 0.4;
@@ -1037,7 +1039,7 @@ function townNPCsAct(ctx) {
     else target = (ctx.tavern && (n._likesInn || n._likesTavern)) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
                                                  : (n._home ? { x: n._home.x, y: n._home.y } : null);
 
-    if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
+    if (!isHarborWorker && inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
       const upBed2 = chooseInnUpstairsBed(ctx);
       if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
         continue;
