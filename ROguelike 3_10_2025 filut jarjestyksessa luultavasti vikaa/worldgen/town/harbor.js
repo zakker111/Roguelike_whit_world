@@ -150,21 +150,22 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       // Next, carve piers: starting from harbor-band floor/road tiles adjacent to water,
       // extend wooden walkways straight out from the shore into the harbor water.
       // Piers should always be perpendicular to the shoreline, not running along it,
-      // so we restrict directions based on harborDir.
+      // so we restrict directions based on harborDir, and we only allow piers that go
+      // from town-side land out toward open water (never back toward the city).
       const roots = [];
       let dirs;
-      if (harborDir === "W" || harborDir === "E") {
-        // West/East harbors: shoreline runs north–south, so piers go east or west.
-        dirs = [
-          { dx: 1, dy: 0 },
-          { dx: -1, dy: 0 }
-        ];
+      if (harborDir === "W") {
+        // Town is to the east, water opens to the west: piers go west only.
+        dirs = [{ dx: -1, dy: 0 }];
+      } else if (harborDir === "E") {
+        // Town is to the west, water opens to the east: piers go east only.
+        dirs = [{ dx: 1, dy: 0 }];
+      } else if (harborDir === "N") {
+        // Town is to the south, water opens to the north: piers go north only.
+        dirs = [{ dx: 0, dy: -1 }];
       } else {
-        // North/South harbors: shoreline runs east–west, so piers go north or south.
-        dirs = [
-          { dx: 0, dy: 1 },
-          { dx: 0, dy: -1 }
-        ];
+        // harborDir === "S": Town is to the north, water opens to the south: piers go south only.
+        dirs = [{ dx: 0, dy: 1 }];
       }
 
       for (let y = 1; y < H - 1; y++) {
@@ -194,13 +195,16 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       let maxPiers = Math.min(2, Math.max(1, roots.length));
       if (maxPiers === 2 && roots.length > 1) {
         const rv = rng ? rng() : Math.random();
-        if (rv < 0.5) maxPiers = 1;
+        if (rv &lt; 0.5) maxPiers = 1;
       }
+
+      // Target pier length: prefer 5–8 tiles where waterDepth allows it.
+      const pierMaxLen = Math.max(1, Math.min(8, Math.max(5, waterDepth - 3)));
 
       let piersPlaced = 0;
       let boatsPlaced = 0;
 
-      while (piersPlaced < maxPiers && roots.length) {
+      while (piersPlaced &lt; maxPiers &amp;&amp; roots.length) {
         const idx = Math.floor((rng ? rng() : Math.random()) * roots.length);
         const root = roots.splice(idx, 1)[0];
         if (!root) continue;
@@ -211,21 +215,26 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         pierMask[root.y][root.x] = true;
 
         let length = 0;
-        for (let d = 1; d <= waterDepth; d++) {
+        for (let d = 1; d &lt;= waterDepth; d++) {
           const xx = root.x + root.dx * d;
           const yy = root.y + root.dy * d;
-          if (xx <= 0 || yy <= 0 || xx >= W - 1 || yy >= H - 1) break;
+          if (xx &lt;= 0 || yy &lt;= 0 || xx &gt;= W - 1 || yy &gt;= H - 1) break;
           if (!harborMask[yy][xx]) break;
           if (insideAnyBuildingLocal(xx, yy)) break;
           if (ctx.map[yy][xx] !== WATER) break;
 
-          // Look one step ahead: if the *next* tile in this direction is not water
-          // (or outside the harbor band), stop here so the pier ends *over* water
-          // instead of turning into a full bridge.
+          // Do not grow beyond our target maximum pier length.
+          if (length &gt;= pierMaxLen) break;
+
+          // Look one step ahead: the next tile in this direction must still be
+          // harbor water, otherwise we would be about to \"bridge\" to land or
+          // leave no water beyond the pier tip.
           const nx = xx + root.dx;
           const ny = yy + root.dy;
-          const nextInBounds = nx > 0 && ny > 0 && nx < W - 1 && ny < H - 1;
-          const nextIsWaterBand = nextInBounds && harborMask[ny][nx] && ctx.map[ny][nx] === WATER;
+          const nextInBounds = nx &gt; 0 &amp;&amp; ny &gt; 0 &amp;&amp; nx &lt; W - 1 &amp;&amp; ny &lt; H - 1;
+          const nextIsWaterBand = nextInBounds &amp;&amp; harborMask[ny][nx] &amp;&amp; ctx.map[ny][nx] === WATER;
+
+          if (!nextIsWaterBand) break;
 
           // Carve current water tile into pier floor.
           ctx.map[yy][xx] = ctx.TILES.FLOOR;
@@ -233,22 +242,18 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
           tipX = xx;
           tipY = yy;
           length++;
-
-          // If the next step would leave water (or the harbor band), stop so we
-          // leave at least one water tile beyond the pier tip.
-          if (!nextIsWaterBand) break;
         }
 
         // Require that the pier actually extends into water.
         if (length === 0) continue;
 
         // Optionally place a small boat just beyond the pier tip on water.
-        if (boatsPlaced < 2) {
+        if (boatsPlaced &lt; 2) {
           const rv = rng ? rng() : Math.random();
-          if (rv < 0.85 || boatsPlaced === 0) {
+          if (rv &lt; 0.85 || boatsPlaced === 0) {
             const bx = tipX + root.dx;
             const by = tipY + root.dy;
-            if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1 && harborMask[by][bx]) {
+            if (bx &gt; 0 &amp;&amp; bx &lt; W - 1 &amp;&amp; by &gt; 0 &amp;&amp; by &lt; H - 1 &amp;&amp; harborMask[by][bx]) {
               _safeAddBoatProp(ctx, W, H, bx, by, WATER);
               boatsPlaced++;
             }
@@ -257,7 +262,6 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
         piersPlaced++;
       }
-    }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
     function placeDockProps() {
