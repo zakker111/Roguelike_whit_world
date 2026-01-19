@@ -292,11 +292,34 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             const seaTile = ctx.map[sy][sx];
             const landTile = ctx.map[ly][lx];
 
-            // Only convert if this floor tile has water on the sea side and is not
-            // itself between two water tiles (which would likely be part of a pier).
+            // Only convert if this floor tile has water on the sea side and solid land
+            // on the land side; that means it's a \"wall\" hugging the water, not a pier.
             if (seaTile === WATER && landTile !== WATER) {
               ctx.map[y][x] = WATER;
             }
+          }
+        }
+      }
+
+      // Second cleanup: remove stray non-pier floor tiles that are almost surrounded
+      // by water inside the harbor band (3+ cardinal water neighbours). These tend to
+      // form thin causeways or pillars in the middle of the harbor.
+      for (let y = 1; y < H - 1; y++) {
+        for (let x = 1; x < W - 1; x++) {
+          if (!harborMask[y][x]) continue;
+          if (pierMask[y][x]) continue;
+          if (insideAnyBuildingLocal(x, y)) continue;
+          const tHere = ctx.map[y][x];
+          if (tHere !== ctx.TILES.FLOOR && tHere !== ctx.TILES.ROAD) continue;
+
+          let waterNeighbors = 0;
+          if (ctx.map[y - 1][x] === WATER) waterNeighbors++;
+          if (ctx.map[y + 1][x] === WATER) waterNeighbors++;
+          if (ctx.map[y][x - 1] === WATER) waterNeighbors++;
+          if (ctx.map[y][x + 1] === WATER) waterNeighbors++;
+
+          if (waterNeighbors >= 3) {
+            ctx.map[y][x] = WATER;
           }
         }
       }

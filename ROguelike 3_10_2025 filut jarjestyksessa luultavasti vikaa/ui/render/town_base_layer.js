@@ -6,7 +6,7 @@ import { getTileDef } from "../../data/tile_lookup.js";
 import { fillTownFor, tilesRef, fallbackFillTown } from "./town_tile_cache.js";
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
+const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null, _pierMaskRef: null };
 
 // Building footprint test (internal)
 function insideAnyBuildingAt(ctx, x, y) {
@@ -165,7 +165,8 @@ export function drawTownBase(ctx, view) {
         || TOWN._biomeKey !== biomeKey
         || TOWN._townKey !== townKey
         || TOWN._maskRef !== ctx.townOutdoorMask
-        || TOWN._palRef !== palRef;
+        || TOWN._palRef !== palRef
+        || TOWN._pierMaskRef !== ctx.townPierMask;
 
       if (needsRebuild && tintReady(ctx)) {
         TOWN.mapRef = map;
@@ -187,6 +188,7 @@ export function drawTownBase(ctx, view) {
         ensureOutdoorMask(ctx, map);
         const biomeFill = resolvedTownBiomeFill(ctx);
         TOWN._maskRef = ctx.townOutdoorMask;
+        TOWN._pierMaskRef = ctx.townPierMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
