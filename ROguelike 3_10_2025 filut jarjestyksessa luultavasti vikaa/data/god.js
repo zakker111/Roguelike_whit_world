@@ -517,6 +517,26 @@ export function teleportToTarget(ctx, target) {
         ctx.log && ctx.log("GOD: No mountain dungeons found in registered POIs.", "warn");
         return;
       }
+    } else if (t === "harbor") {
+      const world = ctx.world;
+      const towns = Array.isArray(world.towns) ? world.towns : [];
+      for (let i = 0; i < towns.length; i++) {
+        const rec = towns[i];
+        if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") continue;
+        // Harbor towns are those marked with harborDir metadata (set by harbor detection on entry).
+        if (!rec.harborDir) continue;
+        const wx = rec.x | 0;
+        const wy = rec.y | 0;
+        const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+        if (md < bestDist) {
+          bestDist = md;
+          best = { x: wx, y: wy };
+        }
+      }
+      if (!best) {
+        ctx.log && ctx.log("GOD: No harbor towns (ports) found in registered POIs.", "warn");
+        return;
+      }
     } else {
       // Map GOD target strings to overworld tile IDs
       function tileMatches(tileCode) {
@@ -583,6 +603,7 @@ export function teleportToTarget(ctx, target) {
 
     const label =
       t === "town" ? "town/castle" :
+      t === "harbor" ? "harbor town" :
       t === "dungeon" ? "dungeon" :
       t === "mountain_dungeon" ? "mountain dungeon" :
       t === "ruins" ? "ruins" :
