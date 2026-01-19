@@ -520,11 +520,53 @@ export function teleportToTarget(ctx, target) {
     } else if (t === "harbor") {
       const world = ctx.world;
       const towns = Array.isArray(world.towns) ? world.towns : [];
+      const hasWT = !!WT && WT.WATER != null;
+      // Helper: detect whether a town is harbor-like, even if harborDir metadata
+      // has not yet been stamped (e.g., town never entered this run).
+      function isHarborTown(rec) {
+        try {
+          if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") return false;
+          // Prefer explicit harborDir metadata when present.
+          if (rec.harborDir) return true;
+          if (!hasWT) return false;
+          if (!gen || typeof gen.tileAt !== "function") return false;
+          const wxTown = rec.x | 0;
+          const wyTown = rec.y | 0;
+          const dirs = [
+            { dx: 0, dy: -1 },
+            { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 },
+            { dx: 1, dy: 0 },
+          ];
+          const MAX_DIST_HARBOR = 10;
+          let bestScore = 0;
+          for (let i = 0; i < dirs.length; i++) {
+            const d = dirs[i];
+            let coast = 0;
+            let river = 0;
+            for (let step = 1; step <= MAX_DIST_HARBOR; step++) {
+              const tcode = gen.tileAt(wxTown + d.dx * step, wyTown + d.dy * step);
+              if (tcode == null) continue;
+              if (tcode === WT.WATER || (WT.BEACH != null && tcode === WT.BEACH)) {
+                coast += 2;
+              } else if (WT.RIVER != null && tcode === WT.RIVER) {
+                river += 1;
+              }
+            }
+            const score = coast + river;
+            if (score > bestScore) bestScore = score;
+          }
+          // Match harbor detection loosening in core/modes: require some water presence.
+          return bestScore >= 3;
+        } catch (_) {
+          return false;
+        }
+      }
+
       for (let i = 0; i < towns.length; i++) {
         const rec = towns[i];
         if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") continue;
-        // Harbor towns are those marked with harborDir metadata (set by harbor detection on entry).
-        if (!rec.harborDir) continue;
+        if (!isHarborTown(rec)) continue;
         const wx = rec.x | 0;
         const wy = rec.y | 0;
         const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
@@ -534,7 +576,7 @@ export function teleportToTarget(ctx, target) {
         }
       }
       if (!best) {
-        ctx.log && ctx.log("GOD: No harbor towns (ports) found in registered POIs.", "warn");
+        ctx.log && ctx.log("GOD: No harbor towns (ports) found within search radius.", "warn");
         return;
       }
     } else {
