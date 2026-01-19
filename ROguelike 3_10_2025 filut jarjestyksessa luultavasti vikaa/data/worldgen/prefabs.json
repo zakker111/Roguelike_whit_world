@@ -2,8 +2,8 @@
   "jcdocs": {
     "title": "Prefab authoring (tiles + embedded props)",
     "schemaVersion": 1,
-    "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS"],
-    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH"],
+    "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS","SHIP_DECK"],
+    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH","SHIP_RAIL","MAST","SHIP_HATCH"],
     "usage": [
       "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
       "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
@@ -319,6 +319,39 @@
         ["FLOOR","STALL","FLOOR","CRATE"],
         ["FLOOR","FLOOR","FLOOR","BARREL"],
         ["FLOOR","FLOOR","SIGN","FLOOR"]
+      ]
+    }
+  ],
+  "boats": [
+    {
+      "id": "boat_medium_parallel",
+      "name": "Harbor Boat (Medium)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor"],
+      "size": { "w": 9, "h": 5 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","MAST","SHIP_DECK","SHIP_HATCH","SHIP_DECK","MAST","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"]
+      ]
+    },
+    {
+      "id": "boat_large_parallel",
+      "name": "Harbor Boat (Large)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor"],
+      "size": { "w": 13, "h": 6 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER","WATER"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_RAIL","SHIP_DECK","MAST","SHIP_DECK","SHIP_DECK","SHIP_HATCH","SHIP_DECK","SHIP_DECK","MAST","SHIP_DECK","SHIP_RAIL","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"],
+        ["WATER","WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER","WATER"]
       ]
     }
   ]
