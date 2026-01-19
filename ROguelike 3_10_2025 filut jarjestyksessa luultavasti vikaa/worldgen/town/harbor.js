@@ -194,10 +194,18 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
       if (!boardwalk.length) return;
 
-      const maxPiers = Math.min(4, Math.max(1, Math.floor(boardwalk.length / 4)));
+      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));
+      let maxPiers = 1;
+      if (maxPossible >= 2) {
+        const rv = rng ? rng() : Math.random();
+        maxPiers = rv < 0.5 ? 1 : 2;
+      }
+      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
+
       let piersPlaced = 0;
+      let boatsPlaced = 0;
       let attempts = 0;
-      while (piersPlaced < maxPiers && attempts++ < boardwalk.length * 2) {
+      while (piersPlaced < maxPiers && attempts++ < boardwalk.length * 3) {
         const idx = Math.floor((rng ? rng() : Math.random()) * boardwalk.length);
         const root = boardwalk[idx];
         if (!root) continue;
@@ -205,6 +213,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         let okPier = false;
         if (harborDir === "W" || harborDir === "E") {
           const step = (harborDir === "W") ? -1 : +1;
+          let tipX = root.x;
+          let tipY = root.y;
           for (let d = 1; d <= pierLength; d++) {
             const xx = root.x + step * d;
             const yy = root.y;
@@ -213,6 +223,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
             if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
               okPier = true;
+              tipX = xx;
+              tipY = yy;
             } else {
               okPier = false;
               break;
@@ -230,10 +242,26 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
               ctx.map[yy][xx] = ctx.TILES.FLOOR;
               pierMask[yy][xx] = true;
             }
+
+            // Optionally place a small boat just beyond the pier tip on water.
+            if (boatsPlaced < 2) {
+              const rv = rng ? rng() : Math.random();
+              if (rv < 0.85 || boatsPlaced === 0) {
+                const bx = tipX + step;
+                const by = tipY;
+                if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1) {
+                  _safeAddBoatProp(ctx, W, H, bx, by, WATER);
+                  boatsPlaced++;
+                }
+              }
+            }
+
             piersPlaced++;
           }
         } else if (harborDir === "N" || harborDir === "S") {
           const step = (harborDir === "N") ? -1 : +1;
+          let tipX = root.x;
+          let tipY = root.y;
           for (let d = 1; d <= pierLength; d++) {
             const xx = root.x;
             const yy = root.y + step * d;
@@ -242,6 +270,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             if (insideAnyBuildingLocal(xx, yy)) { okPier = false; break; }
             if (ctx.map[yy][xx] === WATER || ctx.map[yy][xx] === ctx.TILES.FLOOR || ctx.map[yy][xx] === ctx.TILES.ROAD) {
               okPier = true;
+              tipX = xx;
+              tipY = yy;
             } else {
               okPier = false;
               break;
@@ -258,6 +288,19 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
               ctx.map[yy][xx] = ctx.TILES.FLOOR;
               pierMask[yy][xx] = true;
             }
+
+            if (boatsPlaced < 2) {
+              const rv = rng ? rng() : Math.random();
+              if (rv < 0.85 || boatsPlaced === 0) {
+                const bx = tipX;
+                const by = tipY + step;
+                if (bx > 0 && bx < W - 1 && by > 0 && by < H - 1) {
+                  _safeAddBoatProp(ctx, W, H, bx, by, WATER);
+                  boatsPlaced++;
+                }
+              }
+            }
+
             piersPlaced++;
           }
         }
@@ -425,6 +468,19 @@ function _safeAddProp(ctx, W, H, x, y, code) {
     if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) return false;
     if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
     ctx.townProps.push({ x, y, type: _propTypeFromCode(code), name: null });
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+function _safeAddBoatProp(ctx, W, H, x, y, waterTile) {
+  try {
+    if (!ctx || !ctx.townProps || !ctx.map) return false;
+    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+    const t = ctx.map[y][x];
+    if (t !== waterTile) return false;
+    if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
+    ctx.townProps.push({ x, y, type: "boat", name: null });
     return true;
   } catch (_) {}
   return false;

@@ -451,6 +451,19 @@
         ]
       },
       {
+        "id": "boat",
+        "key": "BOAT",
+        "name": "Boat",
+        "glyph": "⛵",
+        "colors": { "fg": "#e5e7eb" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "harbor"],
+        "variants": [
+          { "message": "A small boat is moored here.", "style": "info" }
+        ]
+      },
+      {
         "id": "shelf",
         "key": "SHELF",
         "name": "Shelf",
