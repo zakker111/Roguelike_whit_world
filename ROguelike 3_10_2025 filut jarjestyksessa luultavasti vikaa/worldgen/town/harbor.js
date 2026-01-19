@@ -82,6 +82,10 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       maxDepth = Math.max(2, Math.min(maxDepth, 24));
       waterDepth = Math.max(2, Math.min(waterDepth, maxDepth));
 
+      // Prepare a pier mask so renderers can tint pier floor differently.
+      const pierMask = Array.from({ length: H }, () => Array(W).fill(false));
+      ctx.townPierMask = pierMask;
+
       // First, carve water strip along harbor edge within the harbor band.
       if (harborDir === "W" || harborDir === "E") {
         for (let y = 1; y < H - 1; y++) {
@@ -127,8 +131,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      // Next, carve short piers: convert some water columns/rows back to FLOOR to represent wooden piers.
-      const pierLength = Math.max(2, Math.min(4, waterDepth + 1));
+      // Next, carve piers: convert some water columns/rows back to FLOOR to represent wooden piers.
+      // Allow longer piers now that the water strip is deeper.
+      const pierLength = Math.max(3, Math.min(8, waterDepth - 2));
       const bandCoords = [];
       for (let y = 1; y < H - 1; y++) {
         for (let x = 1; x < W - 1; x++) {
@@ -214,6 +219,8 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             }
           }
           if (okPier) {
+            // Mark the root cell as part of the pier and extend into the water.
+            pierMask[root.y][root.x] = true;
             for (let d = 1; d <= pierLength; d++) {
               const xx = root.x + step * d;
               const yy = root.y;
@@ -221,6 +228,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
               if (!harborMask[yy][xx]) break;
               if (insideAnyBuildingLocal(xx, yy)) continue;
               ctx.map[yy][xx] = ctx.TILES.FLOOR;
+              pierMask[yy][xx] = true;
             }
             piersPlaced++;
           }
@@ -240,6 +248,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
             }
           }
           if (okPier) {
+            pierMask[root.y][root.x] = true;
             for (let d = 1; d <= pierLength; d++) {
               const xx = root.x;
               const yy = root.y + step * d;
@@ -247,6 +256,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
               if (!harborMask[yy][xx]) break;
               if (insideAnyBuildingLocal(xx, yy)) continue;
               ctx.map[yy][xx] = ctx.TILES.FLOOR;
+              pierMask[yy][xx] = true;
             }
             piersPlaced++;
           }

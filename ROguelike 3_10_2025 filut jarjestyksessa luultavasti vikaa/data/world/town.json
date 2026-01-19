@@ -97,7 +97,7 @@
       },
       "harbor": {
         "bandDepth": 20,
-        "waterDepth": 10,
+        "waterDepth": 14,
         "dockLengthBySize": {
           "small": 12,
           "big": 18,

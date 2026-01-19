@@ -200,6 +200,10 @@ export function drawTownBase(ctx, view) {
               if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
                 fill = biomeFill;
               }
+              // Tint pier floor tiles to a warmer brown so piers stand out against normal floor.
+              if (type === TILES.FLOOR && ctx.townPierMask && ctx.townPierMask[yy] && ctx.townPierMask[yy][xx]) {
+                fill = "#7b5a35";
+              }
             } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
@@ -240,6 +244,9 @@ export function drawTownBase(ctx, view) {
         const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
         if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
           fill = biomeFill;
+        }
+        if (type === TILES.FLOOR && ctx.townPierMask && ctx.townPierMask[y] && ctx.townPierMask[y][x]) {
+          fill = "#7b5a35";
         }
       } catch (_) {}
       ctx2d.fillStyle = fill;
