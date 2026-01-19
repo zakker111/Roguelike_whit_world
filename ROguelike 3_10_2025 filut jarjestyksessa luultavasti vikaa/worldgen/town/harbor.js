@@ -192,15 +192,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      if (!boardwalk.length) return;
-
-      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));
-      let maxPiers = 1;
-      if (maxPossible >= 2) {
-        const rv = rng ? rng() : Math.random();
-        maxPiers = rv < 0.5 ? 1 : 2;
-      }
-      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
+      // If the primary boardwalk detection failed (e.g., unusual layouts), fall back to\n      // any harbor-band floor/road tile that touches water. This guarantees at least one\n      // candidate root when there is visible harbor water.\n      if (!boardwalk.length) {\n        const fallback = [];\n        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];\n        for (let y = 1; y < H - 1; y++) {\n          for (let x = 1; x < W - 1; x++) {\n            if (!harborMask[y][x]) continue;\n            const t = ctx.map[y][x];\n            if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;\n            let nearWater = false;\n            for (let i = 0; i < dirs.length; i++) {\n              const nx = x + dirs[i].dx;\n              const ny = y + dirs[i].dy;\n              if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;\n              if (!harborMask[ny][nx]) continue;\n              if (ctx.map[ny][nx] === WATER) { nearWater = true; break; }\n            }\n            if (nearWater) fallback.push({ x, y });\n          }\n        }\n        if (fallback.length) {\n          // Use all fallback roots as boardwalk candidates.\n          for (let i = 0; i &lt; fallback.length; i++) boardwalk.push(fallback[i]);\n        }\n      }\n\n      if (!boardwalk.length) return;\n\n      const maxPossible = Math.max(1, Math.floor(boardwalk.length / 3));\n      let maxPiers = 1;\n      if (maxPossible >= 2) {\n        const rv = rng ? rng() : Math.random();\n        maxPiers = rv &lt; 0.5 ? 1 : 2;\n      }\n      maxPiers = Math.max(1, Math.min(maxPiers, maxPossible));
 
       let piersPlaced = 0;
       let boatsPlaced = 0;
