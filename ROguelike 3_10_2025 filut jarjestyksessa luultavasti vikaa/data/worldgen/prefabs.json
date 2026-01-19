@@ -324,10 +324,23 @@
   ],
   "boats": [
     {
+      "id": "boat_small_parallel",
+      "name": "Harbor Boat (Small)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","small"],
+      "size": { "w": 7, "h": 3 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"],
+        ["SHIP_DECK","SHIP_DECK","MAST","SHIP_HATCH","SHIP_DECK","SHIP_DECK","SHIP_DECK"],
+        ["WATER","SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL","WATER"]
+      ]
+    },
+    {
       "id": "boat_medium_parallel",
       "name": "Harbor Boat (Medium)",
       "category": "boat",
-      "tags": ["boat","ship","harbor"],
+      "tags": ["boat","ship","harbor","medium"],
       "size": { "w": 9, "h": 5 },
       "orientation": "parallel",
       "tiles": [
@@ -342,7 +355,7 @@
       "id": "boat_large_parallel",
       "name": "Harbor Boat (Large)",
       "category": "boat",
-      "tags": ["boat","ship","harbor"],
+      "tags": ["boat","ship","harbor","large"],
       "size": { "w": 13, "h": 6 },
       "orientation": "parallel",
       "tiles": [
