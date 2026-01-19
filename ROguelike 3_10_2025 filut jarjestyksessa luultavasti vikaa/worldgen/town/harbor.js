@@ -26,8 +26,7 @@ import { getTileDefByKey } from "../../data/tile_lookup.js";
  * @param {function} trySlipStamp - function(ctx, prefab, bx, by, maxSlip) -> boolean
  */
 export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stampPrefab, trySlipStamp) {
-  try {
-    if (!ctx || ctx.townKind !== "port") return;
+  if (!ctx || ctx.townKind !== "port") return;
     if (!Array.isArray(ctx.townHarborMask) || !ctx.townHarborMask.length) return;
     if (!Array.isArray(buildings)) return;
 
