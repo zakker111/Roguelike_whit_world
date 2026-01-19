@@ -1041,7 +1041,19 @@ function townNPCsAct(ctx) {
 
     if (inLateWindow && ctx.tavern && ctx.tavern.building) {
       if (isHarborWorker) {
-        // Harbor workers: prefer ending the night at the inn, even if they have a separate home.
+        // Harbor workers: usually sleep in their harbor homes; sometimes end the night at the inn.
+        const hasHome = !!(n._home && n._home.building);
+        const preferInn = !hasHome ? true : (ctx.rng() < 0.35);
+        if (!preferInn && hasHome) {
+          const homeB = n._home.building;
+          const sleepTarget = n._home.bed
+            ? { x: n._home.bed.x, y: n._home.bed.y }
+            : { x: n._home.x, y: n._home.y };
+          if (routeIntoBuilding(ctx, occ, n, homeB, sleepTarget)) {
+            continue;
+          }
+        }
+        // Inn fallback (or primary when preferInn === true)
         const upBed2 = chooseInnUpstairsBed(ctx);
         if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
           continue;

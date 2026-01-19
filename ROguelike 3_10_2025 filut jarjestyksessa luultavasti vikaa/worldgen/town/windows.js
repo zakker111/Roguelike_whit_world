@@ -37,9 +37,13 @@ export function buildOutdoorMask(ctx, buildings, width, height) {
       }
       return false;
     }
+    const harborMask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+    const isPortTown = ctx.townKind === "port";
     for (let yy = 0; yy < rows; yy++) {
       for (let xx = 0; xx < cols; xx++) {
         const t = ctx.map[yy][xx];
+        // For port towns, treat harbor band FLOOR tiles as non-outdoor so they render more like paved/boardwalk surfaces.
+        if (isPortTown && harborMask && harborMask[yy] && harborMask[yy][xx]) continue;
         if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
           mask[yy][xx] = true;
         }
