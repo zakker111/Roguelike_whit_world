@@ -1131,9 +1131,9 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
   }
 
   // Second pass: apply deck tiles and props.
-  for (let yy = 0; yy &lt; h; yy++) {
+  for (let yy = 0; yy < h; yy++) {
     const row = prefab.tiles[yy];
-    for (let xx = 0; xx &lt; w; xx++) {
+    for (let xx = 0; xx < w; xx++) {
       const codeRaw = row[xx];
       const code = codeRaw ? String(codeRaw).toUpperCase() : "";
       const tx = x0 + xx;
@@ -1160,7 +1160,7 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
       // Only one prop per cell; skip if something already exists here.
       let hasProp = false;
       if (Array.isArray(ctx.townProps)) {
-        for (let i = 0; i &lt; ctx.townProps.length; i++) {
+        for (let i = 0; i < ctx.townProps.length; i++) {
           const p = ctx.townProps[i];
           if (p && p.x === tx && p.y === ty) {
             hasProp = true;
