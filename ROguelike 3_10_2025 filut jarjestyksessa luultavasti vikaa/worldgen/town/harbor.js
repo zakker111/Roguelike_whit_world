@@ -1,6 +1,8 @@
 import { getGameData } from "../../utils/access.js";
 import { getTileDefByKey } from "../../data/tile_lookup.js";
 import { prepareHarborZone } from "./harbor_zone.js";
+import { propTypeFromCode, rectMostlyInHarborMask, rectOverlapsAny } from "./harbor_util.js";
+import { placeHarborBoatsAndEnsureAccess } from "./harbor_boats.js";
 
 // Re-export prepareHarborZone so callers can continue to import it from this module.
 export { prepareHarborZone };
@@ -458,206 +460,10 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         }
       }
 
-      // Boat placement: attempt to place at least one wooden boat in every harbor
-      // that has enough water area to fit a prefab. Boats are aligned parallel to
-      // piers: horizontal hulls for W/E harbors, vertical hulls for N/S harbors.
-      (function placeHarborBoats() {
-        try {
-          if (!PFB || !Array.isArray(PFB.boats) || !PFB.boats.length) return;
-
-          // Select boats compatible with harbor orientation:
-          // - W/E harbors: "parallel" (horizontal) boats.
-          // - N/S harbors: "vertical" boats.
-          const boats = PFB.boats.filter(b => {
-            if (!b || !b.size || !Array.isArray(b.tiles)) return false;
-            if (String(b.category || "").toLowerCase() !== "boat") return false;
-            const ori = String(b.orientation || "parallel").toLowerCase();
-            if (harborDir === "W" || harborDir === "E") {
-              // Accept generic/parallel boats.
-              return ori === "parallel" || ori === "" || ori === "horizontal";
-            }
-            if (harborDir === "N" || harborDir === "S") {
-              return ori === "vertical";
-            }
-            return false;
-          });
-          if (!boats.length) return;
-
-          const slots = [];
-          const relaxedSlots = [];
-
-          function boatFitsAtCore(pref, bx, by, requirePierAdjacency) {
-            const w = pref.size.w | 0;
-            const h = pref.size.h | 0;
-            if (!w || !h) return false;
-
-            const x0 = bx | 0;
-            const y0 = by | 0;
-            const x1 = x0 + w - 1;
-            const y1 = y0 + h - 1;
-            if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
-
-            // Avoid overlapping existing buildings.
-            if (_rectOverlapsAny(buildings, x0, y0, w, h)) return false;
-
-            // Validate that all non-WATER codes sit on harbor water inside the harbor band.
-            for (let yy = 0; yy < h; yy++) {
-              const row = pref.tiles[yy];
-              if (!row || row.length !== w) return false;
-              for (let xx = 0; xx < w; xx++) {
-                const raw = row[xx];
-                const code = raw ? String(raw).toUpperCase() : "";
-                if (!code || code === "WATER") continue;
-                const tx = x0 + xx;
-                const ty = y0 + yy;
-                if (!harborMask[ty] || !harborMask[ty][tx]) return false;
-                if (ctx.map[ty][tx] !== WATER) return false;
-              }
-            }
-
-            if (!requirePierAdjacency) return true;
-
-            // Require adjacency to a pier along the side parallel to the hull.
-            let touchesPier = false;
-            if (harborDir === "W" || harborDir === "E") {
-              // Horizontal hull: pier must touch along top or bottom edge.
-              const yTop = y0 - 1;
-              const yBottom = y1 + 1;
-              for (let tx = x0; tx <= x1; tx++) {
-                if (yTop > 0 && pierMask[yTop] && pierMask[yTop][tx]) { touchesPier = true; break; }
-                if (yBottom < H - 1 && pierMask[yBottom] && pierMask[yBottom][tx]) { touchesPier = true; break; }
-              }
-            } else if (harborDir === "N" || harborDir === "S") {
-              // Vertical hull: pier must touch along left or right edge.
-              const xLeft = x0 - 1;
-              const xRight = x1 + 1;
-              for (let ty = y0; ty <= y1; ty++) {
-                if (xLeft > 0 && pierMask[ty] && pierMask[ty][xLeft]) { touchesPier = true; break; }
-                if (xRight < W - 1 && pierMask[ty] && pierMask[ty][xRight]) { touchesPier = true; break; }
-              }
-            }
-
-            if (!touchesPier) return false;
-            return true;
-          }
-
-          function boatFitsAt(pref, bx, by) {
-            return boatFitsAtCore(pref, bx, by, true);
-          }
-          function boatFitsAtRelaxed(pref, bx, by) {
-            return boatFitsAtCore(pref, bx, by, false);
-          }
-
-          for (let i = 0; i < boats.length; i++) {
-            const pref = boats[i];
-            const w = pref.size.w | 0;
-            const h = pref.size.h | 0;
-            if (!w || !h) continue;
-            for (let by = 1; by <= H - 1 - h; by++) {
-              for (let bx = 1; bx <= W - 1 - w; bx++) {
-                if (boatFitsAt(pref, bx, by)) {
-                  slots.push({ x: bx, y: by, prefab: pref });
-                } else if (boatFitsAtRelaxed(pref, bx, by)) {
-                  // Keep as a fallback: boat fits water+band, but not directly against a pier.
-                  relaxedSlots.push({ x: bx, y: by, prefab: pref });
-                }
-              }
-            }
-          }
-
-          // Prefer boats moored directly against piers; if none fit, fall back to any
-          // valid water rectangle inside the harbor band so that at least one boat
-          // spawns when geometry allows it.
-          let candidates = slots.length ? slots : relaxedSlots;
-          if (!candidates.length) return;
-
-          // Always place exactly one boat per harbor when there is a valid slot.
-          const pickIdx = Math.floor((rng ? rng() : Math.random()) * candidates.length) % candidates.length;
-          const slot = candidates[pickIdx];
-          _stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
-        } catch (_) {
-          // Harbor generation should never fail if boat placement has issues.
-        }
-      })();
-
-      // Ensure that at least one boat (if present) is reachable from the town gate
-      // by carving a minimal pier corridor through harbor water (never through
-      // buildings). This avoids cases where boats are visually present but blocked
-      // behind water and walls.
-      (function ensureHarborBoatAccess() {
-        try {
-          const boatMask = ctx.townBoatMask;
-          if (!boatMask) return;
-          const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
-          const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
-          if (gx == null || gy == null) return;
-
-          const rows = H, cols = W;
-          const inBoundsLocal = (x, y) => x > 0 && y > 0 && x < cols - 1 && y < rows - 1;
-          const dirs4 = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
-
-          const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
-          const prev = Array.from({ length: rows }, () => Array(cols).fill(null));
-          const q = [];
-          q.push({ x: gx, y: gy });
-          visited[gy][gx] = true;
-
-          let target = null;
-
-          while (q.length) {
-            const cur = q.shift();
-            if (boatMask[cur.y] && boatMask[cur.y][cur.x]) {
-              target = cur;
-              break;
-            }
-            for (let i = 0; i < dirs4.length; i++) {
-              const nx = cur.x + dirs4[i].dx;
-              const ny = cur.y + dirs4[i].dy;
-              if (!inBoundsLocal(nx, ny)) continue;
-              if (visited[ny][nx]) continue;
-              const tile = ctx.map[ny][nx];
-              // Block hard walls and windows; we do not carve through buildings.
-              if (tile === ctx.TILES.WALL || tile === ctx.TILES.WINDOW) continue;
-
-              const inHarborBand = harborMask[ny] && harborMask[ny][nx];
-              const isWaterHere = tile === WATER && inHarborBand;
-              const isBoatDeck = boatMask[ny] && boatMask[ny][nx];
-
-              const isWalkableStatic =
-                tile === ctx.TILES.FLOOR ||
-                tile === ctx.TILES.ROAD ||
-                tile === ctx.TILES.DOOR ||
-                tile === PIER ||
-                isBoatDeck;
-
-              if (!isWalkableStatic && !isWaterHere) continue;
-
-              visited[ny][nx] = true;
-              prev[ny][nx] = { x: cur.x, y: cur.y };
-              q.push({ x: nx, y: ny });
-            }
-          }
-
-          if (!target) return;
-
-          // Reconstruct path and convert any harbor water along it into pier tiles.
-          let cx = target.x;
-          let cy = target.y;
-          while (!(cx === gx && cy === gy)) {
-            const p = prev[cy][cx];
-            if (!p) break;
-            const t = ctx.map[cy][cx];
-            if (t === WATER && harborMask[cy] && harborMask[cy][cx]) {
-              ctx.map[cy][cx] = PIER;
-              pierMask[cy][cx] = true;
-            }
-            cx = p.x;
-            cy = p.y;
-          }
-        } catch (_) {
-          // Access fix is best-effort; never break harbor generation.
-        }
-      })();
+      // Boat placement and access: attempt to place at least one wooden boat in
+      // every harbor that has enough water area to fit a prefab, then carve a
+      // minimal pier corridor from the gate to the nearest boat if needed.
+      placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harborDir, pierMask, W, H, WATER, gate, rng, PFB);
     }
 
     // Simple dock props: reuse existing props (CRATE/BARREL/LAMP) along the harbor edge.
@@ -759,9 +565,9 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
         const by = Math.max(1, Math.min(H - bh - 1, center.y - ((bh / 2) | 0)));
 
         // Ensure footprint stays mostly inside harbor band
-        if (!_rectMostlyInHarborMask(harborMask, bx, by, bw, bh, W, H)) continue;
+        if (!rectMostlyInHarborMask(harborMask, bx, by, bw, bh, W, H)) continue;
         // Do not collide with existing buildings
-        if (_rectOverlapsAny(buildings, bx, by, bw, bh)) continue;
+        if (rectOverlapsAny(buildings, bx, by, bw, bh)) continue;
         // Ensure we are not stamping on water or other non-floor tiles
         let anyBad = false;
         for (let yy = by; yy < by + bh && !anyBad; yy++) {
@@ -831,7 +637,7 @@ function _safeAddProp(ctx, W, H, x, y, code) {
       return false;
     }
     if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
-    ctx.townProps.push({ x, y, type: _propTypeFromCode(code), name: null });
+    ctx.townProps.push({ x, y, type: propTypeFromCode(code), name: null });
     return true;
   } catch (_) {}
   return false;
@@ -978,7 +784,7 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
         ctx.townProps.push({ x: tx, y: ty, type: "ship_hatch", name: null });
       } else if (code === "CRATE" || code === "BARREL" || code === "LAMP") {
         // Generic cargo/light props on deck/edge tiles.
-        ctx.townProps.push({ x: tx, y: ty, type: _propTypeFromCode(code), name: null });
+        ctx.townProps.push({ x: tx, y: ty, type: propTypeFromCode(code), name: null });
       }
     }
   }
@@ -1002,43 +808,3 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
   return true;
 }
 
-function _propTypeFromCode(code) {
-  // Map embedded prop codes to prop types used in townProps; current town_props
-  // pipeline treats type as id key in GameData.props. Codes used here (CRATE/BARREL/LAMP)
-  // already exist there.
-  if (!code) return "crate";
-  const s = String(code).toUpperCase();
-  if (s === "CRATE") return "crate";
-  if (s === "BARREL") return "barrel";
-  if (s === "LAMP") return "lamp";
-  return "crate";
-}
-
-function _rectMostlyInHarborMask(mask, bx, by, bw, bh, W, H) {
-  let total = 0;
-  let inside = 0;
-  for (let y = by; y < by + bh; y++) {
-    if (y < 0 || y >= H) continue;
-    for (let x = bx; x < bx + bw; x++) {
-      if (x < 0 || x >= W) continue;
-      total++;
-      if (mask[y][x]) inside++;
-    }
-  }
-  if (!total) return false;
-  // Require majority of rect to lie inside harbor band
-  return inside >= Math.floor(total * 0.6);
-}
-
-function _rectOverlapsAny(buildings, bx, by, bw, bh) {
-  const ax0 = bx, ay0 = by, ax1 = bx + bw - 1, ay1 = by + bh - 1;
-  for (let i = 0; i < buildings.length; i++) {
-    const b = buildings[i];
-    if (!b) continue;
-    const bx0 = b.x, by0 = b.y, bx1 = b.x + b.w - 1, by1 = b.y + b.h - 1;
-    const sepX = (ax1 < bx0) || (bx1 < ax0);
-    const sepY = (ay1 < by0) || (by1 < ay0);
-    if (!(sepX || sepY)) return true;
-  }
-  return false;
-}
