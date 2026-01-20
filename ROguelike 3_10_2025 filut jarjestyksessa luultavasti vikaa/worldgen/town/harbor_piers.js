@@ -23,6 +23,7 @@ export function carveHarborWaterAndPiersForPort(
   harborMask,
   harborDir,
   gateBridgeMask,
+  gate,
   rng,
   PFB
 ) {

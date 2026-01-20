@@ -123,7 +123,7 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
 
     // Carve harbor water (fallback if needed) + piers, then place boats and
     // ensure at least one has access from the gate.
-    carveHarborWaterAndPiersForPort(ctx, buildings, W, H, harborMask, harborDir, gateBridgeMask, rng, PFB);
+    carveHarborWaterAndPiersForPort(ctx, buildings, W, H, harborMask, harborDir, gateBridgeMask, gate, rng, PFB);
     placeDockPropsForHarbor(ctx, W, H, harborMask, harborDir, gateBridgeMask, rng);
     placeHarborWarehousesForHarbor(ctx, buildings, W, H, harborMask, gateBridgeMask, rng, PFB, stampPrefab, trySlipStamp);
 
