@@ -225,11 +225,29 @@ export function carveHarborWaterAndPiersForPort(
   );
 
   let piersPlaced = 0;
+  // Track shoreline coordinates of accepted pier roots so we can keep piers
+  // from clustering too tightly next to each other. We measure spacing along
+  // the shoreline axis (y for W/E harbors, x for N/S harbors) and require
+  // at least 6 tiles between pier roots.
+  const pierRootCoords = [];
 
   while (piersPlaced < maxPiers && roots.length) {
     const idx = Math.floor((rng ? rng() : Math.random()) * roots.length);
     const root = roots.splice(idx, 1)[0];
     if (!root) continue;
+
+    // Enforce a minimum spacing between piers along the shoreline so they
+    // are not right next to each other. For W/E harbors we compare y; for
+    // N/S harbors we compare x.
+    const shorelineCoord = (harborDir === "W" || harborDir === "E") ? root.y : root.x;
+    let tooClose = false;
+    for (let i = 0; i < pierRootCoords.length; i++) {
+      if (Math.abs(shorelineCoord - pierRootCoords[i]) < 6) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (tooClose) continue;
 
     // Convert the root tile to pier deck so the shoreline section of the pier
     // is visually consistent and clearly brown.
@@ -289,6 +307,9 @@ export function carveHarborWaterAndPiersForPort(
       continue;
     }
 
+    // Record this pier's shoreline coordinate so subsequent piers can respect
+    // minimum spacing along the shore.
+    pierRootCoords.push(shorelineCoord);
     piersPlaced++;
   }
 
