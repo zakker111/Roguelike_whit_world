@@ -38,6 +38,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
       - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
     - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
+    - [ ] Fishing in harbor towns:
+      - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.
+      - Use a simple interaction (e.g., G on a dock/edge tile) to start fishing with time-cost, RNG-based catches (fish items, junk, or nothing).
+      - Integrate caught fish into town shops, cooking/food systems, or quests once those systems exist.
 - [ ] Mouse-hover enemy inspect system tied to Perception skill
   - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
   - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
