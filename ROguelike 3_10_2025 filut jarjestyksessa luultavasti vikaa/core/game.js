@@ -542,7 +542,16 @@ import "./followers_items.js";
     const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
     if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
     const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS || t === TILES.ROAD;
+    // Fallback walkability when Utils.isWalkableTile is unavailable.
+    // Keep in sync with utils.isWalkableTile for town/dungeon maps.
+    return (
+      t === TILES.FLOOR ||
+      t === TILES.DOOR ||
+      t === TILES.STAIRS ||
+      t === TILES.ROAD ||
+      t === TILES.PIER ||
+      t === TILES.SHIP_DECK
+    );
   }
 
   

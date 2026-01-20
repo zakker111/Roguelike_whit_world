@@ -304,7 +304,8 @@ function applyState(ctx, st, x, y) {
           t === ctx.TILES.FLOOR ||
           t === ctx.TILES.STAIRS ||
           t === ctx.TILES.ROAD ||
-          t === ctx.TILES.PIER;
+          t === ctx.TILES.PIER ||
+          t === ctx.TILES.SHIP_DECK;
         if (!isFloorish) continue;
         // Interior-only filtering
         const typ = String(p.type || "").toLowerCase();

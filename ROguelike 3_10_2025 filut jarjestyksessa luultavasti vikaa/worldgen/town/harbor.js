@@ -1021,7 +1021,15 @@ function _safeAddProp(ctx, W, H, x, y, code) {
     if (!ctx || !ctx.townProps || !ctx.map) return false;
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
     const t = ctx.map[y][x];
-    if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) return false;
+    // Allow dock props on generic outdoor ground, roads, and harbor piers/ship decks.
+    if (
+      t !== ctx.TILES.FLOOR &&
+      t !== ctx.TILES.ROAD &&
+      t !== ctx.TILES.PIER &&
+      t !== ctx.TILES.SHIP_DECK
+    ) {
+      return false;
+    }
     if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
     ctx.townProps.push({ x, y, type: _propTypeFromCode(code), name: null });
     return true;

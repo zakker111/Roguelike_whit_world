@@ -23,13 +23,18 @@ export function isWalkableTile(ctx, x, y) {
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
   const T = ctx.TILES || {};
-  // Walkable tiles for dungeon/town maps (include ROAD for towns and PIER for harbors)
+  // Walkable tiles for dungeon/town maps:
+  // - FLOOR/DOOR/STAIRS (classic)
+  // - ROAD (town roads)
+  // - PIER (harbor piers)
+  // - SHIP_DECK (boat decks)
   return (
     t === T.FLOOR ||
     t === T.DOOR ||
     t === T.STAIRS ||
     t === T.ROAD ||
-    t === T.PIER
+    t === T.PIER ||
+    t === T.SHIP_DECK
   );
 }
 
