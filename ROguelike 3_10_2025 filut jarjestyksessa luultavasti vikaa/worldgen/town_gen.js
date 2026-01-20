@@ -33,6 +33,7 @@ import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
 import { prepareHarborZone, placeHarborPrefabs } from "./town/harbor.js";
 import { ensureHarborAccessibility } from "./town/accessibility.js";
+import { computeTownFlowFields } from "../core/town/flows.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -914,6 +915,9 @@ function generate(ctx) {
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
   repairBuildingPerimeters(ctx, buildings);
+
+  // Precompute town flow fields (plaza, gate, inn door, harbor band)
+  try { computeTownFlowFields(ctx); } catch (_) {}
 
   // Precompute town light props (emissive props) for FOV and glow systems
   (function buildTownLightProps() {

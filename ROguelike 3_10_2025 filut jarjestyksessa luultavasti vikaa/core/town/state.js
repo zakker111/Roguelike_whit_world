@@ -13,6 +13,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { computeTownFlowFields } from "./flows.js";
 
 const LS_KEY = "TOWN_STATES_V1";
 
@@ -427,6 +428,9 @@ function applyState(ctx, st, x, y) {
     } catch (_) {}
     try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
+
+  // Recompute flow fields (plaza, gate, inn door, harbor band) after restoring map/shops/props.
+  try { computeTownFlowFields(ctx); } catch (_) {}
 
   // Place player at the town gate (exit tile) if available
   try {

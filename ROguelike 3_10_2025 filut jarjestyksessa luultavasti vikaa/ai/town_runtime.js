@@ -359,12 +359,18 @@ function townNPCsAct(ctx) {
       const candidate = building.door || nearestFreeAdjacent(ctxLocal, building.x + ((building.w / 2) | 0), building.y, null);
       if (candidate) {
         const door = { x: candidate.x, y: candidate.y };
+        const isInnBuilding = !!(ctxLocal.tavern && ctxLocal.tavern.building && ctxLocal.tavern.building === building);
+        const flowInn = isInnBuilding && ctxLocal.flowToInnDoor ? ctxLocal.flowToInnDoor : null;
         if (n.x === door.x && n.y === door.y) {
           const inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, building) || adjTarget || { x: door.x, y: door.y };
           stepTowards(ctxLocal, occLocal, n, inSpot.x, inSpot.y, { urgent: !!n.isShopkeeper });
           return true;
         }
-        stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper });
+        if (flowInn) {
+          stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper, flow: flowInn });
+        } else {
+          stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper });
+        }
         return true;
       }
     } else {
@@ -570,7 +576,20 @@ function townNPCsAct(ctx) {
       }
 
       if (n._guardPatrolGoal) {
-        stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        let flow = null;
+        try {
+          const gate = ctx.townExitAt || null;
+          if (gate && gate.x === n._guardPatrolGoal.x && gate.y === n._guardPatrolGoal.y && ctx.flowToGate) {
+            flow = ctx.flowToGate;
+          } else if (ctx.townPlaza && ctx.townPlaza.x === n._guardPatrolGoal.x && ctx.townPlaza.y === n._guardPatrolGoal.y && ctx.flowToPlaza) {
+            flow = ctx.flowToPlaza;
+          }
+        } catch (_) {}
+        if (flow) {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true, flow });
+        } else {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        }
       } else {
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
       }

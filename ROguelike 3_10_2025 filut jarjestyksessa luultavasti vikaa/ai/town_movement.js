@@ -115,6 +115,52 @@ function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
     }
   }
 
+  // Optional flow-field guided step (for common targets like plaza/gate/inn door).
+  const flow = opts && opts.flow;
+  if (flow && Array.isArray(flow)) {
+    try {
+      const row = flow[n.y];
+      if (row && typeof row[n.x] === "number" && row[n.x] >= 0) {
+        const hereD = row[n.x] | 0;
+        const dirsFlow = [
+          { dx: 1, dy: 0 },
+          { dx: -1, dy: 0 },
+          { dx: 0, dy: 1 },
+          { dx: 0, dy: -1 }
+        ];
+        let best = null;
+        let bestD = hereD;
+        for (let i = 0; i < dirsFlow.length; i++) {
+          const nx = n.x + dirsFlow[i].dx;
+          const ny = n.y + dirsFlow[i].dy;
+          const rN = flow[ny];
+          if (!rN) continue;
+          const dN = rN[nx];
+          if (typeof dN !== "number" || dN < 0 || dN >= bestD) continue;
+          if (!isWalkTown(ctx, nx, ny)) continue;
+          if (ctx.player.x === nx && ctx.player.y === ny) continue;
+          const keyN = `${nx},${ny}`;
+          if (occ.has(keyN)) continue;
+          best = { nx, ny };
+          bestD = dN;
+        }
+        if (best) {
+          if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
+            n._debugPath = [{ x: n.x, y: n.y }, { x: best.nx, y: best.ny }];
+          } else {
+            n._debugPath = null;
+          }
+          n._plan = null; n._planGoal = null;
+          n._fullPlan = null; n._fullPlanGoal = null;
+          const pxPrev = n.x, pyPrev = n.y;
+          occ.delete(`${n.x},${n.y}`); n.x = best.nx; n.y = best.ny; occ.add(`${n.x},${n.y}`);
+          n._lastX = pxPrev; n._lastY = pyPrev;
+          return true;
+        }
+      }
+    } catch (_) {}
+  }
+
   const full = computePathBudgeted(ctx, occ, n.x, n.y, tx, ty, { urgent: !!(opts && opts.urgent) });
   if (full && full.length >= 2) {
     n._plan = full.slice(0);
