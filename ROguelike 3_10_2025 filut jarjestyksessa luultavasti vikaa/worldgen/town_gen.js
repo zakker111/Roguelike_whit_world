@@ -32,6 +32,7 @@ import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFo
 import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
 import { prepareHarborZone, placeHarborPrefabs } from "./town/harbor.js";
+import { ensureHarborAccessibility } from "./town/accessibility.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -861,6 +862,12 @@ function generate(ctx) {
     (ctx2, pref, bx, by) => stampPrefab(ctx2, pref, bx, by),
     (ctx2, pref, bx, by, maxSlip) => trySlipStamp(ctx2, pref, bx, by, maxSlip)
   );
+
+  // Harbor-only accessibility pass:
+  // - Clean up doors that don't lead to reachable ground.
+  // - Carve extra doors when a harbor building has none usable.
+  // - Connect isolated harbor land islands that contain buildings via a simple pier/bridge.
+  ensureHarborAccessibility(ctx, buildings, W, H, gate);
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
   buildOutdoorMask(ctx, buildings, W, H);
