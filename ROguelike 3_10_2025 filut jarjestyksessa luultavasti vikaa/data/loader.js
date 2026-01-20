@@ -82,10 +82,43 @@ function fetchJson(url) {
     } catch (_) { return u; }
   }
   const url2 = withVer(url);
-  return fetch(url2, { cache: "no-cache" })
+
+  // Guard against pathological network stalls by applying a per-request timeout.
+  // If the timeout elapses, we abort the fetch and allow callers to fall back.
+  let controller = null;
+  let timeoutId = null;
+  try {
+    if (typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      const TIMEOUT_MS = 8000;
+      timeoutId = setTimeout(() => {
+        try { controller.abort(); } catch (_) {}
+      }, TIMEOUT_MS);
+    }
+  } catch (_) {}
+
+  const opts = controller ? { cache: "no-cache", signal: controller.signal } : { cache: "no-cache" };
+  return fetch(url2, opts)
     .then(r => {
       if (!r.ok) throw new Error("HTTP " + r.status + " for " + url2);
       return r.json();
+    })
+    .catch(e => {
+      // Log a lightweight warning but let callers decide how to handle the failure.
+      try {
+        const msg = "[GameData] fetch failed for " + url2 + ": " + (e && e.message ? e.message : String(e));
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(msg, "warn");
+        } else if (typeof console !== "undefined" && console.warn) {
+          console.warn(msg);
+        }
+      } catch (_) {}
+      throw e;
+    })
+    .finally(() => {
+      if (timeoutId != null) {
+        try { clearTimeout(timeoutId); } catch (_) {}
+      }
     });
 }
 
