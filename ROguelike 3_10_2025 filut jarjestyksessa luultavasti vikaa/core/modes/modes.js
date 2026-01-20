@@ -139,17 +139,7 @@ function detectHarborContext(ctx, wx, wy, WT) {
   }
 }
 
-    return {
-      harborDir: bestDir,
-      waterContext,
-      score: bestScore,
-      coastScore: bestCoast,
-      riverScore: bestRiver,
-    };
-  } catch (_) {
-    return null;
-  }
-}
+    
 
 function debugPortHarborsEnabled() {
   try {
