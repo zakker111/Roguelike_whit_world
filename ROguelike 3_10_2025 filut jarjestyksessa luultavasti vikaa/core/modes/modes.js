@@ -108,7 +108,11 @@ function detectHarborContext(ctx, wx, wy, WT) {
       }
     }
 
-    // Require a water-heavy direction, but be a bit more permissive so towns that
+    // Require a water-heavy direction, but keep the threshold low so that towns
+    // with modest nearby water are still promoted to ports. Lowering this value
+    // increases how often towns are recognized as harbor candidates.
+    const MIN_SCORE = 2;
+    if (!bestDir || bestScore < MIN_SCORE) return null;uire a water-heavy direction, but be a bit more permissive so towns that
     // are clearly coastal in play (like some starting towns) are recognized as ports.
     const MIN_SCORE = 3;
     if (!bestDir || bestScore < MIN_SCORE) return null;
