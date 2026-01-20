@@ -255,8 +255,8 @@ function ensureHarborIslandAccess(ctx, buildings, W, H, harborMask, reachable) {
       }
     }
     if (anyReachable) continue;
-    // Only consider islands that host a building; pure scenery islands can remain unreachable.
-    if (!islandHasBuilding(k, compId, buildings, W, H)) continue;
+    // Connect all harbor land islands, even if they currently host no buildings, so that
+    // the entire harbor band is accessible from the gate.
 
     const mainLand = [];
     const islandLand = [];
