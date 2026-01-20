@@ -84,13 +84,14 @@ function fetchJson(url) {
   const url2 = withVer(url);
 
   // Guard against pathological network stalls by applying a per-request timeout.
-  // If the timeout elapses, we abort the fetch and allow callers to fall back.
+  // Use a generous timeout so slow connections still load full data; this mainly
+  // protects against truly hung requests.
   let controller = null;
   let timeoutId = null;
   try {
     if (typeof AbortController !== "undefined") {
       controller = new AbortController();
-      const TIMEOUT_MS = 8000;
+      const TIMEOUT_MS = 30000; // 30s to avoid false timeouts on slow networks
       timeoutId = setTimeout(() => {
         try { controller.abort(); } catch (_) {}
       }, TIMEOUT_MS);
