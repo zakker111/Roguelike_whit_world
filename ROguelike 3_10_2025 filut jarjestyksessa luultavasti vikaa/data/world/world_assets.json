@@ -264,6 +264,16 @@
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["town"],
         "tags": ["walkable", "harbor", "pier"]
+      },
+      {
+        "id": 21,
+        "key": "SHIP_EDGE",
+        "name": "Ship Edge",
+        "glyph": " ",
+        "colors": { "fill": "#7a613f", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["walkable", "ship", "harbor", "edge"]
       }
     ],
     "overrides": {

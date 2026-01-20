@@ -28,13 +28,15 @@ export function isWalkableTile(ctx, x, y) {
   // - ROAD (town roads)
   // - PIER (harbor piers)
   // - SHIP_DECK (boat decks)
+  // - SHIP_EDGE (deck-edge rails; visually low walls, still walkable)
   return (
     t === T.FLOOR ||
     t === T.DOOR ||
     t === T.STAIRS ||
     t === T.ROAD ||
     t === T.PIER ||
-    t === T.SHIP_DECK
+    t === T.SHIP_DECK ||
+    t === T.SHIP_EDGE
   );
 }
 

@@ -550,7 +550,8 @@ import "./followers_items.js";
       t === TILES.STAIRS ||
       t === TILES.ROAD ||
       t === TILES.PIER ||
-      t === TILES.SHIP_DECK
+      t === TILES.SHIP_DECK ||
+      t === TILES.SHIP_EDGE
     );
   }
 

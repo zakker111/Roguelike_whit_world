@@ -12,6 +12,7 @@ export const TILES = {
   HARBOR_WATER: 18,
   SHIP_DECK: 19,
   PIER: 20,
+  SHIP_EDGE: 21,
 };
 
 function getPalette() {

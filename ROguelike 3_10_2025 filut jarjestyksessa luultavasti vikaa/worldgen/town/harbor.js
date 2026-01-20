@@ -1131,9 +1131,9 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
   }
 
   // Second pass: apply deck tiles and props.
-  for (let yy = 0; yy < h; yy++) {
+  for (let yy = 0; yy &lt; h; yy++) {
     const row = prefab.tiles[yy];
-    for (let xx = 0; xx < w; xx++) {
+    for (let xx = 0; xx &lt; w; xx++) {
       const codeRaw = row[xx];
       const code = codeRaw ? String(codeRaw).toUpperCase() : "";
       const tx = x0 + xx;
@@ -1143,14 +1143,24 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
         continue; // leave underlying water
       }
 
-      // All ship cells get deck tile + boat mask.
-      ctx.map[ty][tx] = DECK;
+      // Decide which underlying tile to use for this ship cell.
+      // Default to deck; rails sit on edge tiles so the hull has a darker belt.
+      let tileId = DECK;
+      try {
+        if (code === "SHIP_EDGE") {
+          tileId = (ctx.TILES && ctx.TILES.SHIP_EDGE) || DECK;
+        } else if (code === "SHIP_RAIL") {
+          tileId = (ctx.TILES && ctx.TILES.SHIP_EDGE) || DECK;
+        }
+      } catch (_) {}
+
+      ctx.map[ty][tx] = tileId;
       boatMask[ty][tx] = true;
 
       // Only one prop per cell; skip if something already exists here.
       let hasProp = false;
       if (Array.isArray(ctx.townProps)) {
-        for (let i = 0; i < ctx.townProps.length; i++) {
+        for (let i = 0; i &lt; ctx.townProps.length; i++) {
           const p = ctx.townProps[i];
           if (p && p.x === tx && p.y === ty) {
             hasProp = true;
