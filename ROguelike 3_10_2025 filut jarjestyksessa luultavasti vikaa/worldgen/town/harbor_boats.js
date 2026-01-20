@@ -268,7 +268,8 @@ export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harb
     // Prefer boats moored directly against piers; if none fit, fall back to any
     // valid water rectangle inside the harbor band so that at least one boat
     // spawns when geometry allows it.
-    let candidates = slots.length ? slots : relaxedSlots;
+    const pickedFromPierSlots = slots.length > 0;
+    let candidates = pickedFromPierSlots ? slots : relaxedSlots;
     if (!candidates.length) return;
 
     // Always place exactly one boat per harbor when there is a valid slot.
@@ -276,13 +277,17 @@ export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harb
     const slot = candidates[pickIdx];
     stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
 
-    // Next, carve a dedicated "boat pier" from the hull toward shore. This pier:
-    // - starts on the hull side facing town,
-    // - runs perpendicular to the shoreline until it reaches land (FLOOR/ROAD/DOOR),
-    // - is widened to at least 2 tiles where possible so it reads as a proper dock.
-    try {
-      const boatMask = ctx.townBoatMask;
-      if (!boatMask) return;
+    // If the boat already touches an existing pier (picked from pier-adjacent slots),
+    // rely on that pier and do not carve an additional dedicated boat pier, to avoid
+    // having two piers connecting to the same hull.
+    if (!pickedFromPierSlots) {
+      // Next, carve a dedicated "boat pier" from the hull toward shore. This pier:
+      // - starts on the hull side facing town,
+      // - runs perpendicular to the shoreline until it reaches land (FLOOR/ROAD/DOOR),
+      // - is widened to at least 2 tiles where possible so it reads as a proper dock.
+      try {
+        const boatMask = ctx.townBoatMask;
+        if (!boatMask) return;
 
       let minX = W, maxX = -1, minY = H, maxY = -1;
       for (let y = 1; y < H - 1; y++) {
@@ -438,6 +443,7 @@ export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harb
       }
     } catch (_) {
       // Boat pier carving is best-effort; never break harbor generation.
+    }
     }
   } catch (_) {
     // Harbor generation should never fail if boat placement has issues.
