@@ -15,15 +15,22 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Consider special POIs or encounters attached to large lakes (ferries, fishing huts, ruined piers) in future work.
 - [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
 - [ ] Move flavor text into JSON data (data-driven flavor)
-- [x] Port towns/cities with distinct layouts
+- [x] Port towns/cities with distinct layouts **(EXPERIMENTAL)**
   - Add special “port” variants of towns/cities that sit on coasts, rivers, or lakes.
   - Layout differences from normal towns:
     - [x] Partially walled or open toward the water, with a reserved harbor band along the water-facing edge.
     - [x] Visible water edge integrated into town map (harbor water tiles plus piers extending onto water).
-    - [x] Boats/ships/moored vessels visible at the pier via multi-tile harbor boat prefabs.
+    - [x] Boats/ships/moored vessels visible at the pier via multi-tile harbor boat prefabs (horizontal and vertical variants).
+    - [x] Harbor piers carved strictly perpendicular to the shoreline, widened to at least 2 tiles where possible, and spaced at least ~6 tiles apart along the shoreline.
   - Overworld integration:
     - [x] Harbor direction and shoreline for the port town are derived from overworld water tiles next to the town’s location (harborDir metadata).
-    - [x] Pier orientation (north/south/east/west) matches the detected harbor direction in the overworld.
+    - [x] Pier and boat orientation (north/south/east/west) matches the detected harbor direction in the overworld.
+  - Harbor accessibility and islands (experimental):
+    - [x] Harbor-only accessibility pass that:
+      - Removes harbor building doors whose exterior tiles are not walkable or not reachable from the town gate.
+      - Carves a fallback door for harbor buildings that have no usable door facing reachable ground.
+    - [x] Harbor land islands (land within the harbor band) are detected and connected:
+      - Any harbor land component not reachable from the gate is linked to the main harbor via a simple PIER bridge (often an L-shaped corridor), so all harbor land is accessible for player and NPCs.
   - Future extensions (optional):
     - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
     - [ ] Trade modifiers or special caravan/ship visits at ports.
