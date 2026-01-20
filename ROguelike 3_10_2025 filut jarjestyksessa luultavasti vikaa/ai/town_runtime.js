@@ -252,6 +252,7 @@ function townNPCsAct(ctx) {
       const leaveEnd = (c + 10) % 1440;
       if (inWindow(arriveStart, leaveEnd, minutes, 1440)) return false;
     }
+
     if (typeof n._stride !== "number") {
       n._stride = n.isPet ? 3 : (n.isShopkeeper ? 2 : 1);
     }
@@ -259,16 +260,32 @@ function townNPCsAct(ctx) {
       n._strideOffset = idx % n._stride;
     }
 
+    // Primary stride gate
     if ((tickMod % n._stride) !== n._strideOffset) return true;
 
+    let distToPlayer = Infinity;
     try {
       if (player && typeof player.x === "number" && typeof player.y === "number") {
-        const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
-        if (d > 24) {
-          if (((tickMod + idx) & 1) === 1) return true;
-        }
+        distToPlayer = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
       }
     } catch (_) {}
+
+    let isVisibleNow = false;
+    try {
+      const vis = ctx.visible;
+      if (vis && vis[n.y] && vis[n.y][n.x]) {
+        isVisibleNow = true;
+      }
+    } catch (_) {}
+
+    // Extra throttling for far, non-visible NPCs. Close or visible NPCs stay responsive.
+    if (!isVisibleNow && distToPlayer > 24) {
+      // Already stride-gated; additionally only update on roughly half of eligible ticks.
+      if (((tickMod + idx) & 1) === 1) return true;
+    } else if (!isVisibleNow && distToPlayer > 16) {
+      // Mid-far range: sprinkle updates more sparsely when off-screen.
+      if (((tickMod + idx) % (n._stride * 2)) !== n._strideOffset) return true;
+    }
 
     return false;
   }
