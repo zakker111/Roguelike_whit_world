@@ -70,7 +70,17 @@ function townNPCsAct(ctx) {
     try { ctx.log && ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
   }
 
-  dedupeHomeBeds(ctx);
+  // Dedupe home beds periodically instead of every tick to reduce hot-path work.
+  try {
+    const time = ctx.time;
+    const turn = time && typeof time.turnCounter === "number" ? (time.turnCounter | 0) : 0;
+    if (!ctx._dedupeBedsLastRun || (turn - ctx._dedupeBedsLastRun) >= 20) {
+      dedupeHomeBeds(ctx);
+      ctx._dedupeBedsLastRun = turn;
+    }
+  } catch (_) {
+    dedupeHomeBeds(ctx);
+  }
 
   const occ = new Set();
   occ.add(`${player.x},${player.y}`);

@@ -491,7 +491,20 @@ export function tick(ctx) {
   try {
     const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
     if (TAI && typeof TAI.townNPCsAct === "function") {
+      let t0 = null;
+      try {
+        if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+          t0 = performance.now();
+        }
+      } catch (_) {}
       TAI.townNPCsAct(ctx);
+      if (t0 != null) {
+        try {
+          const dt = performance.now() - t0;
+          ctx._perfTownAIAccum = (ctx._perfTownAIAccum || 0) + dt;
+          ctx._perfTownAICount = (ctx._perfTownAICount || 0) + 1;
+        } catch (_) {}
+      }
     }
   } catch (_) {}
 

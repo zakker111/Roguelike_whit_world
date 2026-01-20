@@ -41,6 +41,13 @@ export function draw(ctx, view) {
     cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY
   } = Object.assign({}, view, ctx);
 
+  let _townDrawPerfStart = null;
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      _townDrawPerfStart = performance.now();
+    }
+  } catch (_) {}
+
   
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -216,6 +223,14 @@ export function draw(ctx, view) {
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);
+
+  if (_townDrawPerfStart != null) {
+    try {
+      const dt = performance.now() - _townDrawPerfStart;
+      ctx._perfTownDrawAccum = (ctx._perfTownDrawAccum || 0) + dt;
+      ctx._perfTownDrawCount = (ctx._perfTownDrawCount || 0) + 1;
+    } catch (_) {}
+  }
 }
 
 // Back-compat: attach to window via helper

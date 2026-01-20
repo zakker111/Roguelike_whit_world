@@ -17,7 +17,22 @@ const PATH_BUDGET_MAX = 32;
 
 function initPathBudget(ctx, npcCount) {
   const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
-  const baseFrac = (phaseNow === "day") ? 0.26 : 0.18;
+  const size = (ctx && typeof ctx.townSize === "string") ? ctx.townSize : "big";
+
+  // Base fraction scales with town size and is slightly adjusted by time of day.
+  let baseFrac;
+  if (size === "small") baseFrac = 0.20;
+  else if (size === "city") baseFrac = 0.30;
+  else baseFrac = 0.26;
+
+  if (phaseNow === "night") {
+    baseFrac *= 0.8;
+  } else if (phaseNow === "dusk") {
+    baseFrac *= 1.1;
+  } else if (phaseNow === "dawn") {
+    baseFrac *= 0.9;
+  }
+
   const approx = Math.max(1, Math.floor(npcCount * baseFrac));
   const defaultBudget = Math.max(
     PATH_BUDGET_MIN,

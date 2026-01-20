@@ -17,6 +17,13 @@
  */
 
 export function recomputeFOV(ctx) {
+  let _fovPerfStart = null;
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      _fovPerfStart = performance.now();
+    }
+  } catch (_) {}
+
   const { fovRadius, player, map, TILES } = ctx;
   const ROWS = map.length;
   const COLS = map[0] ? map[0].length : 0;
@@ -214,6 +221,14 @@ export function recomputeFOV(ctx) {
     }
     // Mark all newly seen enemies as announced
     for (const e of newly) e.announced = true;
+  }
+
+  if (_fovPerfStart != null) {
+    try {
+      const dt = performance.now() - _fovPerfStart;
+      ctx._perfFOVAccum = (ctx._perfFOVAccum || 0) + dt;
+      ctx._perfFOVCount = (ctx._perfFOVCount || 0) + 1;
+    } catch (_) {}
   }
 }
 
