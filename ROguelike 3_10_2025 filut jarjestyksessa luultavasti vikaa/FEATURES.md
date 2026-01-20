@@ -248,6 +248,12 @@ This file should describe the **current state**, not the future; update it whene
   - Houses, shops, tavern/inn, and other special buildings.
   - Interiors:
     - Furnished with fireplaces, beds, tables, chairs, chests, and decor.
+- Port towns (coastal/river/lake settlements):
+  - Some towns are promoted to “port” towns when the overworld detects a strong water direction next to the settlement.
+  - A harbor band is reserved along the water-facing edge of the map, carved with dedicated harbor water tiles and perpendicular wooden piers.
+  - One or more multi-tile harbor boats are moored in the harbor band, oriented to match the shoreline (horizontal for east/west, vertical for north/south).
+  - Small “warehouse” buildings and dock props (crates, barrels, lamps) appear along the harbor edge.
+  - Harbor workers are spawned via town AI and prefer to work and linger in the harbor band.
 
 ### 6.2 Town NPCs and routines
 

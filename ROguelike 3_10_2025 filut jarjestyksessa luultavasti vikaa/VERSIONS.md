@@ -1,5 +1,45 @@
 # Game Version History
-Last updated: 2026-01-18 00:00 UTC
+Last updated: 2026-01-20 00:00 UTC
+
+v1.66.0 — Port towns, harbor generation refactor, and harbor NPC fixes
+
+- Port town harbor pipeline and geometry:
+  - Split the monolithic worldgen/town/harbor.js into focused modules:
+    - worldgen/town/harbor_zone.js – pre-carves harbor band ground/water and shoreline masks based on ctx.townHarborMask / ctx.townHarborDir and town.json harbor config.
+    - worldgen/town/harbor_piers.js – carves harbor water (when prepareHarborZone is absent), piers, and performs cleanup, then delegates boat placement and access.
+    - worldgen/town/harbor_boats.js – stamps harbor boat prefabs onto HARBOR_WATER tiles and ensures at least one boat is reachable from the town gate via a pier corridor.
+    - worldgen/town/harbor_props.js – places dock props (crates/barrels/lamps) along the harbor edge and stamps small “warehouse” buildings in the harbor band using existing house prefabs.
+    - worldgen/town/harbor_util.js – shared helpers for harbor masks and harbor prefab prop-type mapping.
+  - Port towns now:
+    - Reserve a proper “harbor band” along the water-facing edge of the town where regular residential buildings will not spawn.
+    - Carve a visible harbor water strip inside that band, aligned to the harborDir derived from nearby overworld water tiles.
+    - Grow 1–3 piers per harbor, always perpendicular to the shoreline and starting from floor/road tiles in the harbor band.
+    - Place exactly one multi-tile harbor boat prefab per harbor when geometry allows, oriented horizontally for W/E harbors and vertically for N/S harbors.
+    - Ensure that from the town gate there is a walkable route over piers to at least one boat by carving a thin pier corridor through harbor water when needed.
+
+- Harbor warehouses, props, and AI integration:
+  - worldgen/town/harbor_props.js:
+    - Sprinkles crates, barrels, and lamps along the harbor edge on FLOOR tiles, explicitly avoiding the 4-wide gate bridge corridor so the approach remains visually clear.
+    - Stamps small “warehouse” buildings just inside the harbor band using small house prefabs and marks their building rects with prefabCategory/prefabTags including \"harbor\".
+  - worldgen/town/harbor.js:
+    - Computes ctx.townHarborBuildings after harbor prefabs are placed by scanning buildings for harbor-like ids/categories/tags so AI modules can easily find harbor-specific structures.
+  - ai/town_population.js (existing harbor worker pass):
+    - Reuses ctx.townHarborMask and ctx.townHarborBuildings to spawn extra NPCs with isHarborWorker / _workIsHarbor flags.
+    - Harbor workers prefer to take work spots and idle positions in the harbor band, giving port towns visible dockworkers/sailors.
+
+- Harbor NPC regression fix:
+  - Fixed a regression introduced during the harbor refactor where worldgen/town/harbor_piers.js called placeHarborBoatsAndEnsureAccess with an undefined gate variable.
+    - carveHarborWaterAndPiersForPort now accepts gate as an explicit parameter and receives the gate argument from worldgen/town/harbor.js when invoked from placeHarborPrefabs.
+    - This prevents a ReferenceError during port-town harbor generation which could abort town generation before populateTownNpcs ran, leading to towns with no visible NPCs.
+  - Verified that:
+    - Port towns once again spawn their standard civilians, shopkeepers, guards, and special cats alongside harbor workers.
+    - Gate greeters and the enforceGateNPCLimit safeguards continue to function correctly after harbor generation.
+
+- Docs:
+  - FEATURES.md:
+    - Updated the Towns and Civilians section to document port towns: coastal/river/lake settlements with dedicated harbor bands, piers, moored boats, warehouses, and harbor workers.
+  - TODO.md:
+    - Marked the “Port towns/cities with distinct layouts” feature as largely complete (layouts, water, piers, boats, and harbor NPCs implemented), leaving trade modifiers and special caravan/ship visit behavior as future work.
 
 v1.65.0 — Core/game & world/town refactors, restart robustness, and smoketest bridge
 
