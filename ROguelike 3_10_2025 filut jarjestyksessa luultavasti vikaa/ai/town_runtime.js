@@ -336,19 +336,82 @@ function townNPCsAct(ctx) {
     for (const n of npcs) { n._routeDebugPath = null; }
   }
 
-  const order = npcs.map((_, i) => i);
-  {
+  // Build an update order that prioritizes NPCs near/visible to the player,
+  // then randomizes within distance bands. This keeps close NPCs responsive
+  // even when we cap total active NPCs per tick.
+  const order = (function buildPriorityOrder() {
+    const outClose = [];
+    const outMid = [];
+    const outFar = [];
     const rnd = rngFor(ctx);
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+
+    let px = null, py = null;
+    try {
+      if (player && typeof player.x === "number" && typeof player.y === "number") {
+        px = player.x | 0;
+        py = player.y | 0;
+      }
+    } catch (_) {}
+
+    const vis = ctx.visible || null;
+    const rows = Array.isArray(vis) ? vis.length : 0;
+
+    function isVisibleAt(x, y) {
+      try {
+        if (!vis || y < 0 || x < 0 || y >= rows) return false;
+        const row = vis[y];
+        return !!(row && row[x]);
+      } catch (_) {
+        return false;
+      }
     }
-  }
+
+    for (let i = 0; i < npcs.length; i++) {
+      const n = npcs[i];
+      if (!n) continue;
+      let d = Infinity;
+      if (px != null && py != null) {
+        try {
+          d = Math.abs(n.x - px) + Math.abs(n.y - py);
+        } catch (_) {}
+      }
+      const vNow = isVisibleAt(n.x | 0, n.y | 0);
+
+      if (vNow || d <= 12) {
+        outClose.push(i);
+      } else if (d <= 28) {
+        outMid.push(i);
+      } else {
+        outFar.push(i);
+      }
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      }
+    }
+
+    shuffle(outClose);
+    shuffle(outMid);
+    shuffle(outFar);
+    return outClose.concat(outMid, outFar);
+  })();
 
   const npcCount = npcs.length;
-  const maxActiveThisTick = (typeof ctx.townMaxActiveNPCs === "number")
-    ? Math.max(8, ctx.townMaxActiveNPCs | 0)
-    : Math.max(12, Math.floor(npcCount * 0.6));
+  const maxActiveThisTick = (function computeMaxActive() {
+    if (typeof ctx.townMaxActiveNPCs === "number") {
+      return Math.max(8, ctx.townMaxActiveNPCs | 0);
+    }
+    const sizeKey = ctx.townSize || "big";
+    let frac = 0.6;
+    if (sizeKey === "small") frac = 0.8;
+    else if (sizeKey === "city") frac = 0.45;
+    else if (sizeKey === "port") frac = 0.5;
+    const base = Math.floor(npcCount * frac);
+    return Math.max(12, base);
+  })();
   let activeSoFar = 0;
 
   function routeIntoBuilding(ctxLocal, occLocal, n, building, targetInside) {
