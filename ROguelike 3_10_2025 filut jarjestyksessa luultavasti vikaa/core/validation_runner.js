@@ -463,30 +463,87 @@ export function summary() {
 export function logSummary(ctx = null) {
   const sum = summary();
   const line = `Validation: ${sum.totalWarnings} warnings, ${sum.totalNotices} notices.`;
+
+  // Collect full warning/notice lists for detail output
+  let warnings = [];
+  let notices = [];
+  try {
+    const V = ensureValidationLog();
+    warnings = Array.isArray(V.warnings) ? V.warnings.slice(0) : [];
+    notices = Array.isArray(V.notices) ? V.notices.slice(0) : [];
+  } catch (_) {}
+
   try {
     // Logger
     if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-      window.Logger.log(line, sum.totalWarnings ? "warn" : "notice");
+      const LG = window.Logger;
+      LG.log(line, sum.totalWarnings ? "warn" : "notice", { category: "validation" });
       const cats = sum.perCategory || {};
       Object.keys(cats).forEach((k) => {
         const c = cats[k];
-        window.Logger.log(`- ${k}: ${c.warnings} warnings, ${c.notices} notices`, "info");
+        LG.log(`- ${k}: ${c.warnings} warnings, ${c.notices} notices`, "info", { category: "validation" });
       });
+
+      // Emit detailed warnings/notices so users can see what the issues are without opening the console.
+      if (warnings.length) {
+        LG.log("Validation warnings (details):", "notice", { category: "validation" });
+        warnings.forEach((msg) => {
+          LG.log(String(msg || ""), "warn", { category: "validation" });
+        });
+      }
+      if (notices.length) {
+        LG.log("Validation notices (details):", "info", { category: "validation" });
+        notices.forEach((msg) => {
+          LG.log(String(msg || ""), "info", { category: "validation" });
+        });
+      }
     } else if (typeof console !== "undefined") {
       console.debug("[Validation]", line);
+      if (warnings.length) {
+        console.debug("[Validation] warnings:", warnings);
+      }
+      if (notices.length) {
+        console.debug("[Validation] notices:", notices);
+      }
     }
   } catch (_) {}
+
   try {
     const el = typeof document !== "undefined" ? document.getElementById("god-check-output") : null;
     if (el) {
       const cats = sum.perCategory || {};
-      const html = [line].concat(Object.keys(cats).map((k) => {
+      const lines = [line];
+      Object.keys(cats).forEach((k) => {
         const c = cats[k];
-        return `<div>- ${k}: ${c.warnings} warnings, ${c.notices} notices</div>`;
-      })).join("");
+        lines.push(`- ${k}: ${c.warnings} warnings, ${c.notices} notices`);
+      });
+
+      // Append detailed warnings (truncated for safety)
+      const MAX_DETAILS = 40;
+      if (warnings.length) {
+        lines.push("Details (warnings):");
+        warnings.slice(0, MAX_DETAILS).forEach((msg) => {
+          lines.push(`  • ${String(msg || "")}`);
+        });
+        if (warnings.length > MAX_DETAILS) {
+          lines.push(`  • ...and ${warnings.length - MAX_DETAILS} more warning(s).`);
+        }
+      }
+      if (notices.length) {
+        lines.push("Details (notices):");
+        notices.slice(0, MAX_DETAILS).forEach((msg) => {
+          lines.push(`  • ${String(msg || "")}`);
+        });
+        if (notices.length > MAX_DETAILS) {
+          lines.push(`  • ...and ${notices.length - MAX_DETAILS} more notice(s).`);
+        }
+      }
+
+      const html = lines.map((s) => `<div>${s}</div>`).join("");
       el.innerHTML = html;
     }
   } catch (_) {}
+
   try {
     const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
     if (UIO && typeof UIO.requestDraw === "function" && ctx) {
