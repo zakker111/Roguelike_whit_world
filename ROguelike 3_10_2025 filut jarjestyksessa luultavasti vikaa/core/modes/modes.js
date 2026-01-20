@@ -68,21 +68,28 @@ function worldTileAtAbs(ctx, ax, ay) {
   return null;
 }
 
-// Harbor detection for potential port towns: scan outward in N/S/E/W for WATER/BEACH/RIVER tiles.
+// Harbor detection for potential port towns.
+// We only consider towns that are very close to water: either directly adjacent
+// to water/shore or with at most one tile of ground between town and water.
+//
+// Implementation notes:
+// - Scan up to 2 tiles outward in each cardinal direction (N/S/E/W).
+// - WATER/BEACH tiles count as strong coast signal (score +2).
+// - RIVER tiles count as weaker water signal (score +1).
+// - A direction qualifies if its total score >= MIN_SCORE (2 by default).
+// - The direction with the highest score becomes harborDir.
 function detectHarborContext(ctx, wx, wy, WT) {
   try {
     if (!ctx || !ctx.world || !WT) return null;
+
     const dirs = [
       { id: "N", dx: 0, dy: -1 },
       { id: "S", dx: 0, dy: 1 },
       { id: "W", dx: -1, dy: 0 },
-      { id: "E", dx: 1, dy: 0 },
+      { id: "E", dx: 1, dy: 0 }
     ];
-    // Harbor towns should sit very close to water: either directly adjacent or
-    // with at most one tile of ground between the town tile and water.
-    // Limit the scan radius to 2 tiles in each cardinal direction so only
-    // near-coastal towns are considered candidates.
-    const MAX_DIST = 2;
+
+    const MAX_DIST = 2; // only tiles 1–2 away are considered
     let bestDir = "";
     let bestScore = 0;
     let bestCoast = 0;
@@ -92,6 +99,7 @@ function detectHarborContext(ctx, wx, wy, WT) {
       const d = dirs[i];
       let coast = 0;
       let river = 0;
+
       for (let step = 1; step <= MAX_DIST; step++) {
         const t = worldTileAtAbs(ctx, wx + d.dx * step, wy + d.dy * step);
         if (t == null) continue;
@@ -101,6 +109,7 @@ function detectHarborContext(ctx, wx, wy, WT) {
           river += 1;
         }
       }
+
       const score = coast + river;
       if (score > bestScore) {
         bestScore = score;
@@ -110,19 +119,25 @@ function detectHarborContext(ctx, wx, wy, WT) {
       }
     }
 
-    // Require a water-heavy direction, but keep the threshold low so that towns
-    // with modest nearby water are still promoted to ports. Lowering this value
-    // increases how often towns are recognized as harbor candidates.
     const MIN_SCORE = 2;
-    if (!bestDir || bestScore < MIN_SCORE) return null;uire a water-heavy direction, but be a bit more permissive so towns that
-    // are clearly coastal in play (like some starting towns) are recognized as ports.
-    const MIN_SCORE = 3;
     if (!bestDir || bestScore < MIN_SCORE) return null;
 
     let waterContext = "coast";
     if (bestRiver > 0 && bestRiver * 1.5 >= bestCoast) {
       waterContext = "river";
     }
+
+    return {
+      harborDir: bestDir,
+      waterContext,
+      score: bestScore,
+      coastScore: bestCoast,
+      riverScore: bestRiver
+    };
+  } catch (_) {
+    return null;
+  }
+}
 
     return {
       harborDir: bestDir,
