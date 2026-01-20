@@ -95,7 +95,6 @@
       } catch (_) {}
     })();
   </script>
-  <div id="boot-status" class="boot-status" hidden></div>
 
   <div id="loot-panel" class="loot-panel" hidden>
     <div class="loot-title">Loot acquired</div>
@@ -338,54 +337,6 @@
           else if (m === "0") window.LOG_MIRROR = false;
           // default: enabled unless user turned it off
         }
-      } catch (_) {}
-    })();
-  </script>
-
-  <!-- Startup / health status overlay driven by BootMonitor -->
-  <script>
-    (function () {
-      function updateBootStatus() {
-        try {
-          var el = document.getElementById("boot-status");
-          if (!el) return;
-          var BM = (typeof window !== "undefined") ? window.BootMonitor : null;
-          if (!BM || typeof BM.snapshot !== "function") {
-            el.hidden = true;
-            return;
-          }
-          var snap = BM.snapshot();
-          var parts = [];
-          var cls = "good";
-
-          if (snap.data && snap.data.status && snap.data.status !== "pending") {
-            parts.push("Data: " + snap.data.status);
-            if (snap.data.status === "warn") cls = "warn";
-            else if (snap.data.status === "error") cls = "bad";
-          } else {
-            parts.push("Data: loading...");
-            cls = "warn";
-          }
-
-          if (snap.health && snap.health.status && snap.health.status !== "pending") {
-            parts.push("Health: " + snap.health.errors + " errors, " + snap.health.warns + " warnings");
-            if (snap.health.status === "warn" && cls === "good") cls = "warn";
-            if (snap.health.status === "error") cls = "bad";
-          } else {
-            parts.push("Health: pending");
-          }
-
-          if (!parts.length) {
-            el.hidden = true;
-            return;
-          }
-          el.textContent = parts.join(" | ");
-          el.hidden = false;
-          el.className = "boot-status " + cls;
-        } catch (_) {}
-      }
-      try {
-        setInterval(updateBootStatus, 1000);
       } catch (_) {}
     })();
   </script>
