@@ -82,10 +82,44 @@ function fetchJson(url) {
     } catch (_) { return u; }
   }
   const url2 = withVer(url);
-  return fetch(url2, { cache: "no-cache" })
+
+  // Guard against pathological network stalls by applying a per-request timeout.
+  // Use a generous timeout so slow connections still load full data; this mainly
+  // protects against truly hung requests.
+  let controller = null;
+  let timeoutId = null;
+  try {
+    if (typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      const TIMEOUT_MS = 30000; // 30s to avoid false timeouts on slow networks
+      timeoutId = setTimeout(() => {
+        try { controller.abort(); } catch (_) {}
+      }, TIMEOUT_MS);
+    }
+  } catch (_) {}
+
+  const opts = controller ? { cache: "no-cache", signal: controller.signal } : { cache: "no-cache" };
+  return fetch(url2, opts)
     .then(r => {
       if (!r.ok) throw new Error("HTTP " + r.status + " for " + url2);
       return r.json();
+    })
+    .catch(e => {
+      // Log a lightweight warning but let callers decide how to handle the failure.
+      try {
+        const msg = "[GameData] fetch failed for " + url2 + ": " + (e && e.message ? e.message : String(e));
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(msg, "warn");
+        } else if (typeof console !== "undefined" && console.warn) {
+          console.warn(msg);
+        }
+      } catch (_) {}
+      throw e;
+    })
+    .finally(() => {
+      if (timeoutId != null) {
+        try { clearTimeout(timeoutId); } catch (_) {}
+      }
     });
 }
 
@@ -428,6 +462,24 @@ GameData.ready = (async function loadAll() {
     if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
       logNotice("Some registries failed to load; modules will use internal fallbacks.");
     }
+
+    // Notify BootMonitor (if present) that data loading has finished.
+    try {
+      const BM = (typeof window !== "undefined") ? window.BootMonitor : null;
+      if (BM && typeof BM.markData === "function") {
+        const ok = !!(GameData.items && GameData.enemies && GameData.npcs && GameData.consumables && GameData.town && GameData.flavor && GameData.tiles && GameData.encounters);
+        BM.markData(ok ? "ok" : "warn", {
+          items: !!GameData.items,
+          enemies: !!GameData.enemies,
+          npcs: !!GameData.npcs,
+          consumables: !!GameData.consumables,
+          town: !!GameData.town,
+          flavor: !!GameData.flavor,
+          tiles: !!GameData.tiles,
+          encounters: !!GameData.encounters,
+        });
+      }
+    } catch (_) {}
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
     // Keep whatever loaded; modules across the codebase provide sensible fallbacks.

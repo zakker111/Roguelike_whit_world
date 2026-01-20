@@ -70,7 +70,17 @@ function townNPCsAct(ctx) {
     try { ctx.log && ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
   }
 
-  dedupeHomeBeds(ctx);
+  // Dedupe home beds periodically instead of every tick to reduce hot-path work.
+  try {
+    const time = ctx.time;
+    const turn = time && typeof time.turnCounter === "number" ? (time.turnCounter | 0) : 0;
+    if (!ctx._dedupeBedsLastRun || (turn - ctx._dedupeBedsLastRun) >= 20) {
+      dedupeHomeBeds(ctx);
+      ctx._dedupeBedsLastRun = turn;
+    }
+  } catch (_) {
+    dedupeHomeBeds(ctx);
+  }
 
   const occ = new Set();
   occ.add(`${player.x},${player.y}`);
@@ -242,6 +252,7 @@ function townNPCsAct(ctx) {
       const leaveEnd = (c + 10) % 1440;
       if (inWindow(arriveStart, leaveEnd, minutes, 1440)) return false;
     }
+
     if (typeof n._stride !== "number") {
       n._stride = n.isPet ? 3 : (n.isShopkeeper ? 2 : 1);
     }
@@ -249,16 +260,32 @@ function townNPCsAct(ctx) {
       n._strideOffset = idx % n._stride;
     }
 
+    // Primary stride gate
     if ((tickMod % n._stride) !== n._strideOffset) return true;
 
+    let distToPlayer = Infinity;
     try {
       if (player && typeof player.x === "number" && typeof player.y === "number") {
-        const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
-        if (d > 24) {
-          if (((tickMod + idx) & 1) === 1) return true;
-        }
+        distToPlayer = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
       }
     } catch (_) {}
+
+    let isVisibleNow = false;
+    try {
+      const vis = ctx.visible;
+      if (vis && vis[n.y] && vis[n.y][n.x]) {
+        isVisibleNow = true;
+      }
+    } catch (_) {}
+
+    // Extra throttling for far, non-visible NPCs. Close or visible NPCs stay responsive.
+    if (!isVisibleNow && distToPlayer > 24) {
+      // Already stride-gated; additionally only update on roughly half of eligible ticks.
+      if (((tickMod + idx) & 1) === 1) return true;
+    } else if (!isVisibleNow && distToPlayer > 16) {
+      // Mid-far range: sprinkle updates more sparsely when off-screen.
+      if (((tickMod + idx) % (n._stride * 2)) !== n._strideOffset) return true;
+    }
 
     return false;
   }
@@ -309,19 +336,82 @@ function townNPCsAct(ctx) {
     for (const n of npcs) { n._routeDebugPath = null; }
   }
 
-  const order = npcs.map((_, i) => i);
-  {
+  // Build an update order that prioritizes NPCs near/visible to the player,
+  // then randomizes within distance bands. This keeps close NPCs responsive
+  // even when we cap total active NPCs per tick.
+  const order = (function buildPriorityOrder() {
+    const outClose = [];
+    const outMid = [];
+    const outFar = [];
     const rnd = rngFor(ctx);
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+
+    let px = null, py = null;
+    try {
+      if (player && typeof player.x === "number" && typeof player.y === "number") {
+        px = player.x | 0;
+        py = player.y | 0;
+      }
+    } catch (_) {}
+
+    const vis = ctx.visible || null;
+    const rows = Array.isArray(vis) ? vis.length : 0;
+
+    function isVisibleAt(x, y) {
+      try {
+        if (!vis || y < 0 || x < 0 || y >= rows) return false;
+        const row = vis[y];
+        return !!(row && row[x]);
+      } catch (_) {
+        return false;
+      }
     }
-  }
+
+    for (let i = 0; i < npcs.length; i++) {
+      const n = npcs[i];
+      if (!n) continue;
+      let d = Infinity;
+      if (px != null && py != null) {
+        try {
+          d = Math.abs(n.x - px) + Math.abs(n.y - py);
+        } catch (_) {}
+      }
+      const vNow = isVisibleAt(n.x | 0, n.y | 0);
+
+      if (vNow || d <= 12) {
+        outClose.push(i);
+      } else if (d <= 28) {
+        outMid.push(i);
+      } else {
+        outFar.push(i);
+      }
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      }
+    }
+
+    shuffle(outClose);
+    shuffle(outMid);
+    shuffle(outFar);
+    return outClose.concat(outMid, outFar);
+  })();
 
   const npcCount = npcs.length;
-  const maxActiveThisTick = (typeof ctx.townMaxActiveNPCs === "number")
-    ? Math.max(8, ctx.townMaxActiveNPCs | 0)
-    : Math.max(12, Math.floor(npcCount * 0.6));
+  const maxActiveThisTick = (function computeMaxActive() {
+    if (typeof ctx.townMaxActiveNPCs === "number") {
+      return Math.max(8, ctx.townMaxActiveNPCs | 0);
+    }
+    const sizeKey = ctx.townSize || "big";
+    let frac = 0.6;
+    if (sizeKey === "small") frac = 0.8;
+    else if (sizeKey === "city") frac = 0.45;
+    else if (sizeKey === "port") frac = 0.5;
+    const base = Math.floor(npcCount * frac);
+    return Math.max(12, base);
+  })();
   let activeSoFar = 0;
 
   function routeIntoBuilding(ctxLocal, occLocal, n, building, targetInside) {
@@ -332,12 +422,18 @@ function townNPCsAct(ctx) {
       const candidate = building.door || nearestFreeAdjacent(ctxLocal, building.x + ((building.w / 2) | 0), building.y, null);
       if (candidate) {
         const door = { x: candidate.x, y: candidate.y };
+        const isInnBuilding = !!(ctxLocal.tavern && ctxLocal.tavern.building && ctxLocal.tavern.building === building);
+        const flowInn = isInnBuilding && ctxLocal.flowToInnDoor ? ctxLocal.flowToInnDoor : null;
         if (n.x === door.x && n.y === door.y) {
           const inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, building) || adjTarget || { x: door.x, y: door.y };
           stepTowards(ctxLocal, occLocal, n, inSpot.x, inSpot.y, { urgent: !!n.isShopkeeper });
           return true;
         }
-        stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper });
+        if (flowInn) {
+          stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper, flow: flowInn });
+        } else {
+          stepTowards(ctxLocal, occLocal, n, door.x, door.y, { urgent: !!n.isShopkeeper });
+        }
         return true;
       }
     } else {
@@ -543,7 +639,20 @@ function townNPCsAct(ctx) {
       }
 
       if (n._guardPatrolGoal) {
-        stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        let flow = null;
+        try {
+          const gate = ctx.townExitAt || null;
+          if (gate && gate.x === n._guardPatrolGoal.x && gate.y === n._guardPatrolGoal.y && ctx.flowToGate) {
+            flow = ctx.flowToGate;
+          } else if (ctx.townPlaza && ctx.townPlaza.x === n._guardPatrolGoal.x && ctx.townPlaza.y === n._guardPatrolGoal.y && ctx.flowToPlaza) {
+            flow = ctx.flowToPlaza;
+          }
+        } catch (_) {}
+        if (flow) {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true, flow });
+        } else {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        }
       } else {
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
       }
