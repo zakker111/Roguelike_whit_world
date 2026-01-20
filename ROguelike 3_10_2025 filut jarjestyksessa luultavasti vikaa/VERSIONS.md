@@ -25,6 +25,12 @@ v1.68.0 — HealthCheck tuning, validation details, and bug tracking updates
     - The GOD log still shows `Health: 0 errors, N warnings.` at startup.
     - The two remaining warnings are for optional/experimental modules (HarborGeneration, Fallbacks) and are considered acceptable in this build.
 
+- NPC performance focus:
+  - Town AI and NPC scheduling remain a major performance focus for upcoming work:
+    - TODO.md now tracks that shopkeepers should be prioritized to reach their shops (open/close/on-duty windows) even when they are far from the player and subject to distance-based throttling.
+    - Future iterations will keep per-turn NPC budgets, distance bands, and throttling in place for performance, but treat shopkeepers (and critical roles like guards or event NPCs) as “must-run” updates so towns feel alive without sacrificing frame time.
+  - These changes are currently design/plan-level and will be implemented in a future version; they are documented here to make the performance intent for NPC behavior explicit alongside the HealthCheck/validation improvements.
+
 - Data and AI adjustments:
   - data/entities/enemies.json:
     - `guard_elite` enemy tier has been normalized from 4 to 3 so it fits the 1..3 tier system used by items and encounter scaling, while keeping its HP/ATK/XP curves strong enough to be clearly above regular guards.
