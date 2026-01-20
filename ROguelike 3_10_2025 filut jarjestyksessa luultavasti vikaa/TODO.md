@@ -34,11 +34,19 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Future extensions (optional):
     - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
     - [ ] Trade modifiers or special caravan/ship visits at ports.
+    - [ ] Harbor boat travel system with sailor/captain NPCs:
+      - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
+      - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
+    - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
 - [ ] Mouse-hover enemy inspect system tied to Perception skill
   - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
   - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
   - Higher Perception → approximate or exact level and stats (Attack/Defense), gear quality (tier), and whether it looks well equipped.
   - Implemented via a lightweight mousemove → tile → enemy lookup and a small DOM tooltip/HUD overlay, with no impact when modals are open or tiles are unseen.
+- [ ] NPC diagonal movement and pathfinding
+  - Allow NPCs (town, dungeon, region, followers) to move diagonally when appropriate, not just in 4 cardinal directions.
+  - Update pathfinding heuristics and collision checks so diagonal steps respect walls, doors, props, and other blockers (no corner cutting through wall corners).
+  - Ensure diagonal-capable pathfinding is shared between TownAI, dungeon AI, and follower movement so behavior stays consistent.
 - [ ] Player skill tree and skill points
   - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
@@ -123,6 +131,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
         - Guard followers tend to stay closer to the player, hold chokepoints, and prioritize enemies adjacent to or threatening the player.
       - Mode extensions beyond simple follow/wait:
         - Add high-level stances such as “Stay behind me” (more defensive/close behavior) and “Aggressive” (pursue enemies more actively).
+    - General NPC logic improvements:
+      - Expand town NPC routines with more varied idle behaviors (e.g., chatting, visiting harbor, sitting on benches), and context-aware actions (closing doors, reacting to combat nearby).
+      - Make dungeon and encounter AI more aware of terrain (chokepoints, cover, hazards) so they can choose smarter engagement positions.
+      - Ensure overall AI logic remains data-driven where possible (roles, schedules, behavior flags in JSON) while keeping core movement and attack rules centralized.
     - Follower command UI:
       - Add a basic party command panel accessible via a hotkey or HUD button:
         - Global commands such as “All follow” and “All wait”.
