@@ -360,6 +360,7 @@ export function carveHarborWaterAndPiersForPort(
 
   // Boat placement and access: attempt to place at least one wooden boat in
   // every harbor that has enough water area to fit a prefab, then carve a
-  // minimal pier corridor from the gate to the nearest boat if needed.
-  placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harborDir, pierMask, W, H, WATER, gate, rng, PFB);
+  // dedicated boat pier from the hull toward shore (≥ 2 tiles wide) without
+  // creating an extra 1-tile corridor over existing harbor water.
+  placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harborDir, gateBridgeMask, pierMask, W, H, WATER, gate, rng, PFB);
 }

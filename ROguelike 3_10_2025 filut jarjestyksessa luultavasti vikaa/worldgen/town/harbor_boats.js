@@ -154,11 +154,14 @@ export function stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, wa
 /**
  * Place harbor boats and ensure at least one has walkable access from the gate.
  *
- * This encapsulates the previous inline IIFEs from harbor.js:
- * - boat slot search + placement
- * - ensureHarborBoatAccess BFS pier carving
+ * Previous versions used a BFS that carved a 1-tile-wide PIER corridor through
+ * harbor water from gate to boat, which could create a second, skinny pier
+ * alongside the main piers. This implementation instead:
+ *   - places a single boat prefab on harbor water, and
+ *   - carves a dedicated "boat pier" from the hull toward shore (≥ 2 tiles wide),
+ *     without introducing an extra BFS-carved corridor.
  */
-export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harborDir, pierMask, W, H, WATER, gate, rng, PFB) {
+export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harborDir, gateBridgeMask, pierMask, W, H, WATER, gate, rng, PFB) {
   try {
     if (!PFB || !Array.isArray(PFB.boats) || !PFB.boats.length) return;
 
@@ -273,81 +276,168 @@ export function placeHarborBoatsAndEnsureAccess(ctx, buildings, harborMask, harb
     const slot = candidates[pickIdx];
     stampBoatPrefabOnWater(ctx, slot.prefab, slot.x, slot.y, W, H, harborMask, WATER);
 
-    // Ensure that at least one boat (if present) is reachable from the town gate
-    // by carving a minimal pier corridor through harbor water (never through
-    // buildings). This avoids cases where boats are visually present but blocked
-    // behind water and walls.
+    // Next, carve a dedicated "boat pier" from the hull toward shore. This pier:
+    // - starts on the hull side facing town,
+    // - runs perpendicular to the shoreline until it reaches land (FLOOR/ROAD/DOOR),
+    // - is widened to at least 2 tiles where possible so it reads as a proper dock.
     try {
       const boatMask = ctx.townBoatMask;
       if (!boatMask) return;
+
+      let minX = W, maxX = -1, minY = H, maxY = -1;
+      for (let y = 1; y < H - 1; y++) {
+        const row = boatMask[y];
+        if (!row) continue;
+        for (let x = 1; x < W - 1; x++) {
+          if (!row[x]) continue;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX < 0 || maxY < 0) return;
+
+      // Build list of hull candidates along the town-facing side of the boat.
+      const hullCandidates = [];
+      if (harborDir === "W") {
+        // Water opens west, town is east: town-facing hull side is east edge.
+        const hx = maxX;
+        for (let y = minY; y <= maxY; y++) {
+          if (boatMask[y] && boatMask[y][hx]) hullCandidates.push({ x: hx, y });
+        }
+      } else if (harborDir === "E") {
+        // Water opens east, town is west: town-facing hull side is west edge.
+        const hx = minX;
+        for (let y = minY; y <= maxY; y++) {
+          if (boatMask[y] && boatMask[y][hx]) hullCandidates.push({ x: hx, y });
+        }
+      } else if (harborDir === "N") {
+        // Water opens north, town is south: town-facing hull side is south edge.
+        const hy = maxY;
+        for (let x = minX; x <= maxX; x++) {
+          if (boatMask[hy] && boatMask[hy][x]) hullCandidates.push({ x, y: hy });
+        }
+      } else if (harborDir === "S") {
+        // Water opens south, town is north: town-facing hull side is north edge.
+        const hy = minY;
+        for (let x = minX; x <= maxX; x++) {
+          if (boatMask[hy] && boatMask[hy][x]) hullCandidates.push({ x, y: hy });
+        }
+      }
+      if (!hullCandidates.length) return;
+
+      // Helper: simple Manhattan distance for prioritizing hull cells near the gate.
+      function manhattan(ax, ay, bx, by) {
+        return Math.abs(ax - bx) + Math.abs(ay - by);
+      }
+
       const gx = gate && typeof gate.x === "number" ? (gate.x | 0) : null;
       const gy = gate && typeof gate.y === "number" ? (gate.y | 0) : null;
-      if (gx == null || gy == null) return;
 
-      const rows = H, cols = W;
-      const inBoundsLocal = (x, y) => x > 0 && y > 0 && x < cols - 1 && y < rows - 1;
-      const dirs4 = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+      // Sort hull candidates so we try the one closest to the gate first.
+      if (gx != null && gy != null) {
+        hullCandidates.sort((a, b) => manhattan(a.x, a.y, gx, gy) - manhattan(b.x, b.y, gx, gy));
+      }
 
-      const visited = Array.from({ length: rows }, () => Array(cols).fill(false));
-      const prev = Array.from({ length: rows }, () => Array(cols).fill(null));
-      const q = [];
-      q.push({ x: gx, y: gy });
-      visited[gy][gx] = true;
+      // Direction from hull toward town/shore.
+      let pierDX = 0;
+      let pierDY = 0;
+      if (harborDir === "W") { pierDX = 1; pierDY = 0; }
+      else if (harborDir === "E") { pierDX = -1; pierDY = 0; }
+      else if (harborDir === "N") { pierDX = 0; pierDY = 1; }
+      else if (harborDir === "S") { pierDX = 0; pierDY = -1; }
 
-      let target = null;
+      const maxSteps = Math.min(40, Math.max(W, H)); // generous cap; harbor bands are smaller.
 
-      while (q.length) {
-        const cur = q.shift();
-        if (boatMask[cur.y] && boatMask[cur.y][cur.x]) {
-          target = cur;
-          break;
-        }
-        for (let i = 0; i < dirs4.length; i++) {
-          const nx = cur.x + dirs4[i].dx;
-          const ny = cur.y + dirs4[i].dy;
-          if (!inBoundsLocal(nx, ny)) continue;
-          if (visited[ny][nx]) continue;
+      function inBoundsLocal(x, y) {
+        return x > 0 && y > 0 && x < W - 1 && y < H - 1;
+      }
+
+      // Try each hull candidate until one yields a valid straight pier to land.
+      for (let hi = 0; hi < hullCandidates.length; hi++) {
+        const h = hullCandidates[hi];
+        const path = [];
+        let reachedLand = false;
+
+        for (let step = 1; step <= maxSteps; step++) {
+          const nx = h.x + pierDX * step;
+          const ny = h.y + pierDY * step;
+          if (!inBoundsLocal(nx, ny)) break;
+
+          // Preserve the gate bridge corridor: never overwrite gateBridgeMask tiles.
+          if (gateBridgeMask && gateBridgeMask[ny] && gateBridgeMask[ny][nx]) {
+            reachedLand = false;
+            break;
+          }
+
           const tile = ctx.map[ny][nx];
-          // Block hard walls and windows; we do not carve through buildings.
-          if (tile === ctx.TILES.WALL || tile === ctx.TILES.WINDOW) continue;
+
+          // Stop on hard blockers (walls/building perimeters/windows).
+          if (tile === ctx.TILES.WALL || tile === ctx.TILES.WINDOW) {
+            reachedLand = false;
+            break;
+          }
 
           const inHarborBand = harborMask[ny] && harborMask[ny][nx];
-          const isWaterHere = tile === WATER && inHarborBand;
-          const isBoatDeck = boatMask[ny] && boatMask[ny][nx];
+          const isWaterHere = (tile === WATER) && inHarborBand;
 
-          const isWalkableStatic =
-            tile === ctx.TILES.FLOOR ||
-            tile === ctx.TILES.ROAD ||
-            tile === ctx.TILES.DOOR ||
-            tile === ctx.TILES.PIER ||
-            isBoatDeck;
+          if (isWaterHere) {
+            path.push({ x: nx, y: ny });
+            continue;
+          }
 
-          if (!isWalkableStatic && !isWaterHere) continue;
+          // Land tile: stop and mark success if we walked through at least one water cell.
+          if (tile === ctx.TILES.FLOOR || tile === ctx.TILES.ROAD || tile === ctx.TILES.DOOR) {
+            if (!path.length) {
+              reachedLand = false;
+            } else {
+              reachedLand = true;
+            }
+            break;
+          }
 
-          visited[ny][nx] = true;
-          prev[ny][nx] = { x: cur.x, y: cur.y };
-          q.push({ x: nx, y: ny });
+          // Any other tile type: treat as blocker and give up on this hull root.
+          reachedLand = false;
+          break;
         }
-      }
 
-      if (!target) return;
+        if (!reachedLand || !path.length) continue;
 
-      // Reconstruct path and convert any harbor water along it into pier tiles.
-      let cx = target.x;
-      let cy = target.y;
-      while (!(cx === gx && cy === gy)) {
-        const p = prev[cy][cx];
-        if (!p) break;
-        const t = ctx.map[cy][cx];
-        if (t === WATER && harborMask[cy] && harborMask[cy][cx]) {
-          ctx.map[cy][cx] = ctx.TILES.PIER;
-          pierMask[cy][cx] = true;
+        // Carve the straight pier along path, widening to at least 2 tiles where possible.
+        const sideOffsets =
+          (pierDX !== 0)
+            ? [{ sx: 0, sy: -1 }, { sx: 0, sy: 1 }]
+            : [{ sx: -1, sy: 0 }, { sx: 1, sy: 0 }];
+
+        for (let pi = 0; pi < path.length; pi++) {
+          const cx = path[pi].x;
+          const cy = path[pi].y;
+          if (!inBoundsLocal(cx, cy)) continue;
+
+          if (ctx.map[cy][cx] === WATER && harborMask[cy] && harborMask[cy][cx]) {
+            ctx.map[cy][cx] = ctx.TILES.PIER;
+            pierMask[cy][cx] = true;
+          }
+
+          // Widen pier sideways when there is still harbor water next to the main spine.
+          for (let si = 0; si < sideOffsets.length; si++) {
+            const sx = cx + sideOffsets[si].sx;
+            const sy = cy + sideOffsets[si].sy;
+            if (!inBoundsLocal(sx, sy)) continue;
+            if (!harborMask[sy] || !harborMask[sy][sx]) continue;
+            if (gateBridgeMask && gateBridgeMask[sy] && gateBridgeMask[sy][sx]) continue;
+            if (ctx.map[sy][sx] !== WATER) continue;
+            ctx.map[sy][sx] = ctx.TILES.PIER;
+            pierMask[sy][sx] = true;
+          }
         }
-        cx = p.x;
-        cy = p.y;
+
+        // Once we successfully build a boat pier for one hull root, stop.
+        break;
       }
     } catch (_) {
-      // Access fix is best-effort; never break harbor generation.
+      // Boat pier carving is best-effort; never break harbor generation.
     }
   } catch (_) {
     // Harbor generation should never fail if boat placement has issues.
