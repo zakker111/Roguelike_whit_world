@@ -26,7 +26,12 @@ export function drawLampGlow(ctx, view) {
     const { ctx2d, TILE } = Object.assign({}, view);
 
     const lights = [];
-    for (const p of ctx.townProps) {
+    const src = Array.isArray(ctx.townLightProps) && ctx.townLightProps.length
+      ? ctx.townLightProps
+      : ctx.townProps;
+
+    for (const p of src) {
+      if (!p) continue;
       const def = propDefFor(p.type);
       const emits = !!(def && def.properties && def.properties.emitsLight);
       if (!emits) continue;
@@ -44,6 +49,9 @@ export function drawLampGlow(ctx, view) {
     const wpx = mapCols * TILE, hpx = mapRows * TILE;
     const phase = ctx.time && ctx.time.phase ? String(ctx.time.phase) : "";
     const glowVersion = (typeof ctx._lampGlowVersion === "number") ? ctx._lampGlowVersion : 0;
+    const scale = 0.5;
+    const glowW = Math.max(1, Math.round(wpx * scale));
+    const glowH = Math.max(1, Math.round(hpx * scale));
 
     let layer = ctx._lampGlowLayer || null;
     const needsRebuild =
@@ -54,12 +62,13 @@ export function drawLampGlow(ctx, view) {
       layer.hpx !== hpx ||
       layer.phase !== phase ||
       layer.count !== lights.length ||
-      layer.version !== glowVersion;
+      layer.version !== glowVersion ||
+      layer.scale !== scale;
 
     if (needsRebuild) {
       const off = document.createElement("canvas");
-      off.width = wpx;
-      off.height = hpx;
+      off.width = glowW;
+      off.height = glowH;
       const oc = off.getContext("2d");
       oc.globalCompositeOperation = "lighter";
 
@@ -82,10 +91,10 @@ export function drawLampGlow(ctx, view) {
 
       for (let i = 0; i < lights.length; i++) {
         const L = lights[i];
-        const cx = L.x * TILE + TILE / 2;
-        const cy = L.y * TILE + TILE / 2;
-        const r = TILE * L.rTiles;
-        const grad = oc.createRadialGradient(cx, cy, 4, cx, cy, r);
+        const cx = (L.x * TILE + TILE / 2) * scale;
+        const cy = (L.y * TILE + TILE / 2) * scale;
+        const r = TILE * L.rTiles * scale;
+        const grad = oc.createRadialGradient(cx, cy, 4 * scale, cx, cy, r);
         grad.addColorStop(0, _rgba(L.color, a0 * phaseMult));
         grad.addColorStop(0.4, _rgba(L.color, a1 * phaseMult));
         grad.addColorStop(1, _rgba(L.color, a2 * phaseMult));
@@ -103,7 +112,8 @@ export function drawLampGlow(ctx, view) {
         hpx,
         phase,
         count: lights.length,
-        version: glowVersion
+        version: glowVersion,
+        scale
       };
       ctx._lampGlowLayer = layer;
     }
@@ -112,7 +122,18 @@ export function drawLampGlow(ctx, view) {
     if (layer && layer.canvas && cam && cam.width && cam.height) {
       ctx2d.save();
       ctx2d.globalCompositeOperation = "lighter";
-      ctx2d.drawImage(layer.canvas, cam.x, cam.y, cam.width, cam.height, 0, 0, cam.width, cam.height);
+      const s = layer.scale || 1;
+      ctx2d.drawImage(
+        layer.canvas,
+        cam.x * s,
+        cam.y * s,
+        cam.width * s,
+        cam.height * s,
+        0,
+        0,
+        cam.width,
+        cam.height
+      );
       ctx2d.restore();
     }
   } catch (_) {}
