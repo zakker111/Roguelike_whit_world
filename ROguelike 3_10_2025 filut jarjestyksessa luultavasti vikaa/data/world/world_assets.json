@@ -234,6 +234,46 @@
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["dungeon", "town"],
         "tags": ["window"]
+      },
+      {
+        "id": 18,
+        "key": "HARBOR_WATER",
+        "name": "Harbor Water",
+        "glyph": "~",
+        "colors": { "fill": "#0b2744", "fg": "#7aa2f7" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["water", "harbor"]
+      },
+      {
+        "id": 19,
+        "key": "SHIP_DECK",
+        "name": "Ship Deck",
+        "glyph": " ",
+        "colors": { "fill": "#9b7a48", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["walkable", "ship", "harbor"]
+      },
+      {
+        "id": 20,
+        "key": "PIER",
+        "name": "Pier Deck",
+        "glyph": " ",
+        "colors": { "fill": "#7b5a35", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["walkable", "harbor", "pier"]
+      },
+      {
+        "id": 21,
+        "key": "SHIP_EDGE",
+        "name": "Ship Edge",
+        "glyph": " ",
+        "colors": { "fill": "#7a613f", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["walkable", "ship", "harbor", "edge"]
       }
     ],
     "overrides": {
@@ -441,6 +481,19 @@
         ]
       },
       {
+        "id": "boat",
+        "key": "BOAT",
+        "name": "Boat",
+        "glyph": "⛵",
+        "colors": { "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "harbor"],
+        "variants": [
+          { "message": "A small boat is moored here.", "style": "info" }
+        ]
+      },
+      {
         "id": "shelf",
         "key": "SHELF",
         "name": "Shelf",
@@ -563,6 +616,45 @@
         "tags": ["decor", "npc"],
         "variants": [
           { "message": "A weary captive looks at you hopefully.", "style": "info" }
+        ]
+      },
+      {
+        "id": "ship_rail",
+        "key": "SHIP_RAIL",
+        "name": "Ship Rail",
+        "glyph": "│",
+        "colors": { "fg": "#b58b52" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "Sturdy wooden railings keep passengers from the edge.", "style": "info" }
+        ]
+      },
+      {
+        "id": "mast",
+        "key": "MAST",
+        "name": "Mast",
+        "glyph": "†",
+        "colors": { "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "A tall mast rises above the deck.", "style": "info" }
+        ]
+      },
+      {
+        "id": "ship_hatch",
+        "key": "SHIP_HATCH",
+        "name": "Deck Hatch",
+        "glyph": "◈",
+        "colors": { "fg": "#cbd5e1" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["decor", "ship", "harbor"],
+        "variants": [
+          { "message": "A hatch leads down into the ship's interior.", "style": "info" }
         ]
       }
     ]

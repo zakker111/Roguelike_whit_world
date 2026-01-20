@@ -15,23 +15,42 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Consider special POIs or encounters attached to large lakes (ferries, fishing huts, ruined piers) in future work.
 - [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
 - [ ] Move flavor text into JSON data (data-driven flavor)
-- [ ] Port towns/cities with distinct layouts
+- [x] Port towns/cities with distinct layouts **(EXPERIMENTAL)**
   - Add special “port” variants of towns/cities that sit on coasts, rivers, or lakes.
   - Layout differences from normal towns:
-    - Partially walled (open toward the water, or with lighter defenses on the harbor side).
-    - Visible water edge integrated into town map (docks/piers extending onto water tiles).
-    - Boats/ships/moored vessels visible at the pier.
+    - [x] Partially walled or open toward the water, with a reserved harbor band along the water-facing edge.
+    - [x] Visible water edge integrated into town map (harbor water tiles plus piers extending onto water).
+    - [x] Boats/ships/moored vessels visible at the pier via multi-tile harbor boat prefabs (horizontal and vertical variants).
+    - [x] Harbor piers carved strictly perpendicular to the shoreline, widened to at least 2 tiles where possible, and spaced at least ~6 tiles apart along the shoreline.
   - Overworld integration:
-    - Water direction and shoreline for the port town should be derived from the actual overworld water tiles next to the town’s location.
-    - Pier orientation (north/south/east/west) should match the adjacent water direction in the overworld.
+    - [x] Harbor direction and shoreline for the port town are derived from overworld water tiles next to the town’s location (harborDir metadata).
+    - [x] Pier and boat orientation (north/south/east/west) matches the detected harbor direction in the overworld.
+  - Harbor accessibility and islands (experimental):
+    - [x] Harbor-only accessibility pass that:
+      - Removes harbor building doors whose exterior tiles are not walkable or not reachable from the town gate.
+      - Carves a fallback door for harbor buildings that have no usable door facing reachable ground.
+    - [x] Harbor land islands (land within the harbor band) are detected and connected:
+      - Any harbor land component not reachable from the gate is linked to the main harbor via a simple PIER bridge (often an L-shaped corridor), so all harbor land is accessible for player and NPCs.
   - Future extensions (optional):
-    - Harbor-specific NPCs (dockworkers, sailors, fishers).
-    - Trade modifiers or special caravan/ship visits at ports.
+    - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
+    - [ ] Trade modifiers or special caravan/ship visits at ports.
+    - [ ] Harbor boat travel system with sailor/captain NPCs:
+      - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
+      - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
+    - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
+    - [ ] Fishing in harbor towns:
+      - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.
+      - Use a simple interaction (e.g., G on a dock/edge tile) to start fishing with time-cost, RNG-based catches (fish items, junk, or nothing).
+      - Integrate caught fish into town shops, cooking/food systems, or quests once those systems exist.
 - [ ] Mouse-hover enemy inspect system tied to Perception skill
   - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
   - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
   - Higher Perception → approximate or exact level and stats (Attack/Defense), gear quality (tier), and whether it looks well equipped.
   - Implemented via a lightweight mousemove → tile → enemy lookup and a small DOM tooltip/HUD overlay, with no impact when modals are open or tiles are unseen.
+- [ ] NPC diagonal movement and pathfinding
+  - Allow NPCs (town, dungeon, region, followers) to move diagonally when appropriate, not just in 4 cardinal directions.
+  - Update pathfinding heuristics and collision checks so diagonal steps respect walls, doors, props, and other blockers (no corner cutting through wall corners).
+  - Ensure diagonal-capable pathfinding is shared between TownAI, dungeon AI, and follower movement so behavior stays consistent.
 - [ ] Player skill tree and skill points
   - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
@@ -116,6 +135,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
         - Guard followers tend to stay closer to the player, hold chokepoints, and prioritize enemies adjacent to or threatening the player.
       - Mode extensions beyond simple follow/wait:
         - Add high-level stances such as “Stay behind me” (more defensive/close behavior) and “Aggressive” (pursue enemies more actively).
+    - General NPC logic improvements:
+      - Expand town NPC routines with more varied idle behaviors (e.g., chatting, visiting harbor, sitting on benches), and context-aware actions (closing doors, reacting to combat nearby).
+      - Make dungeon and encounter AI more aware of terrain (chokepoints, cover, hazards) so they can choose smarter engagement positions.
+      - Ensure overall AI logic remains data-driven where possible (roles, schedules, behavior flags in JSON) while keeping core movement and attack rules centralized.
     - Follower command UI:
       - Add a basic party command panel accessible via a hotkey or HUD button:
         - Global commands such as “All follow” and “All wait”.

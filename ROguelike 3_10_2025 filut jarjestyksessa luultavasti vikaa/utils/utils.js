@@ -23,8 +23,21 @@ export function isWalkableTile(ctx, x, y) {
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
   const T = ctx.TILES || {};
-  // Walkable tiles for dungeon/town maps (include ROAD for towns)
-  return t === T.FLOOR || t === T.DOOR || t === T.STAIRS || t === T.ROAD;
+  // Walkable tiles for dungeon/town maps:
+  // - FLOOR/DOOR/STAIRS (classic)
+  // - ROAD (town roads)
+  // - PIER (harbor piers)
+  // - SHIP_DECK (boat decks)
+  // - SHIP_EDGE (deck-edge rails; visually low walls, still walkable)
+  return (
+    t === T.FLOOR ||
+    t === T.DOOR ||
+    t === T.STAIRS ||
+    t === T.ROAD ||
+    t === T.PIER ||
+    t === T.SHIP_DECK ||
+    t === T.SHIP_EDGE
+  );
 }
 
 // Generic free-floor check for dungeon or town maps (ignores town props by default)

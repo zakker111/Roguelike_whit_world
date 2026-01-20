@@ -248,6 +248,31 @@ This file should describe the **current state**, not the future; update it whene
   - Houses, shops, tavern/inn, and other special buildings.
   - Interiors:
     - Furnished with fireplaces, beds, tables, chairs, chests, and decor.
+- Port towns (coastal/river/lake settlements) **(EXPERIMENTAL)**:
+  - Some towns are promoted to “port” towns when the overworld detects a strong water direction next to the settlement.
+  - A harbor band is reserved along the water-facing edge of the map, carved with dedicated harbor water tiles and perpendicular wooden piers.
+  - Piers:
+    - Carved strictly perpendicular to the shoreline (no sideways or “bridgey” piers).
+    - At least 2 tiles wide where water allows, so they read as proper docks.
+    - Limited in count (1–3 per harbor) and spaced at least ~6 tiles apart along the shoreline to avoid visual clutter.
+  - Boats:
+    - One multi-tile harbor boat prefab is moored per harbor when geometry allows.
+    - Boats are data-driven prefabs with separate deck and hull-edge tiles (bright SHIP_DECK interior and darker SHIP_EDGE belt).
+    - Boats include rails, mast, hatch, crates/barrels, and lamps placed as props; decks and edges are fully walkable.
+    - For harbors facing west/east, boats are horizontal; for north/south harbors, vertical boat variants are used.
+    - Exactly one pier connects to each boat: if the boat already touches an existing pier, no extra hull-to-shore pier is carved; otherwise a dedicated “boat pier” is built from hull toward shore.
+  - Small “warehouse” buildings and dock props (crates, barrels, lamps) appear along the harbor edge within the harbor band; these are tagged as harbor buildings for AI use.
+  - Harbor workers are spawned via town AI and prefer to work and linger in the harbor band, with sleep behavior integrated into normal town schedules.
+  - Harbor accessibility (experimental):
+    - A harbor-only accessibility pass checks that harbor building doors lead to reachable ground from the town gate:
+      - Doors whose exterior tiles are not walkable or not reachable are converted back into walls.
+      - If a harbor building has no usable door, an extra door is carved on a side where outside ground is reachable from the gate.
+    - Harbor land islands (land within the harbor band surrounded by water) are detected and connected:
+      - Any harbor land component not reachable from the gate is linked to the main harbor via a simple PIER bridge (usually an L-shaped corridor), so all harbor land is accessible for player and NPCs.
+  - Additional tools:
+    - GOD panel offers a “Nearest Harbor Town” teleport target that searches for the closest harbor-like town based on harborDir metadata and nearby water tiles, allowing quick jumping to ports for testing.
+  - Status:
+    - Harbor layouts, boat placement, island connections, and NPC behavior are **experimental** and may change as balance and visuals are tuned.
 
 ### 6.2 Town NPCs and routines
 

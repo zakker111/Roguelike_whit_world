@@ -8,6 +8,11 @@ export const TILES = {
   STAIRS: 3,
   WINDOW: 4, // town-only: blocks movement, lets light through
   ROAD: 5,   // town-only: outdoor road; walkable; always brown
+  // Harbor/town extensions: ids must match data/world/world_assets.json
+  HARBOR_WATER: 18,
+  SHIP_DECK: 19,
+  PIER: 20,
+  SHIP_EDGE: 21,
 };
 
 function getPalette() {

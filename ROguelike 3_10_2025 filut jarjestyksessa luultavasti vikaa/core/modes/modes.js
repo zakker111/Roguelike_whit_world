@@ -48,6 +48,111 @@ function syncAfterMutation(ctx) {
   if (typeof ctx.requestDraw === "function") ctx.requestDraw();
 }
 
+// Helper: get overworld tile at absolute world coords, using current window or InfiniteGen generator.
+function worldTileAtAbs(ctx, ax, ay) {
+  try {
+    const world = ctx && ctx.world ? ctx.world : null;
+    if (!world) return null;
+    const wmap = Array.isArray(world.map) ? world.map : null;
+    const ox = world.originX | 0;
+    const oy = world.originY | 0;
+    const lx = (ax - ox) | 0;
+    const ly = (ay - oy) | 0;
+    if (wmap && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+      return wmap[ly][lx];
+    }
+    if (world.gen && typeof world.gen.tileAt === "function") {
+      return world.gen.tileAt(ax, ay);
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Harbor detection for potential port towns.
+// We only consider towns that are very close to water: either directly adjacent
+// to water/shore or with at most one tile of ground between town and water.
+//
+// Implementation notes:
+// - Scan up to 2 tiles outward in each cardinal direction (N/S/E/W).
+// - WATER/BEACH tiles count as strong coast signal (score +2).
+// - RIVER tiles count as weaker water signal (score +1).
+// - A direction qualifies if its total score >= MIN_SCORE (2 by default).
+// - The direction with the highest score becomes harborDir.
+function detectHarborContext(ctx, wx, wy, WT) {
+  try {
+    if (!ctx || !ctx.world || !WT) return null;
+
+    const dirs = [
+      { id: "N", dx: 0, dy: -1 },
+      { id: "S", dx: 0, dy: 1 },
+      { id: "W", dx: -1, dy: 0 },
+      { id: "E", dx: 1, dy: 0 }
+    ];
+
+    const MAX_DIST = 2; // only tiles 1–2 away are considered
+    let bestDir = "";
+    let bestScore = 0;
+    let bestCoast = 0;
+    let bestRiver = 0;
+
+    for (let i = 0; i < dirs.length; i++) {
+      const d = dirs[i];
+      let coast = 0;
+      let river = 0;
+
+      for (let step = 1; step <= MAX_DIST; step++) {
+        const t = worldTileAtAbs(ctx, wx + d.dx * step, wy + d.dy * step);
+        if (t == null) continue;
+        if (t === WT.WATER || t === WT.BEACH) {
+          coast += 2;
+        } else if (t === WT.RIVER) {
+          river += 1;
+        }
+      }
+
+      const score = coast + river;
+      if (score > bestScore) {
+        bestScore = score;
+        bestDir = d.id;
+        bestCoast = coast;
+        bestRiver = river;
+      }
+    }
+
+    const MIN_SCORE = 2;
+    if (!bestDir || bestScore < MIN_SCORE) return null;
+
+    let waterContext = "coast";
+    if (bestRiver > 0 && bestRiver * 1.5 >= bestCoast) {
+      waterContext = "river";
+    }
+
+    return {
+      harborDir: bestDir,
+      waterContext,
+      score: bestScore,
+      coastScore: bestCoast,
+      riverScore: bestRiver
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+    
+
+function debugPortHarborsEnabled() {
+  try {
+    if (typeof window === "undefined") return false;
+    const v = localStorage.getItem("DEBUG_PORT_TOWNS");
+    if (typeof v === "string") {
+      const s = v.toLowerCase();
+      return s === "1" || s === "true" || s === "yes" || s === "on";
+    }
+  } catch (_) {}
+  return false;
+}
+
 // Ensure player stands on the town gate interior tile on entry
 function movePlayerToTownGateInterior(ctx) {
   try {
@@ -200,12 +305,67 @@ export function enterTownIfOnTile(ctx) {
       // Reset town biome on entry so each town derives or loads its own biome correctly
       try { ctx.townBiome = undefined; } catch (_) {}
 
-      // Determine settlement kind (town vs castle) from overworld metadata for messaging.
+      // Harbor detection for potential port towns (metadata-only at this stage).
+      try {
+        const isTownTile = !!(WT && t === WT.TOWN);
+        if (isTownTile) {
+          const harborInfo = detectHarborContext(ctx, enterWX, enterWY, WT);
+          if (harborInfo && harborInfo.harborDir) {
+            try {
+              ctx.townHarborDir = harborInfo.harborDir;
+              ctx.townWaterContext = harborInfo.waterContext;
+            } catch (_) {}
+            // Persist harbor metadata on world.towns entry when available
+            try {
+              if (ctx.world && Array.isArray(ctx.world.towns)) {
+                const rec = ctx.world.towns.find(r => r && r.x === enterWX && r.y === enterWY);
+                if (rec) {
+                  if (!rec.harborDir) rec.harborDir = harborInfo.harborDir;
+                  if (!rec.harborWater) rec.harborWater = harborInfo.waterContext;
+                  if (!rec._harborLogged) rec._harborLogged = true;
+                }
+              }
+            } catch (_) {}
+            // Log harbor scan so it is visible while tuning ports.
+            try {
+              if (ctx.log) {
+                ctx.log(
+                  `World: harbor scan for town at (${enterWX},${enterWY}) dir=${harborInfo.harborDir} water=${harborInfo.waterContext} score=${harborInfo.score}.`,
+                  "notice"
+                );
+              }
+            } catch (_) {}
+          } else {
+            try { ctx.townHarborDir = undefined; ctx.townWaterContext = undefined; } catch (_) {}
+            try {
+              if (ctx.log) {
+                ctx.log(
+                  `World: harbor scan found no water-heavy direction for town at (${enterWX},${enterWY}).`,
+                  "notice"
+                );
+              }
+            } catch (_) {}
+          }
+        } else {
+          try { ctx.townHarborDir = undefined; ctx.townWaterContext = undefined; } catch (_) {}
+        }
+      } catch (_) {}
+
+      // Determine settlement kind (town vs castle/port) from overworld metadata for messaging.
       let settlementKind = "town";
+      let isHarborTown = false;
       try {
         if (ctx.world && Array.isArray(ctx.world.towns)) {
           const rec = ctx.world.towns.find(t => t && t.x === enterWX && t.y === enterWY);
           if (rec && rec.kind) settlementKind = String(rec.kind);
+          // Treat towns with harbor direction (detected earlier) as harbor towns for messaging.
+          if (rec && rec.harborDir && settlementKind !== "castle") {
+            isHarborTown = true;
+          }
+        }
+        // Also respect ctx.townHarborDir when present.
+        if (!isHarborTown && ctx.townHarborDir && settlementKind !== "castle") {
+          isHarborTown = true;
         }
       } catch (_) {}
 
@@ -223,7 +383,10 @@ export function enterTownIfOnTile(ctx) {
             movePlayerToTownGateInterior(ctx);
             // Spawn follower/ally in town, if configured.
             try { spawnInTown(ctx); } catch (_) {}
-            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const kindLabel =
+              settlementKind === "castle"
+                ? "castle"
+                : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
@@ -246,7 +409,10 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const kindLabel =
+              settlementKind === "castle"
+                ? "castle"
+                : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);

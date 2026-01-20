@@ -517,6 +517,73 @@ export function teleportToTarget(ctx, target) {
         ctx.log && ctx.log("GOD: No mountain dungeons found in registered POIs.", "warn");
         return;
       }
+    } else if (t === "harbor") {
+      const world = ctx.world;
+      const towns = Array.isArray(world.towns) ? world.towns : [];
+      const hasWT = !!WT && WT.WATER != null;
+      // Helper: detect whether a town is harbor-like based on nearby water.
+      // We intentionally mirror the stricter harbor detection used in core/modes:
+      // - Scan up to 2 tiles in N/S/E/W from the town tile.
+      // - WATER/BEACH tiles add 2 points; RIVER tiles add 1 point.
+      // - A town qualifies as harbor if best directional score >= 2
+      //   (i.e., at least one WATER/BEACH tile or enough river).
+      function isHarborTown(rec) {
+        try {
+          if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") return false;
+          if (!hasWT) return false;
+          if (!gen || typeof gen.tileAt !== "function") return false;
+
+          const wxTown = rec.x | 0;
+          const wyTown = rec.y | 0;
+          const dirs = [
+            { dx: 0, dy: -1 },
+            { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 },
+            { dx: 1, dy: 0 },
+          ];
+          const MAX_DIST_HARBOR = 2; // only directly adjacent or 1 tile off
+          let bestScore = 0;
+
+          for (let i = 0; i < dirs.length; i++) {
+            const d = dirs[i];
+            let coast = 0;
+            let river = 0;
+            for (let step = 1; step <= MAX_DIST_HARBOR; step++) {
+              const tcode = gen.tileAt(wxTown + d.dx * step, wyTown + d.dy * step);
+              if (tcode == null) continue;
+              if (tcode === WT.WATER || (WT.BEACH != null && tcode === WT.BEACH)) {
+                coast += 2;
+              } else if (WT.RIVER != null && tcode === WT.RIVER) {
+                river += 1;
+              }
+            }
+            const score = coast + river;
+            if (score > bestScore) bestScore = score;
+          }
+
+          const MIN_SCORE_HARBOR = 2;
+          return bestScore >= MIN_SCORE_HARBOR;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      for (let i = 0; i < towns.length; i++) {
+        const rec = towns[i];
+        if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") continue;
+        if (!isHarborTown(rec)) continue;
+        const wx = rec.x | 0;
+        const wy = rec.y | 0;
+        const md = Math.abs(wx - wx0) + Math.abs(wy - wy0);
+        if (md < bestDist) {
+          bestDist = md;
+          best = { x: wx, y: wy };
+        }
+      }
+      if (!best) {
+        ctx.log && ctx.log("GOD: No harbor towns (ports) found within search radius.", "warn");
+        return;
+      }
     } else {
       // Map GOD target strings to overworld tile IDs
       function tileMatches(tileCode) {
@@ -583,6 +650,7 @@ export function teleportToTarget(ctx, target) {
 
     const label =
       t === "town" ? "town/castle" :
+      t === "harbor" ? "harbor town" :
       t === "dungeon" ? "dungeon" :
       t === "mountain_dungeon" ? "mountain dungeon" :
       t === "ruins" ? "ruins" :

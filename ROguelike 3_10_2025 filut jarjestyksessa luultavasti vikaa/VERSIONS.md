@@ -1,5 +1,139 @@
 # Game Version History
-Last updated: 2026-01-18 00:00 UTC
+Last updated: 2026-01-20 01:00 UTC
+
+v1.67.0 — Harbor decks, boat & pier behavior, and harbor accessibility (EXPERIMENTAL)
+
+- Harbor visuals and ship decks:
+  - Added dedicated town tiles for harbor structures:
+    - SHIP_DECK: bright wood deck tile for ship interiors.
+    - SHIP_EDGE: darker hull-edge belt tile used under rails around the deck perimeter.
+    - PIER: distinct brown pier tile for harbor docks and bridges.
+  - Extended boat prefabs (data/worldgen/prefabs.json) with richer layouts:
+    - Horizontal boats (small/medium/large) for W/E harbors.
+    - Vertical boats (small/medium) for N/S harbors.
+    - All boats use SHIP_DECK/SHIP_EDGE tiles and embedded props:
+      - Rails (ship_rail), mast, hatch, cargo (crates/barrels), and lamps.
+  - Updated harbor rendering:
+    - Pier tiles are tinted a warm brown so piers clearly stand out from normal town floor.
+    - Boat decks and edges use a darker, biome-independent tint so ships are visually distinct from docks and plaza floors.
+
+- Boat walkability and props on piers/decks:
+  - Updated walkability and town state helpers so:
+    - PIER and SHIP_DECK tiles are treated as walkable floor tiles for both player and NPCs.
+    - Props can be placed and persisted on PIER and SHIP_DECK tiles (e.g., crates/barrels/lamps on piers and ship decks).
+  - Result: players and harbor workers can move freely onto piers and onto ship decks, and deck props survive town reloads.
+
+- Harbor boat placement and pier behavior:
+  - Boat slot selection:
+    - Harbors now scan harbor water inside the harbor band for boat slots in two passes:
+      - Pier-adjacent slots where the boat hull touches an existing pier edge.
+      - Relaxed slots where the boat fits fully within harbor water but does not touch piers.
+    - When possible, a boat slot that touches an existing pier is preferred; otherwise a relaxed slot is used.
+    - Exactly one boat is placed per harbor when space permits, rather than occasionally none.
+  - Boat piers (access to boats):
+    - If the chosen slot already touches a pier (pier-adjacent), the system **does not** carve an additional hull-to-shore pier:
+      - The existing pier is used for access, avoiding multiple piers into the same boat.
+    - If the boat is placed on a relaxed slot (no pier touch), a dedicated “boat pier” is carved:
+      - Starts from the hull side facing town (east/west/north/south edge depending on harborDir).
+      - Extends straight toward shore over harbor water until reaching land (FLOOR/ROAD/DOOR), stopping before walls/windows.
+      - Pier segments remain strictly perpendicular to the shoreline.
+      - Pier is widened to at least 2 tiles where water allows, so it reads as a proper dock rather than a 1-tile walkway.
+  - Pier spacing:
+    - Free piers grown from shoreline roots now respect a minimum spacing rule:
+      - Piers are identified by their shoreline root coordinate (y for W/E harbors, x for N/S).
+      - New root candidates within fewer than 6 tiles along the shoreline from an existing pier root are skipped.
+    - This prevents piers from clustering too tightly and keeps docks visually clean and readable.
+
+- Harbor accessibility pass for doors and islands (EXPERIMENTAL):
+  - Added worldgen/town/accessibility.js and wired it into town_gen.generate() for port towns only.
+  - Building doors in the harbor band:
+    - For each building whose rect intersects the harbor band:
+      - Perimeter doors are scanned and classified as “good” or “bad”:
+        - A door is good if its outside tile is walkable and reachable from the gate (via a BFS over walkable tiles).
+        - Doors whose exterior tiles are not walkable or not reachable from the gate are considered bad.
+      - If at least one good door exists:
+        - All bad doors are converted back into walls to remove misleading doors into water or dead ends.
+      - If no good doors exist:
+        - layoutCandidateDoors is used to propose new door positions.
+        - A fallback door is carved where the inside tile is WALL and the outside tile is walkable and reachable from the gate.
+        - If no such candidate can be found, the building is left unchanged (rare edge case).
+  - Harbor land islands and bridges:
+    - Harbor land mask:
+      - Constructs a `harborLand` mask from harbor band tiles that are non-water ground (FLOOR/ROAD/PIER/DOOR).
+      - Connected components (land islands inside the harbor band) are identified via flood fill.
+    - Reachability:
+      - Each island is checked against the gate-reachable mask:
+        - If any tile in the island is reachable, it is considered connected and skipped.
+        - If none are reachable, the island is considered isolated.
+    - Bridge/pier creation:
+      - For each isolated island (including those with no buildings, after the latest change):
+        - Collects reachable harbor land tiles (mainLand) and island land tiles (islandLand).
+        - Finds the closest pair (mainLand, islandLand) in Manhattan distance.
+        - Builds a simple L-shaped Manhattan path between them:
+          - First horizontal then vertical, or vice versa as a fallback.
+        - Along that path:
+          - Harbor water tiles are converted into PIER tiles.
+          - Where possible, the bridge is widened perpendicular to the path to at least 2 tiles.
+        - Bridge carving is blocked by walls, windows, map edges, and the gate bridge corridor mask to preserve other invariants.
+      - Result: all harbor land parts (including small islands) become reachable from the gate via at least one PIER bridge.
+  - Status:
+    - The harbor accessibility pass is intentionally limited to port towns and harbor bands and is marked experimental:
+      - It may be tuned further based on observed layouts (e.g., more sophisticated pathing, L-shaped bridges, or avoiding certain decorative islands).
+
+- Docs and experimental status:
+  - FEATURES.md:
+    - Expanded the “Port towns (coastal/river/lake settlements)” entry to document:
+      - Dedicated harbor band and water tiles.
+      - Perpendicular piers with minimum spacing and width.
+      - Data-driven multi-tile boats with hull/deck tiles and props.
+      - Harbor-only accessibility pass for building doors and harbor land islands.
+      - GOD panel “Nearest Harbor Town” teleport.
+    - Marked port/harbor towns as **EXPERIMENTAL** in Features, noting that geometry, boat placement, island bridges, and harbor AI remain subject to change.
+  - TODO.md:
+    - Extended the port towns/cities bullet to highlight:
+      - Harbor water/pier/boat layout as largely implemented.
+      - Harbor accessibility and island-bridge pass as implemented but experimental.
+      - Trade modifiers and special caravan/ship visits at ports still pending as future work.
+
+v1.66.0 — Port towns, harbor generation refactor, and harbor NPC fixes
+
+- Port town harbor pipeline and geometry:
+  - Split the monolithic worldgen/town/harbor.js into focused modules:
+    - worldgen/town/harbor_zone.js – pre-carves harbor band ground/water and shoreline masks based on ctx.townHarborMask / ctx.townHarborDir and town.json harbor config.
+    - worldgen/town/harbor_piers.js – carves harbor water (when prepareHarborZone is absent), piers, and performs cleanup, then delegates boat placement and access.
+    - worldgen/town/harbor_boats.js – stamps harbor boat prefabs onto HARBOR_WATER tiles and ensures at least one boat is reachable from the town gate via a pier corridor.
+    - worldgen/town/harbor_props.js – places dock props (crates/barrels/lamps) along the harbor edge and stamps small “warehouse” buildings in the harbor band using existing house prefabs.
+    - worldgen/town/harbor_util.js – shared helpers for harbor masks and harbor prefab prop-type mapping.
+  - Port towns now:
+    - Reserve a proper “harbor band” along the water-facing edge of the town where regular residential buildings will not spawn.
+    - Carve a visible harbor water strip inside that band, aligned to the harborDir derived from nearby overworld water tiles.
+    - Grow 1–3 piers per harbor, always perpendicular to the shoreline and starting from floor/road tiles in the harbor band.
+    - Place exactly one multi-tile harbor boat prefab per harbor when geometry allows, oriented horizontally for W/E harbors and vertically for N/S harbors.
+    - Ensure that from the town gate there is a walkable route over piers to at least one boat by carving a thin pier corridor through harbor water when needed.
+
+- Harbor warehouses, props, and AI integration:
+  - worldgen/town/harbor_props.js:
+    - Sprinkles crates, barrels, and lamps along the harbor edge on FLOOR tiles, explicitly avoiding the 4-wide gate bridge corridor so the approach remains visually clear.
+    - Stamps small “warehouse” buildings just inside the harbor band using small house prefabs and marks their building rects with prefabCategory/prefabTags including \"harbor\".
+  - worldgen/town/harbor.js:
+    - Computes ctx.townHarborBuildings after harbor prefabs are placed by scanning buildings for harbor-like ids/categories/tags so AI modules can easily find harbor-specific structures.
+  - ai/town_population.js (existing harbor worker pass):
+    - Reuses ctx.townHarborMask and ctx.townHarborBuildings to spawn extra NPCs with isHarborWorker / _workIsHarbor flags.
+    - Harbor workers prefer to take work spots and idle positions in the harbor band, giving port towns visible dockworkers/sailors.
+
+- Harbor NPC regression fix:
+  - Fixed a regression introduced during the harbor refactor where worldgen/town/harbor_piers.js called placeHarborBoatsAndEnsureAccess with an undefined gate variable.
+    - carveHarborWaterAndPiersForPort now accepts gate as an explicit parameter and receives the gate argument from worldgen/town/harbor.js when invoked from placeHarborPrefabs.
+    - This prevents a ReferenceError during port-town harbor generation which could abort town generation before populateTownNpcs ran, leading to towns with no visible NPCs.
+  - Verified that:
+    - Port towns once again spawn their standard civilians, shopkeepers, guards, and special cats alongside harbor workers.
+    - Gate greeters and the enforceGateNPCLimit safeguards continue to function correctly after harbor generation.
+
+- Docs:
+  - FEATURES.md:
+    - Updated the Towns and Civilians section to document port towns: coastal/river/lake settlements with dedicated harbor bands, piers, moored boats, warehouses, and harbor workers.
+  - TODO.md:
+    - Marked the “Port towns/cities with distinct layouts” feature as largely complete (layouts, water, piers, boats, and harbor NPCs implemented), leaving trade modifiers and special caravan/ship visit behavior as future work.
 
 v1.65.0 — Core/game & world/town refactors, restart robustness, and smoketest bridge
 

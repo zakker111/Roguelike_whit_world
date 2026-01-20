@@ -2,8 +2,8 @@
   "jcdocs": {
     "title": "Prefab authoring (tiles + embedded props)",
     "schemaVersion": 1,
-    "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS"],
-    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH"],
+    "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS","SHIP_DECK"],
+    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH","SHIP_RAIL","MAST","SHIP_HATCH"],
     "usage": [
       "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
       "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
@@ -319,6 +319,88 @@
         ["FLOOR","STALL","FLOOR","CRATE"],
         ["FLOOR","FLOOR","FLOOR","BARREL"],
         ["FLOOR","FLOOR","SIGN","FLOOR"]
+      ]
+    }
+  ],
+  "boats": [
+    {
+      "id": "boat_small_parallel",
+      "name": "Harbor Boat (Small)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","small"],
+      "size": { "w": 7, "h": 3 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER"],
+        ["SHIP_EDGE","CRATE","MAST","SHIP_HATCH","SHIP_DECK","BARREL","SHIP_EDGE"],
+        ["WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER"]
+      ]
+    },
+    {
+      "id": "boat_medium_parallel",
+      "name": "Harbor Boat (Medium)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","medium"],
+      "size": { "w": 9, "h": 5 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER"],
+        ["SHIP_EDGE","CRATE","SHIP_DECK","SHIP_DECK","SHIP_DECK","BARREL","SHIP_DECK","SHIP_DECK","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","MAST","SHIP_DECK","SHIP_HATCH","SHIP_DECK","MAST","SHIP_DECK","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","SHIP_DECK","LAMP","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_EDGE"],
+        ["WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER"]
+      ]
+    },
+    {
+      "id": "boat_large_parallel",
+      "name": "Harbor Boat (Large)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","large"],
+      "size": { "w": 13, "h": 6 },
+      "orientation": "parallel",
+      "tiles": [
+        ["WATER","WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER","WATER"],
+        ["SHIP_EDGE","CRATE","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","BARREL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_RAIL","SHIP_DECK","MAST","SHIP_DECK","SHIP_DECK","SHIP_HATCH","SHIP_DECK","SHIP_DECK","MAST","SHIP_DECK","SHIP_RAIL","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","SHIP_DECK","SHIP_DECK","LAMP","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_EDGE"],
+        ["WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER"],
+        ["WATER","WATER","SHIP_RAIL","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_EDGE","SHIP_RAIL","WATER","WATER"]
+      ]
+    },
+    {
+      "id": "boat_small_vertical",
+      "name": "Harbor Boat (Small, Vertical)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","small","vertical"],
+      "size": { "w": 3, "h": 7 },
+      "orientation": "vertical",
+      "tiles": [
+        ["WATER","SHIP_EDGE","WATER"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_RAIL"],
+        ["CRATE","MAST","SHIP_DECK"],
+        ["SHIP_DECK","SHIP_HATCH","LAMP"],
+        ["SHIP_DECK","MAST","BARREL"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_RAIL"],
+        ["WATER","SHIP_EDGE","WATER"]
+      ]
+    },
+    {
+      "id": "boat_medium_vertical",
+      "name": "Harbor Boat (Medium, Vertical)",
+      "category": "boat",
+      "tags": ["boat","ship","harbor","medium","vertical"],
+      "size": { "w": 5, "h": 9 },
+      "orientation": "vertical",
+      "tiles": [
+        ["WATER","WATER","SHIP_EDGE","WATER","WATER"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL"],
+        ["SHIP_EDGE","CRATE","MAST","SHIP_DECK","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","SHIP_DECK","SHIP_DECK","BARREL"],
+        ["SHIP_EDGE","SHIP_HATCH","SHIP_DECK","MAST","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_EDGE"],
+        ["SHIP_EDGE","SHIP_DECK","MAST","LAMP","SHIP_EDGE"],
+        ["SHIP_RAIL","SHIP_DECK","SHIP_DECK","SHIP_DECK","SHIP_RAIL"],
+        ["WATER","WATER","SHIP_EDGE","WATER","WATER"]
       ]
     }
   ]

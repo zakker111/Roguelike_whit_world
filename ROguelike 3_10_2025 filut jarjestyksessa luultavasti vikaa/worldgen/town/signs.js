@@ -197,7 +197,10 @@ export function dedupeShopSigns(ctx, W, H) {
 export function dedupeWelcomeSign(ctx, W, H) {
   try {
     if (!Array.isArray(ctx.townProps)) return;
-    const text = `Welcome to ${ctx.townName}`;
+    const isHarborTown = ctx && ctx.townKind === "port";
+    const text = isHarborTown
+      ? `Welcome to the harbor town of ${ctx.townName}`
+      : `Welcome to ${ctx.townName}`;
     const props = ctx.townProps;
     let keepIdx = -1;
     let bestD = Infinity;

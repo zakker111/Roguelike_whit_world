@@ -6,7 +6,7 @@ import { getTileDef } from "../../data/tile_lookup.js";
 import { fillTownFor, tilesRef, fallbackFillTown } from "./town_tile_cache.js";
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
+const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null, _pierMaskRef: null, _boatMaskRef: null };
 
 // Building footprint test (internal)
 function insideAnyBuildingAt(ctx, x, y) {
@@ -165,7 +165,9 @@ export function drawTownBase(ctx, view) {
         || TOWN._biomeKey !== biomeKey
         || TOWN._townKey !== townKey
         || TOWN._maskRef !== ctx.townOutdoorMask
-        || TOWN._palRef !== palRef;
+        || TOWN._palRef !== palRef
+        || TOWN._pierMaskRef !== ctx.townPierMask
+        || TOWN._boatMaskRef !== ctx.townBoatMask;
 
       if (needsRebuild && tintReady(ctx)) {
         TOWN.mapRef = map;
@@ -187,6 +189,8 @@ export function drawTownBase(ctx, view) {
         ensureOutdoorMask(ctx, map);
         const biomeFill = resolvedTownBiomeFill(ctx);
         TOWN._maskRef = ctx.townOutdoorMask;
+        TOWN._pierMaskRef = ctx.townPierMask;
+        TOWN._boatMaskRef = ctx.townBoatMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
@@ -199,6 +203,18 @@ export function drawTownBase(ctx, view) {
               const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
               if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
                 fill = biomeFill;
+              }
+              // Boat deck: always draw with ship colors regardless of biome tint.
+              if (ctx.townBoatMask && ctx.townBoatMask[yy] && ctx.townBoatMask[yy][xx]) {
+                // Distinguish inner deck vs deck edge to give ships a visible hull belt.
+                if (type === TILES.SHIP_EDGE) {
+                  fill = "#7a613f";
+                } else {
+                  fill = "#9b7a48";
+                }
+              } else if (ctx.townPierMask && ctx.townPierMask[yy] && ctx.townPierMask[yy][xx]) {
+                // Tint pier tiles to a warmer brown so piers stand out clearly.
+                fill = "#7b5a35";
               }
             } catch (_) {}
             oc.fillStyle = fill;
@@ -240,6 +256,15 @@ export function drawTownBase(ctx, view) {
         const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
         if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
           fill = biomeFill;
+        }
+        if (ctx.townBoatMask && ctx.townBoatMask[y] && ctx.townBoatMask[y][x]) {
+          if (type === TILES.SHIP_EDGE) {
+            fill = "#7a613f";
+          } else {
+            fill = "#9b7a48";
+          }
+        } else if (ctx.townPierMask && ctx.townPierMask[y] && ctx.townPierMask[y][x]) {
+          fill = "#7b5a35";
         }
       } catch (_) {}
       ctx2d.fillStyle = fill;

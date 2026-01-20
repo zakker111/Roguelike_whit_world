@@ -31,6 +31,8 @@ import { spawnGateGreeters, enforceGateNPCLimit, populateTownNpcs } from "./town
 import { minutesOfDay, scheduleFromData, loadShopDefs, shopLimitBySize, chanceFor, shuffleInPlace, assignShopsToBuildings } from "./town/shops_core.js";
 import { placeCaravanStallIfCaravanPresent } from "./town/caravan_stall.js";
 import { placeShopPrefabsStrict } from "./town/prefab_shops.js";
+import { prepareHarborZone, placeHarborPrefabs } from "./town/harbor.js";
+import { ensureHarborAccessibility } from "./town/accessibility.js";
 
 function inBounds(ctx, x, y) {
   try {
@@ -173,6 +175,14 @@ function generate(ctx) {
 
   // Plaza (carved via helper; returns center and dimensions)
   const { plaza, plazaW, plazaH } = buildPlaza(ctx, W, H, townSize, TOWNCFG);
+
+  // For port towns, pre-carve harbor water and shoreline before buildings are placed
+  // so no building ever ends up stamped on water. Non-port towns skip this step.
+  try {
+    if (ctx.townKind === "port" && Array.isArray(ctx.townHarborMask) && ctx.townHarborMask.length && ctx.townHarborDir) {
+      prepareHarborZone(ctx, W, H, gate);
+    }
+  } catch (_) {}
 
   // Roads (deferred): build after buildings and outdoor mask are known
   
@@ -348,6 +358,8 @@ function generate(ctx) {
     return !(sepX || sepY);
   }
 
+  const harborMask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+
   for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
     for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
       let clear = true;
@@ -357,6 +369,19 @@ function generate(ctx) {
         }
       }
       if (!clear) continue;
+      // Skip harbor band for port towns so regular houses do not occupy dock/warehouse space.
+      if (harborMask && ctx.townKind === "port") {
+        let intersectsHarbor = false;
+        for (let yy = by; yy < by + (blockH + 1) && !intersectsHarbor; yy++) {
+          for (let xx = bx; xx < bx + (blockW + 1); xx++) {
+            if (yy >= 0 && yy < H && xx >= 0 && xx < W && harborMask[yy][xx]) {
+              intersectsHarbor = true;
+              break;
+            }
+          }
+        }
+        if (intersectsHarbor) continue;
+      }
       // Strongly varied house sizes:
       // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
       // while respecting per-block bounds and minimums.
@@ -450,6 +475,7 @@ function generate(ctx) {
       if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
       const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
+      const harborMaskLocal = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
       let attempts = 0, successes = 0;
       while (buildings.length < targetBySize && attempts++ < 600) {
         // Random provisional rectangle within bounds
@@ -460,6 +486,19 @@ function generate(ctx) {
         // Skip near plaza and enforce margin clear
         if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
         if (!isAreaClearForBuilding(ctx, W, H, bx, by, bw, bh, 1)) continue;
+        // Skip harbor band for port towns so residential fill does not occupy dock space.
+        if (harborMaskLocal && ctx.townKind === "port") {
+          let intersectsHarbor = false;
+          for (let yy = by; yy < by + bh && !intersectsHarbor; yy++) {
+            for (let xx = bx; xx < bx + bw; xx++) {
+              if (yy >= 0 && yy < H && xx >= 0 && xx < W && harborMaskLocal[yy][xx]) {
+                intersectsHarbor = true;
+                break;
+              }
+            }
+          }
+          if (intersectsHarbor) continue;
+        }
         // Pick a prefab that fits
         const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
         if (!candidates.length) continue;
@@ -810,6 +849,25 @@ function generate(ctx) {
     prefabId: b.prefabId,
     prefabCategory: b.prefabCategory
   }));
+
+  // Harbor visuals and warehouses for port towns, using reserved harbor band.
+  placeHarborPrefabs(
+    ctx,
+    buildings,
+    W,
+    H,
+    gate,
+    plaza,
+    rng,
+    (ctx2, pref, bx, by) => stampPrefab(ctx2, pref, bx, by),
+    (ctx2, pref, bx, by, maxSlip) => trySlipStamp(ctx2, pref, bx, by, maxSlip)
+  );
+
+  // Harbor-only accessibility pass:
+  // - Clean up doors that don't lead to reachable ground.
+  // - Carve extra doors when a harbor building has none usable.
+  // - Connect isolated harbor land islands that contain buildings via a simple pier/bridge.
+  ensureHarborAccessibility(ctx, buildings, W, H, gate);
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
   buildOutdoorMask(ctx, buildings, W, H);
