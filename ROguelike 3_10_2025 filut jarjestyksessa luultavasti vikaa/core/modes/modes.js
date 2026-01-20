@@ -78,9 +78,11 @@ function detectHarborContext(ctx, wx, wy, WT) {
       { id: "W", dx: -1, dy: 0 },
       { id: "E", dx: 1, dy: 0 },
     ];
-    // Slightly increase scan radius so coastal towns with water a bit further out
-    // still qualify as ports, especially for starting towns near large seas.
-    const MAX_DIST = 10;
+    // Harbor towns should sit very close to water: either directly adjacent or
+    // with at most one tile of ground between the town tile and water.
+    // Limit the scan radius to 2 tiles in each cardinal direction so only
+    // near-coastal towns are considered candidates.
+    const MAX_DIST = 2;
     let bestDir = "";
     let bestScore = 0;
     let bestCoast = 0;
