@@ -51,6 +51,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Allow NPCs (town, dungeon, region, followers) to move diagonally when appropriate, not just in 4 cardinal directions.
   - Update pathfinding heuristics and collision checks so diagonal steps respect walls, doors, props, and other blockers (no corner cutting through wall corners).
   - Ensure diagonal-capable pathfinding is shared between TownAI, dungeon AI, and follower movement so behavior stays consistent.
+- [ ] Town AI priority: always prioritize shopkeepers reaching their shops
+  - In town performance throttling (NPC budgets, distance bands), ensure shopkeepers who are currently off-duty but need to reach their shop (opening, closing, or on-duty window) are always given high priority, even when they are far away from the player.
+  - Adjust TownAI scheduling so shopkeepers do not “freeze” just because they are in a far band; their movement toward their shop should be considered critical for town believability.
+  - Keep guards and critical events (e.g., bandits at gate) as high priority, but make shopkeepers’ commute to their shop part of the “must-run” set each tick.
 - [ ] Player skill tree and skill points
   - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
