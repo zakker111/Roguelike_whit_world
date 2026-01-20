@@ -521,15 +521,18 @@ export function teleportToTarget(ctx, target) {
       const world = ctx.world;
       const towns = Array.isArray(world.towns) ? world.towns : [];
       const hasWT = !!WT && WT.WATER != null;
-      // Helper: detect whether a town is harbor-like, even if harborDir metadata
-      // has not yet been stamped (e.g., town never entered this run).
+      // Helper: detect whether a town is harbor-like based on nearby water.
+      // We intentionally mirror the stricter harbor detection used in core/modes:
+      // - Scan up to 2 tiles in N/S/E/W from the town tile.
+      // - WATER/BEACH tiles add 2 points; RIVER tiles add 1 point.
+      // - A town qualifies as harbor if best directional score >= 2
+      //   (i.e., at least one WATER/BEACH tile or enough river).
       function isHarborTown(rec) {
         try {
           if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") return false;
-          // Prefer explicit harborDir metadata when present.
-          if (rec.harborDir) return true;
           if (!hasWT) return false;
           if (!gen || typeof gen.tileAt !== "function") return false;
+
           const wxTown = rec.x | 0;
           const wyTown = rec.y | 0;
           const dirs = [
@@ -538,8 +541,9 @@ export function teleportToTarget(ctx, target) {
             { dx: -1, dy: 0 },
             { dx: 1, dy: 0 },
           ];
-          const MAX_DIST_HARBOR = 10;
+          const MAX_DIST_HARBOR = 2; // only directly adjacent or 1 tile off
           let bestScore = 0;
+
           for (let i = 0; i < dirs.length; i++) {
             const d = dirs[i];
             let coast = 0;
@@ -556,8 +560,9 @@ export function teleportToTarget(ctx, target) {
             const score = coast + river;
             if (score > bestScore) bestScore = score;
           }
-          // Match harbor detection loosening in core/modes: require some water presence.
-          return bestScore >= 3;
+
+          const MIN_SCORE_HARBOR = 2;
+          return bestScore >= MIN_SCORE_HARBOR;
         } catch (_) {
           return false;
         }
