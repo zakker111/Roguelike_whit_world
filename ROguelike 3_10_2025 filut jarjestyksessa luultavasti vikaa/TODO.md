@@ -311,3 +311,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Smoketest runner:
   - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
   - Make smoketest positions exact in tiles; only use nudge around NPC interaction or enemy interaction.
+- [ ] Dungeon NPC spawn hygiene:
+  - Ensure town-only NPC archetypes (e.g., Seppo and caravan blacksmiths) cannot spawn as “wild” NPCs in dungeon contexts unless explicitly intended, and that any such NPCs have correct movement and interaction handlers when they do appear.
+- [ ] Overworld road cleanup:
+  - Review overworld road/path generation and pruning so that roads only remain when they connect meaningful POIs (towns, castles, dungeons, ruins) and stray/isolated road segments in wilderness are removed as part of a final cleanup pass.

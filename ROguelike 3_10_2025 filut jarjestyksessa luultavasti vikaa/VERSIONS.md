@@ -1,5 +1,42 @@
 # Game Version History
-Last updated: 2026-01-20 01:00 UTC
+Last updated: 2026-01-20 02:30 UTC
+
+v1.68.0 — HealthCheck tuning, validation details, and bug tracking updates
+
+- HealthCheck and validation behavior:
+  - core/engine/health_check.js:
+    - `runHealthCheck(getCtxFn, opts)` now accepts an `includeValidation` flag so we can run light module/data health checks separately from the heavier ValidationRunner schema checks.
+    - `scheduleHealthCheck(getCtxFn)` is wired to call `runHealthCheck(..., { includeValidation: false })` after `GameData.ready`, so normal startup only performs fast health checks and skips full validation.
+    - HealthCheck still logs a summary line (`Health: X errors, Y warnings.`) and one line per module/domain, and now also forwards the summary into BootMonitor when present.
+  - core/validation_runner.js:
+    - `logSummary(ctx)` now logs detailed validation warnings and notices, not just category counts:
+      - Writes the overall “Validation: X warnings, Y notices.” line.
+      - Logs per-category counts (e.g., `- Enemies: 2 warnings, 0 notices`) under the `validation` category.
+      - Emits each individual warning/notice line to the main Logger (up to a safety cap) so the GOD panel log shows exactly which items/enemies/shops need attention.
+    - The Town Debug output box (`god-check-output`) is now populated with a summary plus a “Details (warnings/notices)” section listing concrete messages, making it easier to see exactly what the validator is complaining about without opening the browser console.
+
+- Startup diagnostics / HUD:
+  - A lightweight BootMonitor module was introduced earlier to track data/health status and drive an on-screen boot HUD, but the HUD overlay itself has been removed for normal play:
+    - BootMonitor remains available for internal tracking and potential future dev tools.
+    - There is no longer a persistent bottom-left health/status box; health results are visible via the GOD log instead.
+  - Health summary at boot remains:
+    - The GOD log still shows `Health: 0 errors, N warnings.` at startup.
+    - The two remaining warnings are for optional/experimental modules (HarborGeneration, Fallbacks) and are considered acceptable in this build.
+
+- Data and AI adjustments:
+  - data/entities/enemies.json:
+    - `guard_elite` enemy tier has been normalized from 4 to 3 so it fits the 1..3 tier system used by items and encounter scaling, while keeping its HP/ATK/XP curves strong enough to be clearly above regular guards.
+  - core/validation_runner.js (shop validation):
+    - The validator now recognizes `named_equip` as a valid shop `kind` and treats it as an equipment family:
+      - Added `named_equip` to the allowed kinds list.
+      - Included `named_equip` in the equipment-kind set so Seppo-style premium equipment pools are validated as intentional instead of generating warnings about unknown kinds or mismatched `sells` rules.
+
+- Documentation and bug tracking:
+  - BUGS.md:
+    - Recorded a dungeon bug where Seppo (or a Seppo-like blacksmith NPC) spawned as a stationary, non-interactable NPC inside a dungeon room, likely due to prefab or archetype reuse between town and dungeon contexts.
+    - Recorded an overworld bug where orphan or partially disconnected road segments can appear in the wilderness, suggesting leftover road-generation artifacts that should be cleaned up.
+  - TODO.md:
+    - Added a Town AI priority item to ensure that shopkeepers are always prioritized to reach their shops during open/close windows, even when they are far from the player and subject to distance-based performance throttling.
 
 v1.67.0 — Harbor decks, boat & pier behavior, and harbor accessibility (EXPERIMENTAL)
 
