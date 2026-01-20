@@ -15,9 +15,11 @@ v1.68.0 — HealthCheck tuning, validation details, and bug tracking updates
       - Emits each individual warning/notice line to the main Logger (up to a safety cap) so the GOD panel log shows exactly which items/enemies/shops need attention.
     - The Town Debug output box (`god-check-output`) is now populated with a summary plus a “Details (warnings/notices)” section listing concrete messages, making it easier to see exactly what the validator is complaining about without opening the browser console.
 
-- Startup diagnostics / HUD:
-  - A lightweight BootMonitor module was introduced earlier to track data/health status and drive an on-screen boot HUD, but the HUD overlay itself has been removed for normal play:
-    - BootMonitor remains available for internal tracking and potential future dev tools.
+- Startup performance and diagnostics:
+  - Startup now keeps long-running validation off the boot path:
+    - Full schema validation (items/enemies/shops/encounters/etc.) only runs when explicitly requested from the GOD panel or dev flows; the automatic HealthCheck at boot only does quick presence/shape checks.
+    - This reduces boot-time CPU spikes and makes “game shows and responds quickly” the priority, while keeping deep validation available when needed.
+  - A lightweight BootMonitor module was introduced earlier to track data/health status and can still be used by dev tooling, but the on-screen boot HUD overlay has been removed for normal play:
     - There is no longer a persistent bottom-left health/status box; health results are visible via the GOD log instead.
   - Health summary at boot remains:
     - The GOD log still shows `Health: 0 errors, N warnings.` at startup.

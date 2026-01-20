@@ -450,7 +450,7 @@ These are primarily for debugging and development, not normal gameplay.
 - Logging / fallback logging:
   - Centralized fallback logger for robust behavior when primary facilities are missing.
 - Health checks and data validation:
-  - Boot-time HealthCheck runs a lightweight module/data health pass after `GameData.ready` and logs a summary (`Health: X errors, Y warnings.`) plus one line per module/domain.
+  - Boot-time HealthCheck runs a lightweight module/data health pass after `GameData.ready` and logs a summary (`Health: X errors, Y warnings.`) plus one line per module/domain, without running the full schema validator on every startup.
   - The GOD panel’s **Run Validation** button triggers full data validation and now prints detailed warnings/notices (per category and per message) into both the main log and the Town Debug output box so data issues (items, enemies, shops, palette, encounters, etc.) are visible without opening the browser console.
 - Smoke tests:
   - Automated smoketest runner to exercise core flows (entry/exit, movement, basic combat, etc.).

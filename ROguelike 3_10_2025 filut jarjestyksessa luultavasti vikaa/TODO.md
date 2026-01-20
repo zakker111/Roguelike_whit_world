@@ -277,24 +277,27 @@ This file collects planned features, ideas, and technical cleanups that were pre
 ## Technical / Cleanup
 
 - [ ] Startup diagnostics & loading visualization
-  - Add a small startup overlay or HUD element that shows which subsystems have finished initializing:
+  - Keep startup fast by treating “game becomes playable quickly” as the primary goal and running heavy validations only on demand:
+    - Boot-time HealthCheck should remain a lightweight presence/shape pass over modules and data, deferring full schema validation to GOD/dev tools.
+    - Any future startup HUD must not block world generation or main loop start while waiting on deep validators.
+  - Add an optional, dev-focused startup overlay or GOD panel section that shows which subsystems have finished initializing:
     - JSON registries via `GameData.ready` (items, enemies, npcs, consumables, encounters, shop pools, tiles/props, etc.).
     - Core engine modules (WorldRuntime, DungeonRuntime, RNG service, GameLoop, Render, UIOrchestration, ShopService, etc.).
     - HealthCheck status (module/data health summary).
   - Design goals:
-    - Visible but unobtrusive: a compact panel or progress bar that appears in the corner during boot, then auto-hides once everything is ready.
+    - Visible but unobtrusive: a compact panel in GOD or a dev-only overlay that appears during boot and can be disabled in normal play.
     - Data-driven: use a simple event or hook API so modules and data loaders can report “started/finished/failed” without hard-coding each step in the UI.
     - Useful for debugging: make it easy to see when a domain is slow or failing (e.g., missing encounters.json or shop_pools.json) without opening the browser console.
   - Implementation sketch:
-    - Introduce a small `BootMonitor`/`StartupStatus` module that:
+    - Keep a small `BootMonitor`/`StartupStatus` module that:
       - Tracks named steps like `GameData.items`, `GameData.encounters`, `WorldRuntime.generate`, `HealthCheck.run`.
       - Exposes a minimal API (`markStarted(name)`, `markDone(name)`, `markFailed(name, error)`) and a `getSnapshot()` for UI.
     - Wire `BootMonitor` into:
       - `data/loader.js` around key `fetchJson` calls (especially consumables, encounters, shop pools).
       - `core/engine/game_orchestrator.js` during world/town/dungeon initialization.
       - `core/engine/health_check.js` when running module/data health checks.
-    - Add a tiny UI component to `ui/ui.js` / `GodPanel` that:
-      - Shows an overall progress bar (percentage of tracked steps complete) and a collapsible list of step names with status (OK / pending / failed).
+    - Add a small UI surface (likely in GOD) that:
+      - Shows an overall progress indicator (percentage of tracked steps complete) and a list of step names with status (OK / pending / failed).
       - Allows forcing a re-run of HealthCheck and/or data validation from the GOD panel to refresh the view.
 
 - [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
