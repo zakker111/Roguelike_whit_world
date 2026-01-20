@@ -129,7 +129,7 @@
       "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
     }
   },
-  { "id": "guard_elite", "glyph": "G", "color": "#1d4ed8", "tier": 4, "blockBase": 0.15, "faction": "guard",
+  { "id": "guard_elite", "glyph": "G", "color": "#1d4ed8", "tier": 3, "blockBase": 0.15, "faction": "guard",
     "weightByDepth": [ [999, 0.08] ],
     "hp": [ [0, 11, 1.4], [5, 15, 1.6] ],
     "atk": [ [0, 4, 0.7], [5, 5, 0.8] ],

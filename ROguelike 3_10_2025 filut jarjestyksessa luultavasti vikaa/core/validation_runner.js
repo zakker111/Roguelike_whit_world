@@ -250,8 +250,8 @@ export function run(ctx = null) {
           try { const list = GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list); if (!Array.isArray(list)) return false; const t = String(idOrType || ""); return !!list.find(m => String(m.id || "").toLowerCase() === t.toLowerCase() || String(m.name || "").toLowerCase() === t.toLowerCase()); } catch (_) { return false; }
         }
 
-        const KIND_OK = new Set(["potion","antidote","weapon","low_tier_equip","shield","armor","tool","material","curio","food","drink"]);
-        const EQUIP_KINDS = new Set(["weapon","low_tier_equip","shield","armor"]);
+        const KIND_OK = new Set(["potion","antidote","weapon","low_tier_equip","shield","armor","tool","material","curio","food","drink","named_equip"]);
+        const EQUIP_KINDS = new Set(["weapon","low_tier_equip","shield","armor","named_equip"]);
 
         if (poolsRoot && typeof poolsRoot === "object") {
           for (const shopType of Object.keys(poolsRoot)) {
