@@ -351,12 +351,21 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
 
-      // Determine settlement kind (town vs castle) from overworld metadata for messaging.
+      // Determine settlement kind (town vs castle/port) from overworld metadata for messaging.
       let settlementKind = "town";
+      let isHarborTown = false;
       try {
         if (ctx.world && Array.isArray(ctx.world.towns)) {
           const rec = ctx.world.towns.find(t => t && t.x === enterWX && t.y === enterWY);
           if (rec && rec.kind) settlementKind = String(rec.kind);
+          // Treat towns with harbor direction (detected earlier) as harbor towns for messaging.
+          if (rec && rec.harborDir && settlementKind !== "castle") {
+            isHarborTown = true;
+          }
+        }
+        // Also respect ctx.townHarborDir when present.
+        if (!isHarborTown && ctx.townHarborDir && settlementKind !== "castle") {
+          isHarborTown = true;
         }
       } catch (_) {}
 
@@ -374,7 +383,10 @@ export function enterTownIfOnTile(ctx) {
             movePlayerToTownGateInterior(ctx);
             // Spawn follower/ally in town, if configured.
             try { spawnInTown(ctx); } catch (_) {}
-            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const kindLabel =
+              settlementKind === "castle"
+                ? "castle"
+                : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
@@ -397,7 +409,10 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const kindLabel =
+              settlementKind === "castle"
+                ? "castle"
+                : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
