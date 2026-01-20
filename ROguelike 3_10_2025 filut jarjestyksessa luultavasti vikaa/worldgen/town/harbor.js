@@ -1176,6 +1176,9 @@ function _stampBoatPrefabOnWater(ctx, prefab, bx, by, W, H, harborMask, waterTil
         ctx.townProps.push({ x: tx, y: ty, type: "mast", name: null });
       } else if (code === "SHIP_HATCH") {
         ctx.townProps.push({ x: tx, y: ty, type: "ship_hatch", name: null });
+      } else if (code === "CRATE" || code === "BARREL" || code === "LAMP") {
+        // Generic cargo/light props on deck/edge tiles.
+        ctx.townProps.push({ x: tx, y: ty, type: _propTypeFromCode(code), name: null });
       }
     }
   }
