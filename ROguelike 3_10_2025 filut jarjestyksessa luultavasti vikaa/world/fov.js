@@ -144,30 +144,42 @@ export function recomputeFOV(ctx) {
     const townLightActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
     const dungeonLightActive = isDungeon; // torches glow regardless of time
 
-    if (townLightActive && Array.isArray(ctx.townProps)) {
-      for (const p of ctx.townProps) {
-        if (!p) continue;
-        const def = propDefFor(p.type);
-        const emits = !!(def && def.properties && def.properties.emitsLight);
-        if (!emits) continue;
+    if (townLightActive) {
+      const lights = Array.isArray(ctx.townLightProps) ? ctx.townLightProps : (Array.isArray(ctx.townProps) ? ctx.townProps : []);
+      if (lights.length) {
+        const px = player.x | 0;
+        const py = player.y | 0;
+        for (const p of lights) {
+          if (!p) continue;
+          const lx = p.x | 0, ly = p.y | 0;
+          if (!ctx.inBounds(lx, ly)) continue;
 
-        const lx = p.x | 0, ly = p.y | 0;
-        if (!ctx.inBounds(lx, ly)) continue;
+          // Distance-based culling: skip lamps far outside player FOV radius.
+          const dx = lx - px;
+          const dy = ly - py;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          const margin = 3;
+          if (dist > radius + margin) continue;
 
-        const baseR = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // default small local glow (typically 3-4)
-        const castR = (def && def.light && typeof def.light.castRadius === "number")
-          ? Math.max(1, Math.min(12, Math.floor(def.light.castRadius)))
-          : baseR;
+          const def = propDefFor(p.type);
+          const emits = !!(def && def.properties && def.properties.emitsLight);
+          if (!emits) continue;
 
-        visible[ly][lx] = true;
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, 1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, -1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, 1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, -1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, 1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, -1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, 1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, -1, 0, false);
+          const baseR = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // default small local glow (typically 3-4)
+          const castR = (def && def.light && typeof def.light.castRadius === "number")
+            ? Math.max(1, Math.min(12, Math.floor(def.light.castRadius)))
+            : baseR;
+
+          visible[ly][lx] = true;
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, 1, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, -1, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, 1, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, -1, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, 1, 0, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, -1, 0, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, 1, 0, false);
+          castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, -1, 0, false);
+        }
       }
     }
 

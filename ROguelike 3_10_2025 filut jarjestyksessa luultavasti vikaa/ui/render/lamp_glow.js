@@ -42,8 +42,8 @@ export function drawLampGlow(ctx, view) {
     const mapRows = ctx.map.length;
     const mapCols = ctx.map[0] ? ctx.map[0].length : 0;
     const wpx = mapCols * TILE, hpx = mapRows * TILE;
-    const turn = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
     const phase = ctx.time && ctx.time.phase ? String(ctx.time.phase) : "";
+    const glowVersion = (typeof ctx._lampGlowVersion === "number") ? ctx._lampGlowVersion : 0;
 
     let layer = ctx._lampGlowLayer || null;
     const needsRebuild =
@@ -53,8 +53,8 @@ export function drawLampGlow(ctx, view) {
       layer.wpx !== wpx ||
       layer.hpx !== hpx ||
       layer.phase !== phase ||
-      layer.turn !== turn ||
-      layer.count !== lights.length;
+      layer.count !== lights.length ||
+      layer.version !== glowVersion;
 
     if (needsRebuild) {
       const off = document.createElement("canvas");
@@ -102,8 +102,8 @@ export function drawLampGlow(ctx, view) {
         wpx,
         hpx,
         phase,
-        turn,
-        count: lights.length
+        count: lights.length,
+        version: glowVersion
       };
       ctx._lampGlowLayer = layer;
     }

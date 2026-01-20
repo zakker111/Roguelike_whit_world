@@ -915,6 +915,44 @@ function generate(ctx) {
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
   repairBuildingPerimeters(ctx, buildings);
 
+  // Precompute town light props (emissive props) for FOV and glow systems
+  (function buildTownLightProps() {
+    try {
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const out = [];
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+      if (!arr || !props.length) {
+        ctx.townLightProps = out;
+        return;
+      }
+      const cache = new Map();
+      function emitsLight(type) {
+        const key = String(type || "").toLowerCase();
+        if (cache.has(key)) return cache.get(key);
+        let def = null;
+        for (let i = 0; i < arr.length; i++) {
+          const e = arr[i];
+          if (String(e.id || "").toLowerCase() === key || String(e.key || "").toLowerCase() === key) {
+            def = e;
+            break;
+          }
+        }
+        const emits = !!(def && def.properties && def.properties.emitsLight);
+        cache.set(key, emits);
+        return emits;
+      }
+      for (const p of props) {
+        if (!p) continue;
+        if (!emitsLight(p.type)) continue;
+        out.push({ x: p.x, y: p.y, type: p.type });
+      }
+      ctx.townLightProps = out;
+    } catch (_) {
+      try { ctx.townLightProps = []; } catch (_) {}
+    }
+  })();
+
   // NPCs via TownAI + special cats + roaming villagers/guards
   populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOWNCFG, info, rng);
 
