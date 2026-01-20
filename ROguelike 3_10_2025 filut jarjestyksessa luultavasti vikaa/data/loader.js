@@ -462,6 +462,24 @@ GameData.ready = (async function loadAll() {
     if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
       logNotice("Some registries failed to load; modules will use internal fallbacks.");
     }
+
+    // Notify BootMonitor (if present) that data loading has finished.
+    try {
+      const BM = (typeof window !== "undefined") ? window.BootMonitor : null;
+      if (BM && typeof BM.markData === "function") {
+        const ok = !!(GameData.items && GameData.enemies && GameData.npcs && GameData.consumables && GameData.town && GameData.flavor && GameData.tiles && GameData.encounters);
+        BM.markData(ok ? "ok" : "warn", {
+          items: !!GameData.items,
+          enemies: !!GameData.enemies,
+          npcs: !!GameData.npcs,
+          consumables: !!GameData.consumables,
+          town: !!GameData.town,
+          flavor: !!GameData.flavor,
+          tiles: !!GameData.tiles,
+          encounters: !!GameData.encounters,
+        });
+      }
+    } catch (_) {}
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
     // Keep whatever loaded; modules across the codebase provide sensible fallbacks.

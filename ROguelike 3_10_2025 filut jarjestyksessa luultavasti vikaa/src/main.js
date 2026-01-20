@@ -6,6 +6,7 @@
 import '/core/ctx.js';
 import '/core/rng_service.js';
 import '/core/state/state_sync.js';
+import '/core/engine/boot_monitor.js';
 
 // Utilities
 import '/utils/utils.js';

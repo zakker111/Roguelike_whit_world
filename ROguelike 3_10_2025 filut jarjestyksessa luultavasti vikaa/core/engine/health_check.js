@@ -170,8 +170,9 @@ function evaluateValidation(ctx) {
 /**
  * Run the health check immediately and log results.
  * getCtxFn: function that returns the current ctx when invoked.
+ * opts: { includeValidation?: boolean }
  */
-export function runHealthCheck(getCtxFn) {
+export function runHealthCheck(getCtxFn, opts) {
   let ctx = null;
   try {
     if (typeof getCtxFn === "function") {
@@ -180,6 +181,8 @@ export function runHealthCheck(getCtxFn) {
   } catch (_) {
     ctx = null;
   }
+
+  const includeValidation = !!(opts && opts.includeValidation);
 
   const problems = [];
   try {
@@ -191,10 +194,12 @@ export function runHealthCheck(getCtxFn) {
   } catch (_) {}
 
   let validationProblem = null;
-  try {
-    validationProblem = evaluateValidation(ctx);
-    if (validationProblem) problems.push(validationProblem);
-  } catch (_) {}
+  if (includeValidation) {
+    try {
+      validationProblem = evaluateValidation(ctx);
+      if (validationProblem) problems.push(validationProblem);
+    } catch (_) {}
+  }
 
   const errors = problems.filter(p => p && p.severity === "error").length;
   const warns = problems.filter(p => p && p.severity === "warn").length;
@@ -209,6 +214,14 @@ export function runHealthCheck(getCtxFn) {
     logLine(type, msg, { code: p.code || p.label || undefined });
   }
 
+  // Notify BootMonitor (if present) so startup overlay can reflect health summary.
+  try {
+    const BM = (typeof window !== "undefined") ? window.BootMonitor : null;
+    if (BM && typeof BM.markHealthSummary === "function") {
+      BM.markHealthSummary({ errors, warns, problems });
+    }
+  } catch (_) {}
+
   return { errors, warns, problems };
 }
 
@@ -221,12 +234,12 @@ export function scheduleHealthCheck(getCtxFn) {
     const GD = (typeof window !== "undefined") ? window.GameData : null;
     if (GD && GD.ready && typeof GD.ready.then === "function") {
       GD.ready.then(() => {
-        try { runHealthCheck(getCtxFn); } catch (_) {}
+        try { runHealthCheck(getCtxFn, { includeValidation: false }); } catch (_) {}
       }).catch(() => {
-        try { runHealthCheck(getCtxFn); } catch (_) {}
+        try { runHealthCheck(getCtxFn, { includeValidation: false }); } catch (_) {}
       });
     } else {
-      runHealthCheck(getCtxFn);
+      runHealthCheck(getCtxFn, { includeValidation: false });
     }
   } catch (_) {}
 }

@@ -337,3 +337,25 @@ html, body {
   gap: 8px;
   align-items: center;
 }
+
+/* Boot / startup status indicator */
+.boot-status {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.94);
+  border-radius: 8px;
+  border: 1px solid rgba(122, 162, 247, 0.45);
+  color: var(--muted);
+  font-size: 11px;
+  z-index: 30;
+  max-width: 320px;
+  pointer-events: none;
+}
+.boot-status.warn {
+  border-color: rgba(234, 179, 8, 0.85);
+}
+.boot-status.bad {
+  border-color: rgba(248, 113, 113, 0.9);
+}
