@@ -244,6 +244,23 @@ try {
     requiredFns: ["getInventoryForShop", "buyItem", "sellItem"],
     notes: "Shop inventories and prices; missing data may lead to empty shops.",
   });
+  // Experimental subsystems: reported as optional in HealthCheck.
+  registerModuleHealth({
+    id: "HarborGeneration",
+    label: "Harbor generation (experimental)",
+    modName: "Harbor",
+    required: false,
+    requiredFns: ["prepareHarborZone", "placeHarborPrefabs"],
+    notes: "Port-town harbor band, water, piers, boats, and harbor props; used only for port towns.",
+  });
+  registerModuleHealth({
+    id: "FollowersRuntime",
+    label: "Followers runtime (experimental)",
+    modName: "FollowersRuntime",
+    required: false,
+    requiredFns: ["spawnInTown", "spawnInDungeon"],
+    notes: "Followers/party spawning and synchronization across modes; optional but used by follower features.",
+  });
 } catch (_) {}
 
 // Pre-register core GameData domains. New data domains can be added here or via
