@@ -2,6 +2,9 @@ import { getGameData } from "../../utils/access.js";
 import { getTileDefByKey } from "../../data/tile_lookup.js";
 import { prepareHarborZone } from "./harbor_zone.js";
 
+// Re-export prepareHarborZone so callers can continue to import it from this module.
+export { prepareHarborZone };
+
 /**
  * Harbor helpers for port towns.
  *
@@ -9,7 +12,6 @@ import { prepareHarborZone } from "./harbor_zone.js";
  *   1) prepareHarborZone(ctx, W, H, gate)    -> ground, shoreline, water masks
  *   2) placeHarborPrefabs(...)               -> piers, boats, props, warehouses
  *
- * Non-port towns do not use these helpers and retain the existing town pipeline.
  */
 
 /**
