@@ -19,9 +19,16 @@ export function drawRegionEntities(ctx, view) {
       const isFollower = !!(e && e._isFollower);
       let color = "#f7768e";
       if (faction === "animal") {
+        // Prefer per-animal color when present; fall back to regionAnimal overlay color.
         try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
+          if (e.color && typeof e.color === "string" && e.color.trim()) {
+            color = e.color;
+          } else {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+              ? window.GameData.palette.overlays
+              : null;
+            color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
+          }
         } catch (_) {
           color = "#e9d5a1";
         }
@@ -64,10 +71,24 @@ export function drawRegionEntities(ctx, view) {
       }
 
       if (faction === "animal") {
-        ctx2d.beginPath();
-        ctx2d.arc(sx + TILE / 2, sy + TILE / 2, Math.max(6, (TILE - 12) / 2), 0, Math.PI * 2);
-        ctx2d.fillStyle = color;
-        ctx2d.fill();
+        // Animals: draw glyph only at tile center, no background shape.
+        try {
+          const half = TILE / 2;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          try {
+            ctx2d.font = `${Math.floor(TILE * 0.7)}px JetBrains Mono, monospace`;
+          } catch (_) {}
+          const glyph = String(
+            (e.glyph && String(e.glyph).trim())
+              ? e.glyph
+              : (e.type ? e.type.charAt(0) : "?")
+          );
+          ctx2d.fillStyle = color;
+          ctx2d.fillText(glyph, sx + half, sy + half);
+        } catch (_) {}
+        ctx2d.restore();
+        continue;
       } else {
         // Non-follower enemies: solid square marker with dark glyph
         const pad = 6;
