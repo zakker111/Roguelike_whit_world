@@ -23,6 +23,7 @@ function insideAnyBuildingAt(ctx, x, y) {
 // Helpers for biome-based outdoor ground tint
 function ensureTownBiome(ctx) {
   try {
+    // If TownState has already resolved the biome for this town, do not recompute it.
     if (ctx && ctx._townBiomeResolved) return;
 
     const world = ctx.world || {};
@@ -39,17 +40,11 @@ function ensureTownBiome(ctx) {
     }
 
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-    let rec = null;
-    for (let i = 0; i < towns.length; i++) {
-      const t = towns[i];
-      if (t && (t.x | 0) === wx && (t.y | 0) === wy) { rec = t; break; }
-    }
+    const rec = towns.find(t => t && (t.x | 0) === wx && (t.y | 0) === wy) || null;
 
-    let biome = null;
-
-    if (rec && rec.biome) {
-      biome = rec.biome;
-    } else {
+    // Prefer a previously pinned biome on the town record; only derive when missing.
+    let biome = rec && rec.biome;
+    if (!biome) {
       try {
         const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
         if (TS && typeof TS.deriveTownBiomeFromWorld === "function") {
@@ -62,7 +57,7 @@ function ensureTownBiome(ctx) {
 
     ctx.townBiome = biome;
     try {
-      if (rec && typeof rec === "object") rec.biome = biome;
+      if (rec && typeof rec === "object" && !rec.biome) rec.biome = biome;
     } catch (_) {}
     try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
