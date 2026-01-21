@@ -417,26 +417,25 @@ function applyState(ctx, st, x, y) {
   })();
 
   // Ensure town biome is set on load by sampling surrounding world tiles once,
-// then persist it on the town record so future visits reuse the same biome.
-try {
-  // Clear any stale outdoor mask so renderers rebuild per-town masks correctly.
-  try { ctx.townOutdoorMask = undefined; } catch (_) {}
+  // then persist it on the town record so future visits reuse the same biome.
+  try {
+    // Clear any stale outdoor mask so renderers rebuild per-town masks correctly.
+    try { ctx.townOutdoorMask = undefined; } catch (_) {}
 
-  const townsArr = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-  const rec = townsArr.find(t => t && t.x === x && t.y === y) || null;
+    const townsArr = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+    const rec = townsArr.find(t => t && t.x === x && t.y === y) || null;
 
-  // Prefer an existing pinned biome on the town record; only derive when missing.
-  let biome = rec && rec.biome;
-  if (!biome) {
-    biome = deriveTownBiomeFromWorld(ctx, x, y) || "GRASS";
-    try {
-      if (rec && typeof rec === "object" && !rec.biome) rec.biome = biome;
-    } catch (_) {}
-  }
+    // Prefer an existing pinned biome on the town record; only derive when missing.
+    let biome = rec && rec.biome;
+    if (!biome) {
+      biome = deriveTownBiomeFromWorld(ctx, x, y) || "GRASS";
+      try {
+        if (rec && typeof rec === "object" && !rec.biome) rec.biome = biome;
+      } catch (_) {}
+    }
 
-  ctx.townBiome = biome;
-  try { ctx._townBiomeResolved = true; } catch (_) {}
-} catch (_) {}
+    ctx.townBiome = biome;
+    try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
 
   // Recompute flow fields (plaza, gate, inn door, harbor band) after restoring map/shops/props.
