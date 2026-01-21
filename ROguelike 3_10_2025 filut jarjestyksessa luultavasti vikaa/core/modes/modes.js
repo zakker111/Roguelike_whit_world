@@ -302,8 +302,10 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
       ctx.mode = "town";
-      // Reset town biome on entry so each town derives or loads its own biome correctly
+      // Reset town biome and outdoor mask on entry so each town derives or loads its own
+      // biome and outdoor floor set correctly, without reusing state from previous towns.
       try { ctx.townBiome = undefined; } catch (_) {}
+      try { ctx.townOutdoorMask = undefined; } catch (_) {}
 
       // Harbor detection for potential port towns (metadata-only at this stage).
       try {
