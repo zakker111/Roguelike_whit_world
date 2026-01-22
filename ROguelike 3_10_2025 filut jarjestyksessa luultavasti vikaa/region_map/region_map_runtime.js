@@ -1320,7 +1320,7 @@ function open(ctx, size) {
       const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
-      for (let i = 0; i &lt; count; i++) {
+      for (let i = 0; i < count; i++) {
         const def = pickAnimalDef();
         const pos = pickPosForAnimal(def, i === 0, cx0, cy0);
         if (!pos) continue;
