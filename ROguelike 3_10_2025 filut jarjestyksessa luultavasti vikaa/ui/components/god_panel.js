@@ -916,6 +916,21 @@ export function init(UI) {
       if (typeof UI.handlers.onGodTownMarketDay === "function") UI.handlers.onGodTownMarketDay();
     });
   }
+
+  // Town events dropdown (for current and future events)
+  const townEventSelect = byId("god-town-event-select");
+  const townEventRunBtn = byId("god-town-event-run-btn");
+  if (townEventSelect && townEventRunBtn) {
+    townEventRunBtn.addEventListener("click", () => {
+      const val = String(townEventSelect.value || "").toLowerCase();
+      if (!val) return;
+      if (val === "bandits") {
+        if (typeof UI.handlers.onGodTownBandits === "function") UI.handlers.onGodTownBandits();
+      } else if (val === "market_day") {
+        if (typeof UI.handlers.onGodTownMarketDay === "function") UI.handlers.onGodTownMarketDay();
+      }
+    });
+  }
 }
 
 export function show() {

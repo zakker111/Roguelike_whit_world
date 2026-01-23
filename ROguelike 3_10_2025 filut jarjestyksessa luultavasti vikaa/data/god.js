@@ -444,6 +444,15 @@ export function startMarketDayInTown(ctx) {
 
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
     let assigned = 0;
+    const usedStalls = new Set();
+
+    function markStallUsed(x, y) {
+      usedStalls.add(String(x) + "," + String(y));
+    }
+
+    function stallIsFree(x, y) {
+      return !usedStalls.has(String(x) + "," + String(y));
+    }
 
     function findKeeperForShop(s) {
       if (!s) return null;
@@ -463,6 +472,7 @@ export function startMarketDayInTown(ctx) {
       return null;
     }
 
+    // 1) Assign plaza stalls to permanent shopkeepers
     for (let i = 0; i < shops.length && i < candidates.length; i++) {
       const s = shops[i];
       if (!s) continue;
@@ -474,9 +484,112 @@ export function startMarketDayInTown(ctx) {
         keeper.x = stall.x;
         keeper.y = stall.y;
         keeper._floor = "ground";
+        markStallUsed(stall.x, stall.y);
       } catch (_) {}
       assigned++;
     }
+
+    // 2) Add special Market Day vendors (normal residents who sell unique gear at temporary stalls)
+    try {
+      // Prepare container for temporary Market Day shops so we can clean them up later if needed.
+      if (!Array.isArray(ctx._marketDayShops)) ctx._marketDayShops = [];
+
+      // Helper: pick a few non-shopkeeper, non-guard, non-pet NPCs as potential vendors
+      const vendorCandidates = [];
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n) continue;
+        if (n.isShopkeeper || n.isGuard || n.isPet) continue;
+        vendorCandidates.push(n);
+      }
+
+      // Decide which vendor shop types to spawn based on town kind
+      const vendorTypes = [];
+      vendorTypes.push("market_weaponsmith"); // always
+      if (kind === "port") {
+        vendorTypes.push("market_harbor_arms");
+      }
+      vendorTypes.push("market_curios");
+
+      let vendorIndex = 0;
+      function nextVendorNpc() {
+        while (vendorIndex < vendorCandidates.length) {
+          const n = vendorCandidates[vendorIndex++];
+          if (n) return n;
+        }
+        return null;
+      }
+
+      // Helper to find the next free stall tile from candidates
+      let candidateIdxForVendors = 0;
+      function nextFreeStall() {
+        for (; candidateIdxForVendors < candidates.length; candidateIdxForVendors++) {
+          const c = candidates[candidateIdxForVendors];
+          if (!c) continue;
+          if (!stallIsFree(c.x, c.y)) continue;
+          return c;
+        }
+        return null;
+      }
+
+      const vendorShopsCreated = [];
+
+      for (let vi = 0; vi < vendorTypes.length; vi++) {
+        const vType = vendorTypes[vi];
+        const npc = nextVendorNpc();
+        if (!npc) break;
+        const stall = nextFreeStall();
+        if (!stall) break;
+
+        try {
+          npc._marketVendor = true;
+          npc._marketVendorType = vType;
+          npc._marketStall = { x: stall.x, y: stall.y };
+          npc._floor = "ground";
+          npc.x = stall.x;
+          npc.y = stall.y;
+          markStallUsed(stall.x, stall.y);
+
+          const shopName =
+            npc.name ||
+            (vType === "market_weaponsmith"
+              ? "Travelling Weaponsmith"
+              : vType === "market_harbor_arms"
+              ? "Harbor Arms Trader"
+              : "Curio Arms Dealer");
+
+          const tmpShop = {
+            x: stall.x,
+            y: stall.y,
+            type: vType,
+            name: shopName,
+            alwaysOpen: true,
+            openMin: 0,
+            closeMin: 0,
+            building: null,
+            inside: { x: stall.x, y: stall.y },
+            _isMarketDayTemp: true,
+          };
+
+          if (Array.isArray(ctx.shops)) {
+            ctx.shops.push(tmpShop);
+          }
+          npc._shopRef = tmpShop;
+          ctx._marketDayShops.push(tmpShop);
+          vendorShopsCreated.push(tmpShop);
+        } catch (_) {}
+      }
+
+      if (vendorShopsCreated.length) {
+        try {
+          ctx.log &&
+            ctx.log(
+              `[GOD] Market Day vendors: ${vendorShopsCreated.length} special stall(s) added in the plaza.`,
+              "info"
+            );
+        } catch (_) {}
+      }
+    } catch (_) {}
 
     if (assigned <= 0) {
       try { ctx.log && ctx.log("GOD: Market Day started, but no shopkeepers were found to assign stalls.", "warn"); } catch (_) {}
