@@ -288,6 +288,27 @@ export function install(getCtx) {
         } catch (_) {}
       }
     },
+    onGodTownMarketDay: () => {
+      const c = getCtx();
+      try {
+        const mode = c && c.mode;
+        if (mode !== "town") {
+          c.log("GOD: Market Day event is available in town/harbor/castle mode only. Enter a town first.", "warn");
+          return;
+        }
+        const G = (c && c.God) || (typeof window !== "undefined" ? window.God : null);
+        if (!G || typeof G.startMarketDayInTown !== "function") {
+          c.log("GOD: startMarketDayInTown helper not available.", "warn");
+          return;
+        }
+        G.startMarketDayInTown(c);
+      } catch (e) {
+        try {
+          c.log("GOD: Market Day handler threw an error; see console.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
 
     // Town diagnostics
     onGodCheckHomes: () => {

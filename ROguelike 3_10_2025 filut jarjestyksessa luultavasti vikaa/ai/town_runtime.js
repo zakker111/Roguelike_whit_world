@@ -706,6 +706,37 @@ function townNPCsAct(ctx) {
     if (n.isShopkeeper) {
       const shop = n._shopRef || null;
       const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
+
+      // Market Day: when forced via GOD panel, keep shopkeepers at their plaza stalls
+      // during the day instead of following normal door/building schedules.
+      let isMarketDay = false;
+      try {
+        const tLoc = ctx && ctx.time ? ctx.time : null;
+        if (ctx && ctx._forceMarketDay === true) {
+          isMarketDay = true;
+        } else if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
+          const tc = tLoc.turnCounter | 0;
+          let cyc = tLoc.cycleTurns | 0;
+          if (!cyc || cyc <= 0) cyc = 360;
+          const dayIdx = Math.floor(tc / Math.max(1, cyc));
+          isMarketDay = (dayIdx % 7) === 0;
+        }
+      } catch (_) {}
+
+      if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza) {
+        const stall = n._marketStall;
+        n._atWork = true;
+        n._floor = "ground";
+        if (n.x !== stall.x || n.y !== stall.y) {
+          stepTowards(ctx, occ, n, stall.x, stall.y, { urgent: true });
+        } else {
+          if (ctx.rng() < 0.08) {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
+        }
+        continue;
+      }
+
       if (isInnKeeper && shop && shop.building) {
         n._atWork = true;
         const innB = shop.building;

@@ -910,6 +910,12 @@ export function init(UI) {
       if (typeof UI.handlers.onGodTownBandits === "function") UI.handlers.onGodTownBandits();
     });
   }
+  const townMarketDayBtn = byId("god-town-marketday-btn");
+  if (townMarketDayBtn) {
+    townMarketDayBtn.addEventListener("click", () => {
+      if (typeof UI.handlers.onGodTownMarketDay === "function") UI.handlers.onGodTownMarketDay();
+    });
+  }
 }
 
 export function show() {

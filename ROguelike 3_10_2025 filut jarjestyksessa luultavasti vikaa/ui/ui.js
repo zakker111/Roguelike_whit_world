@@ -48,6 +48,7 @@ export const UI = {
     onGodHireFollower: null,
     // Town events
     onGodTownBandits: null,
+    onGodTownMarketDay: null,
     // World teleport helpers
     onGodTeleportToTower: null,
     onGodTeleport: null,
@@ -290,7 +291,7 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTownMarketDay, onGodTeleportToTower, onGodTeleport } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -323,6 +324,7 @@ export const UI = {
     if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
     if (typeof onGodTownBandits === "function") this.handlers.onGodTownBandits = onGodTownBandits;
+    if (typeof onGodTownMarketDay === "function") this.handlers.onGodTownMarketDay = onGodTownMarketDay;
     if (typeof onGodTeleportToTower === "function") this.handlers.onGodTeleportToTower = onGodTeleportToTower;
     if (typeof onGodTeleport === "function") this.handlers.onGodTeleport = onGodTeleport;
 

@@ -270,6 +270,21 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   ctx.log &&
     ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
+  // Market Day flag: weekly by default, with GOD override (ctx._forceMarketDay).
+  let isMarketDay = false;
+  try {
+    const t = ctx && ctx.time ? ctx.time : null;
+    if (ctx && ctx._forceMarketDay === true) {
+      isMarketDay = true;
+    } else if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
+      const tc = t.turnCounter | 0;
+      let cyc = t.cycleTurns | 0;
+      if (!cyc || cyc <= 0) cyc = 360;
+      const dayIdx = Math.floor(tc / Math.max(1, cyc));
+      isMarketDay = (dayIdx % 7) === 0;
+    }
+  } catch (_) {}
+
   // Only shopkeepers can open shops; villagers should not trigger trading.
   const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
 
@@ -297,6 +312,26 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       dy = Math.abs(n.y - shop.y);
     const nearDoor = dx + dy === 1 || Math.max(dx, dy) === 1;
     return atDoor || inside || nearDoor;
+  }
+
+  // On Market Day, trading should happen at the keeper's market stall in the plaza,
+  // not at the shop door. Player must be at that stall tile (or adjacent) to trade.
+  function isPlayerAtMarketStall(ctxLocal, n) {
+    if (!ctxLocal || !n || !n._marketStall) return false;
+    const stall = n._marketStall;
+    const px =
+      ctxLocal.player && typeof ctxLocal.player.x === "number"
+        ? ctxLocal.player.x
+        : null;
+    const py =
+      ctxLocal.player && typeof ctxLocal.player.y === "number"
+        ? ctxLocal.player.y
+        : null;
+    if (px == null || py == null) return false;
+    const dx = Math.abs(px - stall.x);
+    const dy = Math.abs(py - stall.y);
+    // Accept standing on the stall or immediately adjacent (Chebyshev distance <= 1).
+    return dx + dy === 0 || dx + dy === 1 || Math.max(dx, dy) === 1;
   }
 
   // Helper to open a shop reference (if open), showing schedule when closed
@@ -378,41 +413,67 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       }
 
       if (shopRef) {
-        // Inn: always open and interactable anywhere inside — open immediately on bump
+        // Inn: always open and interactable anywhere inside — except on Market Day,
+        // when trading is moved to the plaza stall.
         const isInn = String(shopRef.type || "").toLowerCase() === "inn";
         if (isInn) {
-          tryOpenShopRef(shopRef, npc);
+          if (isMarketDay) {
+            if (isPlayerAtMarketStall(ctx, npc)) {
+              tryOpenShopRef(shopRef, npc);
+            } else {
+              ctx.log &&
+                ctx.log(
+                  `${npc.name || "Innkeeper"} is trading at the market today. Find them at their stall in the plaza.`,
+                  "info"
+                );
+            }
+          } else {
+            tryOpenShopRef(shopRef, npc);
+          }
           return true;
         }
 
-        if (isKeeperAtShop(npc, shopRef)) {
-          // Keeper at or near the shop door (or inside) — open directly if hours allow
-          tryOpenShopRef(shopRef, npc);
-        } else {
-          // Fallback: if the shop is currently open, allow trading when bumping the keeper anywhere
-          // This makes trading more forgiving when the keeper is on their way or patrolling nearby.
-          const SS =
-            ctx.ShopService ||
-            (typeof window !== "undefined" ? window.ShopService : null);
-          const openNow =
-            SS && typeof SS.isShopOpenNow === "function"
-              ? SS.isShopOpenNow(ctx, shopRef)
-              : false;
-          if (openNow) {
+        if (isMarketDay) {
+          // Market Day: only allow trading at the market stall, not at the shop door.
+          if (isPlayerAtMarketStall(ctx, npc)) {
             tryOpenShopRef(shopRef, npc);
           } else {
+            const SS =
+              ctx.ShopService ||
+              (typeof window !== "undefined" ? window.ShopService : null);
             const sched =
               SS && typeof SS.shopScheduleStr === "function"
                 ? SS.shopScheduleStr(shopRef)
                 : "";
             ctx.log &&
               ctx.log(
-                `${npc.name || "Shopkeeper"} is away from the ${
-                  shopRef.name || "shop"
-                }. ${sched ? "(" + sched + ")" : ""}`,
+                `${npc.name || "Shopkeeper"} is trading at the ${
+                  shopRef.name || "market"
+                } today. Look for their stall in the plaza. ${
+                  sched ? "(" + sched + ")" : ""
+                }`,
                 "info"
               );
           }
+        } else if (isKeeperAtShop(npc, shopRef)) {
+          // Normal day: keeper at or near the shop door (or inside) — open directly if hours allow
+          tryOpenShopRef(shopRef, npc);
+        } else {
+          // Normal day: away from shop, do not open trading UI; show schedule/info only.
+          const SS =
+            ctx.ShopService ||
+            (typeof window !== "undefined" ? window.ShopService : null);
+          const sched =
+            SS && typeof SS.shopScheduleStr === "function"
+              ? SS.shopScheduleStr(shopRef)
+              : "";
+          ctx.log &&
+            ctx.log(
+              `${npc.name || "Shopkeeper"} is away from the ${
+                shopRef.name || "shop"
+              }. ${sched ? "(" + sched + ")" : ""}`,
+              "info"
+            );
         }
       } else {
         // No shop resolved; log and return
