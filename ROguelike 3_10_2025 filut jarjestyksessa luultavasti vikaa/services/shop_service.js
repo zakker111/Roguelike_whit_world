@@ -515,7 +515,7 @@ export function restockIfNeeded(ctx, shop) {
         var cap = (cfg.capPerDay | 0) || 0;
         var used = 0;
         var tries = 0;
-        while (tries++ &lt; 20 &amp;&amp; used &lt; cap) {
+        while (tries++ < 20 && used < cap) {
           var pick = _weightedPick(rng, cfg.entries, phase);
           if (!pick) break;
           var item = _materializeItem(ctx, pick);
@@ -526,7 +526,7 @@ export function restockIfNeeded(ctx, shop) {
           used += 1;
           // avoid duplicates exploding: remove weight temporarily
           // simple approach: break to limit per category to a few rows
-          if (rows.length &gt; 6) break;
+          if (rows.length > 6) break;
         }
       });
     }
