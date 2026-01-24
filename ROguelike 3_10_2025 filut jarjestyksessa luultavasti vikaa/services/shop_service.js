@@ -473,16 +473,28 @@ export function restockIfNeeded(ctx, shop) {
   var rest = gd && gd.shopRestock ? gd.shopRestock[shop.type] : null;
   var t = ctx && ctx.time ? ctx.time : null;
   var nowMin = t ? (t.hours * 60 + t.minutes) : 12 * 60;
-  // Determine whether this town is in Market Day state (weekly or forced via ctx._forceMarketDay)
+  // Determine whether this town is in Market Day state (weekly or forced via ctx._forceMarketDay).
+  // Forced Market Day is limited to the day index when it was started; after that, it expires.
   var isMarketDay = false;
   try {
-    if (ctx && ctx._forceMarketDay === true) {
-      isMarketDay = true;
-    } else if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
+    var dayIdx = null;
+    if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
       var tc = t.turnCounter | 0;
       var cyc = t.cycleTurns | 0;
       if (cyc <= 0) cyc = 360;
-      var dayIdx = Math.floor(tc / Math.max(1, cyc));
+      dayIdx = Math.floor(tc / Math.max(1, cyc));
+    }
+    if (ctx && ctx._forceMarketDay === true) {
+      var forceDay = (typeof ctx._forceMarketDayDayIdx === "number") ? ctx._forceMarketDayDayIdx : null;
+      if (forceDay != null && dayIdx != null && dayIdx !== forceDay) {
+        // Forced Market Day has expired; clear flag and fall back to natural weekly schedule.
+        ctx._forceMarketDay = false;
+        try { ctx._forceMarketDayDayIdx = undefined; } catch (_) {}
+      } else {
+        isMarketDay = true;
+      }
+    }
+    if (!isMarketDay && dayIdx != null) {
       isMarketDay = (dayIdx % 7) === 0;
     }
   } catch (_) {}

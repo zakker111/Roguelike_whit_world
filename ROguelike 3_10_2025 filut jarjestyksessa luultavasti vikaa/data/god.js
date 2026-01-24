@@ -377,6 +377,19 @@ export function startMarketDayInTown(ctx) {
       try { ctx.log && ctx.log("GOD: This town has no registered shops for Market Day.", "warn"); } catch (_) {}
       return;
     }
+
+    // Record the current day index so the forced Market Day flag can auto-expire after this day.
+    let forceDayIdx = null;
+    try {
+      const t = ctx && ctx.time ? ctx.time : null;
+      if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
+        const tc = t.turnCounter | 0;
+        let cyc = t.cycleTurns | 0;
+        if (!cyc || cyc <= 0) cyc = 360;
+        forceDayIdx = Math.floor(tc / Math.max(1, cyc));
+      }
+    } catch (_) {}
+
     const plaza = ctx.townPlaza || null;
     if (!plaza || typeof plaza.x !== "number" || typeof plaza.y !== "number") {
       try { ctx.log && ctx.log("GOD: Town plaza location is unknown; cannot place market stalls.", "warn"); } catch (_) {}
@@ -440,7 +453,12 @@ export function startMarketDayInTown(ctx) {
     }
 
     // Mark Market Day as active for this town; pricing and AI will consult this flag.
+    // Also persist the day index so the forced flag can auto-expire after this day.
     ctx._forceMarketDay = true;
+    try {
+      if (typeof forceDayIdx === "number") ctx._forceMarketDayDayIdx = forceDayIdx;
+      else ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
 
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
     let assigned = 0;

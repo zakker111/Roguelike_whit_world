@@ -709,16 +709,28 @@ function townNPCsAct(ctx) {
 
       // Market Day: when forced via GOD panel, keep shopkeepers at their plaza stalls
       // during the day instead of following normal door/building schedules.
+      // Forced Market Day is limited to the day index when it was started; after that, it expires.
       let isMarketDay = false;
       try {
         const tLoc = ctx && ctx.time ? ctx.time : null;
-        if (ctx && ctx._forceMarketDay === true) {
-          isMarketDay = true;
-        } else if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
+        let dayIdx = null;
+        if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
           const tc = tLoc.turnCounter | 0;
           let cyc = tLoc.cycleTurns | 0;
           if (!cyc || cyc <= 0) cyc = 360;
-          const dayIdx = Math.floor(tc / Math.max(1, cyc));
+          dayIdx = Math.floor(tc / Math.max(1, cyc));
+        }
+        if (ctx && ctx._forceMarketDay === true) {
+          const forceDay = (typeof ctx._forceMarketDayDayIdx === "number") ? ctx._forceMarketDayDayIdx : null;
+          if (forceDay != null && dayIdx != null && dayIdx !== forceDay) {
+            // Forced Market Day has expired; clear flag and fall back to natural weekly schedule.
+            ctx._forceMarketDay = false;
+            try { ctx._forceMarketDayDayIdx = undefined; } catch (_) {}
+          } else {
+            isMarketDay = true;
+          }
+        }
+        if (!isMarketDay && dayIdx != null) {
           isMarketDay = (dayIdx % 7) === 0;
         }
       } catch (_) {}
