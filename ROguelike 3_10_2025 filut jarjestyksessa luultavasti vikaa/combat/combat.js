@@ -335,6 +335,28 @@ export function playerAttackEnemy(ctx, enemy) {
         if (!ethereal && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
       }
 
+      // Glassfang Dagger: high bleed chance, especially on crits.
+      try {
+        const p = ctx.player || null;
+        const weapon = p ? primaryWeaponItem(p) : null;
+        const wId = weapon && weapon.id ? String(weapon.id).toLowerCase() : "";
+        if (wId === "glassfang_dagger" && typeof ST.applyBleedToEnemy === "function") {
+          let apply = false;
+          const dur = isCrit ? 4 : 3;
+          if (isCrit) {
+            apply = true;
+          } else {
+            const pBleed = 0.40;
+            if (RU && typeof RU.chance === "function") apply = RU.chance(pBleed, rng);
+            else if (typeof rng === "function") apply = rng() < pBleed;
+            else apply = Math.random() < pBleed;
+          }
+          if (apply) {
+            ST.applyBleedToEnemy(ctx, enemy, dur);
+          }
+        }
+      } catch (_) {}
+
       // Torch: moderate chance to set enemies on fire when a torch is held in either hand.
       try {
         const p = ctx.player || null;
@@ -342,10 +364,10 @@ export function playerAttackEnemy(ctx, enemy) {
         const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
         const holdingTorch = !!(eq && (hasTorch(eq.left) || hasTorch(eq.right)));
         if (holdingTorch && enemy.hp > 0 && typeof ST.applyInFlamesToEnemy === "function") {
-          const RU = getRNGUtils(ctx);
+          const RU2 = getRNGUtils(ctx);
           const pTorch = 0.35;
           let ignite = false;
-          if (RU && typeof RU.chance === "function") ignite = RU.chance(pTorch, rng);
+          if (RU2 && typeof RU2.chance === "function") ignite = RU2.chance(pTorch, rng);
           else if (typeof rng === "function") ignite = rng() < pTorch;
           else ignite = Math.random() < pTorch;
           if (ignite) {
@@ -363,10 +385,10 @@ export function playerAttackEnemy(ctx, enemy) {
           (eq.right && (eq.right.id === "seppos_true_blade" || /seppo's true blade/i.test(String(eq.right.name || ""))))
         ));
         if (hasSeppoBlade && enemy.hp > 0) {
-          const RU2 = getRNGUtils(ctx);
+          const RU3 = getRNGUtils(ctx);
           const pLove = 0.04; // ~4% chance per hit
           let charm = false;
-          if (RU2 && typeof RU2.chance === "function") charm = RU2.chance(pLove, rng);
+          if (RU3 && typeof RU3.chance === "function") charm = RU3.chance(pLove, rng);
           else if (typeof rng === "function") charm = rng() < pLove;
           else charm = Math.random() < pLove;
           if (charm) {
