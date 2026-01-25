@@ -373,14 +373,6 @@ export function startMarketDayInTown(ctx) {
       return;
     }
 
-    // Defensive: clear any leftover Market Day state from a previous run before
-    // starting a new event so temporary shops/vendors do not stack up.
-    try {
-      if (typeof endMarketDayInTown === "function") {
-        endMarketDayInTown(ctx);
-      }
-    } catch (_) {}
-
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     if (!shops.length) {
       try { ctx.log && ctx.log("GOD: This town has no registered shops for Market Day.", "warn"); } catch (_) {}
@@ -396,6 +388,18 @@ export function startMarketDayInTown(ctx) {
         let cyc = t.cycleTurns | 0;
         if (!cyc || cyc <= 0) cyc = 360;
         forceDayIdx = Math.floor(tc / Math.max(1, cyc));
+      }
+    } catch (_) {}
+
+    // If a Market Day is already active for this day, avoid starting it again to
+    // prevent duplicate logs and duplicated temporary shops.
+    try {
+      if (ctx._forceMarketDay === true &&
+          typeof ctx._forceMarketDayDayIdx === "number" &&
+          forceDayIdx != null &&
+          ctx._forceMarketDayDayIdx === forceDayIdx) {
+        // Already active for this day; treat as a no-op.
+        return;
       }
     } catch (_) {}
 
