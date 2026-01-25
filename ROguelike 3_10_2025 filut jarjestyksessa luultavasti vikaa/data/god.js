@@ -629,20 +629,46 @@ export function startMarketDayInTown(ctx) {
       }
 
       if (vendorShopsCreated.length) {
+        // Only log the vendor stall summary once per town session to avoid log spam
+        let loggedOnce = false;
         try {
-          ctx.log &&
-            ctx.log(
-              `[GOD] Market Day vendors: ${vendorShopsCreated.length} special stall(s) added in the plaza.`,
-              "info"
-            );
+          loggedOnce = !!ctx._marketDayVendorsLogged;
         } catch (_) {}
+        if (!loggedOnce) {
+          try {
+            ctx.log &&
+              ctx.log(
+                `[GOD] Market Day vendors: ${vendorShopsCreated.length} special stall(s) added in the plaza.`,
+                "info"
+              );
+          } catch (_) {}
+          try {
+            ctx._marketDayVendorsLogged = true;
+          } catch (_) {}
+        }
       }
     } catch (_) {}
 
     if (assigned <= 0) {
-      try { ctx.log && ctx.log("GOD: Market Day started, but no shopkeepers were found to assign stalls.", "warn"); } catch (_) {}
+      // Only log the "no shopkeepers" message once per town session.
+      let alreadyLogged = false;
+      try {
+        alreadyLogged = !!ctx._marketDayStartLogged;
+      } catch (_) {}
+      if (!alreadyLogged) {
+        try { ctx.log && ctx.log("GOD: Market Day started, but no shopkeepers were found to assign stalls.", "warn"); } catch (_) {}
+        try { ctx._marketDayStartLogged = true; } catch (_) {}
+      }
     } else {
-      try { ctx.log && ctx.log(`[GOD] Market Day started: ${assigned} shopkeeper(s) moved to the plaza.`, "good"); } catch (_) {}
+      // Only log the Market Day start summary once per town session to avoid spam.
+      let alreadyLogged = false;
+      try {
+        alreadyLogged = !!ctx._marketDayStartLogged;
+      } catch (_) {}
+      if (!alreadyLogged) {
+        try { ctx.log && ctx.log(`[GOD] Market Day started: ${assigned} shopkeeper(s) moved to the plaza.`, "good"); } catch (_) {}
+        try { ctx._marketDayStartLogged = true; } catch (_) {}
+      }
     }
 
     try {
