@@ -490,10 +490,13 @@ export function startMarketDayInTown(ctx) {
       return null;
     }
 
-    // 1) Assign plaza stalls to permanent shopkeepers
+    // 1) Assign plaza stalls to permanent shopkeepers (excluding inns, which
+    // should remain at the inn so room/drink services stay available).
     for (let i = 0; i < shops.length && i < candidates.length; i++) {
       const s = shops[i];
       if (!s) continue;
+      const typeStr = String(s.type || "").toLowerCase();
+      if (typeStr === "inn") continue;
       const stall = candidates[i];
       const keeper = findKeeperForShop(s);
       if (!keeper) continue;

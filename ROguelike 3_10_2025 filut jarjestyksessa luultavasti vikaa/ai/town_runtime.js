@@ -741,8 +741,9 @@ function townNPCsAct(ctx) {
       const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
 
       // On Market Day keep shopkeepers at their plaza stalls during the day instead
-      // of following normal door/building schedules.
-      if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza) {
+      // of following normal door/building schedules. Innkeepers are excluded and
+      // remain at the inn so the inn continues to function normally.
+      if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza && !isInnKeeper) {
         const stall = n._marketStall;
         n._atWork = true;
         n._floor = "ground";

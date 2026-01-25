@@ -418,23 +418,11 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       }
 
       if (shopRef) {
-        // Inn: always open and interactable anywhere inside — except on Market Day,
-        // when trading is moved to the plaza stall.
+        // Inn: always open and interactable anywhere inside. Market Day does not
+        // move inn trading to the plaza; the inn continues to function normally.
         const isInn = String(shopRef.type || "").toLowerCase() === "inn";
         if (isInn) {
-          if (isMarketDay) {
-            if (isPlayerAtMarketStall(ctx, npc)) {
-              tryOpenShopRef(shopRef, npc);
-            } else {
-              ctx.log &&
-                ctx.log(
-                  `${npc.name || "Innkeeper"} is trading at the market today. Find them at their stall in the plaza.`,
-                  "info"
-                );
-            }
-          } else {
-            tryOpenShopRef(shopRef, npc);
-          }
+          tryOpenShopRef(shopRef, npc);
           return true;
         }
 
