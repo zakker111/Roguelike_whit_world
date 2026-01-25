@@ -372,6 +372,15 @@ export function startMarketDayInTown(ctx) {
       try { ctx.log && ctx.log("GOD: Market Day is only supported in towns, harbor towns, and castles.", "warn"); } catch (_) {}
       return;
     }
+
+    // Defensive: clear any leftover Market Day state from a previous run before
+    // starting a new event so temporary shops/vendors do not stack up.
+    try {
+      if (typeof endMarketDayInTown === "function") {
+        endMarketDayInTown(ctx);
+      }
+    } catch (_) {}
+
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     if (!shops.length) {
       try { ctx.log && ctx.log("GOD: This town has no registered shops for Market Day.", "warn"); } catch (_) {}
