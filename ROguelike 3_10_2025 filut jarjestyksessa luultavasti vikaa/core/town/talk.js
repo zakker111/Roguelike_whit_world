@@ -271,7 +271,7 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
   // Market Day flag: weekly by default, with GOD override (ctx._forceMarketDay).
-  // Forced Market Day is limited to the day index when it was started; after that, it expires.
+  // Forced Market Day lifetime is managed centrally by TownRuntime; this check is read-only.
   let isMarketDay = false;
   try {
     const t = ctx && ctx.time ? ctx.time : null;
@@ -283,14 +283,7 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       dayIdx = Math.floor(tc / Math.max(1, cyc));
     }
     if (ctx && ctx._forceMarketDay === true) {
-      const forceDay = (typeof ctx._forceMarketDayDayIdx === "number") ? ctx._forceMarketDayDayIdx : null;
-      if (forceDay != null && dayIdx != null && dayIdx !== forceDay) {
-        // Forced Market Day has expired; clear flag and fall back to natural weekly schedule.
-        ctx._forceMarketDay = false;
-        try { ctx._forceMarketDayDayIdx = undefined; } catch (_) {}
-      } else {
-        isMarketDay = true;
-      }
+      isMarketDay = true;
     }
     if (!isMarketDay && dayIdx != null) {
       isMarketDay = (dayIdx % 7) === 0;

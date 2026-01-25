@@ -950,6 +950,91 @@ export function teleportToTarget(ctx, target) {
   }
 }
 
+/**
+ * End a Market Day event in the current town/harbor/castle.
+ * Clears forced Market Day flags, removes temporary Market Day shops,
+ * and resets vendor/stall assignments so the town returns to normal.
+ */
+export function endMarketDayInTown(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+
+    // Clear forced Market Day flags (weekly rule is purely derived from day index).
+    try {
+      if (ctx._forceMarketDay) ctx._forceMarketDay = false;
+    } catch (_) {}
+    try {
+      ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
+
+    // Remove temporary Market Day shops that were created at stalls.
+    let tmpShops = [];
+    try {
+      if (Array.isArray(ctx._marketDayShops) && ctx._marketDayShops.length) {
+        tmpShops = ctx._marketDayShops.slice(0);
+      }
+    } catch (_) {}
+    try {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      if (tmpShops.length && shops.length) {
+        for (let i = 0; i < tmpShops.length; i++) {
+          const s = tmpShops[i];
+          if (!s) continue;
+          const idx = shops.indexOf(s);
+          if (idx !== -1) shops.splice(idx, 1);
+        }
+      }
+    } catch (_) {}
+    try {
+      ctx._marketDayShops = [];
+    } catch (_) {}
+
+    // Reset NPC flags for Market Day vendors and stall assignments.
+    try {
+      const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n) continue;
+
+        // Special Market Day vendors: remove vendor flags and detach temp shop refs.
+        if (n._marketVendor) {
+          try {
+            n._marketVendor = false;
+            n._marketVendorType = undefined;
+            n._marketStall = undefined;
+          } catch (_) {}
+          try {
+            if (n._shopRef && tmpShops.length) {
+              const isTmp = tmpShops.indexOf(n._shopRef) !== -1;
+              if (isTmp) n._shopRef = null;
+            }
+          } catch (_) {}
+        } else if (n.isShopkeeper && n._marketStall) {
+          // Permanent shopkeepers: clear stall assignment; their normal shopRef remains.
+          try {
+            n._marketStall = undefined;
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    // Refresh town state to reflect shop/NPC changes.
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+      }
+    } catch (_) {}
+
+    try {
+      if (ctx.log) ctx.log("[GOD] Market Day has ended. Vendors pack up their stalls.", "info");
+    } catch (_) {}
+  } catch (_) {}
+}
+
 // Back-compat: attach to window via helper
 attachGlobal("God", {
   heal,
@@ -965,4 +1050,5 @@ attachGlobal("God", {
   teleportToNearestTower,
   teleportToTarget,
   startMarketDayInTown,
+  endMarketDayInTown,
 });

@@ -302,6 +302,18 @@ export function applyLeaveSync(ctx) {
     syncFollowersFromTown(ctx);
   } catch (_) {}
 
+  // End any forced Market Day event before saving town state so temporary
+  // shops and vendor flags do not persist across visits.
+  try {
+    const God =
+      ctx.God ||
+      getMod(ctx, "God") ||
+      (typeof window !== "undefined" ? window.God : null);
+    if (God && typeof God.endMarketDayInTown === "function") {
+      God.endMarketDayInTown(ctx);
+    }
+  } catch (_) {}
+
   // Persist current town state (map + visibility + entities) before leaving
   try {
     const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
@@ -480,9 +492,50 @@ if (typeof window !== "undefined") {
   };
 }
 
+/**
+ * If a forced Market Day was started via GOD panel, automatically end it once
+ * the in-game day index changes so the event lasts exactly one day.
+ */
+function maybeEndMarketDay(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+    if (!ctx._forceMarketDay) return;
+
+    const t = ctx.time;
+    if (!t || typeof t.turnCounter !== "number" || typeof t.cycleTurns !== "number") return;
+
+    const tc = t.turnCounter | 0;
+    let cyc = t.cycleTurns | 0;
+    if (!cyc || cyc <= 0) cyc = 360;
+    const dayIdx = Math.floor(tc / Math.max(1, cyc));
+    const forceDay =
+      typeof ctx._forceMarketDayDayIdx === "number" ? ctx._forceMarketDayDayIdx : null;
+
+    if (forceDay != null && dayIdx !== forceDay) {
+      const God =
+        ctx.God ||
+        getMod(ctx, "God") ||
+        (typeof window !== "undefined" ? window.God : null);
+      if (God && typeof God.endMarketDayInTown === "function") {
+        God.endMarketDayInTown(ctx);
+      } else {
+        ctx._forceMarketDay = false;
+        try {
+          ctx._forceMarketDayDayIdx = undefined;
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+}
+
 // Back-compat: tick implementation (retained)
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "town") return false;
+
+  // End forced Market Day when the day index changes.
+  try {
+    maybeEndMarketDay(ctx);
+  } catch (_) {}
 
   // Wild Seppo (travelling merchant) arrival/departure
   tickSeppo(ctx);

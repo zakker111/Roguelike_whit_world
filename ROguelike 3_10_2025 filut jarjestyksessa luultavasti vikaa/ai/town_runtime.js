@@ -703,38 +703,45 @@ function townNPCsAct(ctx) {
       }
     }
 
+    // Determine whether today is a Market Day (weekly rule or forced via GOD).
+    // Forced Market Day lifetime is managed centrally by TownRuntime; this check is read-only.
+    let isMarketDay = false;
+    try {
+      const tLoc = ctx && ctx.time ? ctx.time : null;
+      let dayIdx = null;
+      if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
+        const tc = tLoc.turnCounter | 0;
+        let cyc = tLoc.cycleTurns | 0;
+        if (!cyc || cyc <= 0) cyc = 360;
+        dayIdx = Math.floor(tc / Math.max(1, cyc));
+      }
+      if (ctx && ctx._forceMarketDay === true) {
+        isMarketDay = true;
+      }
+      if (!isMarketDay && dayIdx != null) {
+        isMarketDay = (dayIdx % 7) === 0;
+      }
+    } catch (_) {}
+
+    // Special Market Day vendors: stay at or near their stall the whole Market Day.
+    if (n._marketVendor && n._marketStall && isMarketDay && ctx.townPlaza) {
+      const stallV = n._marketStall;
+      n._floor = "ground";
+      if (n.x !== stallV.x || n.y !== stallV.y) {
+        stepTowards(ctx, occ, n, stallV.x, stallV.y, { urgent: true });
+      } else if (ctx.rng() < 0.10) {
+        // Small idle movement around stall
+        stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+      }
+      continue;
+    }
+
     if (n.isShopkeeper) {
       const shop = n._shopRef || null;
       const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
 
-      // Market Day: when forced via GOD panel, keep shopkeepers at their plaza stalls
-      // during the day instead of following normal door/building schedules.
-      // Forced Market Day is limited to the day index when it was started; after that, it expires.
-      let isMarketDay = false;
-      try {
-        const tLoc = ctx && ctx.time ? ctx.time : null;
-        let dayIdx = null;
-        if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
-          const tc = tLoc.turnCounter | 0;
-          let cyc = tLoc.cycleTurns | 0;
-          if (!cyc || cyc <= 0) cyc = 360;
-          dayIdx = Math.floor(tc / Math.max(1, cyc));
-        }
-        if (ctx && ctx._forceMarketDay === true) {
-          const forceDay = (typeof ctx._forceMarketDayDayIdx === "number") ? ctx._forceMarketDayDayIdx : null;
-          if (forceDay != null && dayIdx != null && dayIdx !== forceDay) {
-            // Forced Market Day has expired; clear flag and fall back to natural weekly schedule.
-            ctx._forceMarketDay = false;
-            try { ctx._forceMarketDayDayIdx = undefined; } catch (_) {}
-          } else {
-            isMarketDay = true;
-          }
-        }
-        if (!isMarketDay && dayIdx != null) {
-          isMarketDay = (dayIdx % 7) === 0;
-        }
-      } catch (_) {}
-
+      // On Market Day keep shopkeepers at their plaza stalls during the day instead
+      // of following normal door/building schedules.
       if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza) {
         const stall = n._marketStall;
         n._atWork = true;

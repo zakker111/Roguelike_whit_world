@@ -474,7 +474,7 @@ export function restockIfNeeded(ctx, shop) {
   var t = ctx && ctx.time ? ctx.time : null;
   var nowMin = t ? (t.hours * 60 + t.minutes) : 12 * 60;
   // Determine whether this town is in Market Day state (weekly or forced via ctx._forceMarketDay).
-  // Forced Market Day is limited to the day index when it was started; after that, it expires.
+  // Forced Market Day lifetime is managed centrally by TownRuntime; this check is read-only.
   var isMarketDay = false;
   try {
     var dayIdx = null;
@@ -485,14 +485,7 @@ export function restockIfNeeded(ctx, shop) {
       dayIdx = Math.floor(tc / Math.max(1, cyc));
     }
     if (ctx && ctx._forceMarketDay === true) {
-      var forceDay = (typeof ctx._forceMarketDayDayIdx === "number") ? ctx._forceMarketDayDayIdx : null;
-      if (forceDay != null && dayIdx != null && dayIdx !== forceDay) {
-        // Forced Market Day has expired; clear flag and fall back to natural weekly schedule.
-        ctx._forceMarketDay = false;
-        try { ctx._forceMarketDayDayIdx = undefined; } catch (_) {}
-      } else {
-        isMarketDay = true;
-      }
+      isMarketDay = true;
     }
     if (!isMarketDay && dayIdx != null) {
       isMarketDay = (dayIdx % 7) === 0;
