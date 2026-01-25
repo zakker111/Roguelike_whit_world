@@ -723,15 +723,12 @@ function townNPCsAct(ctx) {
       }
     } catch (_) {}
 
-    // Special Market Day vendors: stay at or near their stall the whole Market Day.
+    // Special Market Day vendors: stay fixed at their stall for the whole Market Day.
     if (n._marketVendor && n._marketStall && isMarketDay && ctx.townPlaza) {
       const stallV = n._marketStall;
       n._floor = "ground";
       if (n.x !== stallV.x || n.y !== stallV.y) {
         stepTowards(ctx, occ, n, stallV.x, stallV.y, { urgent: true });
-      } else if (ctx.rng() < 0.10) {
-        // Small idle movement around stall
-        stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
       }
       continue;
     }
@@ -740,7 +737,7 @@ function townNPCsAct(ctx) {
       const shop = n._shopRef || null;
       const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
 
-      // On Market Day keep shopkeepers at their plaza stalls during the day instead
+      // On Market Day keep shopkeepers fixed at their plaza stalls during the day instead
       // of following normal door/building schedules. Innkeepers are excluded and
       // remain at the inn so the inn continues to function normally.
       if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza && !isInnKeeper) {
@@ -749,10 +746,6 @@ function townNPCsAct(ctx) {
         n._floor = "ground";
         if (n.x !== stall.x || n.y !== stall.y) {
           stepTowards(ctx, occ, n, stall.x, stall.y, { urgent: true });
-        } else {
-          if (ctx.rng() < 0.08) {
-            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
-          }
         }
         continue;
       }
