@@ -373,6 +373,15 @@ export function startMarketDayInTown(ctx) {
       return;
     }
 
+    // If Market Day has already been started once during this town session, do
+    // nothing. This prevents repeated start logs if the auto-start helper or
+    // GOD panel button calls this multiple times.
+    try {
+      if (ctx._marketDayStartedOnce) {
+        return;
+      }
+    } catch (_) {}
+
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     if (!shops.length) {
       try { ctx.log && ctx.log("GOD: This town has no registered shops for Market Day.", "warn"); } catch (_) {}
@@ -471,6 +480,11 @@ export function startMarketDayInTown(ctx) {
     try {
       if (typeof forceDayIdx === "number") ctx._forceMarketDayDayIdx = forceDayIdx;
       else ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
+    // Remember that Market Day has been started once for this town session so
+    // repeated calls to startMarketDayInTown() do not spam logs or duplicate stalls.
+    try {
+      ctx._marketDayStartedOnce = true;
     } catch (_) {}
 
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
@@ -981,6 +995,11 @@ export function endMarketDayInTown(ctx) {
     } catch (_) {}
     try {
       ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
+    // Allow Market Day to be started again in this town on a future day by
+    // clearing the per-session started flag.
+    try {
+      ctx._marketDayStartedOnce = false;
     } catch (_) {}
 
     // Remove temporary Market Day shops that were created at stalls.
