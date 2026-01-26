@@ -142,28 +142,24 @@ export function placeCaravanStallIfCaravanPresent(ctx, W, H, info) {
 
     if (!rect) return;
 
-    // Upgrade any sign inside the caravan prefab area to say "Caravan" and ensure only one remains.
+    // Remove any sign inside the caravan prefab area so the plaza stays free of
+    // extra sign clutter; the caravan stall itself is visually clear without a
+    // dedicated sign prop.
     try {
       if (Array.isArray(ctx.townProps) && ctx.townProps.length) {
         const x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w - 1, y1 = rect.y + rect.h - 1;
-        const signIdx = [];
+        const removeIdx = new Set();
         for (let i = 0; i < ctx.townProps.length; i++) {
           const p = ctx.townProps[i];
           if (!p) continue;
           if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && String(p.type || "").toLowerCase() === "sign") {
-            signIdx.push(i);
+            removeIdx.add(i);
           }
         }
-        if (signIdx.length) {
-          const keepIdx = signIdx[0];
-          const keep = ctx.townProps[keepIdx];
-          if (keep) keep.name = "Caravan";
-          if (signIdx.length > 1) {
-            const removeSet = new Set(signIdx.slice(1));
-            ctx.townProps = ctx.townProps.filter(function (p, idx) {
-              return !removeSet.has(idx);
-            });
-          }
+        if (removeIdx.size) {
+          ctx.townProps = ctx.townProps.filter(function (p, idx) {
+            return !removeIdx.has(idx);
+          });
         }
       }
     } catch (_) {}

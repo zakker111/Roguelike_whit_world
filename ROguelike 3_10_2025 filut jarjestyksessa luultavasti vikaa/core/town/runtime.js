@@ -572,13 +572,15 @@ function maybeAutoStartMarketDay(ctx) {
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "town") return false;
 
-  // End Market Day when the day index changes, and auto-start it on weekly days.
+  // End Market Day when the day index changes. Auto-start has been disabled to
+  // avoid noisy repeated Market Day starts when entering towns; Market Day can
+  // still be triggered explicitly via GOD panel.
   try {
     maybeEndMarketDay(ctx);
   } catch (_) {}
-  try {
-    maybeAutoStartMarketDay(ctx);
-  } catch (_) {}
+  // try {
+  //   maybeAutoStartMarketDay(ctx);
+  // } catch (_) {}
 
   // Wild Seppo (travelling merchant) arrival/departure
   tickSeppo(ctx);
