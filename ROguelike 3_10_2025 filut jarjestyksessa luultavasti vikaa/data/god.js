@@ -1045,6 +1045,21 @@ export function endMarketDayInTown(ctx) {
           if (idx !== -1) shops.splice(idx, 1);
         }
       }
+      // Defensive cleanup: also drop any shop that is clearly a Market Day temp
+      // shop even if ctx._marketDayShops lost identity (e.g. across saves).
+      if (shops.length) {
+        ctx.shops = shops.filter(function (s) {
+          if (!s) return false;
+          try {
+            if (s._isMarketDayTemp) return false;
+          } catch (_) {}
+          try {
+            const t = String(s.type || "").toLowerCase();
+            if (t.startsWith("market_")) return false;
+          } catch (_) {}
+          return true;
+        });
+      }
     } catch (_) {}
     try {
       ctx._marketDayShops = [];
