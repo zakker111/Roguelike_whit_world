@@ -319,9 +319,11 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     return atDoor || inside || nearDoor;
   }
 
-  // On Market Day, trading should happen at the keeper's market stall in the plaza,
-  // not at the shop door. Player must be at that stall tile (or adjacent) to trade.
-  function isPlayerAtMarketStall(ctxLocal, n) {
+  // On Market Day we relocate shopkeepers to market stalls in the plaza. For
+  // interaction purposes, if the player is close enough to bump the NPC (the
+  // 'near' check at the top of this function), we treat that as being \"at\" the
+  // stall and allow trading without extra positional checks.
+  function isPlayerAtMarketStall(ctxLocal, n) { // retained for potential future use
     if (!ctxLocal || !n || !n._marketStall) return false;
     const stall = n._marketStall;
     const px =
@@ -335,7 +337,6 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     if (px == null || py == null) return false;
     const dx = Math.abs(px - stall.x);
     const dy = Math.abs(py - stall.y);
-    // Accept standing on the stall or immediately adjacent (Chebyshev distance <= 1).
     return dx + dy === 0 || dx + dy === 1 || Math.max(dx, dy) === 1;
   }
 
@@ -426,33 +427,17 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
           return true;
         }
 
-        if (isMarketDay) {
-          // Market Day: only allow trading at the market stall, not at the shop door.
-          if (isPlayerAtMarketStall(ctx, npc)) {
-            tryOpenShopRef(shopRef, npc);
-          } else {
-            const SS =
-              ctx.ShopService ||
-              (typeof window !== "undefined" ? window.ShopService : null);
-            const sched =
-              SS && typeof SS.shopScheduleStr === "function"
-                ? SS.shopScheduleStr(shopRef)
-                : "";
-            ctx.log &&
-              ctx.log(
-                `${npc.name || "Shopkeeper"} is trading at the ${
-                  shopRef.name || "market"
-                } today. Look for their stall in the plaza. ${
-                  sched ? "(" + sched + ")" : ""
-                }`,
-                "info"
-              );
-          }
+        // Market Day: if this keeper has a market stall (either a relocated
+        // town shopkeeper or a special Market Day vendor), allow trading any
+        // time the player is close enough to talk to them.
+        if (isMarketDay && npc._marketStall) {
+          tryOpenShopRef(shopRef, npc);
         } else if (isKeeperAtShop(npc, shopRef)) {
-          // Normal day: keeper at or near the shop door (or inside) — open directly if hours allow
+          // Normal day, or keepers without market stalls: keeper at or near the
+          // shop door (or inside) — open directly if hours allow.
           tryOpenShopRef(shopRef, npc);
         } else {
-          // Normal day: away from shop, do not open trading UI; show schedule/info only.
+          // Away from shop/stall: do not open trading UI; show schedule/info only.
           const SS =
             ctx.ShopService ||
             (typeof window !== "undefined" ? window.ShopService : null);
