@@ -53,5 +53,29 @@
     "buyMultiplier": 0.55,
     "sellMultiplier": 1.0,
     "phasePriceMods": { "dusk": 1.10 }
+  },
+  "market_weaponsmith": {
+    "sells": ["weapon", "armor", "shield", "equip"],
+    "buys": ["equip"],
+    "buyMultiplier": 0.60,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "afternoon": 0.98, "dusk": 1.02 },
+    "marketDayDiscount": 0.90
+  },
+  "market_curios": {
+    "sells": ["equip"],
+    "buys": ["equip"],
+    "buyMultiplier": 0.50,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "dusk": 1.05 },
+    "marketDayDiscount": 0.85
+  },
+  "market_harbor_arms": {
+    "sells": ["equip"],
+    "buys": ["equip"],
+    "buyMultiplier": 0.55,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "midday": 0.98 },
+    "marketDayDiscount": 0.88
   }
 }

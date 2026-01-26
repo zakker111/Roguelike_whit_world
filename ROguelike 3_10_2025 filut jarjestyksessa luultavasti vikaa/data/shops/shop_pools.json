@@ -208,5 +208,126 @@
         ]
       }
     }
+  },
+  "market_weaponsmith": {
+    "categories": {
+      "weapons": {
+        "capPerDay": 3,
+        "entries": [
+          {
+            "id": "sunforged_saber",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 3,
+            "atk": 4.0,
+            "decay": 10,
+            "phaseWeights": { "morning": 1, "midday": 3, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "stonebreaker_hammer",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 3,
+            "atk": 3.5,
+            "decay": 12,
+            "phaseWeights": { "midday": 2, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "caravan_pike",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 4,
+            "atk": 5.0,
+            "twoHanded": true,
+            "decay": 15,
+            "phaseWeights": { "midday": 2, "afternoon": 2, "dusk": 1 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  },
+  "market_curios": {
+    "categories": {
+      "weapons": {
+        "capPerDay": 3,
+        "entries": [
+          {
+            "id": "echoing_blade",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 4,
+            "atk": 4.5,
+            "decay": 14,
+            "phaseWeights": { "midday": 2, "afternoon": 3, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "glassfang_dagger",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 3,
+            "atk": 3.0,
+            "decay": 8,
+            "phaseWeights": { "afternoon": 3, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "runescribed_staff",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 4,
+            "atk": 3.5,
+            "def": 0.5,
+            "twoHanded": true,
+            "decay": 16,
+            "phaseWeights": { "midday": 1, "afternoon": 2, "dusk": 3 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  },
+  "market_harbor_arms": {
+    "categories": {
+      "weapons": {
+        "capPerDay": 3,
+        "entries": [
+          {
+            "id": "tidecutter_spear",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 3,
+            "atk": 3.8,
+            "decay": 11,
+            "phaseWeights": { "midday": 2, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "anchorhammer",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 4,
+            "atk": 5.5,
+            "twoHanded": true,
+            "decay": 18,
+            "phaseWeights": { "afternoon": 2, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          {
+            "id": "stormglass_bow",
+            "kind": "named_equip",
+            "slot": "hand",
+            "tier": 3,
+            "atk": 3.6,
+            "decay": 12,
+            "phaseWeights": { "midday": 2, "afternoon": 2, "dusk": 3 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
   }
 }

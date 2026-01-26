@@ -78,27 +78,78 @@ function _isFreeTownFloor(ctx, x, y) {
 // ---- Interactions ----
 function interactProps(ctx) {
   if (ctx.mode !== "town") return false;
-  if (!Array.isArray(ctx.townProps) || !ctx.townProps.length) return false;
+
+  const propsArr = Array.isArray(ctx.townProps) ? ctx.townProps : null;
+  let target = null;
 
   // 1) Prefer the prop directly under the player (any type, including signs).
-  let target = ctx.townProps.find(p => p.x === ctx.player.x && p.y === ctx.player.y) || null;
+  if (propsArr && propsArr.length) {
+    target = propsArr.find(p => p.x === ctx.player.x && p.y === ctx.player.y) || null;
 
-  // 2) If nothing underfoot, allow adjacent props but never auto-trigger signs.
-  if (!target) {
-    const adj = [
-      { x: ctx.player.x + 1, y: ctx.player.y },
-      { x: ctx.player.x - 1, y: ctx.player.y },
-      { x: ctx.player.x, y: ctx.player.y + 1 },
-      { x: ctx.player.x, y: ctx.player.y - 1 },
-    ];
-    for (const c of adj) {
-      const p = ctx.townProps.find(q => q.x === c.x && q.y === c.y);
-      if (!p) continue;
-      const t = String(p.type || "").toLowerCase();
-      if (t === "sign") continue; // signs require standing exactly on the sign tile
-      target = p;
-      break;
+    // 2) If nothing underfoot, allow adjacent props but never auto-trigger signs.
+    if (!target) {
+      const adj = [
+        { x: ctx.player.x + 1, y: ctx.player.y },
+        { x: ctx.player.x - 1, y: ctx.player.y },
+        { x: ctx.player.x, y: ctx.player.y + 1 },
+        { x: ctx.player.x, y: ctx.player.y - 1 },
+      ];
+      for (const c of adj) {
+        const p = propsArr.find(q => q.x === c.x && q.y === c.y);
+        if (!p) continue;
+        const t = String(p.type || "").toLowerCase();
+        if (t === "sign") continue; // signs require standing exactly on the sign tile
+        target = p;
+        break;
+      }
     }
+  }
+
+  // 3) If there is no prop to interact with, fall back to shop/stall markers:
+  // standing directly on a shop door or Market Day stall should behave like
+  // interacting with a simple sign and log something to the message log.
+  if (!target) {
+    try {
+      const px = ctx.player && typeof ctx.player.x === "number" ? ctx.player.x : null;
+      const py = ctx.player && typeof ctx.player.y === "number" ? ctx.player.y : null;
+      if (px != null && py != null) {
+        let shop = null;
+        try {
+          const SSvc = ctx.ShopService || getMod(ctx, "ShopService");
+          if (SSvc && typeof SSvc.shopAt === "function") {
+            shop = SSvc.shopAt(ctx, px, py);
+          }
+        } catch (_) {}
+
+        // Fallback: scan ctx.shops if ShopService is unavailable
+        if (!shop && Array.isArray(ctx.shops)) {
+          const list = ctx.shops;
+          for (let i = 0; i < list.length; i++) {
+            const s = list[i];
+            if (!s) continue;
+            const sx = typeof s.x === "number" ? s.x : null;
+            const sy = typeof s.y === "number" ? s.y : null;
+            if (sx === px && sy === py) {
+              shop = s;
+              break;
+            }
+          }
+        }
+
+        if (shop) {
+          const typeStr = String(shop.type || "").toLowerCase();
+          const isMarket = typeStr.indexOf("market_") === 0;
+          const label = shop.name || (isMarket ? "Market Stall" : "Shop");
+          const msg = isMarket
+            ? `The stall sign reads: ${label}.`
+            : `The sign reads: ${label}.`;
+          try {
+            if (ctx.log) ctx.log(msg, "info");
+          } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
   }
 
   if (!target) return false;

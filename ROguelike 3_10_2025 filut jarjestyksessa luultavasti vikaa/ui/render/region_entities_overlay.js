@@ -17,11 +17,33 @@ export function drawRegionEntities(ctx, view) {
       const sy = (ey - startY) * TILE - tileOffsetY;
       const faction = String(e.faction || "");
       const isFollower = !!(e && e._isFollower);
+
+      // Treat anything whose type matches GameData.animals as an animal entity,
+      // even if its faction was flipped (e.g. becomes hostile after being hit).
+      let isAnimal = (faction === "animal");
+      try {
+        if (!isAnimal && e.type && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.animals)) {
+          const t = String(e.type).toLowerCase();
+          isAnimal = window.GameData.animals.some(a => {
+            if (!a) return false;
+            const id = String(a.id || a.type || "").toLowerCase();
+            return id && id === t;
+          });
+        }
+      } catch (_) {}
+
       let color = "#f7768e";
-      if (faction === "animal") {
+      if (isAnimal) {
+        // Prefer per-animal color when present; fall back to regionAnimal overlay color.
         try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
+          if (e.color && typeof e.color === "string" && e.color.trim()) {
+            color = e.color;
+          } else {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+              ? window.GameData.palette.overlays
+              : null;
+            color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
+          }
         } catch (_) {
           color = "#e9d5a1";
         }
@@ -39,6 +61,7 @@ export function drawRegionEntities(ctx, view) {
       } else if (typeof ctx.enemyColor === "function") {
         try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
       }
+
       ctx2d.save();
       if (isFollower) {
         // Followers: use the same visual language as dungeon/town allies:
@@ -50,37 +73,61 @@ export function drawRegionEntities(ctx, view) {
         ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
         ctx2d.restore();
 
-        // Draw the follower glyph (e.g. 'G') in glyph color (black by default)
+        // Draw the follower glyph (e.g. 'G') in glyph color
         try {
           const half = TILE / 2;
           ctx2d.save();
           ctx2d.textAlign = "center";
           ctx2d.textBaseline = "middle";
           ctx2d.fillStyle = color;
-          ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
+          ctx2d.fillText(
+            String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")),
+            sx + half,
+            sy + half
+          );
           ctx2d.restore();
         } catch (_) {}
         continue;
       }
 
-      if (faction === "animal") {
-        ctx2d.beginPath();
-        ctx2d.arc(sx + TILE / 2, sy + TILE / 2, Math.max(6, (TILE - 12) / 2), 0, Math.PI * 2);
-        ctx2d.fillStyle = color;
-        ctx2d.fill();
-      } else {
-        // Non-follower enemies: solid square marker with dark glyph
-        const pad = 6;
-        ctx2d.fillStyle = color;
-        ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
+      if (isAnimal) {
+        // Animals: draw glyph only at tile center, no background shape,
+        // even when they become hostile.
         try {
           const half = TILE / 2;
           ctx2d.textAlign = "center";
           ctx2d.textBaseline = "middle";
-          ctx2d.fillStyle = "#0b0f16";
-          ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
+          try {
+            ctx2d.font = `${Math.floor(TILE * 0.7)}px JetBrains Mono, monospace`;
+          } catch (_) {}
+          const glyph = String(
+            (e.glyph && String(e.glyph).trim())
+              ? e.glyph
+              : (e.type ? e.type.charAt(0) : "?")
+          );
+          ctx2d.fillStyle = color;
+          ctx2d.fillText(glyph, sx + half, sy + half);
         } catch (_) {}
+        ctx2d.restore();
+        continue;
       }
+
+      // Non-follower, non-animal enemies: solid square marker with dark glyph
+      const pad = 6;
+      ctx2d.fillStyle = color;
+      ctx2d.fillRect(sx + pad, sy + pad, TILE - pad * 2, TILE - pad * 2);
+      try {
+        const half = TILE / 2;
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "middle";
+        ctx2d.fillStyle = "#0b0f16";
+        ctx2d.fillText(
+          String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")),
+          sx + half,
+          sy + half
+        );
+      } catch (_) {}
+
       // Simple burning marker in Region Map when enemy is on fire
       try {
         if (e.inFlamesTurns && e.inFlamesTurns > 0) {

@@ -703,9 +703,53 @@ function townNPCsAct(ctx) {
       }
     }
 
+    // Determine whether today is a Market Day (weekly rule or forced via GOD).
+    // Forced Market Day lifetime is managed centrally by TownRuntime; this check is read-only.
+    let isMarketDay = false;
+    try {
+      const tLoc = ctx && ctx.time ? ctx.time : null;
+      let dayIdx = null;
+      if (tLoc && typeof tLoc.turnCounter === "number" && typeof tLoc.cycleTurns === "number") {
+        const tc = tLoc.turnCounter | 0;
+        let cyc = tLoc.cycleTurns | 0;
+        if (!cyc || cyc <= 0) cyc = 360;
+        dayIdx = Math.floor(tc / Math.max(1, cyc));
+      }
+      if (ctx && ctx._forceMarketDay === true) {
+        isMarketDay = true;
+      }
+      if (!isMarketDay && dayIdx != null) {
+        isMarketDay = (dayIdx % 7) === 0;
+      }
+    } catch (_) {}
+
+    // Special Market Day vendors: stay fixed at their stall for the whole Market Day.
+    if (n._marketVendor && n._marketStall && isMarketDay && ctx.townPlaza) {
+      const stallV = n._marketStall;
+      n._floor = "ground";
+      if (n.x !== stallV.x || n.y !== stallV.y) {
+        stepTowards(ctx, occ, n, stallV.x, stallV.y, { urgent: true });
+      }
+      continue;
+    }
+
     if (n.isShopkeeper) {
       const shop = n._shopRef || null;
       const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
+
+      // On Market Day keep shopkeepers fixed at their plaza stalls during the day instead
+      // of following normal door/building schedules. Innkeepers are excluded and
+      // remain at the inn so the inn continues to function normally.
+      if (isMarketDay && n._marketStall && phase === "day" && ctx.townPlaza && !isInnKeeper) {
+        const stall = n._marketStall;
+        n._atWork = true;
+        n._floor = "ground";
+        if (n.x !== stall.x || n.y !== stall.y) {
+          stepTowards(ctx, occ, n, stall.x, stall.y, { urgent: true });
+        }
+        continue;
+      }
+
       if (isInnKeeper && shop && shop.building) {
         n._atWork = true;
         const innB = shop.building;

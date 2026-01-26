@@ -302,6 +302,18 @@ export function applyLeaveSync(ctx) {
     syncFollowersFromTown(ctx);
   } catch (_) {}
 
+  // End any forced Market Day event before saving town state so temporary
+  // shops and vendor flags do not persist across visits.
+  try {
+    const God =
+      ctx.God ||
+      getMod(ctx, "God") ||
+      (typeof window !== "undefined" ? window.God : null);
+    if (God && typeof God.endMarketDayInTown === "function") {
+      God.endMarketDayInTown(ctx);
+    }
+  } catch (_) {}
+
   // Persist current town state (map + visibility + entities) before leaving
   try {
     const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
@@ -480,9 +492,95 @@ if (typeof window !== "undefined") {
   };
 }
 
+/**
+ * If a Market Day was started via GOD panel (manually or by weekly auto-start),
+ * automatically end it once the in-game day index changes so the event lasts
+ * exactly one day.
+ */
+function maybeEndMarketDay(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+    if (!ctx._forceMarketDay) return;
+
+    const t = ctx.time;
+    if (!t || typeof t.turnCounter !== "number" || typeof t.cycleTurns !== "number") return;
+
+    const tc = t.turnCounter | 0;
+    let cyc = t.cycleTurns | 0;
+    if (!cyc || cyc <= 0) cyc = 360;
+    const dayIdx = Math.floor(tc / Math.max(1, cyc));
+    const forceDay =
+      typeof ctx._forceMarketDayDayIdx === "number" ? ctx._forceMarketDayDayIdx : null;
+
+    if (forceDay != null && dayIdx !== forceDay) {
+      const God =
+        ctx.God ||
+        getMod(ctx, "God") ||
+        (typeof window !== "undefined" ? window.God : null);
+      if (God && typeof God.endMarketDayInTown === "function") {
+        God.endMarketDayInTown(ctx);
+      } else {
+        ctx._forceMarketDay = false;
+        try {
+          ctx._forceMarketDayDayIdx = undefined;
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+}
+
+/**
+ * Automatically start a Market Day event once per in-game week when the player
+ * is in a town/harbor/castle on the designated Market Day.
+ */
+function maybeAutoStartMarketDay(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+    const t = ctx.time;
+    if (!t || typeof t.turnCounter !== "number" || typeof t.cycleTurns !== "number") return;
+
+    const tc = t.turnCounter | 0;
+    let cyc = t.cycleTurns | 0;
+    if (!cyc || cyc <= 0) cyc = 360;
+    const dayIdx = Math.floor(tc / Math.max(1, cyc));
+
+    // Weekly Market Day rule: every 7th day (0,7,14,...) is a candidate.
+    if ((dayIdx % 7) !== 0) return;
+
+    // Only apply to supported town kinds (towns, harbor towns, castles).
+    const kind = String(ctx.townKind || "town").toLowerCase();
+    if (kind !== "town" && kind !== "port" && kind !== "castle") return;
+
+    // If a Market Day is already active for this day, do not start again.
+    if (ctx._forceMarketDay === true &&
+        typeof ctx._forceMarketDayDayIdx === "number" &&
+        ctx._forceMarketDayDayIdx === dayIdx) {
+      return;
+    }
+
+    const God =
+      ctx.God ||
+      getMod(ctx, "God") ||
+      (typeof window !== "undefined" ? window.God : null);
+    if (God && typeof God.startMarketDayInTown === "function") {
+      God.startMarketDayInTown(ctx);
+    }
+  } catch (_) {}
+}
+
 // Back-compat: tick implementation (retained)
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "town") return false;
+
+  // End Market Day when the day index changes. Auto-start has been disabled to
+  // avoid noisy repeated Market Day starts when entering towns; Market Day can
+  // still be triggered explicitly via GOD panel.
+  try {
+    maybeEndMarketDay(ctx);
+  } catch (_) {}
+  // try {
+  //   maybeAutoStartMarketDay(ctx);
+  // } catch (_) {}
 
   // Wild Seppo (travelling merchant) arrival/departure
   tickSeppo(ctx);

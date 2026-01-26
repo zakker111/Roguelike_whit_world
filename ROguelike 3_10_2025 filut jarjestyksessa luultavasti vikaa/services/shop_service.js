@@ -364,7 +364,15 @@ export function calculatePrice(shopType, item, phase, demandState) {
       mult *= Number(r.phasePriceMods[phase]) || 1.0;
     }
   } catch (_) {}
-  // demandState could adjust, keep simple for now
+  // demandState can adjust prices (e.g., Market Day discounts)
+  try {
+    if (demandState && demandState.isMarketDay && r && typeof r.marketDayDiscount === "number") {
+      var d = Number(r.marketDayDiscount);
+      if (isFinite(d) && d > 0 && d < 1.0) {
+        mult *= d;
+      }
+    }
+  } catch (_) {}
   return Math.max(1, Math.round(base * mult));
 }
 
@@ -465,6 +473,24 @@ export function restockIfNeeded(ctx, shop) {
   var rest = gd && gd.shopRestock ? gd.shopRestock[shop.type] : null;
   var t = ctx && ctx.time ? ctx.time : null;
   var nowMin = t ? (t.hours * 60 + t.minutes) : 12 * 60;
+  // Determine whether this town is in Market Day state (weekly or forced via ctx._forceMarketDay).
+  // Forced Market Day lifetime is managed centrally by TownRuntime; this check is read-only.
+  var isMarketDay = false;
+  try {
+    var dayIdx = null;
+    if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
+      var tc = t.turnCounter | 0;
+      var cyc = t.cycleTurns | 0;
+      if (cyc <= 0) cyc = 360;
+      dayIdx = Math.floor(tc / Math.max(1, cyc));
+    }
+    if (ctx && ctx._forceMarketDay === true) {
+      isMarketDay = true;
+    }
+    if (!isMarketDay && dayIdx != null) {
+      isMarketDay = (dayIdx % 7) === 0;
+    }
+  } catch (_) {}
 
   // Primary restock on opening or phase change
   var shouldPrimary = false;
@@ -487,6 +513,7 @@ export function restockIfNeeded(ctx, shop) {
     var pools = _getPools(shop.type);
     var rng = _rng(ctx);
     var rows = [];
+    var demandState = { isMarketDay: isMarketDay };
     if (pools && pools.categories) {
       Object.keys(pools.categories).forEach(function (cat) {
         var cfg = pools.categories[cat];
@@ -499,7 +526,7 @@ export function restockIfNeeded(ctx, shop) {
           var item = _materializeItem(ctx, pick);
           if (!item) break;
           var qty = Math.max(1, Math.min(3, (pick.stack && pick.stack.max) ? pick.stack.max : 1));
-          var price = calculatePrice(shop.type, item, phase, null);
+          var price = calculatePrice(shop.type, item, phase, demandState);
           rows.push({ item: item, price: price, qty: qty });
           used += 1;
           // avoid duplicates exploding: remove weight temporarily

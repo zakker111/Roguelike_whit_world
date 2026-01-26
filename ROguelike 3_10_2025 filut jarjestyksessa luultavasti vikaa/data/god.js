@@ -357,6 +357,339 @@ export function rerollSeed(ctx) {
 }
 
 /**
+ * Start a Market Day event in the current town/harbor/castle.
+ * Moves shopkeepers to plaza stalls and enables Market Day pricing via ctx._forceMarketDay.
+ */
+export function startMarketDayInTown(ctx) {
+  try {
+    if (!ctx) return;
+    if (ctx.mode !== "town") {
+      try { ctx.log && ctx.log("GOD: Market Day is available in town/harbor/castle mode only. Enter a town first.", "warn"); } catch (_) {}
+      return;
+    }
+    const kind = String(ctx.townKind || "town").toLowerCase();
+    if (kind !== "town" && kind !== "port" && kind !== "castle") {
+      try { ctx.log && ctx.log("GOD: Market Day is only supported in towns, harbor towns, and castles.", "warn"); } catch (_) {}
+      return;
+    }
+
+    // If Market Day has already been started once during this town session, do
+    // nothing. This prevents repeated start logs if the auto-start helper or
+    // GOD panel button calls this multiple times.
+    try {
+      if (ctx._marketDayStartedOnce) {
+        return;
+      }
+    } catch (_) {}
+
+    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+    if (!shops.length) {
+      try { ctx.log && ctx.log("GOD: This town has no registered shops for Market Day.", "warn"); } catch (_) {}
+      return;
+    }
+
+    // Record the current day index so the forced Market Day flag can auto-expire after this day.
+    let forceDayIdx = null;
+    try {
+      const t = ctx && ctx.time ? ctx.time : null;
+      if (t && typeof t.turnCounter === "number" && typeof t.cycleTurns === "number") {
+        const tc = t.turnCounter | 0;
+        let cyc = t.cycleTurns | 0;
+        if (!cyc || cyc <= 0) cyc = 360;
+        forceDayIdx = Math.floor(tc / Math.max(1, cyc));
+      }
+    } catch (_) {}
+
+    // If a Market Day is already active for this day, avoid starting it again to
+    // prevent duplicate logs and duplicated temporary shops.
+    try {
+      if (ctx._forceMarketDay === true &&
+          typeof ctx._forceMarketDayDayIdx === "number" &&
+          forceDayIdx != null &&
+          ctx._forceMarketDayDayIdx === forceDayIdx) {
+        // Already active for this day; treat as a no-op.
+        return;
+      }
+    } catch (_) {}
+
+    const plaza = ctx.townPlaza || null;
+    if (!plaza || typeof plaza.x !== "number" || typeof plaza.y !== "number") {
+      try { ctx.log && ctx.log("GOD: Town plaza location is unknown; cannot place market stalls.", "warn"); } catch (_) {}
+      return;
+    }
+    const map = Array.isArray(ctx.map) ? ctx.map : null;
+    const T = ctx.TILES || {};
+    const rows = map ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    function inBounds(x, y) {
+      return y >= 0 && y < rows && x >= 0 && x < cols;
+    }
+    function isWalkableForStall(x, y) {
+      if (!inBounds(x, y)) return false;
+      const t = map[y][x];
+      if (!(t === T.FLOOR || t === T.ROAD)) return false;
+      // avoid doors as primary stall tiles
+      if (t === T.DOOR) return false;
+      // avoid blocking props or existing props on tile
+      try {
+        const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+        for (let i = 0; i < props.length; i++) {
+          const p = props[i];
+          if (!p) continue;
+          if ((p.x | 0) === x && (p.y | 0) === y) return false;
+        }
+      } catch (_) {}
+      // avoid player and NPCs at assignment time
+      try {
+        if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
+        const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+        for (let i = 0; i < npcs.length; i++) {
+          const n = npcs[i];
+          if (n && n.x === x && n.y === y) return false;
+        }
+      } catch (_) {}
+      return true;
+    }
+
+    // Collect candidate ring positions around plaza
+    const candidates = [];
+    const used = new Set();
+    const maxR = 4;
+    for (let r = 1; r <= maxR; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+          const x = (plaza.x | 0) + dx;
+          const y = (plaza.y | 0) + dy;
+          const key = x + "," + y;
+          if (used.has(key)) continue;
+          if (!isWalkableForStall(x, y)) continue;
+          used.add(key);
+          candidates.push({ x, y });
+        }
+      }
+    }
+    if (!candidates.length) {
+      try { ctx.log && ctx.log("GOD: No free tiles around the plaza to use as market stalls.", "warn"); } catch (_) {}
+      return;
+    }
+
+    // Mark Market Day as active for this town; pricing and AI will consult this flag.
+    // Also persist the day index so the forced flag can auto-expire after this day.
+    ctx._forceMarketDay = true;
+    try {
+      if (typeof forceDayIdx === "number") ctx._forceMarketDayDayIdx = forceDayIdx;
+      else ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
+    // Remember that Market Day has been started once for this town session so
+    // repeated calls to startMarketDayInTown() do not spam logs or duplicate stalls.
+    try {
+      ctx._marketDayStartedOnce = true;
+    } catch (_) {}
+
+    const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    let assigned = 0;
+    const usedStalls = new Set();
+
+    function markStallUsed(x, y) {
+      usedStalls.add(String(x) + "," + String(y));
+    }
+
+    function stallIsFree(x, y) {
+      return !usedStalls.has(String(x) + "," + String(y));
+    }
+
+    function findKeeperForShop(s) {
+      if (!s) return null;
+      // Prefer NPC already bound to this shop
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n || !n.isShopkeeper) continue;
+        if (n._shopRef === s) return n;
+      }
+      // Fallback: fuzzy match by door position
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n || !n.isShopkeeper || !n._shopRef) continue;
+        const ref = n._shopRef;
+        if (ref && ref.x === s.x && ref.y === s.y) return n;
+      }
+      return null;
+    }
+
+    // 1) Assign plaza stalls to permanent shopkeepers (excluding inns, which
+    // should remain at the inn so room/drink services stay available).
+    for (let i = 0; i < shops.length && i < candidates.length; i++) {
+      const s = shops[i];
+      if (!s) continue;
+      const typeStr = String(s.type || "").toLowerCase();
+      if (typeStr === "inn") continue;
+      const stall = candidates[i];
+      const keeper = findKeeperForShop(s);
+      if (!keeper) continue;
+      try {
+        keeper._marketStall = { x: stall.x, y: stall.y };
+        keeper.x = stall.x;
+        keeper.y = stall.y;
+        keeper._floor = "ground";
+        markStallUsed(stall.x, stall.y);
+      } catch (_) {}
+      assigned++;
+    }
+
+    // 2) Add special Market Day vendors (normal residents who sell unique gear at temporary stalls)
+    try {
+      // Prepare container for temporary Market Day shops so we can clean them up later if needed.
+      if (!Array.isArray(ctx._marketDayShops)) ctx._marketDayShops = [];
+
+      // Helper: pick a few non-shopkeeper, non-guard, non-pet NPCs as potential vendors
+      const vendorCandidates = [];
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n) continue;
+        if (n.isShopkeeper || n.isGuard || n.isPet) continue;
+        vendorCandidates.push(n);
+      }
+
+      // Decide which vendor shop types to spawn based on town kind
+      const vendorTypes = [];
+      vendorTypes.push("market_weaponsmith"); // always
+      if (kind === "port") {
+        vendorTypes.push("market_harbor_arms");
+      }
+      vendorTypes.push("market_curios");
+
+      let vendorIndex = 0;
+      function nextVendorNpc() {
+        while (vendorIndex < vendorCandidates.length) {
+          const n = vendorCandidates[vendorIndex++];
+          if (n) return n;
+        }
+        return null;
+      }
+
+      // Helper to find the next free stall tile from candidates
+      let candidateIdxForVendors = 0;
+      function nextFreeStall() {
+        for (; candidateIdxForVendors < candidates.length; candidateIdxForVendors++) {
+          const c = candidates[candidateIdxForVendors];
+          if (!c) continue;
+          if (!stallIsFree(c.x, c.y)) continue;
+          return c;
+        }
+        return null;
+      }
+
+      const vendorShopsCreated = [];
+
+      for (let vi = 0; vi < vendorTypes.length; vi++) {
+        const vType = vendorTypes[vi];
+        const npc = nextVendorNpc();
+        if (!npc) break;
+        const stall = nextFreeStall();
+        if (!stall) break;
+
+        try {
+          npc._marketVendor = true;
+          npc._marketVendorType = vType;
+          npc._marketStall = { x: stall.x, y: stall.y };
+          npc._floor = "ground";
+          npc.x = stall.x;
+          npc.y = stall.y;
+          markStallUsed(stall.x, stall.y);
+
+          const shopName =
+            npc.name ||
+            (vType === "market_weaponsmith"
+              ? "Travelling Weaponsmith"
+              : vType === "market_harbor_arms"
+              ? "Harbor Arms Trader"
+              : "Curio Arms Dealer");
+
+          const tmpShop = {
+            x: stall.x,
+            y: stall.y,
+            type: vType,
+            name: shopName,
+            alwaysOpen: true,
+            openMin: 0,
+            closeMin: 0,
+            building: null,
+            inside: { x: stall.x, y: stall.y },
+            _isMarketDayTemp: true,
+          };
+
+          if (Array.isArray(ctx.shops)) {
+            ctx.shops.push(tmpShop);
+          }
+          npc._shopRef = tmpShop;
+          ctx._marketDayShops.push(tmpShop);
+          vendorShopsCreated.push(tmpShop);
+        } catch (_) {}
+      }
+
+      if (vendorShopsCreated.length) {
+        // Only log the vendor stall summary once per town session to avoid log spam
+        let loggedOnce = false;
+        try {
+          loggedOnce = !!ctx._marketDayVendorsLogged;
+        } catch (_) {}
+        if (!loggedOnce) {
+          try {
+            ctx.log &&
+              ctx.log(
+                `[GOD] Market Day vendors: ${vendorShopsCreated.length} special stall(s) added in the plaza.`,
+                "info"
+              );
+          } catch (_) {}
+          try {
+            ctx._marketDayVendorsLogged = true;
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    if (assigned <= 0) {
+      // Only log the "no shopkeepers" message once per town session.
+      let alreadyLogged = false;
+      try {
+        alreadyLogged = !!ctx._marketDayStartLogged;
+      } catch (_) {}
+      if (!alreadyLogged) {
+        try { ctx.log && ctx.log("GOD: Market Day started, but no shopkeepers were found to assign stalls.", "warn"); } catch (_) {}
+        try { ctx._marketDayStartLogged = true; } catch (_) {}
+      }
+    } else {
+      // Only log the Market Day start summary once per town session to avoid spam.
+      let alreadyLogged = false;
+      try {
+        alreadyLogged = !!ctx._marketDayStartLogged;
+      } catch (_) {}
+      if (!alreadyLogged) {
+        try { ctx.log && ctx.log(`[GOD] Market Day started: ${assigned} shopkeeper(s) moved to the plaza.`, "good"); } catch (_) {}
+        try { ctx._marketDayStartLogged = true; } catch (_) {}
+      }
+    }
+
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
+  } catch (e) {
+    try {
+      ctx && ctx.log && ctx.log("GOD: Market Day handler threw an error; see console.", "warn");
+      // eslint-disable-next-line no-console
+      console.error(e);
+    } catch (_) {}
+  }
+}
+
+/**
  * Teleport player to the nearest tower tile in the overworld.
  * Uses InfiniteGen.tileAt so it can find towers outside the current window.
  * World-only; no effect in towns/dungeons/encounters.
@@ -673,6 +1006,111 @@ export function teleportToTarget(ctx, target) {
   }
 }
 
+/**
+ * End a Market Day event in the current town/harbor/castle.
+ * Clears forced Market Day flags, removes temporary Market Day shops,
+ * and resets vendor/stall assignments so the town returns to normal.
+ */
+export function endMarketDayInTown(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return;
+
+    // Clear forced Market Day flags (weekly rule is purely derived from day index).
+    try {
+      if (ctx._forceMarketDay) ctx._forceMarketDay = false;
+    } catch (_) {}
+    try {
+      ctx._forceMarketDayDayIdx = undefined;
+    } catch (_) {}
+    // Allow Market Day to be started again in this town on a future day by
+    // clearing the per-session started flag.
+    try {
+      ctx._marketDayStartedOnce = false;
+    } catch (_) {}
+
+    // Remove temporary Market Day shops that were created at stalls.
+    let tmpShops = [];
+    try {
+      if (Array.isArray(ctx._marketDayShops) && ctx._marketDayShops.length) {
+        tmpShops = ctx._marketDayShops.slice(0);
+      }
+    } catch (_) {}
+    try {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      if (tmpShops.length && shops.length) {
+        for (let i = 0; i < tmpShops.length; i++) {
+          const s = tmpShops[i];
+          if (!s) continue;
+          const idx = shops.indexOf(s);
+          if (idx !== -1) shops.splice(idx, 1);
+        }
+      }
+      // Defensive cleanup: also drop any shop that is clearly a Market Day temp
+      // shop even if ctx._marketDayShops lost identity (e.g. across saves).
+      if (shops.length) {
+        ctx.shops = shops.filter(function (s) {
+          if (!s) return false;
+          try {
+            if (s._isMarketDayTemp) return false;
+          } catch (_) {}
+          try {
+            const t = String(s.type || "").toLowerCase();
+            if (t.startsWith("market_")) return false;
+          } catch (_) {}
+          return true;
+        });
+      }
+    } catch (_) {}
+    try {
+      ctx._marketDayShops = [];
+    } catch (_) {}
+
+    // Reset NPC flags for Market Day vendors and stall assignments.
+    try {
+      const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n) continue;
+
+        // Special Market Day vendors: remove vendor flags and detach temp shop refs.
+        if (n._marketVendor) {
+          try {
+            n._marketVendor = false;
+            n._marketVendorType = undefined;
+            n._marketStall = undefined;
+          } catch (_) {}
+          try {
+            if (n._shopRef && tmpShops.length) {
+              const isTmp = tmpShops.indexOf(n._shopRef) !== -1;
+              if (isTmp) n._shopRef = null;
+            }
+          } catch (_) {}
+        } else if (n.isShopkeeper && n._marketStall) {
+          // Permanent shopkeepers: clear stall assignment; their normal shopRef remains.
+          try {
+            n._marketStall = undefined;
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    // Refresh town state to reflect shop/NPC changes.
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+      }
+    } catch (_) {}
+
+    try {
+      if (ctx.log) ctx.log("[GOD] Market Day has ended. Vendors pack up their stalls.", "info");
+    } catch (_) {}
+  } catch (_) {}
+}
+
 // Back-compat: attach to window via helper
 attachGlobal("God", {
   heal,
@@ -687,4 +1125,6 @@ attachGlobal("God", {
   clearGameStorage,
   teleportToNearestTower,
   teleportToTarget,
+  startMarketDayInTown,
+  endMarketDayInTown,
 });
