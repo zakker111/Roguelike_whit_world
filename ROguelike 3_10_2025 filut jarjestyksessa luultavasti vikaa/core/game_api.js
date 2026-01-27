@@ -621,36 +621,8 @@ export function create(ctx) {
     // Enter a small sandbox dungeon room for focused testing (no persistence).
     enterSandboxRoom: () => {
       try {
-        const c = (typeof ctx.getCtx === "function") ? ctx.getCtx() : ctx;
-        if (!c) return false;
-        const SR =
-          (c && c.SandboxRuntime) ||
-          (typeof window !== "undefined" ? window.SandboxRuntime : null);
-        if (!SR || typeof SR.enter !== "function") {
-          try {
-            if (c.log) c.log("GOD: SandboxRuntime.enter not available (sandbox module missing).", "warn");
-          } catch (_) {}
-          return false;
-        }
-        // Mutate ctx into sandbox mode (local view first).
-        SR.enter(c, { scenario: "dungeon_room" });
-        // Let the orchestrator sync mutated ctx back into its own state and refresh visuals.
-        try {
-          if (typeof ctx.applyCtxSyncAndRefresh === "function") {
-            ctx.applyCtxSyncAndRefresh(c);
-          } else {
-            const SS = c.StateSync || getMod(c, "StateSync");
-            if (SS && typeof SS.applyAndRefresh === "function") {
-              SS.applyAndRefresh(c, {});
-            } else {
-              if (typeof c.updateCamera === "function") c.updateCamera();
-              if (typeof c.recomputeFOV === "function") c.recomputeFOV();
-              if (typeof c.updateUI === "function") c.updateUI();
-              if (typeof c.requestDraw === "function") c.requestDraw();
-            }
-          }
-        } catch (_) {}
-        return true;
+        if (!ctx.enterSandboxRoom) return false;
+        return !!ctx.enterSandboxRoom();
       } catch (_) { return false; }
     },
 

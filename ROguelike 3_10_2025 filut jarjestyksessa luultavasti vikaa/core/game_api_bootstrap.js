@@ -89,9 +89,18 @@ export function buildGameAPIImpl(deps) {
       generateLoot,
       getClock,
       log,
+      enterSandboxRoom,
     } = deps;
 
     window.GameAPI = window.GameAPIBuilder.create({
+      // Orchestrator sync helper (exposed so helpers like sandbox can request a full ctx→engine sync).
+      applyCtxSyncAndRefresh: (ctx) => {
+        try {
+          if (typeof deps.applyCtxSyncAndRefresh === "function") {
+            deps.applyCtxSyncAndRefresh(ctx);
+          }
+        } catch (_) {}
+      },
       getMode: () => getMode(),
       getWorld: () => getWorld(),
       getPlayer: () => getPlayer(),
@@ -197,6 +206,7 @@ export function buildGameAPIImpl(deps) {
       getClock: () => getClock(),
       getCtx: () => getCtx(),
       log: (msg, type) => log(msg, type),
+      enterSandboxRoom: () => enterSandboxRoom(),
     });
   } catch (_) {}
 }

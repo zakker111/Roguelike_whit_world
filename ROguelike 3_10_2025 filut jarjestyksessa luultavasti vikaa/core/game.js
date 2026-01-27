@@ -624,6 +624,30 @@ import "./sandbox/runtime.js";
     applyCtxSyncAndRefresh(ctx);
   }
 
+  // Enter a small sandbox dungeon-style room for focused testing (no persistence).
+  function enterSandboxRoom() {
+    try {
+      const ctx = getCtx();
+      if (!ctx) return false;
+      const SR = ctx.SandboxRuntime || modHandle("SandboxRuntime");
+      if (!SR || typeof SR.enter !== "function") {
+        log("GOD: SandboxRuntime.enter not available; sandbox mode disabled.", "warn");
+        return false;
+      }
+      // Mutate ctx into sandbox mode and let orchestrator sync + refresh.
+      SR.enter(ctx, { scenario: "dungeon_room" });
+      applyCtxSyncAndRefresh(ctx);
+      return true;
+    } catch (e) {
+      try {
+        log("GOD: Sandbox entry failed; see console for details.", "warn");
+        // eslint-disable-next-line no-console
+        console.error(e);
+      } catch (_) {}
+      return false;
+    }
+  }
+
   
 
   
