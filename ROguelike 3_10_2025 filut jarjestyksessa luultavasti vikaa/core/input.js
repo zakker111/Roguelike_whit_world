@@ -178,6 +178,15 @@ export function init(handlers) {
       return;
     }
 
+    // Sandbox controls toggle (F10)
+    if (e.key === "F10") {
+      e.preventDefault();
+      if (_handlers.toggleSandboxPanel) {
+        _handlers.toggleSandboxPanel();
+      }
+      return;
+    }
+
     // Region Map key disabled (M does nothing)
 
     // Help / Controls panel (F1)

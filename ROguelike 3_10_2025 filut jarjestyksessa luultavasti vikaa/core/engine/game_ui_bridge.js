@@ -45,6 +45,9 @@ export function setupInputBridge(opts) {
   const I = modHandle("Input");
   if (!I || typeof I.init !== "function") return;
 
+  const UIO = modHandle("UIOrchestration");
+  const UIH = modHandle("UI");
+
   I.init({
     // state queries
     isDead: () => {
@@ -271,6 +274,26 @@ export function setupInputBridge(opts) {
     adjustFov: (delta) => {
       try {
         if (typeof adjustFov === "function") adjustFov(delta);
+      } catch (_) {}
+    },
+    toggleSandboxPanel: () => {
+      try {
+        const ctx = getCtx && getCtx();
+        if (!ctx || !ctx.isSandbox) return;
+        // Prefer SandboxPanel via UI module when available
+        if (UIH && UIH.SandboxPanel && typeof UIH.SandboxPanel.isOpen === "function") {
+          const open = UIH.SandboxPanel.isOpen();
+          if (open && typeof UIH.SandboxPanel.hide === "function") UIH.SandboxPanel.hide();
+          else if (!open && typeof UIH.SandboxPanel.show === "function") UIH.SandboxPanel.show();
+          return;
+        }
+        // Fallback via global
+        const SP = (typeof window !== "undefined" ? window.SandboxPanel : null);
+        if (SP && typeof SP.isOpen === "function") {
+          const open = SP.isOpen();
+          if (open && typeof SP.hide === "function") SP.hide();
+          else if (!open && typeof SP.show === "function") SP.show();
+        }
       } catch (_) {}
     },
   });
