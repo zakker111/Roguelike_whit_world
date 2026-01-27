@@ -266,7 +266,7 @@ import "./sandbox/runtime.js";
       dungeonExitAt,
       // camera
       camera,
-      getCamera: () =&gt; camera,
+      getCamera: () => camera,
       // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
@@ -280,7 +280,7 @@ import "./sandbox/runtime.js";
       sandboxFlags,
       sandboxEnemyOverrides,
       // Perf stats for HUD overlay (smoothed via EMA when available)
-      getPerfStats: () =&gt; perfGetPerfStats(),
+      getPerfStats: () => perfGetPerfStats(),
       requestDraw,
       log,
       isWalkable, inBounds,
