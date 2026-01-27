@@ -21,49 +21,75 @@ function insideAnyBuildingAt(ctx, x, y) {
 }
 
 // Helpers for biome-based outdoor ground tint
+// Each town should have a single, pinned biome on its world record (rec.biome).
+// Renderer reads that value; if missing (older saves), we derive once via TownState
+// and persist, then reuse it on all future frames/visits.
 function ensureTownBiome(ctx) {
   try {
     if (ctx && ctx._townBiomeResolved) return;
 
     const world = ctx.world || {};
+    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+
+    // Try to find the current town record using worldReturnPos when available.
+    let rec = null;
+    let wx = null, wy = null;
     const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
-    let wx, wy;
     if (hasWRP) {
       wx = ctx.worldReturnPos.x | 0;
       wy = ctx.worldReturnPos.y | 0;
-    } else {
-      const ox = world.originX | 0;
-      const oy = world.originY | 0;
-      wx = (ox + (ctx.player ? (ctx.player.x | 0) : 0)) | 0;
-      wy = (oy + (ctx.player ? (ctx.player.y | 0) : 0)) | 0;
+      for (let i = 0; i < towns.length; i++) {
+        const t = towns[i];
+        if (t && (t.x | 0) === wx && (t.y | 0) === wy) { rec = t; break; }
+      }
     }
 
-    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-    let rec = null;
-    for (let i = 0; i < towns.length; i++) {
-      const t = towns[i];
-      if (t && (t.x | 0) === wx && (t.y | 0) === wy) { rec = t; break; }
+    // If direct match failed but there is exactly one town in this world snapshot,
+    // treat that as the active town (defensive fallback for legacy saves).
+    if (!rec && towns.length === 1) {
+      rec = towns[0];
+      try {
+        wx = rec && typeof rec.x === "number" ? (rec.x | 0) : wx;
+        wy = rec && typeof rec.y === "number" ? (rec.y | 0) : wy;
+      } catch (_) {}
     }
 
     let biome = null;
 
+    // 1) If the town record already has a pinned biome, use it and mark resolved.
     if (rec && rec.biome) {
       biome = rec.biome;
     } else {
+      // 2) Derive once from overworld tiles using a stable coordinate and persist.
+      // Prefer the town record's own coords when available; otherwise fall back
+      // to worldReturnPos or origin+player.
+      if (rec && typeof rec.x === "number" && typeof rec.y === "number") {
+        wx = rec.x | 0;
+        wy = rec.y | 0;
+      } else if (!hasWRP) {
+        const ox = world.originX | 0;
+        const oy = world.originY | 0;
+        wx = (ox + (ctx.player ? (ctx.player.x | 0) : 0)) | 0;
+        wy = (oy + (ctx.player ? (ctx.player.y | 0) : 0)) | 0;
+      }
+
       try {
         const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
-        if (TS && typeof TS.deriveTownBiomeFromWorld === "function") {
+        if (TS && typeof TS.deriveTownBiomeFromWorld === "function" && typeof wx === "number" && typeof wy === "number") {
           biome = TS.deriveTownBiomeFromWorld(ctx, wx, wy);
         }
       } catch (_) {}
+
+      if (!biome) biome = ctx.townBiome || "GRASS";
+
+      // Only write to rec.biome when it was previously unset, so once pinned
+      // we never change a town's biome again.
+      try {
+        if (rec && typeof rec === "object" && !rec.biome) rec.biome = biome;
+      } catch (_) {}
     }
 
-    if (!biome) biome = ctx.townBiome || "GRASS";
-
-    ctx.townBiome = biome;
-    try {
-      if (rec && typeof rec === "object") rec.biome = biome;
-    } catch (_) {}
+    ctx.townBiome = biome || "GRASS";
     try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
 }
