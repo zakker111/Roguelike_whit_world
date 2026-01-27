@@ -279,7 +279,8 @@ export function setupInputBridge(opts) {
     toggleSandboxPanel: () => {
       try {
         const ctx = getCtx && getCtx();
-        if (!ctx || !ctx.isSandbox) return;
+        // Sandbox mode is indicated by ctx.mode === "sandbox"
+        if (!ctx || ctx.mode !== "sandbox") return;
         // Prefer SandboxPanel via UI module when available
         if (UIH && UIH.SandboxPanel && typeof UIH.SandboxPanel.isOpen === "function") {
           const open = UIH.SandboxPanel.isOpen();

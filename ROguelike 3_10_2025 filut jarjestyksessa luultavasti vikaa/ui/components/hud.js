@@ -27,16 +27,6 @@ export function update(player, floor, time, perf, perfOn, weather) {
   // HP + statuses
   if (hpEl && player) {
     const parts = [`HP: ${Number(player.hp || 0).toFixed(1)}/${Number(player.maxHp || 0).toFixed(1)}`];
-    try {
-      const GA = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
-      const inv = GA && typeof GA.getInvincibleState === "function" ? !!GA.getInvincibleState() : false;
-      const sb = GA && typeof GA.getCtx === "function" ? GA.getCtx() : null;
-      const sandboxLabel = sb && sb.isSandbox ? " [SANDBOX]" : "";
-      const invLabel = inv ? " [INVINCIBLE]" : "";
-      if (sandboxLabel || invLabel) {
-        parts[0] += `${sandboxLabel}${invLabel}`;
-      }
-    } catch (_) {}
     const statuses = [];
     try {
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
