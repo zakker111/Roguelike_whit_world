@@ -249,6 +249,18 @@ export function init(UI) {
   const panel = ensurePanel();
   void panel; // silence lints
 
+  // If we have enemy types and no current selection, preselect the first type.
+  try {
+    const enemyInput = byId("sandbox-enemy-id");
+    if (enemyInput && !_enemyTypes.length) {
+      loadEnemyTypes();
+    }
+    if (enemyInput && _enemyTypes.length && !enemyInput.value) {
+      _enemyIndex = 0;
+      setEnemyId(_enemyTypes[0]);
+    }
+  } catch (_) {}
+
   // AI toggle
   const aiBtn = byId("sandbox-ai-toggle-btn");
   if (aiBtn) {
@@ -276,6 +288,9 @@ export function init(UI) {
   const nextBtn = byId("sandbox-enemy-next-btn");
   if (prevBtn) {
     prevBtn.addEventListener("click", () => {
+      if (!_enemyTypes.length) {
+        loadEnemyTypes();
+      }
       if (!_enemyTypes.length) return;
       _enemyIndex = (_enemyIndex - 1 + _enemyTypes.length) % _enemyTypes.length;
       setEnemyId(_enemyTypes[_enemyIndex]);
@@ -284,6 +299,9 @@ export function init(UI) {
   }
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
+      if (!_enemyTypes.length) {
+        loadEnemyTypes();
+      }
       if (!_enemyTypes.length) return;
       _enemyIndex = (_enemyIndex + 1) % _enemyTypes.length;
       setEnemyId(_enemyTypes[_enemyIndex]);
@@ -409,6 +427,15 @@ export function init(UI) {
 export function show() {
   const el = ensurePanel();
   el.hidden = false;
+  // Ensure enemy types and default selection are available when the panel opens
+  try {
+    loadEnemyTypes();
+    const enemyInput = byId("sandbox-enemy-id");
+    if (enemyInput && _enemyTypes.length && !enemyInput.value) {
+      _enemyIndex = 0;
+      setEnemyId(_enemyTypes[0]);
+    }
+  } catch (_) {}
   // Refresh state when panel becomes visible
   refreshAiToggle();
   refreshAdvancedSection();

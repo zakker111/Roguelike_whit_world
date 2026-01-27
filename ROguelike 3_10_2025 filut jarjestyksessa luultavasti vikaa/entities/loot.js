@@ -57,7 +57,8 @@ function getEnemyDefWithOverrides(ctx, type) {
  * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  const def = getEnemyDefWithOverrides(ctx, source?.type || "");
+  const srcType = source && source.type ? source.type : "";
+  const def = getEnemyDefWithOverrides(ctx, srcType);
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 

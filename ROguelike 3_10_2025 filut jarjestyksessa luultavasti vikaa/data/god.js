@@ -800,6 +800,7 @@ attachGlobal("God", {
   spawnStairsHere,
   spawnItems,
   spawnEnemyNearby,
+  spawnEnemyById,
   setAlwaysCrit,
   toggleInvincible,
   setCritPart,
