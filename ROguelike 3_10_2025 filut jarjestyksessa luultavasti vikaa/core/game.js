@@ -976,6 +976,30 @@ import "./sandbox/runtime.js";
     return [];
   }
 
+  // Enter a small sandbox dungeon room for focused testing (no persistence).
+  // This mutates a ctx snapshot via SandboxRuntime then syncs it back into the
+  // orchestrator using applyCtxSyncAndRefresh so mode/map/visibility are all
+  // updated consistently.
+  function enterSandboxRoom() {
+    try {
+      const c = getCtx();
+      if (!c) return false;
+      const SR = (c.SandboxRuntime) || (typeof window !== "undefined" ? window.SandboxRuntime : null);
+      if (!SR || typeof SR.enter !== "function") {
+        try { log("GOD: SandboxRuntime module not available; sandbox entry disabled.", "warn"); } catch (_) {}
+        return false;
+      }
+      SR.enter(c, { scenario: "dungeon_room" });
+      // Sync mutated ctx back into local orchestrator state and refresh visuals.
+      try {
+        applyCtxSyncAndRefresh(c);
+      } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   
   
 
