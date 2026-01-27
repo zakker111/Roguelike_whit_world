@@ -26,12 +26,53 @@ function insideAnyBuildingAt(ctx, x, y) {
 // and persist, then reuse it on all future frames/visits.
 function ensureTownBiome(ctx) {
   try {
-    if (ctx && ctx._townBiomeResolved) return;
+    if (!ctx) return;
 
     const world = ctx.world || {};
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
 
-    // Try to find the current town record using worldReturnPos when available.
+    // Resolve a stable key for this town based on its overworld entry coordinates.
+    let townKey = null;
+    try {
+      if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+        townKey = `${ctx.worldReturnPos.x | 0},${ctx.worldReturnPos.y | 0}`;
+      }
+    } catch (_) {}
+
+    // Initialize per-town pinned biome map on ctx (in-memory only for this session).
+    try {
+      if (!ctx._townBiomePinned || typeof ctx._townBiomePinned !== "object") {
+        ctx._townBiomePinned = Object.create(null);
+      }
+    } catch (_) {
+      if (!ctx._townBiomePinned || typeof ctx._townBiomePinned !== "object") {
+        ctx._townBiomePinned = ctx._townBiomePinned || {};
+      }
+    }
+    const pinnedMap = ctx._townBiomePinned || null;
+
+    // 1) If we already have a pinned biome for this townKey, trust it unconditionally.
+    if (townKey && pinnedMap && Object.prototype.hasOwnProperty.call(pinnedMap, townKey)) {
+      const pinned = pinnedMap[townKey];
+      if (pinned) {
+        ctx.townBiome = pinned;
+      } else if (!ctx.townBiome) {
+        ctx.townBiome = "GRASS";
+      }
+      try { ctx._townBiomeResolved = true; } catch (_) {}
+      return;
+    }
+
+    // 2) If a previous resolution marked the biome as resolved and ctx.townBiome
+    // is already a string, backfill the pin map and return.
+    if (ctx._townBiomeResolved && typeof ctx.townBiome === "string" && ctx.townBiome) {
+      if (townKey && pinnedMap && !Object.prototype.hasOwnProperty.call(pinnedMap, townKey)) {
+        pinnedMap[townKey] = ctx.townBiome;
+      }
+      return;
+    }
+
+    // 3) Fresh resolution: reuse previous logic but also pin the result per town.
     let rec = null;
     let wx = null, wy = null;
     const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
@@ -56,11 +97,11 @@ function ensureTownBiome(ctx) {
 
     let biome = null;
 
-    // 1) If the town record already has a pinned biome, use it and mark resolved.
+    // 3a) If the town record already has a pinned biome, use it.
     if (rec && rec.biome) {
       biome = rec.biome;
     } else {
-      // 2) Derive once from overworld tiles using a stable coordinate and persist.
+      // 3b) Derive once from overworld tiles using a stable coordinate and persist.
       // Prefer the town record's own coords when available; otherwise fall back
       // to worldReturnPos or origin+player.
       if (rec && typeof rec.x === "number" && typeof rec.y === "number") {
@@ -90,6 +131,14 @@ function ensureTownBiome(ctx) {
     }
 
     ctx.townBiome = biome || "GRASS";
+
+    // Pin this biome for the current townKey so repeated resolutions for this
+    // town in this session always reuse the same value even if other heuristics
+    // would disagree.
+    if (townKey && pinnedMap && !Object.prototype.hasOwnProperty.call(pinnedMap, townKey)) {
+      pinnedMap[townKey] = ctx.townBiome;
+    }
+
     try { ctx._townBiomeResolved = true; } catch (_) {}
   } catch (_) {}
 }
