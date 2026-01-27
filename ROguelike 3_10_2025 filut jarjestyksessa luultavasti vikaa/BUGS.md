@@ -28,8 +28,12 @@
 - mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now
 - world generation / infinite overworld gets slow and sluggish after exploring large chunks of the world; investigate performance of infinite_gen + world_runtime expansion and caching when many chunks have been visited
 - sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
-- in some towns, ground/terrain tinting still changes incorrectly or inconsistently (tiles changing biome color unexpectedly)
-- animals/creatures on the Region Map sometimes use odd or incorrect glyphs (verify animal glyph mapping in region map overlays)
+- [FIXED] in some towns, ground/terrain tinting would change incorrectly or inconsistently (tiles changing biome color unexpectedly):
+  - Town biome is now derived once per town and pinned on the core game context using the town's overworld coordinates.
+  - The renderer reuses this pinned biome and no longer re-derives based on player position, so moving inside a town or revisiting it does not flip the ground tint (e.g., GRASS ↔ BEACH ↔ SNOW).
+- [FIXED] animals/creatures on the Region Map sometimes used odd or incorrect glyphs (and could gain square/circle backdrops when attacked):
+  - Region Map now looks up wildlife glyphs and colors from `data/entities/animals.json`.
+  - Neutral and hostile animals are drawn as glyph-only letters (e.g., `d`, `f`, `b`) with no background box, while followers and non-animal enemies still use their square+glyph markers.
 - Quest Board bandit encounter (“Bandits near the farm”) does not always spawn followers correctly:
   - When starting the quest encounter from the `E` marker, followers often log “Your followers cannot find room to stand nearby in this area.” even on relatively open snow/snow-forest tiles.
   - This suggests a mismatch between the camp-style encounter map, region/encounter walkability, and follower spawn radius/occupancy checks for that specific template.
