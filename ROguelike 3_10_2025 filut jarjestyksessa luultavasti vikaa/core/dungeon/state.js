@@ -10,6 +10,7 @@ export function keyFromWorldPos(x, y) {
 }
 
 export function save(ctx, logOnce = false) {
+  if (!ctx || ctx.isSandbox) return;
   if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
     ctx.DungeonState.save(ctx);
     return;

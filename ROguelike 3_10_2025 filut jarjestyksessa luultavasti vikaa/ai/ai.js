@@ -58,6 +58,12 @@ function hasLOS(ctx, x0, y0, x1, y1) {
 }
 
 export function enemiesAct(ctx) {
+  // Sandbox: allow disabling enemy AI entirely via ctx.sandboxFlags.aiEnabled.
+  try {
+    if (ctx && ctx.isSandbox && ctx.sandboxFlags && ctx.sandboxFlags.aiEnabled === false) {
+      return;
+    }
+  } catch (_) {}
   const { player, enemies } = ctx;
   const U = (ctx && ctx.utils) ? ctx.utils : null;
   // Local RNG value helper: RNGUtils or ctx.rng; deterministic 0.5 when unavailable
@@ -640,7 +646,13 @@ export function enemiesAct(ctx) {
           raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
         }
         const dmg = ctx.enemyDamageAfterDefense(raw);
-        player.hp -= dmg;
+        let finalDmg = dmg;
+        try {
+          if (ctx && ctx.isSandbox && ctx.sandboxFlags && ctx.sandboxFlags.godMode) {
+            finalDmg = 0;
+          }
+        } catch (_) {}
+        player.hp -= finalDmg;
         try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
 
         const attackerName = e.name || Cap(e.type || "enemy");
