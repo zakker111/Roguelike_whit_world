@@ -632,17 +632,22 @@ export function create(ctx) {
           } catch (_) {}
           return false;
         }
-        // Mutate ctx into sandbox mode; let StateSync apply orchestrator sync.
+        // Mutate ctx into sandbox mode (local view first).
         SR.enter(c, { scenario: "dungeon_room" });
+        // Let the orchestrator sync mutated ctx back into its own state and refresh visuals.
         try {
-          const SS = c.StateSync || getMod(c, "StateSync");
-          if (SS && typeof SS.applyAndRefresh === "function") {
-            SS.applyAndRefresh(c, {});
+          if (typeof ctx.applyCtxSyncAndRefresh === "function") {
+            ctx.applyCtxSyncAndRefresh(c);
           } else {
-            if (typeof c.updateCamera === "function") c.updateCamera();
-            if (typeof c.recomputeFOV === "function") c.recomputeFOV();
-            if (typeof c.updateUI === "function") c.updateUI();
-            if (typeof c.requestDraw === "function") c.requestDraw();
+            const SS = c.StateSync || getMod(c, "StateSync");
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(c, {});
+            } else {
+              if (typeof c.updateCamera === "function") c.updateCamera();
+              if (typeof c.recomputeFOV === "function") c.recomputeFOV();
+              if (typeof c.updateUI === "function") c.updateUI();
+              if (typeof c.requestDraw === "function") c.requestDraw();
+            }
           }
         } catch (_) {}
         return true;
