@@ -618,6 +618,37 @@ export function create(ctx) {
     spawnItems: (count = 3) => { try { ctx.godSpawnItems((Number(count) || 0) | 0 || 3); return true; } catch(_) { return false; } },
     addPotionToInventory: (heal, name) => { try { ctx.addPotionToInventory((Number(heal) || 0) || 3, String(name || "")); return true; } catch(_) { return false; } },
 
+    // Enter a small sandbox dungeon room for focused testing (no persistence).
+    enterSandboxRoom: () => {
+      try {
+        const c = (typeof ctx.getCtx === "function") ? ctx.getCtx() : ctx;
+        if (!c) return false;
+        const SR =
+          (c && c.SandboxRuntime) ||
+          (typeof window !== "undefined" ? window.SandboxRuntime : null);
+        if (!SR || typeof SR.enter !== "function") {
+          try {
+            if (c.log) c.log("GOD: SandboxRuntime.enter not available (sandbox module missing).", "warn");
+          } catch (_) {}
+          return false;
+        }
+        // Mutate ctx into sandbox mode; let StateSync apply orchestrator sync.
+        SR.enter(c, { scenario: "dungeon_room" });
+        try {
+          const SS = c.StateSync || getMod(c, "StateSync");
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(c, {});
+          } else {
+            if (typeof c.updateCamera === "function") c.updateCamera();
+            if (typeof c.recomputeFOV === "function") c.recomputeFOV();
+            if (typeof c.updateUI === "function") c.updateUI();
+            if (typeof c.requestDraw === "function") c.requestDraw();
+          }
+        } catch (_) {}
+        return true;
+      } catch (_) { return false; }
+    },
+
     // Chest helper (dungeon)
     spawnChestNearby: (count = 1) => {
       try {
