@@ -1,5 +1,25 @@
 # Game Version History
-Last updated: 2026-01-20 02:30 UTC
+Last updated: 2026-01-27 00:00 UTC
+
+v1.69.0 — Town biome tint stability and Region Map wildlife glyphs
+
+- Town biome tinting stability:
+  - Town biome is now derived once per town using `TownState.deriveTownBiomeFromWorld(ctx, wx, wy)` and pinned on the core game context, keyed by the town’s overworld coordinates (`worldReturnPos`).
+  - World generation (`worldgen/town/layout_core.js`) and TownState both persist the derived biome onto the town’s world record (`rec.biome`), so saves and reloads reuse the same biome per town.
+  - The town renderer (`ui/render/town_base_layer.js`) now resolves and pins the biome on the authoritative game ctx (via `GameAPI.getCtx()`), not on the short‑lived render ctx:
+    - A per‑town map (`_townBiomePinned`) stores `townKey -> biome` for the session.
+    - `ensureTownBiome` reuses this pinned value for each frame instead of re‑deriving based on player position.
+    - The render-time ctx simply mirrors the pinned biome from the core ctx.
+  - Effect: moving inside a town or revisiting it no longer flips the entire ground tint between biomes (e.g., GRASS ↔ BEACH ↔ SNOW); each town now has a stable, deterministic outdoor tint.
+
+- Region Map wildlife glyph/background fix:
+  - Region Map wildlife now consistently uses species glyphs and colors from `data/entities/animals.json`:
+    - `RegionMapRuntime.spawnNeutralAnimals` assigns glyph/color per animal from the JSON definition, with palette fallbacks for safety.
+  - Rendering (`ui/render/region_entities_overlay.js`):
+    - Neutral and hostile animals are rendered as glyph‑only letters (e.g., `d`, `f`, `b`) in species colors, with **no circle or square background**.
+    - Followers and non‑animal enemies keep their square+glyph markers unchanged, preserving existing visual language.
+    - Fire/burning overlays continue to draw above any entity, including animals.
+  - Effect: animals on the Region Map no longer pick up incorrect glyphs or gain a white/light square when first attacked; wildlife remains visually distinct from followers and other enemies.
 
 v1.68.0 — HealthCheck tuning, validation details, and bug tracking updates
 
