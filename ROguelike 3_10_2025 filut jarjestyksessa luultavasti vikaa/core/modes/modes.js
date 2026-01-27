@@ -304,6 +304,9 @@ export function enterTownIfOnTile(ctx) {
       ctx.mode = "town";
       // Reset town biome on entry so each town derives or loads its own biome correctly
       try { ctx.townBiome = undefined; } catch (_) {}
+      // Also clear any cached resolver flag so renderers re-run the town biome resolver
+      // for this specific town (while still reusing a pinned biome on the town record).
+      try { ctx._townBiomeResolved = false; } catch (_) {}
       // Also clear outdoor mask so each town rebuilds its own outdoor floor set.
       try { ctx.townOutdoorMask = undefined; } catch (_) {}
 
