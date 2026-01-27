@@ -646,13 +646,7 @@ export function enemiesAct(ctx) {
           raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
         }
         const dmg = ctx.enemyDamageAfterDefense(raw);
-        let finalDmg = dmg;
-        try {
-          if (ctx && ctx.isSandbox && ctx.sandboxFlags && ctx.sandboxFlags.godMode) {
-            finalDmg = 0;
-          }
-        } catch (_) {}
-        player.hp -= finalDmg;
+        player.hp -= dmg;
         try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
 
         const attackerName = e.name || Cap(e.type || "enemy");
