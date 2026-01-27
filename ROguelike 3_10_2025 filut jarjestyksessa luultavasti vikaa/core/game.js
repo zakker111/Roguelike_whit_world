@@ -1358,6 +1358,7 @@ import "./sandbox/runtime.js";
       getClock,
       log,
       applyCtxSyncAndRefresh,
+      enterSandboxRoom: () => enterSandboxRoom(),
     });
   }
 
