@@ -615,6 +615,16 @@ export function create(ctx) {
 
     // GOD helpers
     spawnEnemyNearby: (count = 1) => { try { ctx.godSpawnEnemyNearby((Number(count) || 0) | 0 || 1); return true; } catch(_) { return false; } },
+    spawnEnemyById: (id, count = 1) => {
+      try {
+        const n = (Number(count) || 0) | 0 || 1;
+        if (typeof ctx.godSpawnEnemyById === "function") {
+          ctx.godSpawnEnemyById(String(id || ""), n);
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    },
     spawnItems: (count = 3) => { try { ctx.godSpawnItems((Number(count) || 0) | 0 || 3); return true; } catch(_) { return false; } },
     addPotionToInventory: (heal, name) => { try { ctx.addPotionToInventory((Number(heal) || 0) || 3, String(name || "")); return true; } catch(_) { return false; } },
 
