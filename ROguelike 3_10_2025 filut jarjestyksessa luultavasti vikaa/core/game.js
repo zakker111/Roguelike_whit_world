@@ -100,6 +100,8 @@ import {
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
+// Side-effect import to ensure SandboxRuntime attaches itself to window.SandboxRuntime
+import "./sandbox/runtime.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();
