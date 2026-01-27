@@ -1328,7 +1328,38 @@ function open(ctx, size) {
         const glyph = (def && def.glyph) ? def.glyph : (typeId && typeId[0]) ? typeId[0] : "?";
         const hp = (def && typeof def.hp === "number") ? def.hp : 3;
         const atk = (def && typeof def.atk === "number") ? def.atk : 0.8;
-        ctx.enemies.push({ x: pos.x, y: pos.y, type: typeId || "animal", glyph, hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+
+        // Prefer per-species color from animals.json; fall back to generic regionAnimal overlay color.
+        let color = null;
+        try {
+          if (def && typeof def.color === "string" && def.color.trim()) {
+            color = def.color;
+          } else {
+            const pal = (typeof window !== "undefined"
+              && window.GameData
+              && window.GameData.palette
+              && window.GameData.palette.overlays)
+              ? window.GameData.palette.overlays
+              : null;
+            color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1";
+          }
+        } catch (_) {
+          color = "#e9d5a1";
+        }
+
+        ctx.enemies.push({
+          x: pos.x,
+          y: pos.y,
+          type: typeId || "animal",
+          glyph,
+          hp,
+          atk,
+          xp: 0,
+          level: 1,
+          faction: "animal",
+          color,
+          announced: false
+        });
         spawned++;
       }
 
