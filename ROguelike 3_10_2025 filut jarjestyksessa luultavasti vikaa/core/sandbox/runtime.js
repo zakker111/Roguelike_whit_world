@@ -17,9 +17,9 @@ import { attachGlobal } from "../../utils/global.js";
 function makeBoolGrid(rows, cols, value) {
   const v = !!value;
   const out = new Array(rows);
-  for (let y = 0; y &lt; rows; y++) {
+  for (let y = 0; y < rows; y++) {
     const row = new Array(cols);
-    for (let x = 0; x &lt; cols; x++) row[x] = v;
+    for (let x = 0; x < cols; x++) row[x] = v;
     out[y] = row;
   }
   return out;
@@ -30,15 +30,15 @@ function makeBoolGrid(rows, cols, value) {
  * Uses ctx.TILES when available; falls back to numeric 0/1 if tiles are missing.
  */
 function buildRoomMap(ctx, cols, rows) {
-  const T = ctx &amp;&amp; ctx.TILES ? ctx.TILES : null;
-  const WALL = T &amp;&amp; typeof T.WALL !== "undefined" ? T.WALL : 1;
-  const FLOOR = T &amp;&amp; typeof T.FLOOR !== "undefined" ? T.FLOOR : 0;
+  const T = ctx && ctx.TILES ? ctx.TILES : null;
+  const WALL = T && typeof T.WALL !== "undefined" ? T.WALL : 1;
+  const FLOOR = T && typeof T.FLOOR !== "undefined" ? T.FLOOR : 0;
 
   const map = new Array(rows);
-  for (let y = 0; y &lt; rows; y++) {
+  for (let y = 0; y < rows; y++) {
     const row = new Array(cols);
     const edgeY = y === 0 || y === rows - 1;
-    for (let x = 0; x &lt; cols; x++) {
+    for (let x = 0; x < cols; x++) {
       const edgeX = x === 0 || x === cols - 1;
       // Perimeter walls, interior floor
       row[x] = (edgeX || edgeY) ? WALL : FLOOR;
@@ -57,8 +57,8 @@ function buildRoomMap(ctx, cols, rows) {
  */
 export function enter(ctx, options = {}) {
   if (!ctx) return;
-  const cols = (options &amp;&amp; options.cols) || 30;
-  const rows = (options &amp;&amp; options.rows) || 20;
+  const cols = (options && options.cols) || 30;
+  const rows = (options && options.rows) || 20;
 
   const map = buildRoomMap(ctx, cols, rows);
   const seen = makeBoolGrid(rows, cols, false);
