@@ -85,6 +85,7 @@ export function buildGameAPIImpl(deps) {
       setAlwaysCrit,
       setCritPart,
       godSpawnEnemyNearby,
+      godSpawnEnemyById,
       godSpawnItems,
       generateLoot,
       getClock,
@@ -201,6 +202,15 @@ export function buildGameAPIImpl(deps) {
       setAlwaysCrit: (v) => setAlwaysCrit(v),
       setCritPart: (part) => setCritPart(part),
       godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
+      spawnEnemyById: (id, count) => {
+        try {
+          return typeof godSpawnEnemyById === "function"
+            ? !!godSpawnEnemyById(id, count)
+            : false;
+        } catch (_) {
+          return false;
+        }
+      },
       godSpawnItems: (count) => godSpawnItems(count),
       generateLoot: (source) => generateLoot(source),
       getClock: () => getClock(),

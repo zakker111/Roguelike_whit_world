@@ -231,6 +231,11 @@ import "./sandbox/runtime.js";
   // Render grid preference (ctx-first). Default from window.DRAW_GRID; UI toggle will update this.
   let drawGridPref = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? !!window.DRAW_GRID : true;
 
+  // Sandbox runtime flags and enemy overrides (sandbox-only debug helpers).
+  // Flags are shallow-copied onto ctx via getCtx() so UI/AI can toggle them.
+  let sandboxFlags = { fovEnabled: true, aiEnabled: true };
+  let sandboxEnemyOverrides = Object.create(null);
+
   
   function getCtx() {
     const base = {
@@ -261,7 +266,7 @@ import "./sandbox/runtime.js";
       dungeonExitAt,
       // camera
       camera,
-      getCamera: () => camera,
+      getCamera: () =&gt; camera,
       // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
@@ -270,8 +275,12 @@ import "./sandbox/runtime.js";
       _dungeonStates: dungeonStates,
       time: getClock(),
       weather: getWeatherSnapshot(),
+      // Sandbox debug state
+      isSandbox: mode === "sandbox",
+      sandboxFlags,
+      sandboxEnemyOverrides,
       // Perf stats for HUD overlay (smoothed via EMA when available)
-      getPerfStats: () => perfGetPerfStats(),
+      getPerfStats: () =&gt; perfGetPerfStats(),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -636,6 +645,13 @@ import "./sandbox/runtime.js";
       }
       // Mutate ctx into sandbox mode and let orchestrator sync + refresh.
       SR.enter(ctx, { scenario: "dungeon_room" });
+      // Reset sandbox-specific debug state on entering sandbox.
+      try {
+        sandboxFlags = ctx.sandboxFlags || sandboxFlags || { fovEnabled: true, aiEnabled: true };
+      } catch (_) {}
+      try {
+        sandboxEnemyOverrides = Object.create(null);
+      } catch (_) {}
       applyCtxSyncAndRefresh(ctx);
       return true;
     } catch (e) {
@@ -1119,6 +1135,7 @@ import "./sandbox/runtime.js";
     godSpawnStairsHere,
     godSpawnItems,
     godSpawnEnemyNearby,
+    godSpawnEnemyById,
     applySeed,
     rerollSeed,
     restartGame,
@@ -1353,9 +1370,9 @@ import "./sandbox/runtime.js";
       setAlwaysCrit,
       setCritPart,
       godSpawnEnemyNearby,
+      godSpawnEnemyById,
       godSpawnItems,
-      generateLoot,
-      getClock,
+ getClock,
       log,
       applyCtxSyncAndRefresh,
       enterSandboxRoom: () => enterSandboxRoom(),

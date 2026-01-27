@@ -22,13 +22,42 @@
 import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/access.js";
 
 /**
+ * Resolve an enemy definition, applying sandbox-only overrides (lootPools) when in sandbox mode.
+ */
+function getEnemyDefWithOverrides(ctx, type) {
+  const EM = getMod(ctx, "Enemies");
+  const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(type || "") : null;
+  if (!base) return null;
+  if (!ctx || ctx.mode !== "sandbox") return base;
+  const overrides = ctx.sandboxEnemyOverrides && ctx.sandboxEnemyOverrides[type];
+  if (!overrides || !overrides.lootPools) return base;
+
+  const basePools = base.lootPools || null;
+  const oPools = overrides.lootPools || {};
+  // Clone base pools so we don't mutate shared registry
+  const mergedPools = basePools ? { ...basePools } : {};
+  for (const key of Object.keys(oPools)) {
+    const v = oPools[key];
+    if (v === null) {
+      // Explicitly disable this pool
+      delete mergedPools[key];
+    } else if (v && typeof v === "object") {
+      // Future extension: allow full weight overrides
+      mergedPools[key] = v;
+    }
+  }
+  const merged = Object.create(base);
+  merged.lootPools = mergedPools;
+  return merged;
+}
+
+/**
  * Choose a potion tier based on enemy type.
  * Uses enemy.lootPools.potions weights and materializes a potion from GameData.consumables when available.
  * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  const EM = getMod(ctx, "Enemies");
-  const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
+  const def = getEnemyDefWithOverrides(ctx, source?.type || "");
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 
@@ -149,8 +178,7 @@ function fallbackEquipment(ctx, tier) {
  */
 function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
   try {
-    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyType) : null;
+    const def = getEnemyDefWithOverrides(ctx, enemyType);
     const pool = def && def.lootPools ? def.lootPools : null;
     if (!pool) return null;
 
