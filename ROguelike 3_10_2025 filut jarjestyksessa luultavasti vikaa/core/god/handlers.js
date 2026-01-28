@@ -34,6 +34,38 @@ export function install(getCtx) {
       if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
       const c = getCtx(); c.log("GOD: heal not available.", "warn");
     },
+    onGodEnterSandbox: () => {
+      const c = getCtx();
+      try {
+        const GA = (typeof window !== "undefined" ? window.GameAPI : null);
+        if (GA && typeof GA.enterSandboxRoom === "function") {
+          const ok = GA.enterSandboxRoom();
+          if (!ok && c && c.log) {
+            c.log("GOD: Sandbox entry failed (enterSandboxRoom returned false).", "warn");
+          }
+          return;
+        }
+      } catch (_) {}
+      try {
+        const SR = (c && c.SandboxRuntime) || (typeof window !== "undefined" ? window.SandboxRuntime : null);
+        if (SR && typeof SR.enter === "function") {
+          SR.enter(c, { scenario: "dungeon_room" });
+          try {
+            const SS = c.StateSync || (typeof window !== "undefined" && window.StateSync ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(c, {});
+            } else {
+              if (typeof c.updateCamera === "function") c.updateCamera();
+              if (typeof c.recomputeFOV === "function") c.recomputeFOV();
+              if (typeof c.updateUI === "function") c.updateUI();
+              if (typeof c.requestDraw === "function") c.requestDraw();
+            }
+          } catch (_) {}
+          return;
+        }
+      } catch (_) {}
+      try { c && c.log && c.log("GOD: SandboxRuntime module not available; sandbox entry disabled.", "warn"); } catch (_) {}
+    },
     onGodSpawn: () => {
       if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), 3); return; }
       if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), 3); return; }

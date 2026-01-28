@@ -49,6 +49,7 @@ export function attachModules(ctx) {
     if (window.DungeonRuntime) ctx.DungeonRuntime = window.DungeonRuntime;
     if (window.TownRuntime) ctx.TownRuntime = window.TownRuntime;
     if (window.RegionMapRuntime) ctx.RegionMapRuntime = window.RegionMapRuntime;
+    if (window.SandboxRuntime) ctx.SandboxRuntime = window.SandboxRuntime;
     if (window.Modes) ctx.Modes = window.Modes;
     // UI facades
     if (window.UIBridge) ctx.UIBridge = window.UIBridge;

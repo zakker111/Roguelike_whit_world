@@ -5,8 +5,8 @@ import { getMod } from "../../utils/access.js";
 import { maybeEnterMountainPass } from "./transitions.js";
 
 export function tryMoveDungeon(ctx, dx, dy) {
-  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
-  const advanceTurn = (ctx.mode === "dungeon"); // in encounter, the orchestrator advances the turn after syncing
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter" && ctx.mode !== "sandbox")) return false;
+  const advanceTurn = (ctx.mode === "dungeon" || ctx.mode === "sandbox"); // in encounter, the orchestrator advances the turn after syncing
 
   // Dazed: skip action if dazedTurns > 0
   try {

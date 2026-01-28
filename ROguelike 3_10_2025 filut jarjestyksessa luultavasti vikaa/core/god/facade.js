@@ -30,6 +30,15 @@ export function godSpawnEnemyNearby(ctx, count = 1) {
   return false;
 }
 
+export function godSpawnEnemyById(ctx, id, count = 1) {
+  const GC = getMod(ctx, "GodControls");
+  if (GC && typeof GC.spawnEnemyById === "function") {
+    GC.spawnEnemyById(() => ctx, id, count);
+    return true;
+  }
+  return false;
+}
+
 export function godSpawnItems(ctx, count = 3) {
   const GC = getMod(ctx, "GodControls");
   if (GC && typeof GC.spawnItems === "function") {
@@ -63,6 +72,7 @@ if (typeof window !== "undefined") {
     setAlwaysCrit,
     setCritPart,
     godSpawnEnemyNearby,
+    godSpawnEnemyById,
     godSpawnItems,
     godHeal,
     godSpawnStairsHere

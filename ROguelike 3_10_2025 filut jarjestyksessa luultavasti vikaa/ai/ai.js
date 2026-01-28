@@ -58,6 +58,12 @@ function hasLOS(ctx, x0, y0, x1, y1) {
 }
 
 export function enemiesAct(ctx) {
+  // Sandbox: allow disabling enemy AI entirely via ctx.sandboxFlags.aiEnabled.
+  try {
+    if (ctx && ctx.isSandbox && ctx.sandboxFlags && ctx.sandboxFlags.aiEnabled === false) {
+      return;
+    }
+  } catch (_) {}
   const { player, enemies } = ctx;
   const U = (ctx && ctx.utils) ? ctx.utils : null;
   // Local RNG value helper: RNGUtils or ctx.rng; deterministic 0.5 when unavailable
