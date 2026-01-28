@@ -22,33 +22,15 @@
 import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/access.js";
 
 /**
- * Resolve an enemy definition, applying sandbox-only overrides (lootPools) when in sandbox mode.
+ * Resolve an enemy definition.
+ * Advanced sandbox-only loot pool overrides are currently disabled, so this
+ * always returns the base enemy definition from the registry.
  */
 function getEnemyDefWithOverrides(ctx, type) {
   const EM = getMod(ctx, "Enemies");
   const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(type || "") : null;
   if (!base) return null;
-  if (!ctx || ctx.mode !== "sandbox") return base;
-  const overrides = ctx.sandboxEnemyOverrides && ctx.sandboxEnemyOverrides[type];
-  if (!overrides || !overrides.lootPools) return base;
-
-  const basePools = base.lootPools || null;
-  const oPools = overrides.lootPools || {};
-  // Clone base pools so we don't mutate shared registry
-  const mergedPools = basePools ? { ...basePools } : {};
-  for (const key of Object.keys(oPools)) {
-    const v = oPools[key];
-    if (v === null) {
-      // Explicitly disable this pool
-      delete mergedPools[key];
-    } else if (v && typeof v === "object") {
-      // Future extension: allow full weight overrides
-      mergedPools[key] = v;
-    }
-  }
-  const merged = Object.create(base);
-  merged.lootPools = mergedPools;
-  return merged;
+  return base;
 }
 
 /**

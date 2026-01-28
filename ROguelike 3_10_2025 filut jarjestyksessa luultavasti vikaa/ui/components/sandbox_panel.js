@@ -67,64 +67,7 @@ function refreshAiToggle() {
   } catch (_) {}
 }
 
-/**
- * Update advanced section (loot pool toggles) based on enemy id and overrides.
- */
-function refreshAdvancedSection() {
-  try {
-    if (!window.GameAPI || typeof window.GameAPI.getCtx !== "function") return;
-    const ctx = window.GameAPI.getCtx();
-    if (!ctx) return;
-    const enemyId = currentEnemyId();
-    const section = byId("sandbox-advanced-section");
-    if (!section) return;
 
-    if (!enemyId) {
-      section.style.opacity = "0.5";
-      section.style.pointerEvents = "none";
-      return;
-    }
-
-    const EM = (typeof window !== "undefined" ? window.Enemies : null);
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyId) : null;
-    if (!def) {
-      section.style.opacity = "0.5";
-      section.style.pointerEvents = "none";
-      return;
-    }
-
-    section.style.opacity = "1.0";
-    section.style.pointerEvents = "auto";
-
-    const basePools = def.lootPools || {};
-    const overrides = ctx.sandboxEnemyOverrides && ctx.sandboxEnemyOverrides[enemyId];
-    const oPools = overrides && overrides.lootPools ? overrides.lootPools : {};
-
-    function poolEnabled(name) {
-      // If override says null for this pool, it's disabled; otherwise enabled when base has it.
-      if (!basePools || !basePools[name]) return false;
-      if (Object.prototype.hasOwnProperty.call(oPools, name) && oPools[name] === null) return false;
-      return true;
-    }
-
-    const weaponsCb = byId("sandbox-pool-weapons");
-    const armorCb = byId("sandbox-pool-armor");
-    const potionsCb = byId("sandbox-pool-potions");
-
-    if (weaponsCb) {
-      weaponsCb.disabled = !basePools.weapons;
-      weaponsCb.checked = basePools.weapons ? poolEnabled("weapons") : false;
-    }
-    if (armorCb) {
-      armorCb.disabled = !basePools.armor;
-      armorCb.checked = basePools.armor ? poolEnabled("armor") : false;
-    }
-    if (potionsCb) {
-      potionsCb.disabled = !basePools.potions;
-      potionsCb.checked = basePools.potions ? poolEnabled("potions") : false;
-    }
-  } catch (_) {}
-}
 
 function ensurePanel() {
   let el = byId("sandbox-panel");
@@ -200,41 +143,8 @@ function ensurePanel() {
         </div>
       </div>
 
-      <!-- Advanced overrides (loot pools only for now) -->
-      <div id="sandbox-advanced-section" style="margin-top:6px; padding-top:4px; border-top:1px solid #374151;">
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af; margin-bottom:4px;">
-          Advanced (Loot Pools)
-        </div>
-        <div style="font-size:11px; color:#9ca3af; margin-bottom:4px;">
-          Configure which embedded loot pools are active for the selected enemy when killed in sandbox.
-        </div>
-        <div style="display:flex; flex-direction:column; gap:2px; font-size:12px;">
-          <label style="display:flex; align-items:center; gap:6px;">
-            <input id="sandbox-pool-weapons" type="checkbox" checked />
-            <span>Weapons pool</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:6px;">
-            <input id="sandbox-pool-armor" type="checkbox" checked />
-            <span>Armor pool</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:6px;">
-            <input id="sandbox-pool-potions" type="checkbox" checked />
-            <span>Potions pool</span>
-          </label>
-        </div>
-        <div style="display:flex; gap:6px; margin-top:6px;">
-          <button id="sandbox-apply-override-btn" type="button"
-            style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
-                   background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
-            Apply Override
-          </button>
-          <button id="sandbox-reset-override-btn" type="button"
-            style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
-                   background:#020617; color:#9ca3af; font-size:12px; cursor:pointer; text-align:center;">
-            Reset to Base
-          </button>
-        </div>
-      </div>
+      <!-- Advanced overrides (loot pools) removed: feature currently disabled -->
+
     </div>
   `;
 
@@ -292,9 +202,8 @@ export function init(UI) {
         loadEnemyTypes();
       }
       if (!_enemyTypes.length) return;
-      _enemyIndex = (_enemyIndex - 1 + _enemyTypes.length) % _enemyTypes.length;
+      _enemyIndex = (_enemyTypes.length + _enemyIndex - 1) % _enemyTypes.length;
       setEnemyId(_enemyTypes[_enemyIndex]);
-      refreshAdvancedSection();
     });
   }
   if (nextBtn) {
@@ -303,17 +212,16 @@ export function init(UI) {
         loadEnemyTypes();
       }
       if (!_enemyTypes.length) return;
-      _enemyIndex = (_enemyIndex + 1) % _enemyTypes.length;
+      _enemyIndex = (_enemyTypes.length + _enemyIndex + 1) % _enemyTypes.length;
       setEnemyId(_enemyTypes[_enemyIndex]);
-      refreshAdvancedSection();
     });
   }
 
-  // Enemy id manual input => refresh advanced panel on blur/change
+  // Enemy id manual input: no extra behavior needed now that advanced loot pools are removed
   const enemyInput = byId("sandbox-enemy-id");
   if (enemyInput) {
     enemyInput.addEventListener("change", () => {
-      refreshAdvancedSection();
+      // keep for future extension; no-op for now
     });
   }
 
@@ -374,77 +282,8 @@ export function init(UI) {
     });
   }
 
-  // Advanced overrides: apply/reset
-  const applyBtn = byId("sandbox-apply-override-btn");
-  if (applyBtn) {
-    applyBtn.addEventListener("click", () => {
-      try {
-        if (!window.GameAPI || typeof window.GameAPI.getCtx !== "function") return;
-        const ctx = window.GameAPI.getCtx();
-        if (!ctx) return;
-        const enemyId = currentEnemyId();
-        if (!enemyId) return;
-
-        const EM = (typeof window !== "undefined" ? window.Enemies : null);
-        const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyId) : null;
-        if (!def || !def.lootPools) return;
-
-        const basePools = def.lootPools || {};
-        const weaponsCb = byId("sandbox-pool-weapons");
-        const armorCb = byId("sandbox-pool-armor");
-        const potionsCb = byId("sandbox-pool-potions");
-
-        const overrides = ctx.sandboxEnemyOverrides || (ctx.sandboxEnemyOverrides = Object.create(null));
-        const poolsOverride = {};
-
-        function maybeSet(poolName, cb) {
-          if (!cb || cb.disabled || !basePools[poolName]) return;
-          if (!cb.checked) {
-            // Explicitly disable this pool
-            poolsOverride[poolName] = null;
-          }
-        }
-
-        maybeSet("weapons", weaponsCb);
-        maybeSet("armor", armorCb);
-        maybeSet("potions", potionsCb);
-
-        if (Object.keys(poolsOverride).length === 0) {
-          // No overrides needed; clear any existing one
-          delete overrides[enemyId];
-        } else {
-          overrides[enemyId] = { lootPools: poolsOverride };
-        }
-
-        if (typeof window.GameAPI.log === "function") {
-          window.GameAPI.log(`Sandbox: Applied loot pool override for '${enemyId}'.`, "notice");
-        }
-        refreshAdvancedSection();
-      } catch (_) {}
-    });
-  }
-
-  const resetBtn = byId("sandbox-reset-override-btn");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", () => {
-      try {
-        if (!window.GameAPI || typeof window.GameAPI.getCtx !== "function") return;
-        const ctx = window.GameAPI.getCtx();
-        if (!ctx) return;
-        const enemyId = currentEnemyId();
-        if (!enemyId || !ctx.sandboxEnemyOverrides) return;
-        delete ctx.sandboxEnemyOverrides[enemyId];
-        if (typeof window.GameAPI.log === "function") {
-          window.GameAPI.log(`Sandbox: Cleared loot pool override for '${enemyId}'.`, "notice");
-        }
-        refreshAdvancedSection();
-      } catch (_) {}
-    });
-  }
-
-  // Initialize button labels/sections
+  // Initialize button labels
   refreshAiToggle();
-  refreshAdvancedSection();
 }
 
 export function show() {
@@ -461,7 +300,6 @@ export function show() {
   } catch (_) {}
   // Refresh state when panel becomes visible
   refreshAiToggle();
-  refreshAdvancedSection();
 }
 
 export function hide() {
