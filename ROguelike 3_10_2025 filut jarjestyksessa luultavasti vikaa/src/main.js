@@ -25,6 +25,7 @@ import '/world/fov.js';
 import '/data/loader.js';
 import '/data/flavor.js';
 import '/data/god.js';
+import '/core/god/controls.js';
 import '/data/tile_lookup.js';
 
 // Entities and dungeon adapters
