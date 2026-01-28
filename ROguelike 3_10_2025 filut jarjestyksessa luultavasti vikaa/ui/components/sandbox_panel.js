@@ -309,93 +309,142 @@ function ensurePanel() {
 
       <!-- Basic enemy tuning & spawn -->
       <div style="margin-top:6px; padding-top:4px; border-top:1px solid #374151;">
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af; margin-bottom:4px;">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af; margin-bottom:4px;"
+          title="Most-used knobs for sandbox enemy testing: selection, depth, stats, spawn count, and overrides.">
           Basic / Default
         </div>
         <div style="display:flex; flex-direction:column; gap:4px;">
           <!-- Selection -->
           <div style="display:flex; align-items:center; gap:4px;">
-            <span style="font-size:11px; color:#9ca3af;">Enemy</span>
+            <span style="font-size:11px; color:#9ca3af;"
+              title="Base enemy id from data/entities/enemies.json (e.g. goblin, troll, bandit).">
+              Enemy
+            </span>
             <input id="sandbox-enemy-id" type="text"
               placeholder="goblin, troll, bandit..."
+              title="Type or edit the enemy id to test. Must exist in data/entities/enemies.json."
               style="flex:1; padding:3px 6px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             <button id="sandbox-enemy-prev-btn" type="button"
+              title="Select previous enemy id from the registry."
               style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">◀</button>
             <button id="sandbox-enemy-next-btn" type="button"
+              title="Select next enemy id from the registry."
               style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">▶</button>
           </div>
 
           <!-- Test depth -->
           <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-size:11px; color:#9ca3af;">Test depth</span>
+            <span style="font-size:11px; color:#9ca3af;"
+              title="Depth (floor) used to compute HP/ATK/XP from this enemy’s curves for sandbox tests. Does not change actual dungeon depth.">
+              Test depth
+            </span>
             <input id="sandbox-test-depth" type="number" min="1" max="20" value="3"
+              title="Depth used when resolving this enemy’s HP/ATK/XP curves during sandbox spawns."
               style="width:60px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
           </div>
 
           <!-- Visual / identity -->
           <div style="display:flex; flex-wrap:wrap; gap:4px;">
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 40px;">
-              <span style="font-size:11px; color:#9ca3af;">Glyph</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Single-character glyph drawn for this enemy in dungeon/sandbox view.">
+                Glyph
+              </span>
               <input id="sandbox-glyph" type="text" maxlength="1"
+                title="Glyph character shown on the map for this enemy in dungeon/sandbox."
                 style="width:34px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px; text-align:center;" />
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 80px;">
-              <span style="font-size:11px; color:#9ca3af;">Color</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="CSS color used for this enemy’s glyph (overrides enemies.json in sandbox only).">
+                Color
+              </span>
               <input id="sandbox-color" type="text"
                 placeholder="#8bd5a0"
+                title="Hex or CSS color string used to draw the enemy glyph in dungeon/sandbox."
                 style="flex:1; min-width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:4px;">
-            <span style="font-size:11px; color:#9ca3af;">Faction</span>
+            <span style="font-size:11px; color:#9ca3af;"
+              title="Faction id used by AI/encounters (e.g. monster, bandit, guard). Sandbox override only.">
+              Faction
+            </span>
             <input id="sandbox-faction" type="text"
               placeholder="monster, bandit..."
+              title="Faction string for this enemy in sandbox (controls which side it fights for)."
               style="flex:1; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
           </div>
 
           <!-- Core combat knobs -->
           <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 80px;">
-              <span style="font-size:11px; color:#9ca3af;">HP @ depth</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Hit points this enemy will have at the Test depth (sandbox-only override).">
+                HP @ depth
+              </span>
               <input id="sandbox-hp" type="number" min="1"
+                title="HP for this enemy at the chosen Test depth. Overrides the curve in sandbox."
                 style="width:64px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 80px;">
-              <span style="font-size:11px; color:#9ca3af;">ATK @ depth</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Attack stat this enemy will have at the Test depth (sandbox-only override).">
+                ATK @ depth
+              </span>
               <input id="sandbox-atk" type="number" min="0"
+                title="Attack value for this enemy at the chosen Test depth in sandbox."
                 style="width:64px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:4px;">
-            <span style="font-size:11px; color:#9ca3af;">XP @ depth</span>
+            <span style="font-size:11px; color:#9ca3af;"
+              title="Experience the player gains for killing this enemy at the Test depth (sandbox override).">
+              XP @ depth
+            </span>
             <input id="sandbox-xp" type="number" min="0"
+              title="XP reward used for this enemy at the chosen Test depth in sandbox."
               style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
           </div>
 
           <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 90px;">
-              <span style="font-size:11px; color:#9ca3af;">Damage scale</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Global multiplier on this enemy’s outgoing damage in sandbox.">
+                Damage scale
+              </span>
               <input id="sandbox-damage-scale" type="number" step="0.1"
+                title="Scale factor applied to this enemy’s damage output in sandbox (1.0 = base)."
                 style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 90px;">
-              <span style="font-size:11px; color:#9ca3af;">Equip chance</span>
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Chance [0–1] this enemy carries or drops equipment (when loot tables support it).">
+                Equip chance
+              </span>
               <input id="sandbox-equip-chance" type="number" step="0.05" min="0" max="1"
+                title="Probability that this enemy has equipment in sandbox (0 = never, 1 = always)."
                 style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
           </div>
 
           <!-- Spawn + override controls -->
           <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
-            <span style="font-size:11px; color:#9ca3af;">Count</span>
+            <span style="font-size:11px; color:#9ca3af;"
+              title="How many copies of this enemy to spawn with each Spawn N click.">
+              Count
+            </span>
             <input id="sandbox-enemy-count" type="number" min="1" max="50" value="1"
+              title="Number of enemies to spawn when using Spawn N (sandbox only)."
               style="width:52px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             <button id="sandbox-spawn1-btn" type="button"
+              title="Spawn exactly one enemy using the current sandbox override and Test depth."
               style="flex:1; padding:4px 6px; border-radius:6px; border:1px solid #22c55e;
                      background:#16a34a; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
               Spawn 1
             </button>
             <button id="sandbox-spawnn-btn" type="button"
+              title="Spawn Count enemies using the current sandbox override and Test depth."
               style="flex:1; padding:4px 6px; border-radius:6px; border:1px solid #22c55e;
                      background:#15803d; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
               Spawn N
@@ -404,11 +453,13 @@ function ensurePanel() {
 
           <div style="display:flex; gap:6px; margin-top:4px;">
             <button id="sandbox-apply-override-btn" type="button"
+              title="Save the Basic fields as a sandbox-only override for this enemy (affects future spawns in this session)."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
                      background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
               Apply as Override
             </button>
             <button id="sandbox-reset-override-btn" type="button"
+              title="Remove the sandbox override for this enemy and fall back to its base JSON definition."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
                      background:#020617; color:#9ca3af; font-size:12px; cursor:pointer; text-align:center;">
               Reset to Base
@@ -420,26 +471,37 @@ function ensurePanel() {
       <!-- Advanced JSON overrides -->
       <div style="margin-top:6px; padding-top:4px; border-top:1px solid #374151;">
         <button id="sandbox-advanced-toggle-btn" type="button"
+          title="Show expert JSON view/edit for this enemy’s sandbox override (advanced use only)."
           style="width:100%; padding:4px 8px; border-radius:6px; border:1px solid #4b5563;
                  background:#020617; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:left;">
           Advanced ▸
         </button>
         <div id="sandbox-advanced-body" style="display:none; margin-top:4px; display:flex; flex-direction:column; gap:4px;">
-          <div style="font-size:11px; color:#9ca3af;">Base JSON (read-only)</div>
+          <div style="font-size:11px; color:#9ca3af;"
+            title="Read-only copy of this enemy’s definition from data/entities/enemies.json.">
+            Base JSON (read-only)
+          </div>
           <textarea id="sandbox-advanced-base-json" readonly
+            title="Enemy row as loaded from data/entities/enemies.json (cannot be edited here)."
             style="width:100%; min-height:80px; max-height:120px; padding:4px 6px; border-radius:4px;
                    border:1px solid #4b5563; background:#020617; color:#9ca3af; font-size:11px; font-family:'JetBrains Mono',monospace;"></textarea>
-          <div style="font-size:11px; color:#9ca3af;">Override JSON (sandbox-only)</div>
+          <div style="font-size:11px; color:#9ca3af;"
+            title="Sandbox-only override object that is merged on top of the base definition.">
+            Override JSON (sandbox-only)
+          </div>
           <textarea id="sandbox-advanced-override-json"
+            title="Edit sandbox override as raw JSON for this enemy, then click Apply JSON to use it."
             style="width:100%; min-height:80px; max-height:140px; padding:4px 6px; border-radius:4px;
                    border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px; font-family:'JetBrains Mono',monospace;"></textarea>
           <div style="display:flex; gap:6px; margin-top:2px;">
             <button id="sandbox-advanced-apply-json-btn" type="button"
+              title="Parse Override JSON and store it as the sandbox override for this enemy."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
                      background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
               Apply JSON
             </button>
             <button id="sandbox-advanced-reset-json-btn" type="button"
+              title="Clear JSON override for this enemy (equivalent to Reset to Base in Basic section)."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
                      background:#020617; color:#9ca3af; font-size:12px; cursor:pointer; text-align:center;">
               Reset Override
