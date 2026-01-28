@@ -80,7 +80,7 @@ export function tick(ctx) {
 
   // Mode-specific progression
   try {
-    if (ctx.mode === "dungeon") {
+    if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
       const DR = modHandle(ctx, "DungeonRuntime");
       if (DR && typeof DR.tick === "function") DR.tick(ctx);
     } else if (ctx.mode === "town") {

@@ -319,7 +319,7 @@ export function doAction(ctx) {
     return true;
   }
 
-  if (ctx.mode === "dungeon") {
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
     const isTowerDungeon =
       !!(ctx.towerRun && ctx.towerRun.kind === "tower") ||
       !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
@@ -484,7 +484,7 @@ export function loot(ctx) {
     return true;
   }
 
-  if (ctx.mode === "dungeon") {
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
     // Prefer centralized return flow
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
@@ -525,7 +525,7 @@ export function descend(ctx) {
     // Reuse action to enter town/dungeon if on appropriate tile
     return doAction(ctx);
   }
-  if (ctx.mode === "dungeon") {
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
     ctx.log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
     return true;
   }

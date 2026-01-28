@@ -63,7 +63,7 @@ export function fastForwardMinutes(ctx, mins) {
 
 export function brace(ctx) {
   if (!ctx || !ctx.player) return;
-  if (ctx.mode !== "dungeon") {
+  if (ctx.mode !== "dungeon" && ctx.mode !== "sandbox") {
     try { ctx.log && ctx.log("You can brace only in the dungeon.", "info"); } catch (_) {}
     try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
     return;
@@ -93,7 +93,7 @@ export function descendIfPossible(ctx) {
     try { if (typeof ctx.doAction === "function") ctx.doAction(); } catch (_) {}
     return true;
   }
-  if (ctx.mode === "dungeon") {
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
     try {
       const MZ = mod("Messages");
       if (MZ && typeof MZ.log === "function") {
