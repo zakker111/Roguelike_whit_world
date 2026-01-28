@@ -138,6 +138,7 @@ if (typeof window !== "undefined") {
     spawnStairsHere,
     spawnItems,
     spawnEnemyNearby,
+    spawnEnemyById,
     setAlwaysCrit,
     setCritPart,
     applySeed,

@@ -72,6 +72,7 @@ if (typeof window !== "undefined") {
     setAlwaysCrit,
     setCritPart,
     godSpawnEnemyNearby,
+    godSpawnEnemyById,
     godSpawnItems,
     godHeal,
     godSpawnStairsHere
