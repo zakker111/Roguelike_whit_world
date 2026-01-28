@@ -335,11 +335,11 @@ function ensurePanel() {
           <!-- Test depth -->
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:11px; color:#9ca3af;"
-              title="Depth (floor) used to compute HP/ATK/XP from this enemy’s curves for sandbox tests. Does not change actual dungeon depth.">
+              title="Sandbox-only: dungeon depth (floor number) to sample this enemy’s HP/ATK/XP curves from JSON. Real runs use the actual floor; changing this does not move you.">
               Test depth
             </span>
             <input id="sandbox-test-depth" type="number" min="1" max="20" value="3"
-              title="Depth used when resolving this enemy’s HP/ATK/XP curves during sandbox spawns."
+              title="Dungeon depth (floor) to test this enemy at in sandbox. Affects only HP/ATK/XP used for these spawns; does not change the real dungeon floor."
               style="width:60px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
           </div>
 
