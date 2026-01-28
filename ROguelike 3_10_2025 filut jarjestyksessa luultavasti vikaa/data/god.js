@@ -242,6 +242,14 @@ export function spawnEnemyNearby(ctx, count = 1) {
 /**
  * Spawn a specific enemy type id near the player (dungeon or sandbox mode only).
  * This uses the same placement logic as spawnEnemyNearby but does not cycle ids.
+ *
+ * In sandbox mode, this respects ctx.sandboxEnemyOverrides[typeId] when present:
+ * - testDepth: depth used to resolve hp/atk/xp curves (fallback: ctx.floor)
+ * - hpAtDepth / atkAtDepth / xpAtDepth: overrides for stats at testDepth
+ * - glyph / color / faction: visual/identity overrides
+ * - damageScale: per-enemy damage multiplier override
+ *
+ * Overrides are sandbox-only; normal dungeon runs ignore them.
  */
 export function spawnEnemyById(ctx, id, count = 1) {
   const typeId = String(id || "").trim();
@@ -266,13 +274,27 @@ export function spawnEnemyById(ctx, id, count = 1) {
     return false;
   }
 
+  // Sandbox-only enemy definition overrides (kept on ctx).
+  let override = null;
+  try {
+    if (ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+      override = ctx.sandboxEnemyOverrides[typeId] || null;
+    }
+  } catch (_) {
+    override = null;
+  }
+
   const isFreeFloor = (x, y) => {
     try {
       if (!ctx.inBounds(x, y)) return false;
-      const walkable = (typeof ctx.isWalkable === "function") ? ctx.isWalkable(x, y) : (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
+      const walkable = (typeof ctx.isWalkable === "function")
+        ? ctx.isWalkable(x, y)
+        : (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
       if (!walkable) return false;
       if (ctx.player.x === x && ctx.player.y === y) return false;
-      const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function") ? ctx.occupancy.hasEnemy(x, y) : ctx.enemies.some(e => e && e.x === x && e.y === y);
+      const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function")
+        ? ctx.occupancy.hasEnemy(x, y)
+        : ctx.enemies.some(e => e && e.x === x && e.y === y);
       if (occEnemy) return false;
       return true;
     } catch (_) {
@@ -335,18 +357,49 @@ export function spawnEnemyById(ctx, id, count = 1) {
     } catch (_) {}
 
     if (!ee) {
-      const level = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(typeId, ctx.floor, ctx.rng) : ctx.floor;
+      // Depth used for stat resolution: sandbox may override via testDepth.
+      const depthForStats = (override && typeof override.testDepth === "number")
+        ? (override.testDepth | 0)
+        : ctx.floor;
+
+      const baseHp = (typeof td.hp === "function") ? td.hp(depthForStats) : 3;
+      const baseAtk = (typeof td.atk === "function") ? td.atk(depthForStats) : 1;
+      const baseXp = (typeof td.xp === "function") ? td.xp(depthForStats) : 5;
+
+      const hp = (override && typeof override.hpAtDepth === "number") ? override.hpAtDepth : baseHp;
+      const atk = (override && typeof override.atkAtDepth === "number") ? override.atkAtDepth : baseAtk;
+      const xp = (override && typeof override.xpAtDepth === "number") ? override.xpAtDepth : baseXp;
+
+      const g = (override && typeof override.glyph === "string" && override.glyph)
+        ? override.glyph
+        : (td.glyph ? td.glyph : ((typeId && typeId.length) ? typeId.charAt(0) : "?"));
+
+      const level = (EM.levelFor && typeof EM.levelFor === "function")
+        ? EM.levelFor(typeId, depthForStats, ctx.rng)
+        : depthForStats;
+
+      const damageScale = (override && typeof override.damageScale === "number")
+        ? override.damageScale
+        : (typeof td.damageScale === "number" ? td.damageScale : 1.0);
+
       ee = {
         x: spot.x,
         y: spot.y,
         type: typeId,
-        glyph: td.glyph ? td.glyph : ((typeId && typeId.length) ? typeId.charAt(0) : "?"),
-        hp: td.hp(ctx.floor),
-        atk: td.atk(ctx.floor),
-        xp: td.xp(ctx.floor),
+        glyph: g,
+        hp,
+        atk,
+        xp,
         level,
         announced: false,
+        damageScale,
       };
+
+      // Optional identity fields used by some overlays/AI.
+      const col = (override && typeof override.color === "string" && override.color) ? override.color : td.color;
+      const faction = (override && typeof override.faction === "string" && override.faction) ? override.faction : td.faction;
+      if (col) ee.color = col;
+      if (faction) ee.faction = faction;
     }
 
     ctx.enemies.push(ee);
