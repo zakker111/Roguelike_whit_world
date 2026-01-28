@@ -338,14 +338,37 @@ export function init(UI) {
         if (n < 1) n = 1;
         if (n > 50) n = 50;
 
-        if (typeof window.GameAPI.spawnEnemyById === "function") {
-          window.GameAPI.spawnEnemyById(enemyId, n);
-        } else if (typeof window.GameAPI.spawnEnemyNearby === "function") {
-          // Fallback: random spawn when by-id helper is unavailable
-          window.GameAPI.spawnEnemyNearby(n);
+        let spawned = false;
+
+        // Preferred path: call God.spawnEnemyById directly with live ctx when available.
+        try {
+          if (typeof window.GameAPI.getCtx === "function" &&
+              typeof window.God === "object" &&
+              typeof window.God.spawnEnemyById === "function") {
+            const ctx = window.GameAPI.getCtx();
+            if (ctx && (ctx.mode === "sandbox" || ctx.mode === "dungeon")) {
+              spawned = !!window.God.spawnEnemyById(ctx, enemyId, n);
+            }
+          }
+        } catch (_) {
+          spawned = false;
+        }
+
+        // Fallback to GameAPI helper if direct GOD call was unavailable or failed.
+        if (!spawned && typeof window.GameAPI.spawnEnemyById === "function") {
+          spawned = !!window.GameAPI.spawnEnemyById(enemyId, n);
+        }
+
+        // Final fallback: random nearby spawn if by-id helpers are missing.
+        if (!spawned && typeof window.GameAPI.spawnEnemyNearby === "function") {
+          spawned = !!window.GameAPI.spawnEnemyNearby(n);
           if (typeof window.GameAPI.log === "function") {
             window.GameAPI.log("Sandbox: spawnEnemyById not available; used random spawnEnemyNearby instead.", "warn");
           }
+        }
+
+        if (!spawned && typeof window.GameAPI.log === "function") {
+          window.GameAPI.log(`Sandbox: Failed to spawn enemy '${enemyId}'.`, "warn");
         }
       } catch (_) {}
     });
