@@ -645,6 +645,8 @@ export function init(UI) {
         if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
           window.GameAPI.log(`Sandbox: Applied enemy override for '${enemyId}' (depth ${depth}).`, "notice");
         }
+        // Refresh Advanced JSON view so the override is immediately visible when expanded.
+        try { refreshAdvancedJson(); } catch (_) {}
       } catch (_) {}
     });
   }

@@ -382,6 +382,21 @@ export function spawnEnemyById(ctx, id, count = 1) {
         ? override.damageScale
         : (typeof td.damageScale === "number" ? td.damageScale : 1.0);
 
+      // Log override usage in sandbox to make behavior visible during tuning.
+      try {
+        if (ctx.mode === "sandbox") {
+          const hasOverride = !!override;
+          const baseLine = `depth=${depthForStats}, baseHp=${baseHp}, baseAtk=${baseAtk}, baseXp=${baseXp}`;
+          const effLine = `hp=${hp}, atk=${atk}, xp=${xp}, dmgScale=${damageScale}`;
+          ctx.log(
+            hasOverride
+              ? `Sandbox: Spawning '${typeId}' with override (${baseLine}) → (${effLine}).`
+              : `Sandbox: Spawning '${typeId}' with base definition (${effLine}) at ${baseLine}.`,
+            "info"
+          );
+        }
+      } catch (_) {}
+
       ee = {
         x: spot.x,
         y: spot.y,
