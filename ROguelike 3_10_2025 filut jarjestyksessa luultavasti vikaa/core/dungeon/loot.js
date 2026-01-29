@@ -17,7 +17,7 @@ export function generateLoot(ctx, source) {
 }
 
 export function lootHere(ctx) {
-  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter" && ctx.mode !== "sandbox")) return false;
 
   // Exact-tile only: do not auto-step onto adjacent corpses/chests. Looting and flavor apply only if standing on the body tile.
 

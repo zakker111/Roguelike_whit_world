@@ -22,13 +22,25 @@
 import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/access.js";
 
 /**
+ * Resolve an enemy definition.
+ * Advanced sandbox-only loot pool overrides are currently disabled, so this
+ * always returns the base enemy definition from the registry.
+ */
+function getEnemyDefWithOverrides(ctx, type) {
+  const EM = getMod(ctx, "Enemies");
+  const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(type || "") : null;
+  if (!base) return null;
+  return base;
+}
+
+/**
  * Choose a potion tier based on enemy type.
  * Uses enemy.lootPools.potions weights and materializes a potion from GameData.consumables when available.
  * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  const EM = getMod(ctx, "Enemies");
-  const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
+  const srcType = source && source.type ? source.type : "";
+  const def = getEnemyDefWithOverrides(ctx, srcType);
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 
@@ -149,8 +161,7 @@ function fallbackEquipment(ctx, tier) {
  */
 function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
   try {
-    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyType) : null;
+    const def = getEnemyDefWithOverrides(ctx, enemyType);
     const pool = def && def.lootPools ? def.lootPools : null;
     if (!pool) return null;
 

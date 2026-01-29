@@ -13,6 +13,7 @@ import {
   godSpawnItems as godSpawnItemsFacade,
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade,
+  godSpawnEnemyById as godSpawnEnemyByIdFacade,
 } from "./god/facade.js";
 
 /**
@@ -48,6 +49,7 @@ export function createGodBridge(deps) {
       godSpawnItemsFacade,
       godHealFacade,
       godSpawnStairsHereFacade,
+      godSpawnEnemyByIdFacade,
     });
   }
 
@@ -95,6 +97,12 @@ export function createGodBridge(deps) {
     actions.godSpawnEnemyNearby(count);
   }
 
+  function godSpawnEnemyById(id, count = 1) {
+    const ctx = getCtx();
+    const actions = makeGodActions(ctx);
+    actions.godSpawnEnemyById(id, count);
+  }
+
   function applySeed(seedUint32) {
     if (typeof deps.applySeed === "function") {
       deps.applySeed(seedUint32);
@@ -127,6 +135,7 @@ export function createGodBridge(deps) {
     godSpawnStairsHere,
     godSpawnItems,
     godSpawnEnemyNearby,
+    godSpawnEnemyById,
     applySeed,
     rerollSeed,
     restartGame,

@@ -271,6 +271,16 @@ export function init(UI) {
     if (typeof UI.handlers.onRestart === "function") UI.handlers.onRestart();
   });
 
+  const sandboxBtn = byId("god-enter-sandbox-btn");
+  if (sandboxBtn) {
+    sandboxBtn.addEventListener("click", () => {
+      try { hide(); } catch (_) {}
+      if (typeof UI.handlers.onGodEnterSandbox === "function") {
+        UI.handlers.onGodEnterSandbox();
+      }
+    });
+  }
+
   // Smoke Config open
   const smokeBtn = byId("god-run-smoke-btn");
   smokeBtn?.addEventListener("click", () => {

@@ -45,6 +45,13 @@ export function spawnEnemyNearby(getCtx, count = 1) {
   ctx.log("GOD: spawnEnemyNearby not available.", "warn");
 }
 
+export function spawnEnemyById(getCtx, id, count = 1) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.spawnEnemyById === "function") return G.spawnEnemyById(ctx, id, count);
+  ctx.log("GOD: spawnEnemyById not available.", "warn");
+}
+
 export function setAlwaysCrit(getCtx, enabled) {
   const ctx = getCtx();
   const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
@@ -131,6 +138,7 @@ if (typeof window !== "undefined") {
     spawnStairsHere,
     spawnItems,
     spawnEnemyNearby,
+    spawnEnemyById,
     setAlwaysCrit,
     setCritPart,
     applySeed,

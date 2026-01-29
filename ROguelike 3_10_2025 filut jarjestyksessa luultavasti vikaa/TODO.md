@@ -276,6 +276,15 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Technical / Cleanup
 
+- [ ] CRITICAL: Enemy depth vs dungeon level
+  - Current enemy HP/ATK/XP curves in `data/entities/enemies.json` are keyed by a conceptual “depth”. The engine historically used `floor`/`depth` for multi-floor dungeons.
+  - The game has since moved to a single-floor dungeon model per run, but some code paths (including sandbox helpers and spawn-by-id flows) still conceptually talk about “depth” when sampling curves.
+  - Update enemy stat resolution to be driven by a clearer “dungeon level” or difficulty band rather than a notional multi-floor depth:
+    - Clarify what “level” means for dungeons/towers in the current design (e.g., world progression, tower tier, or encounter difficulty) and use that consistently when sampling enemy curves.
+    - Avoid implying that there are multiple physical dungeon floors when there is only one active floor per run.
+    - Keep curves and their sampling behavior fully data-driven and centralized so future multi-floor dungeons (if reintroduced) can still plug in cleanly.
+  - Sandbox “Test depth” should be revisited once dungeon level semantics are clarified, to match the real progression axis used by the game.
+
 - [ ] Startup diagnostics & loading visualization
   - Keep startup fast by treating “game becomes playable quickly” as the primary goal and running heavy validations only on demand:
     - Boot-time HealthCheck should remain a lightweight presence/shape pass over modules and data, deferring full schema validation to GOD/dev tools.

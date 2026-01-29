@@ -85,13 +85,23 @@ export function buildGameAPIImpl(deps) {
       setAlwaysCrit,
       setCritPart,
       godSpawnEnemyNearby,
+      godSpawnEnemyById,
       godSpawnItems,
       generateLoot,
       getClock,
       log,
+      enterSandboxRoom,
     } = deps;
 
     window.GameAPI = window.GameAPIBuilder.create({
+      // Orchestrator sync helper (exposed so helpers like sandbox can request a full ctx→engine sync).
+      applyCtxSyncAndRefresh: (ctx) => {
+        try {
+          if (typeof deps.applyCtxSyncAndRefresh === "function") {
+            deps.applyCtxSyncAndRefresh(ctx);
+          }
+        } catch (_) {}
+      },
       getMode: () => getMode(),
       getWorld: () => getWorld(),
       getPlayer: () => getPlayer(),
@@ -192,11 +202,13 @@ export function buildGameAPIImpl(deps) {
       setAlwaysCrit: (v) => setAlwaysCrit(v),
       setCritPart: (part) => setCritPart(part),
       godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
+      godSpawnEnemyById: (id, count) => godSpawnEnemyById(id, count),
       godSpawnItems: (count) => godSpawnItems(count),
       generateLoot: (source) => generateLoot(source),
       getClock: () => getClock(),
       getCtx: () => getCtx(),
       log: (msg, type) => log(msg, type),
+      enterSandboxRoom: () => enterSandboxRoom(),
     });
   } catch (_) {}
 }

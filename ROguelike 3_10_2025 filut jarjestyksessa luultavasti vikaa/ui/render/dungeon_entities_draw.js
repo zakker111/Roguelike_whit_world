@@ -22,7 +22,9 @@ export function drawEnemies(ctx, view) {
     // look consistent across dungeon, town, and region maps.
     const isFollower = !!(e && e._isFollower);
     let glyph = e.glyph || "e";
-    let color = RenderCore.enemyColor(ctx, e.type, COLORS);
+    let color = (e && typeof e.color === "string" && e.color.trim().length)
+      ? e.color
+      : RenderCore.enemyColor(ctx, e.type, COLORS);
     if (isFollower) {
       const fid = e._followerId;
       const def = fid ? getFollowerDef(ctx, fid) : null;

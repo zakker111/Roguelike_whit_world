@@ -108,6 +108,8 @@ function cloneForStorage(st) {
 
 export function save(ctx) {
   if (!ctx) return;
+  // Sandbox sessions are ephemeral; never persist dungeon state while sandboxing.
+  if (ctx.isSandbox) return;
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
   const k = key(ctx.dungeonInfo.x, ctx.dungeonInfo.y);
   if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
