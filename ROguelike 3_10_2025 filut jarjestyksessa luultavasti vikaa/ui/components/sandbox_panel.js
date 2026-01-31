@@ -57,11 +57,7 @@ function getAnimalDefById(id) {
       if (!row || !row.id) continue;
       if (String(row.id).toLowerCase() === want) return row;
     }
-  } catch (_) {}
-  return null;
-}
-
-function isAnimalId(id) {
+  } catch (_) </old_code><new_code>function isAnimalId(id) {
   return !!getAnimalDefById(id);
 }
 
@@ -210,22 +206,31 @@ function getCtxSafe() {
 /**
  * Sync basic fields (test depth, glyph/color/faction, HP/ATK/XP, damageScale, equipChance)
  * from the base enemy definition and any sandbox override on ctx.
+ *
+ * For custom ids (not in enemies.json) or animals, we only apply sandbox overrides
+ * and leave manual field edits as-is.
  */
 function syncBasicFormFromData() {
   try {
     const enemyId = currentEnemyId();
-    if (!enemyId) return;
+    if (!enemyId) {
+      updateEntityStatusLabel();
+      return;
+    }
+
     const ctx = getCtxSafe();
-    if (!ctx) return;
+    if (!ctx) {
+      updateEntityStatusLabel();
+      return;
+    }
 
     const EM = (typeof window !== "undefined" ? window.Enemies : null);
     const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyId) : null;
-    if (!def) return;
 
     const overridesRoot = ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object"
       ? ctx.sandboxEnemyOverrides
       : null;
-    const override = overridesRoot ? overridesRoot[enemyId] || null : null;
+    const override = overridesRoot ? (overridesRoot[enemyId] || overridesRoot[String(enemyId).toLowerCase()] || null) : null;
 
     const depthInput = byId("sandbox-test-depth");
     let depth = 3;
@@ -234,12 +239,14 @@ function syncBasicFormFromData() {
       if (v > 0) depth = v;
     } else if (override && typeof override.testDepth === "number") {
       depth = (override.testDepth | 0) || 3;
+    } else if (typeof ctx.floor === "number") {
+      depth = (ctx.floor | 0) || 3;
     }
     if (depthInput) depthInput.value = String(depth);
 
-    const hpBase = typeof def.hp === "function" ? def.hp(depth) : 0;
-    const atkBase = typeof def.atk === "function" ? def.atk(depth) : 0;
-    const xpBase = typeof def.xp === "function" ? def.xp(depth) : 0;
+    const hpBase = def && typeof def.hp === "function" ? def.hp(depth) : 0;
+    const atkBase = def && typeof def.atk === "function" ? def.atk(depth) : 0;
+    const xpBase = def && typeof def.xp === "function" ? def.xp(depth) : 0;
 
     const glyphInput = byId("sandbox-glyph");
     const colorInput = byId("sandbox-color");
@@ -250,48 +257,65 @@ function syncBasicFormFromData() {
     const dmgInput = byId("sandbox-damage-scale");
     const eqInput = byId("sandbox-equip-chance");
 
-    if (glyphInput) {
-      glyphInput.value = (override && typeof override.glyph === "string")
-        ? override.glyph
-        : (def.glyph || "");
-    }
-    if (colorInput) {
-      colorInput.value = (override && typeof override.color === "string")
-        ? override.color
-        : (def.color || "");
-    }
-    if (factionInput) {
-      factionInput.value = (override && typeof override.faction === "string")
-        ? override.faction
-        : (def.faction || "");
-    }
-    if (hpInput) {
-      hpInput.value = (override && typeof override.hpAtDepth === "number")
-        ? String(override.hpAtDepth)
-        : (hpBase ? String(hpBase) : "");
-    }
-    if (atkInput) {
-      atkInput.value = (override && typeof override.atkAtDepth === "number")
-        ? String(override.atkAtDepth)
-        : (atkBase ? String(atkBase) : "");
-    }
-    if (xpInput) {
-      xpInput.value = (override && typeof override.xpAtDepth === "number")
-        ? String(override.xpAtDepth)
-        : (xpBase ? String(xpBase) : "");
+    function assignText(input, fromOverride, fromDef) {
+      if (!input) return;
+      if (fromOverride !== null && fromOverride !== undefined) {
+        input.value = String(fromOverride);
+        return;
+      }
+      if (fromDef !== null && fromDef !== undefined && fromDef !== "") {
+        input.value = String(fromDef);
+      }
+      // Otherwise leave the existing value untouched.
     }
 
-    const baseDamageScale = (typeof def.damageScale === "number" ? def.damageScale : 1.0);
-    const baseEquipChance = (typeof def.equipChance === "number" ? def.equipChance : 0.35);
+    assignText(
+      glyphInput,
+      (override && typeof override.glyph === "string" && override.glyph) ? override.glyph : null,
+      def && def.glyph ? def.glyph : null
+    );
+    assignText(
+      colorInput,
+      (override && typeof override.color === "string" && override.color) ? override.color : null,
+      def && def.color ? def.color : null
+    );
+    assignText(
+      factionInput,
+      (override && typeof override.faction === "string" && override.faction) ? override.faction : null,
+      def && def.faction ? def.faction : null
+    );
 
-    if (dmgInput) {
-      const val = (override && typeof override.damageScale === "number") ? override.damageScale : baseDamageScale;
-      dmgInput.value = String(val);
-    }
-    if (eqInput) {
-      const val = (override && typeof override.equipChance === "number") ? override.equipChance : baseEquipChance;
-      eqInput.value = String(val);
-    }
+    assignText(
+      hpInput,
+      (override && typeof override.hpAtDepth === "number") ? override.hpAtDepth : null,
+      hpBase > 0 ? hpBase : null
+    );
+    assignText(
+      atkInput,
+      (override && typeof override.atkAtDepth === "number") ? override.atkAtDepth : null,
+      atkBase > 0 ? atkBase : null
+    );
+    assignText(
+      xpInput,
+      (override && typeof override.xpAtDepth === "number") ? override.xpAtDepth : null,
+      xpBase > 0 ? xpBase : null
+    );
+
+    const baseDamageScale = (def && typeof def.damageScale === "number" ? def.damageScale : 1.0);
+    const baseEquipChance = (def && typeof def.equipChance === "number" ? def.equipChance : 0.35);
+
+    assignText(
+      dmgInput,
+      (override && typeof override.damageScale === "number") ? override.damageScale : null,
+      baseDamageScale
+    );
+    assignText(
+      eqInput,
+      (override && typeof override.equipChance === "number") ? override.equipChance : null,
+      baseEquipChance
+    );
+
+    updateEntityStatusLabel();
 
     // Also refresh the loot editor from current base + sandbox overrides.
     syncLootFormFromData();
@@ -485,6 +509,168 @@ function trySpawnAnimalById(ctx, id, count) {
   }
 }
 
+function spawnCustomSandboxEnemy(ctx, id, count) {
+  try {
+    if (!ctx || !ctx.map || !ctx.player) return false;
+
+    let n = (Number(count) || 0) | 0;
+    if (n < 1) n = 1;
+    if (n > 50) n = 50;
+
+    const isFreeFloor = (x, y) => {
+      try {
+        if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+        const t = ctx.map[y] && ctx.map[y][x];
+        const walkable = (typeof ctx.isWalkable === "function")
+          ? ctx.isWalkable(x, y)
+          : (t === ctx.TILES.FLOOR || t === ctx.TILES.DOOR || t === ctx.TILES.STAIRS);
+        if (!walkable) return false;
+        if (ctx.player.x === x && ctx.player.y === y) return false;
+        const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function")
+          ? ctx.occupancy.hasEnemy(x, y)
+          : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y));
+        if (occEnemy) return false;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const pickNearby = () => {
+      const maxR = 5;
+      const px = ctx.player.x | 0;
+      const py = ctx.player.y | 0;
+
+      for (let r = 1; r <= maxR; r++) {
+        const candidates = [];
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+            const x = px + dx;
+            const y = py + dy;
+            if (isFreeFloor(x, y)) candidates.push({ x, y });
+          }
+        }
+        if (candidates.length) {
+          for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor((typeof ctx.rng === "function" ? ctx.rng() : Math.random()) * (i + 1));
+            const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+          }
+          return candidates[0];
+        }
+      }
+
+      let best = null;
+      let bestD = Infinity;
+      const rows = ctx.map.length;
+      const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (!isFreeFloor(x, y)) continue;
+          const md = Math.abs(x - (ctx.player.x | 0)) + Math.abs(y - (ctx.player.y | 0));
+          if (md < bestD) { bestD = md; best = { x, y }; }
+        }
+      }
+      return best;
+    };
+
+    const overridesRoot = ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object"
+      ? ctx.sandboxEnemyOverrides
+      : null;
+    const key = String(id || "");
+    const override = overridesRoot ? (overridesRoot[key] || overridesRoot[key.toLowerCase()] || null) : null;
+
+    const depthInput = byId("sandbox-test-depth");
+    let depth = 1;
+    if (override && typeof override.testDepth === "number") {
+      depth = (override.testDepth | 0) || 1;
+    } else if (depthInput && depthInput.value) {
+      const v = (Number(depthInput.value) || 0) | 0;
+      if (v > 0) depth = v;
+    } else if (typeof ctx.floor === "number") {
+      depth = (ctx.floor | 0) || 1;
+    }
+
+    const glyphInput = byId("sandbox-glyph");
+    const colorInput = byId("sandbox-color");
+    const factionInput = byId("sandbox-faction");
+    const hpInput = byId("sandbox-hp");
+    const atkInput = byId("sandbox-atk");
+    const xpInput = byId("sandbox-xp");
+    const dmgInput = byId("sandbox-damage-scale");
+
+    const glyph = (override && typeof override.glyph === "string" && override.glyph)
+      ? override.glyph
+      : (glyphInput && glyphInput.value
+          ? String(glyphInput.value)
+          : (key && key.length ? key.charAt(0) : "?"));
+
+    const color = (override && typeof override.color === "string" && override.color)
+      ? override.color
+      : (colorInput && colorInput.value ? String(colorInput.value) : "#cbd5e1");
+
+    const faction = (override && typeof override.faction === "string" && override.faction)
+      ? override.faction
+      : (factionInput && factionInput.value ? String(factionInput.value) : "monster");
+
+    const hp = (override && typeof override.hpAtDepth === "number")
+      ? override.hpAtDepth
+      : (hpInput && hpInput.value !== "" ? (Number(hpInput.value) || 3) : 3);
+
+    const atk = (override && typeof override.atkAtDepth === "number")
+      ? override.atkAtDepth
+      : (atkInput && atkInput.value !== "" ? (Number(atkInput.value) || 1) : 1);
+
+    const xp = (override && typeof override.xpAtDepth === "number")
+      ? override.xpAtDepth
+      : (xpInput && xpInput.value !== "" ? (Number(xpInput.value) || 1) : 1);
+
+    const damageScale = (override && typeof override.damageScale === "number")
+      ? override.damageScale
+      : (dmgInput && dmgInput.value !== "" ? (Number(dmgInput.value) || 1) : 1);
+
+    const spawned = [];
+    if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+
+    for (let i = 0; i < n; i++) {
+      const spot = pickNearby();
+      if (!spot) break;
+      const e = {
+        x: spot.x,
+        y: spot.y,
+        type: String(key),
+        glyph,
+        color,
+        hp,
+        atk,
+        xp,
+        level: depth,
+        announced: false,
+        damageScale,
+        faction,
+      };
+      ctx.enemies.push(e);
+      spawned.push(e);
+      try {
+        if (ctx.log) ctx.log(`Sandbox: Spawned custom enemy '${key}' at (${e.x},${e.y}).`, "notice");
+      } catch (_) {}
+    }
+
+    if (spawned.length) {
+      try {
+        const SS = ctx.StateSync;
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 function spawnWithCount(requestedCount) {
   try {
     if (!window.GameAPI) return;
@@ -508,19 +694,29 @@ function spawnWithCount(requestedCount) {
     if (n < 1) n = 1;
     if (n > 50) n = 50;
 
-    let spawned = false;
-
     const ctx = (typeof window.GameAPI.getCtx === "function" ? window.GameAPI.getCtx() : null);
+    const kind = classifyEntityId(enemyId);
 
     // Animal path: spawn neutral wildlife by id when selected entity comes from animals.json.
-    if (ctx && isAnimalId(enemyId)) {
-      const ok = trySpawnAnimalById(ctx, enemyId, n);
-      if (!ok && typeof window.GameAPI.log === "function") {
+    if (ctx && kind === "animal") {
+      const okA = trySpawnAnimalById(ctx, enemyId, n);
+      if (!okA && typeof window.GameAPI.log === "function") {
         window.GameAPI.log(`Sandbox: Failed to spawn animal '${enemyId}'.`, "warn");
       }
       // Do not fall back to enemy spawning for animal ids.
       return;
     }
+
+    // Custom sandbox-only enemy path: spawn directly from UI/overrides without requiring enemies.json.
+    if (ctx && kind === "custom") {
+      const okC = spawnCustomSandboxEnemy(ctx, enemyId, n);
+      if (!okC && typeof window.GameAPI.log === "function") {
+        window.GameAPI.log(`Sandbox: Failed to spawn custom enemy '${enemyId}'.`, "warn");
+      }
+      return;
+    }
+
+    let spawned = false;
 
     // Preferred path: call God.spawnEnemyById directly with live ctx when available.
     try {
@@ -632,6 +828,9 @@ function ensurePanel() {
                 style="flex:1; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;">
                 <option value="">(custom id)</option>
               </select>
+            </div>
+            <div id="sandbox-entity-status-line" style="font-size:10px; color:#9ca3af; margin-top:2px;">
+              Status: <span id="sandbox-entity-status-text">(no id)</span>
             </div>
           </div>
 
@@ -957,8 +1156,12 @@ export function init(UI) {
   if (enemyInput) enemyInput.addEventListener("change", () => {
     _enemyIndex = 0;
     const id = currentEnemyId();
-    if (!id) return;
-    // Try to find this id in the cached list to keep prev/next and dropdown in sync.
+    if (!id) {
+      setEnemyId("");
+      updateEntityStatusLabel();
+      return;
+    }
+    // Try to find this id in the cached list to keep dropdown in sync.
     for (let i = 0; i < _enemyTypes.length; i++) {
       if (_enemyTypes[i] === id) {
         _enemyIndex = i;
@@ -987,6 +1190,9 @@ export function init(UI) {
       syncBasicFormFromData();
     });
   }
+
+  // Initialize status label once ids/types are wired.
+  updateEntityStatusLabel();
 
   // Primary button visuals (Apply / Reset / Copy JSON)
   const applyBtn = byId("sandbox-apply-override-btn");
