@@ -167,39 +167,7 @@ function syncBasicFormFromData() {
   } catch (_) {}
 }
 
-/**
- * Populate Advanced JSON view (base + override) for the current enemy.
- */
-function refreshAdvancedJson() {
-  try {
-    const enemyId = currentEnemyId();
-    if (!enemyId) return;
-    const baseArea = byId("sandbox-advanced-base-json");
-    const overrideArea = byId("sandbox-advanced-override-json");
-    if (!baseArea || !overrideArea) return;
 
-    // Base JSON from GameData.enemies
-    let baseRow = null;
-    try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const list = GD && Array.isArray(GD.enemies) ? GD.enemies : null;
-      if (list) {
-        baseRow = list.find(e => e && String(e.id || "").toLowerCase() === String(enemyId).toLowerCase()) || null;
-      }
-    } catch (_) {
-      baseRow = null;
-    }
-    baseArea.value = baseRow ? JSON.stringify(baseRow, null, 2) : "";
-
-    // Override JSON from ctx.sandboxEnemyOverrides
-    const ctx = getCtxSafe();
-    let override = null;
-    if (ctx && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
-      override = ctx.sandboxEnemyOverrides[enemyId] || null;
-    }
-    overrideArea.value = override ? JSON.stringify(override, null, 2) : "";
-  } catch (_) {}
-}
 
 /**
  * Spawn helper shared by Spawn 1 / Spawn N.
@@ -468,49 +436,7 @@ function ensurePanel() {
         </div>
       </div>
 
-      <!-- Advanced JSON overrides -->
-      <div style="margin-top:6px; padding-top:4px; border-top:1px solid #374151;">
-        <button id="sandbox-advanced-toggle-btn" type="button"
-          title="Show expert JSON view/edit for this enemy’s sandbox override (advanced use only)."
-          style="width:100%; padding:4px 8px; border-radius:6px; border:1px solid #4b5563;
-                 background:#020617; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:left;">
-          Advanced ▸
-        </button>
-        <div id="sandbox-advanced-body" style="display:none; margin-top:4px; display:flex; flex-direction:column; gap:4px;">
-          <div style="font-size:11px; color:#9ca3af;"
-            title="Read-only copy of this enemy’s definition from data/entities/enemies.json.">
-            Base JSON (read-only)
-          </div>
-          <textarea id="sandbox-advanced-base-json" readonly
-            title="Enemy row as loaded from data/entities/enemies.json (cannot be edited here)."
-            style="width:100%; min-height:80px; max-height:120px; padding:4px 6px; border-radius:4px;
-                   border:1px solid #4b5563; background:#020617; color:#9ca3af; font-size:11px; font-family:'JetBrains Mono',monospace;"></textarea>
-          <div style="font-size:11px; color:#9ca3af;"
-            title="Sandbox-only override object that is merged on top of the base definition.">
-            Override JSON (sandbox-only)
-          </div>
-          <textarea id="sandbox-advanced-override-json"
-            title="Edit sandbox override as raw JSON for this enemy, then click Apply JSON to use it."
-            style="width:100%; min-height:80px; max-height:140px; padding:4px 6px; border-radius:4px;
-                   border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px; font-family:'JetBrains Mono',monospace;"></textarea>
-          <div style="display:flex; gap:6px; margin-top:2px;">
-            <button id="sandbox-advanced-apply-json-btn" type="button"
-              title="Parse Override JSON and store it as the sandbox override for this enemy."
-              style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
-                     background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
-              Apply JSON
-            </button>
-            <button id="sandbox-advanced-reset-json-btn" type="button"
-              title="Clear JSON override for this enemy (equivalent to Reset to Base in Basic section)."
-              style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
-                     background:#020617; color:#9ca3af; font-size:12px; cursor:pointer; text-align:center;">
-              Reset Override
-            </button>
-          </div>
-        </div>
       </div>
-
-    </div>
   `;
 
   document.body.appendChild(el);
@@ -645,8 +571,6 @@ export function init(UI) {
         if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
           window.GameAPI.log(`Sandbox: Applied enemy override for '${enemyId}' (depth ${depth}).`, "notice");
         }
-        // Refresh Advanced JSON view so the override is immediately visible when expanded.
-        try { refreshAdvancedJson(); } catch (_) {}
       } catch (_) {}
     });
   }
@@ -668,7 +592,6 @@ export function init(UI) {
           window.GameAPI.log(`Sandbox: Reset overrides for '${enemyId}' to base definition.`, "notice");
         }
         syncBasicFormFromData();
-        refreshAdvancedJson();
       } catch (_) {}
     });
   }
@@ -684,99 +607,6 @@ export function init(UI) {
   if (spawnNBtn) {
     spawnNBtn.addEventListener("click", () => {
       spawnWithCount(null);
-    });
-  }
-
-  // Advanced toggle / JSON apply+reset
-  const advToggle = byId("sandbox-advanced-toggle-btn");
-  const advBody = byId("sandbox-advanced-body");
-  if (advToggle && advBody) {
-    advToggle.addEventListener("click", () => {
-      try {
-        const visible = advBody.style.display !== "none";
-        advBody.style.display = visible ? "none" : "flex";
-        advToggle.textContent = visible ? "Advanced ▸" : "Advanced ▾";
-        if (!visible) {
-          refreshAdvancedJson();
-        }
-      } catch (_) {}
-    });
-    // Start hidden
-    advBody.style.display = "none";
-  }
-
-  const advApplyBtn = byId("sandbox-advanced-apply-json-btn");
-  if (advApplyBtn) {
-    advApplyBtn.addEventListener("click", () => {
-      try {
-        const enemyId = currentEnemyId();
-        if (!enemyId) return;
-        const ctx = getCtxSafe();
-        if (!ctx) return;
-        const area = byId("sandbox-advanced-override-json");
-        if (!area) return;
-        const text = String(area.value || "").trim();
-        const overridesRoot = ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object"
-          ? ctx.sandboxEnemyOverrides
-          : (ctx.sandboxEnemyOverrides = Object.create(null));
-
-        if (!text) {
-          delete overridesRoot[enemyId];
-          if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
-            window.GameAPI.log(`Sandbox: Cleared JSON override for '${enemyId}'.`, "notice");
-          }
-          syncBasicFormFromData();
-          refreshAdvancedJson();
-          return;
-        }
-
-        let parsed = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch (e) {
-          if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
-            window.GameAPI.log(`Sandbox: Failed to parse override JSON for '${enemyId}': ${e && e.message ? e.message : e}`, "warn");
-          }
-          return;
-        }
-        if (!parsed || typeof parsed !== "object") {
-          if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
-            window.GameAPI.log(`Sandbox: Override JSON for '${enemyId}' must be an object.`, "warn");
-          }
-          return;
-        }
-
-        overridesRoot[enemyId] = parsed;
-        if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
-          window.GameAPI.log(`Sandbox: Applied JSON override for '${enemyId}'.`, "notice");
-        }
-        syncBasicFormFromData();
-        refreshAdvancedJson();
-      } catch (_) {}
-    });
-  }
-
-  const advResetBtn = byId("sandbox-advanced-reset-json-btn");
-  if (advResetBtn) {
-    advResetBtn.addEventListener("click", () => {
-      try {
-        const enemyId = currentEnemyId();
-        if (!enemyId) return;
-        const ctx = getCtxSafe();
-        if (!ctx || !ctx.sandboxEnemyOverrides) {
-          refreshAdvancedJson();
-          syncBasicFormFromData();
-          return;
-        }
-        delete ctx.sandboxEnemyOverrides[enemyId];
-        const area = byId("sandbox-advanced-override-json");
-        if (area) area.value = "";
-        if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
-          window.GameAPI.log(`Sandbox: Reset JSON override for '${enemyId}'.`, "notice");
-        }
-        syncBasicFormFromData();
-        refreshAdvancedJson();
-      } catch (_) {}
     });
   }
 
