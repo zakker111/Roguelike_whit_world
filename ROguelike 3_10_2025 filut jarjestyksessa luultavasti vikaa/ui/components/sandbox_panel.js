@@ -514,8 +514,12 @@ function spawnWithCount(requestedCount) {
 
     // Animal path: spawn neutral wildlife by id when selected entity comes from animals.json.
     if (ctx && isAnimalId(enemyId)) {
-      spawned = trySpawnAnimalById(ctx, enemyId, n);
-      if (spawned) return;
+      const ok = trySpawnAnimalById(ctx, enemyId, n);
+      if (!ok && typeof window.GameAPI.log === "function") {
+        window.GameAPI.log(`Sandbox: Failed to spawn animal '${enemyId}'.`, "warn");
+      }
+      // Do not fall back to enemy spawning for animal ids.
+      return;
     }
 
     // Preferred path: call God.spawnEnemyById directly with live ctx when available.
@@ -617,12 +621,6 @@ function ensurePanel() {
                 placeholder="goblin, troll, bandit, deer, fox, boar..."
                 title="Type or edit the entity id to test. Must exist in enemies.json or animals.json to auto-populate."
                 style="flex:1; padding:3px 6px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
-              <button id="sandbox-enemy-prev-btn" type="button"
-                title="Select previous entity id from the combined enemies + animals registry."
-                style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">◀</button>
-              <button id="sandbox-enemy-next-btn" type="button"
-                title="Select next entity id from the combined enemies + animals registry."
-                style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">▶</button>
             </div>
             <div style="display:flex; align-items:center; gap:4px;">
               <span style="font-size:11px; color:#9ca3af; width:48px;"
@@ -954,31 +952,6 @@ export function init(UI) {
   }
 
   // Enemy cycling
-  const prevBtn = byId("sandbox-enemy-prev-btn");
-  const nextBtn = byId("sandbox-enemy-next-btn");
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => {
-      if (!_enemyTypes.length) {
-        loadEnemyTypes();
-      }
-      if (!_enemyTypes.length) return;
-      _enemyIndex = (_enemyTypes.length + _enemyIndex - 1) % _enemyTypes.length;
-      setEnemyId(_enemyTypes[_enemyIndex]);
-      syncBasicFormFromData();
-    });
-  }
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      if (!_enemyTypes.length) {
-        loadEnemyTypes();
-      }
-      if (!_enemyTypes.length) return;
-      _enemyIndex = (_enemyTypes.length + _enemyIndex + 1) % _enemyTypes.length;
-      setEnemyId(_enemyTypes[_enemyIndex]);
-      syncBasicFormFromData();
-    });
-  }
-
   // Enemy id manual input => refresh tuning fields when changed
   const enemyInput = byId("sandbox-enemy-id");
   if (enemyInput) enemyInput.addEventListener("change", () => {
