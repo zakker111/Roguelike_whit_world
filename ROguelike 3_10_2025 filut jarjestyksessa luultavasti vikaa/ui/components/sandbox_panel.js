@@ -27,6 +27,25 @@ let _ui = null;
 let _enemyTypes = [];
 let _enemyIndex = 0;
 
+// Curated loot keys exposed in the sandbox loot editor.
+const LOOT_WEAPON_KEYS = [
+  "sword_simple",
+  "axe",
+  "dagger",
+  "mace",
+  "club",
+  "torch_weapon",
+  "greatsword",
+];
+
+const LOOT_ARMOR_KEYS = [
+  "shield",
+  "helmet",
+  "torso_armor",
+  "leg_armor",
+  "gloves",
+];
+
 function loadEnemyTypes() {
   try {
     const EM = (typeof window !== "undefined" ? window.Enemies : null);
@@ -164,10 +183,77 @@ function syncBasicFormFromData() {
       const val = (override && typeof override.equipChance === "number") ? override.equipChance : baseEquipChance;
       eqInput.value = String(val);
     }
+
+    // Also refresh the loot editor from current base + sandbox overrides.
+    syncLootFormFromData();
   } catch (_) {}
 }
 
+function syncLootFormFromData() {
+  try {
+    const enemyId = currentEnemyId();
+    if (!enemyId) return;
+    const ctx = getCtxSafe();
+    if (!ctx) return;
 
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyId) : null;
+
+    const overridesRoot = ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object"
+      ? ctx.sandboxEnemyOverrides
+      : null;
+    const override = overridesRoot ? overridesRoot[enemyId] || null : null;
+
+    let lootRoot = null;
+    if (override && override.lootPools && typeof override.lootPools === "object") {
+      lootRoot = override.lootPools;
+    } else if (def && def.lootPools && typeof def.lootPools === "object") {
+      lootRoot = def.lootPools;
+    }
+
+    // Potions
+    const potL = byId("sandbox-loot-pot-lesser");
+    const potA = byId("sandbox-loot-pot-average");
+    const potS = byId("sandbox-loot-pot-strong");
+    const pot = lootRoot && lootRoot.potions && typeof lootRoot.potions === "object" ? lootRoot.potions : null;
+
+    const potVals = {
+      lesser: pot && pot.lesser != null ? pot.lesser : 0,
+      average: pot && pot.average != null ? pot.average : 0,
+      strong: pot && pot.strong != null ? pot.strong : 0,
+    };
+
+    if (potL) potL.value = potVals.lesser > 0 ? String(potVals.lesser) : "";
+    if (potA) potA.value = potVals.average > 0 ? String(potVals.average) : "";
+    if (potS) potS.value = potVals.strong > 0 ? String(potVals.strong) : "";
+
+    // Weapons
+    const weaponsRoot = lootRoot && lootRoot.weapons && typeof lootRoot.weapons === "object" ? lootRoot.weapons : null;
+    for (let i = 0; i < LOOT_WEAPON_KEYS.length; i++) {
+      const key = LOOT_WEAPON_KEYS[i];
+      const input = byId("sandbox-loot-weapon-" + key);
+      if (!input) continue;
+      let w = 0;
+      if (weaponsRoot && typeof weaponsRoot[key] === "number") {
+        w = weaponsRoot[key];
+      }
+      input.value = w > 0 ? String(w) : "";
+    }
+
+    // Armor
+    const armorRoot = lootRoot && lootRoot.armor && typeof lootRoot.armor === "object" ? lootRoot.armor : null;
+    for (let i = 0; i < LOOT_ARMOR_KEYS.length; i++) {
+      const key = LOOT_ARMOR_KEYS[i];
+      const input = byId("sandbox-loot-armor-" + key);
+      if (!input) continue;
+      let w = 0;
+      if (armorRoot && typeof armorRoot[key] === "number") {
+        w = armorRoot[key];
+      }
+      input.value = w > 0 ? String(w) : "";
+    }
+  } catch (_) {}
+}
 
 /**
  * Spawn helper shared by Spawn 1 / Spawn N.
@@ -384,21 +470,134 @@ function ensurePanel() {
           <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 90px;">
               <span style="font-size:11px; color:#9ca3af;"
-                title="Global multiplier on this enemy’s outgoing damage in sandbox.">
+                title="Global multiplier on this enemys outgoing damage in sandbox.">
                 Damage scale
               </span>
               <input id="sandbox-damage-scale" type="number" step="0.1"
-                title="Scale factor applied to this enemy’s damage output in sandbox (1.0 = base)."
+                title="Scale factor applied to this enemys damage output in sandbox (1.0 = base)."
                 style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 90px;">
               <span style="font-size:11px; color:#9ca3af;"
-                title="Chance [0–1] this enemy carries or drops equipment (when loot tables support it).">
+                title="Chance [01] this enemy carries or drops equipment (when loot tables support it).">
                 Equip chance
               </span>
               <input id="sandbox-equip-chance" type="number" step="0.05" min="0" max="1"
                 title="Probability that this enemy has equipment in sandbox (0 = never, 1 = always)."
                 style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
+            </div>
+          </div>
+
+          <!-- Loot tuning -->
+          <div style="margin-top:4px; padding-top:4px; border-top:1px solid #374151;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af; margin-bottom:2px;">
+              Loot (sandbox)
+            </div>
+            <!-- Potions -->
+            <div style="display:flex; align-items:center; gap:4px; margin-bottom:2px;">
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Relative weights for potion tiers in this enemys lootPools. All zero = no potions.">
+                Potions
+              </span>
+              <input id="sandbox-loot-pot-lesser" type="number" step="0.05" min="0"
+                placeholder="lesser"
+                title="Weight for lesser potions in this enemys loot pool."
+                style="width:56px; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+              <input id="sandbox-loot-pot-average" type="number" step="0.05" min="0"
+                placeholder="average"
+                title="Weight for average potions in this enemys loot pool."
+                style="width:56px; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+              <input id="sandbox-loot-pot-strong" type="number" step="0.05" min="0"
+                placeholder="strong"
+                title="Weight for strong potions in this enemys loot pool."
+                style="width:56px; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+            </div>
+
+            <!-- Equipment weights -->
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+              <div style="flex:1 1 130px; min-width:130px;">
+                <div style="font-size:11px; color:#9ca3af; margin-bottom:1px;">Weapons (weights)</div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">sword_simple</span>
+                    <input id="sandbox-loot-weapon-sword_simple" type="number" step="0.05" min="0"
+                      title="Weight for sword_simple in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">axe</span>
+                    <input id="sandbox-loot-weapon-axe" type="number" step="0.05" min="0"
+                      title="Weight for axe in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">dagger</span>
+                    <input id="sandbox-loot-weapon-dagger" type="number" step="0.05" min="0"
+                      title="Weight for dagger in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">mace</span>
+                    <input id="sandbox-loot-weapon-mace" type="number" step="0.05" min="0"
+                      title="Weight for mace in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">club</span>
+                    <input id="sandbox-loot-weapon-club" type="number" step="0.05" min="0"
+                      title="Weight for club in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">torch_weapon</span>
+                    <input id="sandbox-loot-weapon-torch_weapon" type="number" step="0.05" min="0"
+                      title="Weight for torch_weapon in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">greatsword</span>
+                    <input id="sandbox-loot-weapon-greatsword" type="number" step="0.05" min="0"
+                      title="Weight for greatsword in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                </div>
+              </div>
+
+              <div style="flex:1 1 130px; min-width:130px;">
+                <div style="font-size:11px; color:#9ca3af; margin-bottom:1px;">Armor (weights)</div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">shield</span>
+                    <input id="sandbox-loot-armor-shield" type="number" step="0.05" min="0"
+                      title="Weight for shield in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">helmet</span>
+                    <input id="sandbox-loot-armor-helmet" type="number" step="0.05" min="0"
+                      title="Weight for helmet in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">torso_armor</span>
+                    <input id="sandbox-loot-armor-torso_armor" type="number" step="0.05" min="0"
+                      title="Weight for torso_armor in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">leg_armor</span>
+                    <input id="sandbox-loot-armor-leg_armor" type="number" step="0.05" min="0"
+                      title="Weight for leg_armor in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="width:72px; font-size:11px; color:#9ca3af;">gloves</span>
+                    <input id="sandbox-loot-armor-gloves" type="number" step="0.05" min="0"
+                      title="Weight for gloves in this enemys loot pool."
+                      style="flex:1; padding:2px 3px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:11px;" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -625,6 +824,69 @@ export function init(UI) {
         if (dmgInput && dmgInput.value !== "") next.damageScale = Number(dmgInput.value) || 1;
         if (eqInput && eqInput.value !== "") next.equipChance = Number(eqInput.value) || 0;
 
+        // Loot overrides from the sandbox loot editor.
+        const potL = byId("sandbox-loot-pot-lesser");
+        const potA = byId("sandbox-loot-pot-average");
+        const potS = byId("sandbox-loot-pot-strong");
+
+        const potLVal = potL && potL.value !== "" ? (Number(potL.value) || 0) : 0;
+        const potAVal = potA && potA.value !== "" ? (Number(potA.value) || 0) : 0;
+        const potSVal = potS && potS.value !== "" ? (Number(potS.value) || 0) : 0;
+
+        const lootOverride = {};
+        let hasLootOverride = false;
+
+        if (potLVal > 0 || potAVal > 0 || potSVal > 0) {
+          const potions = {};
+          if (potLVal > 0) potions.lesser = potLVal;
+          if (potAVal > 0) potions.average = potAVal;
+          if (potSVal > 0) potions.strong = potSVal;
+          if (Object.keys(potions).length > 0) {
+            lootOverride.potions = potions;
+            hasLootOverride = true;
+          }
+        }
+
+        const weapons = {};
+        let hasWeapons = false;
+        for (let i = 0; i < LOOT_WEAPON_KEYS.length; i++) {
+          const key = LOOT_WEAPON_KEYS[i];
+          const input = byId("sandbox-loot-weapon-" + key);
+          if (!input || input.value === "") continue;
+          const w = Number(input.value) || 0;
+          if (w > 0) {
+            weapons[key] = w;
+            hasWeapons = true;
+          }
+        }
+        if (hasWeapons) {
+          lootOverride.weapons = weapons;
+          hasLootOverride = true;
+        }
+
+        const armor = {};
+        let hasArmor = false;
+        for (let i = 0; i < LOOT_ARMOR_KEYS.length; i++) {
+          const key = LOOT_ARMOR_KEYS[i];
+          const input = byId("sandbox-loot-armor-" + key);
+          if (!input || input.value === "") continue;
+          const w = Number(input.value) || 0;
+          if (w > 0) {
+            armor[key] = w;
+            hasArmor = true;
+          }
+        }
+        if (hasArmor) {
+          lootOverride.armor = armor;
+          hasLootOverride = true;
+        }
+
+        if (hasLootOverride) {
+          next.lootPools = lootOverride;
+        } else if (Object.prototype.hasOwnProperty.call(next, "lootPools")) {
+          delete next.lootPools;
+        }
+
         overridesRoot[enemyId] = next;
 
         if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
@@ -726,7 +988,17 @@ export function init(UI) {
         }
 
         let lootPoolsVal = null;
-        if (baseRow && baseRow.lootPools && typeof baseRow.lootPools === "object") {
+        // Prefer sandbox loot pool overrides when present for this enemy.
+        try {
+          const ctx = getCtxSafe();
+          if (ctx && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+            const ov = ctx.sandboxEnemyOverrides[enemyId] || null;
+            if (ov && ov.lootPools && typeof ov.lootPools === "object") {
+              lootPoolsVal = ov.lootPools;
+            }
+          }
+        } catch (_) {}
+        if (!lootPoolsVal && baseRow && baseRow.lootPools && typeof baseRow.lootPools === "object") {
           lootPoolsVal = baseRow.lootPools;
         }
 

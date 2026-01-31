@@ -23,13 +23,28 @@ import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/a
 
 /**
  * Resolve an enemy definition.
- * Advanced sandbox-only loot pool overrides are currently disabled, so this
- * always returns the base enemy definition from the registry.
+ * In sandbox mode, this can apply per-enemy loot pool overrides stored on
+ * ctx.sandboxEnemyOverrides[typeId].lootPools. Outside sandbox, or when no
+ * override is present, this returns the base enemy definition.
  */
 function getEnemyDefWithOverrides(ctx, type) {
   const EM = getMod(ctx, "Enemies");
   const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(type || "") : null;
   if (!base) return null;
+
+  try {
+    if (ctx && ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+      const root = ctx.sandboxEnemyOverrides;
+      const key = String(type || "");
+      const lower = key.toLowerCase();
+      const override = root[key] || root[lower] || null;
+      if (override && override.lootPools && typeof override.lootPools === "object") {
+        // Shallow clone to avoid mutating the registry definition.
+        return Object.assign({}, base, { lootPools: override.lootPools });
+      }
+    }
+  } catch (_) {}
+
   return base;
 }
 
