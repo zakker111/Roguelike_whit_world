@@ -46,17 +46,112 @@ const LOOT_ARMOR_KEYS = [
   "gloves",
 ];
 
+function getAnimalDefById(id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const list = GD && Array.isArray(GD.animals) ? GD.animals : null;
+    if (!list) return null;
+    const want = String(id || "").toLowerCase();
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      if (!row || !row.id) continue;
+      if (String(row.id).toLowerCase() === want) return row;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function isAnimalId(id) {
+  return !!getAnimalDefById(id);
+}
+
 function loadEnemyTypes() {
   try {
-    const EM = (typeof window !== "undefined" ? window.Enemies : null);
-    if (EM && typeof EM.listTypes === "function") {
-      const list = EM.listTypes() || [];
-      _enemyTypes = Array.isArray(list) ? list.slice(0) : [];
-      _enemyTypes.sort();
-    }
+    const combined = [];
+    const seen = Object.create(null);
+
+    // Enemy ids from registry
+    try {
+      const EM = (typeof window !== "undefined" ? window.Enemies : null);
+      if (EM && typeof EM.listTypes === "function") {
+        const list = EM.listTypes() || [];
+        if (Array.isArray(list)) {
+          for (let i = 0; i < list.length; i++) {
+            const id = list[i];
+            if (!id) continue;
+            const k = String(id);
+            if (!seen[k]) {
+              seen[k] = true;
+              combined.push(k);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Animal ids from GameData.animals
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const animals = GD && Array.isArray(GD.animals) ? GD.animals : null;
+      if (animals) {
+        for (let i = 0; i < animals.length; i++) {
+          const row = animals[i];
+          if (!row || !row.id) continue;
+          const k = String(row.id);
+          if (!seen[k]) {
+            seen[k] = true;
+            combined.push(k);
+          }
+        }
+      }
+    } catch (_) {}
+
+    _enemyTypes = combined;
+    _enemyTypes.sort();
   } catch (_) {
     _enemyTypes = [];
   }
+}
+
+function populateEntitySelect() {
+  try {
+    const sel = byId("sandbox-entity-select");
+    if (!sel) return;
+
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "(custom id)";
+    sel.appendChild(optEmpty);
+
+    if (!_enemyTypes || !_enemyTypes.length) return;
+
+    let animalIds = null;
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const animals = GD && Array.isArray(GD.animals) ? GD.animals : null;
+      if (animals) {
+        animalIds = new Set();
+        for (let i = 0; i < animals.length; i++) {
+          const row = animals[i];
+          if (!row || !row.id) continue;
+          animalIds.add(String(row.id).toLowerCase());
+        }
+      }
+    } catch (_) {}
+
+    for (let i = 0; i < _enemyTypes.length; i++) {
+      const id = _enemyTypes[i];
+      if (!id) continue;
+      const opt = document.createElement("option");
+      opt.value = id;
+      const lower = String(id).toLowerCase();
+      if (animalIds && animalIds.has(lower)) opt.textContent = id + " (animal)";
+      else opt.textContent = id;
+      sel.appendChild(opt);
+    }
+  } catch (_) {}
 }
 
 function currentEnemyId() {
@@ -66,9 +161,23 @@ function currentEnemyId() {
 }
 
 function setEnemyId(id) {
+  const v = id || "";
   const input = byId("sandbox-enemy-id");
-  if (!input) return;
-  input.value = id || "";
+  if (input) {
+    input.value = v;
+  }
+  const sel = byId("sandbox-entity-select");
+  if (sel) {
+    let found = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === v) {
+        sel.selectedIndex = i;
+        found = true;
+        break;
+      }
+    }
+    if (!found) sel.selectedIndex = 0;
+  }
 }
 
 /**
@@ -258,13 +367,131 @@ function syncLootFormFromData() {
 /**
  * Spawn helper shared by Spawn 1 / Spawn N.
  */
+function trySpawnAnimalById(ctx, id, count) {
+  try {
+    const def = getAnimalDefById(id);
+    if (!def || !ctx || !ctx.map || !ctx.player) return false;
+
+    let n = (Number(count) || 0) | 0;
+    if (n < 1) n = 1;
+    if (n > 50) n = 50;
+
+    const isFreeFloor = (x, y) => {
+      try {
+        if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+        const t = ctx.map[y] && ctx.map[y][x];
+        const walkable = (typeof ctx.isWalkable === "function")
+          ? ctx.isWalkable(x, y)
+          : (t === ctx.TILES.FLOOR || t === ctx.TILES.DOOR || t === ctx.TILES.STAIRS);
+        if (!walkable) return false;
+        if (ctx.player.x === x && ctx.player.y === y) return false;
+        const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function")
+          ? ctx.occupancy.hasEnemy(x, y)
+          : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y));
+        if (occEnemy) return false;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const pickNearby = () => {
+      const maxR = 5;
+      const px = ctx.player.x | 0;
+      const py = ctx.player.y | 0;
+
+      for (let r = 1; r <= maxR; r++) {
+        const candidates = [];
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+            const x = px + dx;
+            const y = py + dy;
+            if (isFreeFloor(x, y)) candidates.push({ x, y });
+          }
+        }
+        if (candidates.length) {
+          for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor((typeof ctx.rng === "function" ? ctx.rng() : Math.random()) * (i + 1));
+            const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+          }
+          return candidates[0];
+        }
+      }
+
+      let best = null;
+      let bestD = Infinity;
+      const rows = ctx.map.length;
+      const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (!isFreeFloor(x, y)) continue;
+          const md = Math.abs(x - (ctx.player.x | 0)) + Math.abs(y - (ctx.player.y | 0));
+          if (md < bestD) { bestD = md; best = { x, y }; }
+        }
+      }
+      return best;
+    };
+
+    const spawned = [];
+    if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+    const level = typeof ctx.floor === "number" ? (ctx.floor | 0) : 1;
+
+    for (let i = 0; i < n; i++) {
+      const spot = pickNearby();
+      if (!spot) break;
+      const hp = typeof def.hp === "number" ? def.hp : 3;
+      const atk = typeof def.atk === "number" ? def.atk : 0.5;
+      const glyph = def.glyph || (id && id.length ? id.charAt(0) : "?");
+      const color = def.color || "#9ca3af";
+      const faction = def.faction || "animal";
+      const neutral = def.neutral !== false;
+      const sightRadius = typeof def.sightRadius === "number" ? def.sightRadius : undefined;
+
+      const e = {
+        x: spot.x,
+        y: spot.y,
+        type: String(id),
+        glyph,
+        color,
+        hp,
+        atk,
+        xp: 0,
+        level,
+        announced: false,
+        faction,
+        neutral,
+      };
+      if (sightRadius != null) e.sightRadius = sightRadius;
+      ctx.enemies.push(e);
+      spawned.push(e);
+      try {
+        if (ctx.log) ctx.log(`Sandbox: Spawned animal '${id}' at (${e.x},${e.y}).`, "notice");
+      } catch (_) {}
+    }
+
+    if (spawned.length) {
+      try {
+        const SS = ctx.StateSync;
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
+      return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 function spawnWithCount(requestedCount) {
   try {
     if (!window.GameAPI) return;
     const enemyId = currentEnemyId();
     if (!enemyId) {
       if (typeof window.GameAPI.log === "function") {
-        window.GameAPI.log("Sandbox: Enemy id is empty; cannot spawn.", "warn");
+        window.GameAPI.log("Sandbox: Entity id is empty; cannot spawn.", "warn");
       }
       return;
     }
@@ -283,13 +510,19 @@ function spawnWithCount(requestedCount) {
 
     let spawned = false;
 
+    const ctx = (typeof window.GameAPI.getCtx === "function" ? window.GameAPI.getCtx() : null);
+
+    // Animal path: spawn neutral wildlife by id when selected entity comes from animals.json.
+    if (ctx && isAnimalId(enemyId)) {
+      spawned = trySpawnAnimalById(ctx, enemyId, n);
+      if (spawned) return;
+    }
+
     // Preferred path: call God.spawnEnemyById directly with live ctx when available.
     try {
-      if (typeof window.GameAPI.getCtx === "function" &&
-          typeof window.God === "object" &&
+      if (ctx && typeof window.God === "object" &&
           typeof window.God.spawnEnemyById === "function") {
-        const ctx = window.GameAPI.getCtx();
-        if (ctx && (ctx.mode === "sandbox" || ctx.mode === "dungeon")) {
+        if (ctx.mode === "sandbox" || ctx.mode === "dungeon") {
           spawned = !!window.God.spawnEnemyById(ctx, enemyId, n);
         }
       }
@@ -366,29 +599,42 @@ function ensurePanel() {
         </button>
       </div>
 
-      <!-- Basic enemy tuning & spawn -->
+      <!-- Basic entity tuning & spawn -->
       <div style="margin-top:6px; padding-top:4px; border-top:1px solid #374151;">
         <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9ca3af; margin-bottom:4px;"
-          title="Most-used knobs for sandbox enemy testing: selection, depth, stats, spawn count, and overrides.">
+          title="Most-used knobs for sandbox entity testing: selection, depth, stats, spawn count, and overrides.">
           Basic / Default
         </div>
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <!-- Selection -->
-          <div style="display:flex; align-items:center; gap:4px;">
-            <span style="font-size:11px; color:#9ca3af;"
-              title="Base enemy id from data/entities/enemies.json (e.g. goblin, troll, bandit).">
-              Enemy
-            </span>
-            <input id="sandbox-enemy-id" type="text"
-              placeholder="goblin, troll, bandit..."
-              title="Type or edit the enemy id to test. Must exist in data/entities/enemies.json."
-              style="flex:1; padding:3px 6px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
-            <button id="sandbox-enemy-prev-btn" type="button"
-              title="Select previous enemy id from the registry."
-              style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">◀</button>
-            <button id="sandbox-enemy-next-btn" type="button"
-              title="Select next enemy id from the registry."
-              style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">▶</button>
+          <!-- Selection: entity id + registry dropdown -->
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Base entity id (enemy or animal) from JSON (e.g. goblin, troll, deer, fox, boar).">
+                Entity
+              </span>
+              <input id="sandbox-enemy-id" type="text"
+                placeholder="goblin, troll, bandit, deer, fox, boar..."
+                title="Type or edit the entity id to test. Must exist in enemies.json or animals.json to auto-populate."
+                style="flex:1; padding:3px 6px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
+              <button id="sandbox-enemy-prev-btn" type="button"
+                title="Select previous entity id from the combined enemies + animals registry."
+                style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">◀</button>
+              <button id="sandbox-enemy-next-btn" type="button"
+                title="Select next entity id from the combined enemies + animals registry."
+                style="padding:2px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:10px; cursor:pointer;">▶</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <span style="font-size:11px; color:#9ca3af; width:48px;"
+                title="Quick-pick list of all known enemies and animals.">
+                List
+              </span>
+              <select id="sandbox-entity-select"
+                title="Choose an entity (enemy or animal) from the registry."
+                style="flex:1; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;">
+                <option value="">(custom id)</option>
+              </select>
+            </div>
           </div>
 
           <!-- Test depth -->
@@ -666,9 +912,14 @@ export function init(UI) {
   _ui = UI || null;
   loadEnemyTypes();
   const panel = ensurePanel();
-  void panel; // silence lints
+  void panel;
 
-  // If we have enemy types and no current selection, preselect the first type.
+  // Populate combined enemies + animals dropdown
+  try {
+    populateEntitySelect();
+  } catch (_) {}
+
+  // If we have entity types and no current selection, preselect the first type.
   try {
     const enemyInput = byId("sandbox-enemy-id");
     if (enemyInput && !_enemyTypes.length) {
@@ -730,18 +981,39 @@ export function init(UI) {
 
   // Enemy id manual input => refresh tuning fields when changed
   const enemyInput = byId("sandbox-enemy-id");
-  if (enemyInput) {
-    enemyInput.addEventListener("change", () => {
+  if (enemyInput) enemyInput.addEventListener("change", () => {
+    _enemyIndex = 0;
+    const id = currentEnemyId();
+    if (!id) return;
+    // Try to find this id in the cached list to keep prev/next and dropdown in sync.
+    for (let i = 0; i < _enemyTypes.length; i++) {
+      if (_enemyTypes[i] === id) {
+        _enemyIndex = i;
+        break;
+      }
+    }
+    setEnemyId(id);
+    syncBasicFormFromData();
+  });
+
+  const entitySelect = byId("sandbox-entity-select");
+  if (entitySelect) {
+    entitySelect.addEventListener("change", () => {
+      const val = entitySelect.value || "";
+      setEnemyId(val);
+      // Keep index aligned with dropdown
+      _enemyIndex = 0;
+      if (val) {
+        for (let i = 0; i < _enemyTypes.length; i++) {
+          if (_enemyTypes[i] === val) {
+            _enemyIndex = i;
+            break;
+          }
+        }
+      }
       syncBasicFormFromData();
     });
   }
-
-  // Test depth change -> recompute suggested HP/ATK/XP
-  const depthInput = byId("sandbox-test-depth");
-  if (depthInput) {
-    depthInput.addEventListener("change", () => {
-      syncBasicFormFromData();
-    });
   }
 
   // Primary button visuals (Apply / Reset / Copy JSON)
@@ -1163,9 +1435,10 @@ export function init(UI) {
 export function show() {
   const el = ensurePanel();
   el.hidden = false;
-  // Ensure enemy types and default selection are available when the panel opens
+  // Ensure entity types and default selection are available when the panel opens
   try {
     loadEnemyTypes();
+    populateEntitySelect();
     const enemyInput = byId("sandbox-enemy-id");
     if (enemyInput && _enemyTypes.length && !enemyInput.value) {
       _enemyIndex = 0;
