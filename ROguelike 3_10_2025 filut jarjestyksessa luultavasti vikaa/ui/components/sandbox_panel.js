@@ -424,13 +424,13 @@ function ensurePanel() {
               title="Save the Basic fields as a sandbox-only override for this enemy (affects future spawns in this session)."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
                      background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
-              Apply as Override
+              Apply
             </button>
             <button id="sandbox-reset-override-btn" type="button"
               title="Remove the sandbox override for this enemy and fall back to its base JSON definition."
               style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
-                     background:#020617; color:#9ca3af; font-size:12px; cursor:pointer; text-align:center;">
-              Reset to Base
+                     background:#111827; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
+              Reset
             </button>
           </div>
         </div>
@@ -526,8 +526,51 @@ export function init(UI) {
     });
   }
 
-  // Apply as Override
+  // Primary button visuals (Apply / Reset)
   const applyBtn = byId("sandbox-apply-override-btn");
+  const resetBtn = byId("sandbox-reset-override-btn");
+
+  function wirePrimarySandboxButton(btn) {
+    if (!btn) return;
+    // Base visual style
+    try {
+      btn.style.transition = "background 120ms ease, transform 80ms ease, box-shadow 120ms ease, border-color 120ms ease";
+      btn.style.boxShadow = "0 1px 4px rgba(15,23,42,0.75)";
+    } catch (_) {}
+    // Hover
+    btn.addEventListener("mouseenter", () => {
+      try {
+        btn.style.background = "#1e293b";
+        btn.style.borderColor = "#6b7280";
+      } catch (_) {}
+    });
+    btn.addEventListener("mouseleave", () => {
+      try {
+        btn.style.background = "#111827";
+        btn.style.borderColor = "#4b5563";
+        btn.style.transform = "translateY(0px)";
+        btn.style.boxShadow = "0 1px 4px rgba(15,23,42,0.75)";
+      } catch (_) {}
+    });
+    // Active (click)
+    btn.addEventListener("mousedown", () => {
+      try {
+        btn.style.transform = "translateY(1px)";
+        btn.style.boxShadow = "0 0 0 rgba(0,0,0,0.5)";
+      } catch (_) {}
+    });
+    btn.addEventListener("mouseup", () => {
+      try {
+        btn.style.transform = "translateY(0px)";
+        btn.style.boxShadow = "0 1px 4px rgba(15,23,42,0.75)";
+      } catch (_) {}
+    });
+  }
+
+  wirePrimarySandboxButton(applyBtn);
+  wirePrimarySandboxButton(resetBtn);
+
+  // Apply override
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
       try {
@@ -576,7 +619,6 @@ export function init(UI) {
   }
 
   // Reset override
-  const resetBtn = byId("sandbox-reset-override-btn");
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
       try {
