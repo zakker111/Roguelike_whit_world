@@ -324,7 +324,8 @@ function ensurePanel() {
   el.id = "sandbox-panel";
   el.style.position = "fixed";
   el.style.top = "16px";
-  el.style.right = "16px";
+  // Push further to the right and constrain width so all sections fit without overflowing too far
+  el.style.right = "24px";
   el.style.zIndex = "31000";
   el.style.padding = "10px 12px";
   el.style.borderRadius = "8px";
@@ -334,8 +335,10 @@ function ensurePanel() {
   el.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   el.style.fontSize = "13px";
   el.style.color = "#e5e7eb";
-  el.style.minWidth = "260px";
-  el.style.maxWidth = "320px";
+  el.style.minWidth = "280px";
+  el.style.maxWidth = "360px";
+  el.style.maxHeight = "80vh";
+  el.style.overflowY = "auto";
 
   el.innerHTML = `
     <div style="font-weight:600; letter-spacing:0.03em; text-transform:uppercase; font-size:11px; color:#a5b4fc; margin-bottom:6px;">
@@ -1181,6 +1184,24 @@ export function isOpen() {
   const el = byId("sandbox-panel");
   return !!(el && !el.hidden);
 }
+
+// Allow ESC to close the sandbox panel when it is open.
+(function installEscapeHandler() {
+  try {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    document.addEventListener("keydown", (ev) => {
+      try {
+        if (ev.key === "Escape" || ev.key === "Esc") {
+          const el = byId("sandbox-panel");
+          if (el && !el.hidden) {
+            el.hidden = true;
+            ev.stopPropagation();
+          }
+        }
+      } catch (_) {}
+    });
+  } catch (_) {}
+})();
 
 import { attachGlobal } from "/utils/global.js";
 attachGlobal("SandboxPanel", { init, show, hide, isOpen });
