@@ -335,10 +335,12 @@ function ensurePanel() {
   el.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   el.style.fontSize = "13px";
   el.style.color = "#e5e7eb";
-  el.style.minWidth = "280px";
-  el.style.maxWidth = "360px";
+  // Slightly wider to comfortably fit all rows and labels
+  el.style.minWidth = "320px";
+  el.style.maxWidth = "420px";
   el.style.maxHeight = "80vh";
   el.style.overflowY = "auto";
+;
 
   el.innerHTML = `
     <div style="font-weight:600; letter-spacing:0.03em; text-transform:uppercase; font-size:11px; color:#a5b4fc; margin-bottom:6px;">
@@ -517,8 +519,8 @@ function ensurePanel() {
             </div>
 
             <!-- Equipment weights -->
-            <div style="display:flex; flex-wrap:wrap; gap:6px;">
-              <div style="flex:1 1 130px; min-width:130px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="flex:1 1 auto;">
                 <div style="font-size:11px; color:#9ca3af; margin-bottom:1px;">Weapons (weights)</div>
                 <div style="display:flex; flex-direction:column; gap:2px;">
                   <div style="display:flex; align-items:center; gap:4px;">
@@ -566,7 +568,7 @@ function ensurePanel() {
                 </div>
               </div>
 
-              <div style="flex:1 1 130px; min-width:130px;">
+              <div style="flex:1 1 auto;">
                 <div style="font-size:11px; color:#9ca3af; margin-bottom:1px;">Armor (weights)</div>
                 <div style="display:flex; flex-direction:column; gap:2px;">
                   <div style="display:flex; align-items:center; gap:4px;">
