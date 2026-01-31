@@ -1014,7 +1014,6 @@ export function init(UI) {
       syncBasicFormFromData();
     });
   }
-  }
 
   // Primary button visuals (Apply / Reset / Copy JSON)
   const applyBtn = byId("sandbox-apply-override-btn");
