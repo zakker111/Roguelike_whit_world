@@ -724,6 +724,54 @@ export function init(UI) {
           lootPoolsVal = baseRow.lootPools;
         }
 
+        // Helper to build a richer curve by scaling an existing hp/atk/xp curve so that
+        // its value at the chosen depth matches the sandbox value. If no base curve
+        // exists, fall back to a single-entry flat curve.
+        function makeScaledCurve(baseArr, valAtDepth, d) {
+          if (!Array.isArray(baseArr) || baseArr.length === 0) {
+            return [[d, valAtDepth, 0]];
+          }
+          const fallback = valAtDepth || 1;
+          let chosen = baseArr[0];
+          for (let i = 0; i < baseArr.length; i++) {
+            const e = baseArr[i];
+            if (!e) continue;
+            const minD = (e[0] | 0);
+            if (minD <= d) chosen = e;
+          }
+          const minD = chosen[0] | 0;
+          const baseV = Number(chosen[1] || fallback);
+          const slope = Number(chosen[2] || 0);
+          const delta = Math.max(0, d - minD);
+          const sample = Math.max(1, Math.floor(baseV + slope * delta));
+          if (!sample || sample <= 0 || !valAtDepth || valAtDepth <= 0) {
+            return baseArr;
+          }
+          const r = valAtDepth / sample;
+          const out = [];
+          for (let i = 0; i < baseArr.length; i++) {
+            const e = baseArr[i];
+            if (!Array.isArray(e) || e.length < 2) continue;
+            const bMin = e[0] | 0;
+            const bBase = Number(e[1] || 0);
+            const bSlope = Number(e[2] || 0);
+            out.push([
+              bMin,
+              bBase * r,
+              bSlope * r
+            ]);
+          }
+          return out.length ? out : baseArr;
+        }
+
+        const baseHpArr  = baseRow && Array.isArray(baseRow.hp)  ? baseRow.hp  : null;
+        const baseAtkArr = baseRow && Array.isArray(baseRow.atk) ? baseRow.atk : null;
+        const baseXpArr  = baseRow && Array.isArray(baseRow.xp)  ? baseRow.xp  : null;
+
+        const hpCurve  = makeScaledCurve(baseHpArr,  hpVal,  depth);
+        const atkCurve = makeScaledCurve(baseAtkArr, atkVal, depth);
+        const xpCurve  = makeScaledCurve(baseXpArr,  xpVal,  depth);
+
         const stub = {
           id: enemyId,
           glyph: glyphVal,
@@ -731,10 +779,9 @@ export function init(UI) {
           tier: tierVal,
           blockBase: blockBaseVal,
           faction: factionVal,
-          // Single-entry curves using the sandbox values at the chosen depth.
-          hp: [[depth, hpVal, 0]],
-          atk: [[depth, atkVal, 0]],
-          xp: [[depth, xpVal, 0]],
+          hp: hpCurve,
+          atk: atkCurve,
+          xp: xpCurve,
           weightByDepth: weightByDepthVal,
           equipChance: equipChanceVal,
           damageScale: dmgScaleVal
