@@ -433,6 +433,14 @@ function ensurePanel() {
               Reset
             </button>
           </div>
+          <div style="display:flex; margin-top:4px;">
+            <button id="sandbox-copy-json-btn" type="button"
+              title="Copy a JSON stub for this enemy using the current sandbox values."
+              style="flex:1; padding:3px 6px; border-radius:6px; border:1px solid #4b5563;
+                     background:#020617; color:#e5e7eb; font-size:12px; cursor:pointer; text-align:center;">
+              Copy JSON
+            </button>
+          </div>
         </div>
       </div>
 
@@ -526,9 +534,10 @@ export function init(UI) {
     });
   }
 
-  // Primary button visuals (Apply / Reset)
+  // Primary button visuals (Apply / Reset / Copy JSON)
   const applyBtn = byId("sandbox-apply-override-btn");
   const resetBtn = byId("sandbox-reset-override-btn");
+  const copyJsonBtn = byId("sandbox-copy-json-btn");
 
   function wirePrimarySandboxButton(btn) {
     if (!btn) return;
@@ -569,6 +578,7 @@ export function init(UI) {
 
   wirePrimarySandboxButton(applyBtn);
   wirePrimarySandboxButton(resetBtn);
+  wirePrimarySandboxButton(copyJsonBtn);
 
   // Apply override
   if (applyBtn) {
@@ -635,6 +645,169 @@ export function init(UI) {
         }
         syncBasicFormFromData();
       } catch (_) {}
+    });
+  }
+
+  // Copy JSON stub to clipboard
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener("click", () => {
+      try {
+        const enemyId = currentEnemyId();
+        if (!enemyId) {
+          if (window.GameAPI && typeof window.GameAPI.log === "function") {
+            window.GameAPI.log("Sandbox: Enemy id is empty; cannot build JSON stub.", "warn");
+          }
+          return;
+        }
+
+        // Base JSON from GameData.enemies when available
+        let baseRow = null;
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const list = GD && Array.isArray(GD.enemies) ? GD.enemies : null;
+          if (list) {
+            const keyLower = String(enemyId).toLowerCase();
+            for (let i = 0; i < list.length; i++) {
+              const row = list[i];
+              if (!row) continue;
+              const idRaw = row.id || row.key || row.type;
+              if (idRaw && String(idRaw).toLowerCase() === keyLower) {
+                baseRow = row;
+                break;
+              }
+            }
+          }
+        } catch (_) {
+          baseRow = null;
+        }
+
+        // Read current sandbox fields with fallbacks to baseRow when reasonable
+        const glyphInput = byId("sandbox-glyph");
+        const colorInput = byId("sandbox-color");
+        const factionInput = byId("sandbox-faction");
+        const hpInput = byId("sandbox-hp");
+        const atkInput = byId("sandbox-atk");
+        const xpInput = byId("sandbox-xp");
+        const dmgInput = byId("sandbox-damage-scale");
+        const eqInput = byId("sandbox-equip-chance");
+        const depthInput2 = byId("sandbox-test-depth");
+
+        const glyphVal = glyphInput && glyphInput.value ? String(glyphInput.value) : (baseRow && baseRow.glyph ? String(baseRow.glyph) : "?");
+        const colorVal = colorInput && colorInput.value ? String(colorInput.value) : (baseRow && baseRow.color ? String(baseRow.color) : "#cbd5e1");
+        const factionVal = factionInput && factionInput.value ? String(factionInput.value) : (baseRow && baseRow.faction ? String(baseRow.faction) : "monster");
+
+        const depth = depthInput2 ? (((Number(depthInput2.value) || 0) | 0) || 1) : 1;
+        const hpVal = hpInput && hpInput.value !== "" ? (Number(hpInput.value) || 1) : 1;
+        const atkVal = atkInput && atkInput.value !== "" ? (Number(atkInput.value) || 1) : 1;
+        const xpVal = xpInput && xpInput.value !== "" ? (Number(xpInput.value) || 1) : 1;
+
+        const dmgScaleVal = dmgInput && dmgInput.value !== ""
+          ? (Number(dmgInput.value) || 1)
+          : (baseRow && typeof baseRow.damageScale === "number" ? baseRow.damageScale : 1.0);
+
+        const equipChanceVal = eqInput && eqInput.value !== ""
+          ? (Number(eqInput.value) || 0)
+          : (baseRow && typeof baseRow.equipChance === "number" ? baseRow.equipChance : 0.35);
+
+        const tierVal = baseRow && typeof baseRow.tier === "number" ? baseRow.tier : 1;
+        const blockBaseVal = baseRow && typeof baseRow.blockBase === "number" ? baseRow.blockBase : 0.06;
+
+        let weightByDepthVal = null;
+        if (baseRow && baseRow.weightByDepth && Array.isArray(baseRow.weightByDepth) && baseRow.weightByDepth.length > 0) {
+          weightByDepthVal = baseRow.weightByDepth;
+        } else {
+          weightByDepthVal = [[0, 1.0]];
+        }
+
+        let lootPoolsVal = null;
+        if (baseRow && baseRow.lootPools && typeof baseRow.lootPools === "object") {
+          lootPoolsVal = baseRow.lootPools;
+        }
+
+        const stub = {
+          id: enemyId,
+          glyph: glyphVal,
+          color: colorVal,
+          tier: tierVal,
+          blockBase: blockBaseVal,
+          faction: factionVal,
+          // Single-entry curves using the sandbox values at the chosen depth.
+          hp: [[depth, hpVal, 0]],
+          atk: [[depth, atkVal, 0]],
+          xp: [[depth, xpVal, 0]],
+          weightByDepth: weightByDepthVal,
+          equipChance: equipChanceVal,
+          damageScale: dmgScaleVal
+        };
+        if (lootPoolsVal) stub.lootPools = lootPoolsVal;
+
+        const json = JSON.stringify(stub, null, 2);
+
+        function fallbackCopy() {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = json;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try {
+              ok = document.execCommand("copy");
+            } catch (_) {
+              ok = false;
+            }
+            document.body.removeChild(ta);
+            return ok;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        let usedAsync = false;
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            usedAsync = true;
+            navigator.clipboard.writeText(json).then(() => {
+              try {
+                if (window.GameAPI && typeof window.GameAPI.log === "function") {
+                  window.GameAPI.log(`Sandbox: Copied enemy JSON stub for '${enemyId}' to clipboard.`, "notice");
+                }
+              } catch (_) {}
+            }).catch(() => {
+              const ok = fallbackCopy();
+              if (window.GameAPI && typeof window.GameAPI.log === "function") {
+                window.GameAPI.log(
+                  ok
+                    ? `Sandbox: Copied enemy JSON stub for '${enemyId}' to clipboard. (fallback)`
+                    : `Sandbox: Failed to copy JSON stub for '${enemyId}' to clipboard.`,
+                  ok ? "notice" : "warn"
+                );
+              }
+            });
+          }
+        } catch (_) {
+          usedAsync = false;
+        }
+
+        if (!usedAsync) {
+          const ok = fallbackCopy();
+          if (window.GameAPI && typeof window.GameAPI.log === "function") {
+            window.GameAPI.log(
+              ok
+                ? `Sandbox: Copied enemy JSON stub for '${enemyId}' to clipboard. (fallback)`
+                : `Sandbox: Failed to copy JSON stub for '${enemyId}' to clipboard.`,
+              ok ? "notice" : "warn"
+            );
+          }
+        }
+      } catch (e) {
+        try {
+          if (window.GameAPI && typeof window.GameAPI.log === "function") {
+            window.GameAPI.log(`Sandbox: Error while building JSON stub: ${e && e.message ? e.message : e}`, "warn");
+          }
+        } catch (_) {}
+      }
     });
   }
 
