@@ -335,15 +335,21 @@ function ensurePanel() {
           </div>
           <div style="display:flex; align-items:center; gap:4px;">
             <span style="font-size:11px; color:#9ca3af;"
-              title="Faction id used by AI/encounters (e.g. monster, bandit, guard). Sandbox override only.">
+              title="Faction id used by AI/encounters (e.g. monster, bandit, animal, guard). Sandbox override only.">
               Faction
             </span>
-            <input id="sandbox-faction" type="text"
-              placeholder="monster, bandit..."
-              title="Faction string for this enemy in sandbox (controls which side it fights for)."
-              style="flex:1; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
+            <select id="sandbox-faction"
+              title="Faction for this enemy in sandbox (controls which side it fights for)."
+              style="flex:1; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;">
+              <option value="">(none)</option>
+              <option value="monster">monster</option>
+              <option value="bandit">bandit</option>
+              <option value="animal">animal</option>
+              <option value="guard">guard</option>
+              <option value="orc">orc</option>
+              <option value="undead">undead</option>
+            </select>
           </div>
-
           <!-- Core combat knobs -->
           <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;">
             <div style="display:flex; align-items:center; gap:4px; flex:1 1 80px;">
