@@ -653,6 +653,9 @@ import "./sandbox/runtime.js";
         sandboxEnemyOverrides = Object.create(null);
       } catch (_) {}
       applyCtxSyncAndRefresh(ctx);
+      try {
+        log("Sandbox: Entered dungeon test room. Press F10 for Sandbox Controls panel.", "info");
+      } catch (_) {}
       return true;
     } catch (e) {
       try {

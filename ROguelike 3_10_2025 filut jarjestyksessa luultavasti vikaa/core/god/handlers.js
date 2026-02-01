@@ -61,6 +61,11 @@ export function install(getCtx) {
               if (typeof c.requestDraw === "function") c.requestDraw();
             }
           } catch (_) {}
+          try {
+            if (c && typeof c.log === "function") {
+              c.log("Sandbox: Entered dungeon test room. Press F10 for Sandbox Controls panel.", "info");
+            }
+          } catch (_) {}
           return;
         }
       } catch (_) {}
