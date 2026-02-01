@@ -544,7 +544,7 @@ function trySpawnAnimalById(ctx, id, count) {
 
     if (spawned.length) {
       try {
-        const SS = ctx.StateSync;
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -706,7 +706,7 @@ function spawnCustomSandboxEnemy(ctx, id, count) {
 
     if (spawned.length) {
       try {
-        const SS = ctx.StateSync;
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -1704,5 +1704,6 @@ export function isOpen() {
   } catch (_) {}
 })();
 
+import { getMod } from "/utils/access.js";
 import { attachGlobal } from "/utils/global.js";
 attachGlobal("SandboxPanel", { init, show, hide, isOpen });
