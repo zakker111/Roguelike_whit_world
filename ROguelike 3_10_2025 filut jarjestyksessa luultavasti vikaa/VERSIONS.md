@@ -1,5 +1,46 @@
 # Game Version History
-Last updated: 2026-01-27 00:00 UTC
+Last updated: 2026-02-01 00:00 UTC
+
+v1.70.0 — Sandbox enemy lab and non-persistent test room
+
+- Sandbox dungeon room mode:
+  - Added `SandboxRuntime.enter(ctx, options)` under `core/sandbox/runtime.js` and wired it via `GameAPI.enterSandboxRoom()` and the GOD panel "Enter Sandbox (Dungeon Room)" button.
+  - Entering sandbox swaps the current run into a small rectangular dungeon-style room (~30×20), clears enemies/NPCs/props/corpses/decals, resets FOV/visibility grids and recenters the player.
+  - Sandbox runs reuse the dungeon turn loop (movement, combat, AI, loot, decals, turn processing) but are flagged via `ctx.mode === "sandbox"` / `ctx.isSandbox` / `ctx.sandboxFlags` and do not write dungeon/town/world save state, so they never pollute normal saves.
+
+- Sandbox control panel (F10):
+  - New `SandboxPanel` UI (F10, sandbox-only) shows a top-right overlay with:
+    - Enemy AI toggle wired to `ctx.sandboxFlags.aiEnabled` so enemy turns can be frozen/unfrozen in sandbox.
+    - Entity selector (text field + dropdown) that lists enemies from `Enemies.listTypes()` and animals from `GameData.animals`, plus support for arbitrary custom sandbox-only ids.
+    - Spawn controls (Spawn 1 / Spawn N + count) that spawn:
+      - Enemies by id in dungeon/sandbox via the GOD spawn bridge.
+      - Animals by id via a dedicated `trySpawnAnimalById(ctx, id, count)` helper.
+      - Pure sandbox-only custom enemies built directly from UI/override data when the id is not present in JSON.
+  - Panel can be toggled with F10 and closed with Esc, and obeys the existing modal-priority rules; it is only active while `ctx.mode === "sandbox"`.
+
+- Sandbox enemy tuning and loot overrides:
+  - Introduced `ctx.sandboxEnemyOverrides[id/idLower]` as the authoritative sandbox-only store for per-entity overrides:
+    - `testDepth`, `glyph`, `color`, `faction`, `hpAtDepth`, `atkAtDepth`, `xpAtDepth`.
+    - `damageScale`, `equipChance`, and `equipTierOverride` (loot tier override 1–3).
+    - `lootPools` (potions, weapons, armor) with curated item key lists for the sandbox loot editor.
+  - SandboxPanel "Apply" writes overrides into this map (under both exact and lowercase keys); "Reset" clears them back to base definitions.
+  - Loot generation now uses `getEnemyDefWithOverrides(ctx, type)` so sandbox overrides are applied to:
+    - Known enemies from `data/entities/enemies.json` (overriding their `lootPools` and effective tier in sandbox mode).
+    - Custom sandbox-only ids with no JSON row by synthesizing a minimal def from sandbox `lootPools`.
+  - Potion and equipment drops for sandbox spawns respect sandbox `lootPools` and `equipTierOverride`, with safe fallbacks when overrides are absent.
+
+- Custom ids and JSON export:
+  - The sandbox entity field accepts arbitrary ids; custom ids that are not present in `enemies.json` or `animals.json` are classified as "custom sandbox-only" and can be spawned and tuned entirely from the panel.
+  - The **Copy JSON** button builds a full enemy JSON stub for the current id:
+    - Uses `GameData.enemies` as a base when present, rescaling `hp`/`atk`/`xp` curves so their values at the chosen sandbox test depth match the UI HP/ATK/XP fields.
+    - Falls back to single-point flat curves and default `weightByDepth` when no base row exists.
+    - Includes sandbox `lootPools` and `equipTierOverride` when set so exported JSON matches the current sandbox behavior.
+  - The stub is copied to the clipboard using the Clipboard API with a textarea fallback so it can be pasted into `data/entities/enemies.json` for permanent inclusion.
+
+- Status:
+  - Sandbox mode is now treated as a stable, non-persistent **developer tool** rather than an experimental feature:
+    - It is integrated into the GOD panel and main game loop and is safe to use during normal development runs.
+    - It is intentionally limited to a single small room and per-entity tuning; full arena-style multi-room scenarios and scripted test setups remain future work (see the GOD Arena entry in FEATURES and TODO).
 
 v1.69.0 — Town biome tint stability and Region Map wildlife glyphs
 

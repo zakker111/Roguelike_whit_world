@@ -455,6 +455,61 @@ These are primarily for debugging and development, not normal gameplay.
 - Smoke tests:
   - Automated smoketest runner to exercise core flows (entry/exit, movement, basic combat, etc.).
 
+### 10.4 Sandbox mode (enemy / loot lab)
+
+- Access:
+  - In any run, open the GOD panel (`P`) and click **Enter Sandbox (Dungeon Room)** to swap the current run into a small sandbox test room.
+  - While in sandbox (`ctx.mode === "sandbox"`), press **F10** to toggle the Sandbox Controls overlay; `Esc` closes it. The panel participates in the normal modal priority system.
+
+- Sandbox room behavior:
+  - Replaces the current map with a small dungeon-style room (walls + floor), clears enemies/NPCs/props/corpses/decals, and places the player near the center.
+  - Uses the same code paths as a normal dungeon for movement, combat, AI turns, decals, status effects, and looting.
+  - Sandbox runs are **non-persistent**:
+    - Dungeon/town/world save functions skip writing state while `mode === "sandbox"`, so sandbox sessions never pollute normal saves.
+    - Exiting sandbox is done via the existing New Game / restart flows rather than restoring a prior run snapshot.
+
+- Entity selection and spawning:
+  - The Sandbox panel entity selector supports three categories:
+    - Enemies from `data/entities/enemies.json` (via `Enemies.listTypes()`).
+    - Animals from `GameData.animals` (annotated with `"(animal)"` in the dropdown).
+    - Custom sandbox-only ids typed into the Entity field (not present in either registry).
+  - Spawn controls:
+    - `Spawn 1` and `Spawn N` buttons with a numeric count (clamped to a safe range).
+    - Enemies spawn by id near the player in dungeon/sandbox via the GOD spawn bridge.
+    - Animals spawn via a dedicated `trySpawnAnimalById(ctx, id, count)` helper and usually behave as neutral wildlife.
+    - Custom ids spawn via `spawnCustomSandboxEnemy(ctx, id, count)`, which builds enemy instances directly from sandbox overrides and form inputs.
+
+- Enemy tuning and loot overrides:
+  - Basic tuning at a chosen **test depth**:
+    - Visuals: glyph, color, faction.
+    - Stats: HP / ATK / XP at the test depth.
+    - Behavior knobs: `damageScale`, `equipChance`, and a **Loot tier** override (1–3) that biases equipment tier for sandbox drops.
+  - Loot (sandbox) editor:
+    - Potions: weights for lesser / average / strong potions.
+    - Weapons and armor: per-item weights for a curated list of equipment keys.
+  - Overrides are stored in `ctx.sandboxEnemyOverrides[id]` (and a lowercase alias):
+    - `Apply` saves the current form values into this map.
+    - `Reset` removes entries for the current id and reloads base definitions from JSON.
+  - Loot generation in sandbox uses these overrides via `getEnemyDefWithOverrides(ctx, type)` so that:
+    - Known enemies can be temporarily retuned without changing data files.
+    - Pure sandbox-only ids (no JSON row) still drop potions and equipment according to sandbox `lootPools` and `equipTierOverride`.
+
+- Custom enemies and JSON export:
+  - Custom ids that do not exist in `enemies.json` or `animals.json` are fully supported in sandbox:
+    - They can be spawned, tuned, and given complete potion/equipment loot behaviors using only sandbox overrides.
+  - The **Copy JSON** button:
+    - Builds an enemy JSON stub from the current base row (when available) plus sandbox overrides and UI fields.
+    - Rescales `hp` / `atk` / `xp` curves so their values at the sandbox test depth match the tuned HP/ATK/XP.
+    - Includes sandbox `lootPools` and loot tier overrides so exported JSON matches in-sandbox behavior.
+    - Copies the stub to the clipboard, ready to paste into `data/entities/enemies.json` as a new or updated enemy definition.
+
+- Status:
+  - Sandbox mode is a **stable developer tool** wired through the GOD panel and main loop; it is no longer considered experimental.
+  - It is intentionally scoped:
+    - Single-room test environment.
+    - Focused on per-entity stats, AI toggling, and loot tuning plus spawn testing.
+    - More advanced arena features (multi-room layouts, scenario presets, scripted regression tests) remain part of the separate **GOD Arena mode** design under Experimental / WIP.
+
 ---
 
 ## 11. Persistence & Saving
