@@ -1,7 +1,31 @@
-# Game Version History
-Last updated: 2026-02-01 00:00 UTC
+</old_ as described in v1.70.0 below.
+
+v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)deernal)
+
+- SandboxPanel implementation refactor:
+  - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
+  - New `ui/components/sandbox_panel_v2.js` owns the Sandbox controls overlay (F10) UI and event wiring.
+  - New helper modules split responsibilities:
+    - `ui/components/sandbox_model.js` – enemy/animal list, entity select population, form/loot sync, ctx helpers.
+    - `ui/components/sandbox_spawn.js` – classifyEntityId, currentEnemyId, and spawn helpers for enemies/animals/custom ids.
+    - `ui/components/sandbox_export.js` – Copy JSON button behavior and enemy JSON stub builder.
+  - The window.SandboxPanel global still exposes { init, show, hide, isOpen } and F10 / ESC behavior is unchanged.
+  - All imports were updated to point at `sandbox_panel_v2.js`, and the old `sandbox_panel.js` file was removed from the build.
+
+- Behavior:
+  - This is an internal refactor only; sandbox mode behavior, spawn rules, overrides, and JSON export remain as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room
+</old_code><new_code>remain as described in v1.70.0 below.
+
+v1.70.0 — Sandbox enemy lab and non-persistent test room</old_code><new_code>v1.70.0 — Sandbox enemy lab and non-persistent test room.1 — Sandbox panel modularization and cleanup (internal)
+
+- SandboxPanel implementation refactor:
+  - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
+  - New `ui/components/sandbox_panel_v2.js` owns the Sandbox controls overlay (F10) UI and event wiring.
+  - New helper modules split responsibilities:
+    - `ui/components/sandbox_model.js` – enemy/animal list, entity select population, form/loot sync, ctx helpers.
+    - `ui/components/sandbox_spawn.js` – classifyEntityId, currentEnemyId,room
 
 - Sandbox dungeon room mode:
   - Added `SandboxRuntime.enter(ctx, options)` under `core/sandbox/runtime.js` and wired it via `GameAPI.enterSandboxRoom()` and the GOD panel "Enter Sandbox (Dungeon Room)" button.
