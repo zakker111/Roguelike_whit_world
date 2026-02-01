@@ -33,12 +33,7 @@ import {
 } from "/ui/components/sandbox_model.js";
 
 function byId(id) {
-  try { return document.getElementById(id); } catch (_) { return null; }
-}
-
-let _ui = null;
-
-/**
+  try { return document.getElementById(id); } catch (_) { return null; }</old_code><new_code>/**
  * Update the Enemy AI toggle button label from current ctx.sandboxFlags.
  */
 function refreshAiToggle() {
@@ -50,8 +45,18 @@ function refreshAiToggle() {
     const on = flags.aiEnabled !== false;
     btn.textContent = on ? "Enemy AI: On" : "Enemy AI: Off";
   } catch (_) {}
-
+}pdate the Enemy AI toggle button label from current ctx.sandboxFlags.
+ */
+function refreshAiToggle() {
+  try {
+    const btn = byId("sandbox-ai-toggle-btn");
+    const ctx = getCtxSafe();
+    if (!btn || !ctx) return;
     const flags = ctx.sandboxFlags || {};
+    const on = flags.aiEnabled !== false;
+    btn.textContent = on ? "Enemy AI: On" : "Enemy AI: Off";
+  } catch (_) {}
+new  conCode>ags = ctx.sandboxFlags || {};
     const on = flags.aiEnabled !== false;
     btn.textContent = on ? "Enemy AI: On" : "Enemy AI: Off";</old_code><new_code>/**
  * Sync basic fields (test depth, glyph/color/faction, HP/ATK/XP, damageScale, equipChance)

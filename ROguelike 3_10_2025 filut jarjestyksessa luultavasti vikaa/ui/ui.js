@@ -29,7 +29,7 @@ import * as GodPanel from "/ui/components/god_panel.js";
 import * as InventoryPanel from "/ui/components/inventory_panel.js";
 import * as LootPanel from "/ui/components/loot_panel.js";
 import * as Hud from "/ui/components/hud.js";
-import * as SandboxPanel from "/ui/components/sandbox_panel.js";
+import * as SandboxPanel from "/ui/components/sandbox_panel_v2.js";
 
 export const UI = {
   els: {},
