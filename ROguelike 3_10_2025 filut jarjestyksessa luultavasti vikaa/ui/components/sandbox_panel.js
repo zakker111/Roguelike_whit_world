@@ -57,8 +57,56 @@ function getAnimalDefById(id) {
       if (!row || !row.id) continue;
       if (String(row.id).toLowerCase() === want) return row;
     }
-  } catch (_) </old_code><new_code>function isAnimalId(id) {
+  } catch (_) {}
+  return null;
+}
+
+function isAnimalId(id) {
   return !!getAnimalDefById(id);
+}
+
+function classifyEntityId(id) {
+  const v = String(id || "").trim();
+  if (!v) return "none";
+  try {
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    if (EM && typeof EM.getDefById === "function" && EM.getDefById(v)) {
+      return "enemy";
+    }
+  } catch (_) {}
+  if (isAnimalId(v)) return "animal";
+  return "custom";
+}
+
+function updateEntityStatusLabel() {
+  try {
+    const line = byId("sandbox-entity-status-line");
+    const txt = byId("sandbox-entity-status-text");
+    if (!line || !txt) return;
+    const id = currentEnemyId();
+    const kind = classifyEntityId(id);
+    let label = "(no id)";
+    let color = "#9ca3af";
+
+    if (!id) {
+      label = "(no id)";
+    } else if (kind === "enemy") {
+      label = "enemy (enemies.json)";
+      color = "#a5b4fc";
+    } else if (kind === "animal") {
+      label = "animal (animals.json)";
+      color = "#6ee7b7";
+    } else if (kind === "custom") {
+      label = "custom sandbox-only (not in enemies.json)";
+      color = "#fbbf24";
+    } else {
+      label = "unknown";
+      color = "#fca5a5";
+    }
+
+    txt.textContent = label;
+    line.style.color = color;
+  } catch (_) {}
 }
 
 function loadEnemyTypes() {
