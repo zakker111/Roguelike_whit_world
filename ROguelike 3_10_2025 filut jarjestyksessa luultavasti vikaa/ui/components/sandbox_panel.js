@@ -1313,7 +1313,9 @@ export function init(UI) {
           ? ctx.sandboxEnemyOverrides
           : (ctx.sandboxEnemyOverrides = Object.create(null));
 
-        const prev = overridesRoot[enemyId] || {};
+        const idKey = String(enemyId);
+        const idLower = idKey.toLowerCase();
+        const prev = overridesRoot[idKey] || overridesRoot[idLower] || {};
         const next = Object.assign({}, prev, {
           testDepth: depth,
         });
@@ -1390,7 +1392,11 @@ export function init(UI) {
           delete next.lootPools;
         }
 
-        overridesRoot[enemyId] = next;
+        // Store override under both exact id and lower-case alias so loot
+        // helpers (which often lower-case type ids) can still resolve
+        // sandbox-only overrides reliably.
+        overridesRoot[idKey] = next;
+        if (idLower !== idKey) overridesRoot[idLower] = next;
 
         if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
           window.GameAPI.log(`Sandbox: Applied enemy override for '${enemyId}' (depth ${depth}).`, "notice");
@@ -1410,7 +1416,10 @@ export function init(UI) {
           syncBasicFormFromData();
           return;
         }
-        delete ctx.sandboxEnemyOverrides[enemyId];
+        const idKey = String(enemyId);
+        const idLower = idKey.toLowerCase();
+        delete ctx.sandboxEnemyOverrides[idKey];
+        if (idLower !== idKey) delete ctx.sandboxEnemyOverrides[idLower];
         if (typeof window.GameAPI === "object" && typeof window.GameAPI.log === "function") {
           window.GameAPI.log(`Sandbox: Reset overrides for '${enemyId}' to base definition.`, "notice");
         }
