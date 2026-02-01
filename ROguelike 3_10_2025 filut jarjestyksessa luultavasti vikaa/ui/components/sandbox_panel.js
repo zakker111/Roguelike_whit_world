@@ -23,9 +23,8 @@ function byId(id) {
 }
 
 let _ui = null;
-// Cached enemy ids for cycling via prev/next buttons
+// Cached entity ids from enemy and animal registries
 let _enemyTypes = [];
-let _enemyIndex = 0;
 
 // Curated loot keys exposed in the sandbox loot editor.
 const LOOT_WEAPON_KEYS = [
@@ -390,7 +389,9 @@ function syncLootFormFromData() {
     const overridesRoot = ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object"
       ? ctx.sandboxEnemyOverrides
       : null;
-    const override = overridesRoot ? overridesRoot[enemyId] || null : null;
+    const override = overridesRoot
+      ? (overridesRoot[enemyId] || overridesRoot[String(enemyId).toLowerCase()] || null)
+      : null;
 
     let lootRoot = null;
     if (override && override.lootPools && typeof override.lootPools === "object") {
@@ -828,7 +829,6 @@ function ensurePanel() {
   el.style.maxWidth = "420px";
   el.style.maxHeight = "80vh";
   el.style.overflowY = "auto";
-;
 
   el.innerHTML = `
     <div style="font-weight:600; letter-spacing:0.03em; text-transform:uppercase; font-size:11px; color:#a5b4fc; margin-bottom:6px;">
@@ -1188,7 +1188,6 @@ export function init(UI) {
       loadEnemyTypes();
     }
     if (enemyInput && _enemyTypes.length && !enemyInput.value) {
-      _enemyIndex = 0;
       setEnemyId(_enemyTypes[0]);
     }
   } catch (_) {}
@@ -1215,23 +1214,14 @@ export function init(UI) {
     });
   }
 
-  // Enemy cycling
   // Enemy id manual input => refresh tuning fields when changed
   const enemyInput = byId("sandbox-enemy-id");
   if (enemyInput) enemyInput.addEventListener("change", () => {
-    _enemyIndex = 0;
     const id = currentEnemyId();
     if (!id) {
       setEnemyId("");
       updateEntityStatusLabel();
       return;
-    }
-    // Try to find this id in the cached list to keep dropdown in sync.
-    for (let i = 0; i < _enemyTypes.length; i++) {
-      if (_enemyTypes[i] === id) {
-        _enemyIndex = i;
-        break;
-      }
     }
     setEnemyId(id);
     syncBasicFormFromData();
@@ -1242,16 +1232,6 @@ export function init(UI) {
     entitySelect.addEventListener("change", () => {
       const val = entitySelect.value || "";
       setEnemyId(val);
-      // Keep index aligned with dropdown
-      _enemyIndex = 0;
-      if (val) {
-        for (let i = 0; i < _enemyTypes.length; i++) {
-          if (_enemyTypes[i] === val) {
-            _enemyIndex = i;
-            break;
-          }
-        }
-      }
       syncBasicFormFromData();
     });
   }
@@ -1711,7 +1691,6 @@ export function show() {
     populateEntitySelect();
     const enemyInput = byId("sandbox-enemy-id");
     if (enemyInput && _enemyTypes.length && !enemyInput.value) {
-      _enemyIndex = 0;
       setEnemyId(_enemyTypes[0]);
     }
   } catch (_) {}

@@ -70,7 +70,6 @@ export function enter(ctx, options = {}) {
   ctx.sandboxFlags = ctx.sandboxFlags || {};
   ctx.sandboxFlags.fovEnabled = true;
   ctx.sandboxFlags.aiEnabled = true;
-  ctx.sandboxPanelOpen = false;
 
   // Replace local map/visibility. These arrays are shared with core/game.js
   // via getCtx(), so downstream modules will see the updated room.
