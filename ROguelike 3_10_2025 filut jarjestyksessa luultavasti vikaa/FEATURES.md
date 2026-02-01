@@ -5,6 +5,7 @@ High-level snapshot of what the game currently supports and what the player can 
 - For **history / detailed change logs**, see `VERSIONS.md`.
 - For **planned work**, see `TODO.md`.
 - For **known issues and unstable systems**, see `BUGS.md`.
+- Sandbox enemy lab: data-driven enemy/loot testing via **GOD → Enter Sandbox (Dungeon Room)** and **F10**.
 
 This file should describe the **current state**, not the future; update it whenever we add or significantly change features.
 
