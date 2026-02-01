@@ -20,6 +20,7 @@ import { attachGlobal } from "../../utils/global.js";
  * - setAlwaysCritFacade(ctx, v), setCritPartFacade(ctx, part)
  * - godSpawnEnemyNearbyFacade(ctx, count), godSpawnItemsFacade(ctx, count)
  * - godHealFacade(ctx), godSpawnStairsHereFacade(ctx)
+ * - godSpawnEnemyByIdFacade?(ctx, id, count)
  */
 export function godActions(opts) {
   return {
@@ -103,6 +104,20 @@ export function godActions(opts) {
       try {
         if (opts && typeof opts.log === "function") {
           opts.log("GOD: spawnEnemyNearby not available.", "warn");
+        }
+      } catch (_) {}
+      return false;
+    },
+    godSpawnEnemyById(id, count = 1) {
+      try {
+        if (opts && typeof opts.godSpawnEnemyByIdFacade === "function") {
+          const ok = opts.godSpawnEnemyByIdFacade(opts.ctx, id, count);
+          if (ok) return true;
+        }
+      } catch (_) {}
+      try {
+        if (opts && typeof opts.log === "function") {
+          opts.log("GOD: spawnEnemyById not available.", "warn");
         }
       } catch (_) {}
       return false;

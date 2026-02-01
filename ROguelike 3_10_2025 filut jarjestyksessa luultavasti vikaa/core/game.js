@@ -100,6 +100,8 @@ import {
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
+// Side-effect import to ensure SandboxRuntime attaches itself to window.SandboxRuntime
+import "./sandbox/runtime.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();
@@ -229,6 +231,11 @@ import "./followers_items.js";
   // Render grid preference (ctx-first). Default from window.DRAW_GRID; UI toggle will update this.
   let drawGridPref = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? !!window.DRAW_GRID : true;
 
+  // Sandbox runtime flags and enemy overrides (sandbox-only debug helpers).
+  // Flags are shallow-copied onto ctx via getCtx() so UI/AI can toggle them.
+  let sandboxFlags = { fovEnabled: true, aiEnabled: true };
+  let sandboxEnemyOverrides = Object.create(null);
+
   
   function getCtx() {
     const base = {
@@ -268,6 +275,10 @@ import "./followers_items.js";
       _dungeonStates: dungeonStates,
       time: getClock(),
       weather: getWeatherSnapshot(),
+      // Sandbox debug state
+      isSandbox: mode === "sandbox",
+      sandboxFlags,
+      sandboxEnemyOverrides,
       // Perf stats for HUD overlay (smoothed via EMA when available)
       getPerfStats: () => perfGetPerfStats(),
       requestDraw,
@@ -620,6 +631,40 @@ import "./followers_items.js";
     }
     // Sync back mutated state and refresh camera/FOV/UI/draw via centralized helper
     applyCtxSyncAndRefresh(ctx);
+  }
+
+  // Enter a small sandbox dungeon-style room for focused testing (no persistence).
+  function enterSandboxRoom() {
+    try {
+      const ctx = getCtx();
+      if (!ctx) return false;
+      const SR = ctx.SandboxRuntime || modHandle("SandboxRuntime");
+      if (!SR || typeof SR.enter !== "function") {
+        log("GOD: SandboxRuntime.enter not available; sandbox mode disabled.", "warn");
+        return false;
+      }
+      // Mutate ctx into sandbox mode and let orchestrator sync + refresh.
+      SR.enter(ctx, { scenario: "dungeon_room" });
+      // Reset sandbox-specific debug state on entering sandbox.
+      try {
+        sandboxFlags = ctx.sandboxFlags || sandboxFlags || { fovEnabled: true, aiEnabled: true };
+      } catch (_) {}
+      try {
+        sandboxEnemyOverrides = Object.create(null);
+      } catch (_) {}
+      applyCtxSyncAndRefresh(ctx);
+      try {
+        log("Sandbox: Entered dungeon test room. Press F10 for Sandbox Controls panel.", "info");
+      } catch (_) {}
+      return true;
+    } catch (e) {
+      try {
+        log("GOD: Sandbox entry failed; see console for details.", "warn");
+        // eslint-disable-next-line no-console
+        console.error(e);
+      } catch (_) {}
+      return false;
+    }
   }
 
   
@@ -1093,6 +1138,7 @@ import "./followers_items.js";
     godSpawnStairsHere,
     godSpawnItems,
     godSpawnEnemyNearby,
+    godSpawnEnemyById,
     applySeed,
     rerollSeed,
     restartGame,
@@ -1327,11 +1373,12 @@ import "./followers_items.js";
       setAlwaysCrit,
       setCritPart,
       godSpawnEnemyNearby,
+      godSpawnEnemyById,
       godSpawnItems,
-      generateLoot,
-      getClock,
+ getClock,
       log,
       applyCtxSyncAndRefresh,
+      enterSandboxRoom: () => enterSandboxRoom(),
     });
   }
 

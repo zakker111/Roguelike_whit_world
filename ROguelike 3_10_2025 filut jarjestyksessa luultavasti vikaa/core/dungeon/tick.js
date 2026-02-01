@@ -2,7 +2,7 @@
  * Dungeon tick (Phase 3 extraction): per-turn processing in dungeon/encounter.
  */
 export function tick(ctx) {
-  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter" && ctx.mode !== "sandbox")) return false;
   // Enemies act via AI
   try {
     const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);

@@ -74,9 +74,9 @@ export function spawnItems(ctx, count = 3) {
 }
 
 export function spawnEnemyNearby(ctx, count = 1) {
-  // Enemy spawning is supported in dungeon mode only
-  if (ctx.mode !== "dungeon") {
-    ctx.log("GOD: Enemy spawn works in dungeon mode only.", "warn");
+  // Enemy spawning is supported in dungeon or sandbox mode only
+  if (ctx.mode !== "dungeon" && ctx.mode !== "sandbox") {
+    ctx.log("GOD: Enemy spawn works in dungeon or sandbox mode only.", "warn");
     return;
   }
 
@@ -164,15 +164,6 @@ export function spawnEnemyNearby(ctx, count = 1) {
     return best;
   };
 
-  function linearAt(arr, depth, fallback = 1) {
-    if (!Array.isArray(arr) || arr.length === 0) return fallback;
-    let chosen = arr[0];
-    for (const e of arr) { if ((e[0] | 0) <= depth) chosen = e; }
-    const minD = chosen[0] | 0, baseV = Number(chosen[1] || fallback), slope = Number(chosen[2] || 0);
-    const delta = Math.max(0, depth - minD);
-    return Math.max(1, Math.floor(baseV + slope * delta));
-  }
-
   const spawned = [];
   // Abort if no registered enemy types
   if (!Array.isArray(window.GOD_SPAWN_CYCLE.list) || window.GOD_SPAWN_CYCLE.list.length === 0) {
@@ -246,6 +237,204 @@ export function spawnEnemyNearby(ctx, count = 1) {
   } else {
     ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
   }
+}
+
+/**
+ * Spawn a specific enemy type id near the player (dungeon or sandbox mode only).
+ * This uses the same placement logic as spawnEnemyNearby but does not cycle ids.
+ *
+ * In sandbox mode, this respects ctx.sandboxEnemyOverrides[typeId] when present:
+ * - testDepth: depth used to resolve hp/atk/xp curves (fallback: ctx.floor)
+ * - hpAtDepth / atkAtDepth / xpAtDepth: overrides for stats at testDepth
+ * - glyph / color / faction: visual/identity overrides
+ * - damageScale: per-enemy damage multiplier override
+ *
+ * Overrides are sandbox-only; normal dungeon runs ignore them.
+ */
+export function spawnEnemyById(ctx, id, count = 1) {
+  const typeId = String(id || "").trim();
+  if (!typeId) {
+    ctx.log("GOD: Enemy id is empty; cannot spawn.", "warn");
+    return false;
+  }
+  // Enemy spawning is supported in dungeon or sandbox mode only
+  if (ctx.mode !== "dungeon" && ctx.mode !== "sandbox") {
+    ctx.log("GOD: spawnEnemyById works in dungeon or sandbox mode only.", "warn");
+    return false;
+  }
+
+  const EM = (typeof window !== "undefined" ? window.Enemies : null);
+  if (!EM || typeof EM.getTypeDef !== "function") {
+    ctx.log("GOD: Enemies registry not available; cannot spawn by id.", "warn");
+    return false;
+  }
+  const td = EM.getTypeDef(typeId);
+  if (!td) {
+    ctx.log(`GOD: Enemy id '${typeId}' not found in registry.`, "warn");
+    return false;
+  }
+
+  // Sandbox-only enemy definition overrides (kept on ctx).
+  let override = null;
+  try {
+    if (ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+      override = ctx.sandboxEnemyOverrides[typeId] || null;
+    }
+  } catch (_) {
+    override = null;
+  }
+
+  const isFreeFloor = (x, y) => {
+    try {
+      if (!ctx.inBounds(x, y)) return false;
+      const walkable = (typeof ctx.isWalkable === "function")
+        ? ctx.isWalkable(x, y)
+        : (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
+      if (!walkable) return false;
+      if (ctx.player.x === x && ctx.player.y === y) return false;
+      const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function")
+        ? ctx.occupancy.hasEnemy(x, y)
+        : ctx.enemies.some(e => e && e.x === x && e.y === y);
+      if (occEnemy) return false;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const pickNearby = () => {
+    const maxR = 5;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+
+    for (let r = 1; r <= maxR; r++) {
+      const candidates = [];
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+          const x = px + dx;
+          const y = py + dy;
+          if (isFreeFloor(x, y)) candidates.push({ x, y });
+        }
+      }
+      if (candidates.length) {
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(ctx.rng() * (i + 1));
+          const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+        }
+        return candidates[0];
+      }
+    }
+
+    let best = null;
+    let bestD = Infinity;
+    const rows = ctx.map.length;
+    const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (!isFreeFloor(x, y)) continue;
+        const md = Math.abs(x - px) + Math.abs(y - py);
+        if (md < bestD) { bestD = md; best = { x, y }; }
+      }
+    }
+    return best;
+  };
+
+  const spawned = [];
+  const n = Math.max(1, Math.min(50, (Number(count) || 0) | 0));
+
+  for (let i = 0; i < n; i++) {
+    const spot = pickNearby();
+    if (!spot) break;
+
+    let ee = null;
+    try {
+      // Prefer enemyFactory when it can honor a specific id in the future;
+      // for now, build directly from Enemies registry.
+      if (typeof ctx.enemyFactory === "function" && false) {
+        ee = ctx.enemyFactory(spot.x, spot.y, ctx.floor);
+      }
+    } catch (_) {}
+
+    if (!ee) {
+      // Depth used for stat resolution: sandbox may override via testDepth.
+      const depthForStats = (override && typeof override.testDepth === "number")
+        ? (override.testDepth | 0)
+        : ctx.floor;
+
+      const baseHp = (typeof td.hp === "function") ? td.hp(depthForStats) : 3;
+      const baseAtk = (typeof td.atk === "function") ? td.atk(depthForStats) : 1;
+      const baseXp = (typeof td.xp === "function") ? td.xp(depthForStats) : 5;
+
+      const hp = (override && typeof override.hpAtDepth === "number") ? override.hpAtDepth : baseHp;
+      const atk = (override && typeof override.atkAtDepth === "number") ? override.atkAtDepth : baseAtk;
+      const xp = (override && typeof override.xpAtDepth === "number") ? override.xpAtDepth : baseXp;
+
+      const g = (override && typeof override.glyph === "string" && override.glyph)
+        ? override.glyph
+        : (td.glyph ? td.glyph : ((typeId && typeId.length) ? typeId.charAt(0) : "?"));
+
+      const level = (EM.levelFor && typeof EM.levelFor === "function")
+        ? EM.levelFor(typeId, depthForStats, ctx.rng)
+        : depthForStats;
+
+      const damageScale = (override && typeof override.damageScale === "number")
+        ? override.damageScale
+        : (typeof td.damageScale === "number" ? td.damageScale : 1.0);
+
+      // Log override usage in sandbox to make behavior visible during tuning.
+      try {
+        if (ctx.mode === "sandbox") {
+          const hasOverride = !!override;
+          const baseLine = `depth=${depthForStats}, baseHp=${baseHp}, baseAtk=${baseAtk}, baseXp=${baseXp}`;
+          const effLine = `hp=${hp}, atk=${atk}, xp=${xp}, dmgScale=${damageScale}`;
+          ctx.log(
+            hasOverride
+              ? `Sandbox: Spawning '${typeId}' with override (${baseLine}) → (${effLine}).`
+              : `Sandbox: Spawning '${typeId}' with base definition (${effLine}) at ${baseLine}.`,
+            "info"
+          );
+        }
+      } catch (_) {}
+
+      ee = {
+        x: spot.x,
+        y: spot.y,
+        type: typeId,
+        glyph: g,
+        hp,
+        atk,
+        xp,
+        level,
+        announced: false,
+        damageScale,
+      };
+
+      // Optional identity fields used by some overlays/AI.
+      const col = (override && typeof override.color === "string" && override.color) ? override.color : td.color;
+      const faction = (override && typeof override.faction === "string" && override.faction) ? override.faction : td.faction;
+      if (col) ee.color = col;
+      if (faction) ee.faction = faction;
+    }
+
+    ctx.enemies.push(ee);
+    spawned.push(ee);
+    const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    ctx.log(`GOD: Spawned ${cap(ee.type || "enemy")} Lv ${ee.level || 1} at (${ee.x},${ee.y}).`, "notice");
+  }
+
+  if (spawned.length) {
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
+  return false;
 }
 
 export function setAlwaysCrit(ctx, enabled) {
@@ -679,6 +868,7 @@ attachGlobal("God", {
   spawnStairsHere,
   spawnItems,
   spawnEnemyNearby,
+  spawnEnemyById,
   setAlwaysCrit,
   toggleInvincible,
   setCritPart,

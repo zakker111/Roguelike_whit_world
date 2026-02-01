@@ -22,13 +22,50 @@
 import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/access.js";
 
 /**
+ * Resolve an enemy definition.
+ * In sandbox mode, this can apply per-enemy loot pool overrides stored on
+ * ctx.sandboxEnemyOverrides[typeId].lootPools. Outside sandbox, or when no
+ * override is present, this returns the base enemy definition.
+ *
+ * For sandbox-only ids that do not exist in the Enemies registry, this will
+ * synthesize a minimal definition object when a lootPools override exists so
+ * that loot generation (potions/equipment) can still use those pools.
+ */
+function getEnemyDefWithOverrides(ctx, type) {
+  const EM = getMod(ctx, "Enemies");
+  const key = String(type || "");
+  const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(key) : null;
+
+  // When not in sandbox or there are no overrides, just return the base def
+  if (!ctx || ctx.mode !== "sandbox" || !ctx.sandboxEnemyOverrides || typeof ctx.sandboxEnemyOverrides !== "object") {
+    return base;
+  }
+
+  try {
+    const root = ctx.sandboxEnemyOverrides;
+    const lower = key.toLowerCase();
+    const override = root[key] || root[lower] || null;
+    if (override && override.lootPools && typeof override.lootPools === "object") {
+      // If we have a base registry def, prefer to clone and replace lootPools.
+      if (base) {
+        return Object.assign({}, base, { lootPools: override.lootPools });
+      }
+      // Sandbox-only id: synthesize a minimal def carrying just lootPools.
+      return { id: key, lootPools: override.lootPools };
+    }
+  } catch (_) {}
+
+  return base;
+}
+
+/**
  * Choose a potion tier based on enemy type.
  * Uses enemy.lootPools.potions weights and materializes a potion from GameData.consumables when available.
  * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  const EM = getMod(ctx, "Enemies");
-  const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
+  const srcType = source && source.type ? source.type : "";
+  const def = getEnemyDefWithOverrides(ctx, srcType);
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 
@@ -149,8 +186,7 @@ function fallbackEquipment(ctx, tier) {
  */
 function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
   try {
-    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyType) : null;
+    const def = getEnemyDefWithOverrides(ctx, enemyType);
     const pool = def && def.lootPools ? def.lootPools : null;
     if (!pool) return null;
 
@@ -214,7 +250,8 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
  * Returns: Array of items (gold/potion/equip/...)
  */
 export function generate(ctx, source) {
-  const type = (source && source.type) ? String(source.type).toLowerCase() : "goblin";
+  const rawType = (source && source.type) ? String(source.type) : "goblin";
+  const type = rawType.toLowerCase();
 
   // Helper: material registry lookup for pretty names
   function materialNameFor(id) {
@@ -328,8 +365,7 @@ export function generate(ctx, source) {
 
   // Potion drop: only when enemy has embedded potions weights in its lootPools
   (function maybeDropPotion() {
-    const EM = getMod(ctx, "Enemies");
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(type) : null;
+    const def = getEnemyDefWithOverrides(ctx, rawType);
     const hasPotionsInPool = !!(def && def.lootPools && def.lootPools.potions);
     if (!hasPotionsInPool) return;
     const dropChance = 0.50;
@@ -340,8 +376,21 @@ export function generate(ctx, source) {
   })();
 
   const EM = getMod(ctx, "Enemies");
-  const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
-  const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
+  let tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(rawType) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
+  const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(rawType) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
+
+  // Sandbox-only loot tier override: ctx.sandboxEnemyOverrides[typeId].equipTierOverride
+  try {
+    if (ctx && ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+      const key = String(rawType || "");
+      const lower = key.toLowerCase();
+      const ov = ctx.sandboxEnemyOverrides[key] || ctx.sandboxEnemyOverrides[lower] || null;
+      if (ov && typeof ov.equipTierOverride === "number") {
+        const t = (ov.equipTierOverride | 0);
+        if (t >= 1 && t <= 3) tier = t;
+      }
+    }
+  } catch (_) {}
   if (ctx.chance(equipChance)) {
     // Only use enemy-specific loot pool; no general fallback
     const biased = pickEnemyBiasedEquipment(ctx, type, tier);

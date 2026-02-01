@@ -192,7 +192,10 @@ function cloneForStorage(st) {
 }
 
 export function save(ctx) {
-  if (!ctx || ctx.mode !== "town") return;
+  if (!ctx) return;
+  // Sandbox sessions are ephemeral; never persist town state while sandboxing.
+  if (ctx.isSandbox) return;
+  if (ctx.mode !== "town") return;
   // Use the world entry tile as the key (where we will return in overworld)
   const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : null;
   const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : null;

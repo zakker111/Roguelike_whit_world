@@ -29,6 +29,7 @@ import * as GodPanel from "/ui/components/god_panel.js";
 import * as InventoryPanel from "/ui/components/inventory_panel.js";
 import * as LootPanel from "/ui/components/loot_panel.js";
 import * as Hud from "/ui/components/hud.js";
+import * as SandboxPanel from "/ui/components/sandbox_panel.js";
 
 export const UI = {
   els: {},
@@ -51,6 +52,9 @@ export const UI = {
     // World teleport helpers
     onGodTeleportToTower: null,
     onGodTeleport: null,
+    // Sandbox helpers
+    onGodEnterSandbox: null,
+    onToggleSandboxPanel: null,
   },
 
   init() {
@@ -150,6 +154,8 @@ export const UI = {
 
     // GOD panel wiring moved to component
     try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
+    // Sandbox controls panel (F10, sandbox-only)
+    try { if (SandboxPanel && typeof SandboxPanel.init === "function") SandboxPanel.init(this); } catch (_) {}
     // Inventory panel wiring moved to component
     try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (_) {}
     this.updateSeedUI();
@@ -290,7 +296,7 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport, onGodEnterSandbox, onToggleSandboxPanel } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -326,10 +332,16 @@ export const UI = {
     if (typeof onGodTeleportToTower === "function") this.handlers.onGodTeleportToTower = onGodTeleportToTower;
     if (typeof onGodTeleport === "function") this.handlers.onGodTeleport = onGodTeleport;
 
-    // Extra handler (added later) for applying a status effect via GOD panel.
+    // Extra handlers (added later) for applying status effects or sandbox actions via GOD panel.
     const extra = arguments[0] || {};
     if (typeof extra.onGodApplyStatusEffect === "function") {
       this.handlers.onGodApplyStatusEffect = extra.onGodApplyStatusEffect;
+    }
+    if (typeof extra.onGodEnterSandbox === "function") {
+      this.handlers.onGodEnterSandbox = extra.onGodEnterSandbox;
+    }
+    if (typeof extra.onToggleSandboxPanel === "function") {
+      this.handlers.onToggleSandboxPanel = extra.onToggleSandboxPanel;
     }
   },
 
