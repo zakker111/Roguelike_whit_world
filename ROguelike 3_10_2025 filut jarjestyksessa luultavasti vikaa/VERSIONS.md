@@ -16,7 +16,7 @@ v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cl
   - This is an internal refactor only; sandbox mode behavior, spawn rules, overrides, and JSON export remain as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room
-</old_code><new_code>remain as described in v1.70.0 below.
+remain as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room</old_code><new_code>v1.70.0 — Sandbox enemy lab and non-persistent test room.1 — Sandbox panel modularization and cleanup (internal)
 
