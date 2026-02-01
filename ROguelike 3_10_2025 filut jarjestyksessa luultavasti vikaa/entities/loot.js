@@ -375,8 +375,21 @@ export function generate(ctx, source) {
   })();
 
   const EM = getMod(ctx, "Enemies");
-  const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
+  let tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
   const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
+
+  // Sandbox-only loot tier override: ctx.sandboxEnemyOverrides[type].equipTierOverride
+  try {
+    if (ctx && ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
+      const key = String(type || "");
+      const lower = key.toLowerCase();
+      const ov = ctx.sandboxEnemyOverrides[key] || ctx.sandboxEnemyOverrides[lower] || null;
+      if (ov && typeof ov.equipTierOverride === "number") {
+        const t = (ov.equipTierOverride | 0);
+        if (t >= 1 && t <= 3) tier = t;
+      }
+    }
+  } catch (_) {}
   if (ctx.chance(equipChance)) {
     // Only use enemy-specific loot pool; no general fallback
     const biased = pickEnemyBiasedEquipment(ctx, type, tier);

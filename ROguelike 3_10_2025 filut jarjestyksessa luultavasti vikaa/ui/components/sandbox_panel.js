@@ -304,6 +304,7 @@ function syncBasicFormFromData() {
     const xpInput = byId("sandbox-xp");
     const dmgInput = byId("sandbox-damage-scale");
     const eqInput = byId("sandbox-equip-chance");
+    const tierInput = byId("sandbox-equip-tier");
 
     function assignText(input, fromOverride, fromDef) {
       if (!input) return;
@@ -351,6 +352,7 @@ function syncBasicFormFromData() {
 
     const baseDamageScale = (def && typeof def.damageScale === "number" ? def.damageScale : 1.0);
     const baseEquipChance = (def && typeof def.equipChance === "number" ? def.equipChance : 0.35);
+    const baseEquipTier = (def && typeof def.tier === "number" ? def.tier : 1);
 
     assignText(
       dmgInput,
@@ -361,6 +363,11 @@ function syncBasicFormFromData() {
       eqInput,
       (override && typeof override.equipChance === "number") ? override.equipChance : null,
       baseEquipChance
+    );
+    assignText(
+      tierInput,
+      (override && typeof override.equipTierOverride === "number") ? override.equipTierOverride : null,
+      baseEquipTier
     );
 
     updateEntityStatusLabel();
@@ -982,6 +989,16 @@ function ensurePanel() {
                 title="Probability that this enemy has equipment in sandbox (0 = never, 1 = always)."
                 style="width:72px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
             </div>
+            <div style="display:flex; align-items:center; gap:4px; flex:1 1 90px;">
+              <span style="font-size:11px; color:#9ca3af;"
+                title="Sandbox-only: tier used for this enemys equipment drops (1=low, 2=mid, 3=high). Items still respect their own minTier.">
+                Loot tier
+              </span>
+              <input id="sandbox-equip-tier" type="number" min="1" max="3" step="1"
+                placeholder="(auto)"
+                title="Loot tier override for this enemy in sandbox. Leave blank to use enemies.json/default; set 1, 2, or 3 to force lower/medium/high tier gear."
+                style="width:64px; padding:3px 4px; border-radius:4px; border:1px solid #4b5563; background:#020617; color:#e5e7eb; font-size:12px;" />
+            </div>
           </div>
 
           <!-- Loot tuning -->
@@ -1328,6 +1345,10 @@ export function init(UI) {
         if (xpInput && xpInput.value !== "") next.xpAtDepth = Number(xpInput.value) || 0;
         if (dmgInput && dmgInput.value !== "") next.damageScale = Number(dmgInput.value) || 1;
         if (eqInput && eqInput.value !== "") next.equipChance = Number(eqInput.value) || 0;
+        if (tierInput && tierInput.value !== "") {
+          const tRaw = (Number(tierInput.value) || 0) | 0;
+          if (tRaw >= 1 && tRaw <= 3) next.equipTierOverride = tRaw;
+        }
 
         // Loot overrides from the sandbox loot editor.
         const potL = byId("sandbox-loot-pot-lesser");
@@ -1490,6 +1511,20 @@ export function init(UI) {
           : (baseRow && typeof baseRow.equipChance === "number" ? baseRow.equipChance : 0.35);
 
         const tierVal = baseRow && typeof baseRow.tier === "number" ? baseRow.tier : 1;
+        // Prefer sandbox loot tier override when present for this enemy.
+        try {
+          const ctx0 = getCtxSafe();
+          if (ctx0 && ctx0.sandboxEnemyOverrides && typeof ctx0.sandboxEnemyOverrides === "object") {
+            const ov0 = ctx0.sandboxEnemyOverrides[enemyId] || ctx0.sandboxEnemyOverrides[String(enemyId).toLowerCase()] || null;
+            if (ov0 && typeof ov0.equipTierOverride === "number") {
+              const t0 = (ov0.equipTierOverride | 0);
+              if (t0 >= 1 && t0 <= 3) {
+                // eslint-disable-next-line no-param-reassign
+                tierVal = t0;
+              }
+            }
+          }
+        } catch (_) {}
         const blockBaseVal = baseRow && typeof baseRow.blockBase === "number" ? baseRow.blockBase : 0.06;
 
         let weightByDepthVal = null;
