@@ -26,22 +26,32 @@ import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/a
  * In sandbox mode, this can apply per-enemy loot pool overrides stored on
  * ctx.sandboxEnemyOverrides[typeId].lootPools. Outside sandbox, or when no
  * override is present, this returns the base enemy definition.
+ *
+ * For sandbox-only ids that do not exist in the Enemies registry, this will
+ * synthesize a minimal definition object when a lootPools override exists so
+ * that loot generation (potions/equipment) can still use those pools.
  */
 function getEnemyDefWithOverrides(ctx, type) {
   const EM = getMod(ctx, "Enemies");
-  const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(type || "") : null;
-  if (!base) return null;
+  const key = String(type || "");
+  const base = EM && typeof EM.getDefById === "function" ? EM.getDefById(key) : null;
+
+  // When not in sandbox or there are no overrides, just return the base def
+  if (!ctx || ctx.mode !== "sandbox" || !ctx.sandboxEnemyOverrides || typeof ctx.sandboxEnemyOverrides !== "object") {
+    return base;
+  }
 
   try {
-    if (ctx && ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
-      const root = ctx.sandboxEnemyOverrides;
-      const key = String(type || "");
-      const lower = key.toLowerCase();
-      const override = root[key] || root[lower] || null;
-      if (override && override.lootPools && typeof override.lootPools === "object") {
-        // Shallow clone to avoid mutating the registry definition.
+    const root = ctx.sandboxEnemyOverrides;
+    const lower = key.toLowerCase();
+    const override = root[key] || root[lower] || null;
+    if (override && override.lootPools && typeof override.lootPools === "object") {
+      // If we have a base registry def, prefer to clone and replace lootPools.
+      if (base) {
         return Object.assign({}, base, { lootPools: override.lootPools });
       }
+      // Sandbox-only id: synthesize a minimal def carrying just lootPools.
+      return { id: key, lootPools: override.lootPools };
     }
   } catch (_) {}
 
@@ -354,8 +364,7 @@ export function generate(ctx, source) {
 
   // Potion drop: only when enemy has embedded potions weights in its lootPools
   (function maybeDropPotion() {
-    const EM = getMod(ctx, "Enemies");
-    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(type) : null;
+    const def = getEnemyDefWithOverrides(ctx, type);
     const hasPotionsInPool = !!(def && def.lootPools && def.lootPools.potions);
     if (!hasPotionsInPool) return;
     const dropChance = 0.50;
