@@ -1510,7 +1510,7 @@ export function init(UI) {
           ? (Number(eqInput.value) || 0)
           : (baseRow && typeof baseRow.equipChance === "number" ? baseRow.equipChance : 0.35);
 
-        const tierVal = baseRow && typeof baseRow.tier === "number" ? baseRow.tier : 1;
+        let tierVal = baseRow && typeof baseRow.tier === "number" ? baseRow.tier : 1;
         // Prefer sandbox loot tier override when present for this enemy.
         try {
           const ctx0 = getCtxSafe();
@@ -1519,9 +1519,12 @@ export function init(UI) {
             if (ov0 && typeof ov0.equipTierOverride === "number") {
               const t0 = (ov0.equipTierOverride | 0);
               if (t0 >= 1 && t0 <= 3) {
-                // eslint-disable-next-line no-param-reassign
                 tierVal = t0;
               }
+            }
+          }
+        } catch (_) {}
+             }
             }
           }
         } catch (_) {}

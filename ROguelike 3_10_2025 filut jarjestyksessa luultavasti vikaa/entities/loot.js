@@ -250,7 +250,8 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
  * Returns: Array of items (gold/potion/equip/...)
  */
 export function generate(ctx, source) {
-  const type = (source && source.type) ? String(source.type).toLowerCase() : "goblin";
+  const rawType = (source && source.type) ? String(source.type) : "goblin";
+  const type = rawType.toLowerCase();
 
   // Helper: material registry lookup for pretty names
   function materialNameFor(id) {
@@ -364,7 +365,7 @@ export function generate(ctx, source) {
 
   // Potion drop: only when enemy has embedded potions weights in its lootPools
   (function maybeDropPotion() {
-    const def = getEnemyDefWithOverrides(ctx, type);
+    const def = getEnemyDefWithOverrides(ctx, rawType);
     const hasPotionsInPool = !!(def && def.lootPools && def.lootPools.potions);
     if (!hasPotionsInPool) return;
     const dropChance = 0.50;
@@ -375,13 +376,13 @@ export function generate(ctx, source) {
   })();
 
   const EM = getMod(ctx, "Enemies");
-  let tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
-  const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
+  let tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(rawType) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
+  const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(rawType) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
 
-  // Sandbox-only loot tier override: ctx.sandboxEnemyOverrides[type].equipTierOverride
+  // Sandbox-only loot tier override: ctx.sandboxEnemyOverrides[typeId].equipTierOverride
   try {
     if (ctx && ctx.mode === "sandbox" && ctx.sandboxEnemyOverrides && typeof ctx.sandboxEnemyOverrides === "object") {
-      const key = String(type || "");
+      const key = String(rawType || "");
       const lower = key.toLowerCase();
       const ov = ctx.sandboxEnemyOverrides[key] || ctx.sandboxEnemyOverrides[lower] || null;
       if (ov && typeof ov.equipTierOverride === "number") {
