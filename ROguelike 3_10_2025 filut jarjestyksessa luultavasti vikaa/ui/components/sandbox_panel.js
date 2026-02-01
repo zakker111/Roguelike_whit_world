@@ -169,12 +169,6 @@ function populateEntitySelect() {
   } catch (_) {}
 }
 
-function currentEnemyId() {
-  const input = byId("sandbox-enemy-id");
-  if (!input) return "";
-  return String(input.value || "").trim();
-}
-
 function setEnemyId(id) {
   const v = id || "";
   const input = byId("sandbox-enemy-id");
