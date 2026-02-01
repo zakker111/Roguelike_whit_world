@@ -18,177 +18,25 @@
  * Generic GOD actions (heal, items, restart) remain in the GOD panel.
  */
 
-import { classifyEntityId, currentEnemyId, spawnWithCount } from "/ui/components/sandbox_spawn.js";
+import { currentEnemyId, spawnWithCount } from "/ui/components/sandbox_spawn.js";
 import { copyEnemyJsonStubToClipboard } from "/ui/components/sandbox_export.js";
+import {
+  LOOT_WEAPON_KEYS,
+  LOOT_ARMOR_KEYS,
+  loadEnemyTypes,
+  populateEntitySelect,
+  getEnemyTypes,
+  setEnemyId,
+  updateEntityStatusLabel,
+  syncBasicFormFromData,
+  getCtxSafe,
+} from "/ui/components/sandbox_model.js";
 
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
 }
 
 let _ui = null;
-// Cached entity ids from enemy and animal registries
-let _enemyTypes = [];
-
-// Curated loot keys exposed in the sandbox loot editor.
-const LOOT_WEAPON_KEYS = [
-  "sword_simple",
-  "axe",
-  "dagger",
-  "mace",
-  "club",
-  "torch_weapon",
-  "greatsword",
-];
-
-const LOOT_ARMOR_KEYS = [
-  "shield",
-  "helmet",
-  "torso_armor",
-  "leg_armor",
-  "gloves",
-];
-
-
-
-function updateEntityStatusLabel() {
-  try {
-    const line = byId("sandbox-entity-status-line");
-    const txt = byId("sandbox-entity-status-text");
-    if (!line || !txt) return;
-    const id = currentEnemyId();
-    const kind = classifyEntityId(id);
-    let label = "(no id)";
-    let color = "#9ca3af";
-
-    if (!id) {
-      label = "(no id)";
-    } else if (kind === "enemy") {
-      label = "enemy (enemies.json)";
-      color = "#a5b4fc";
-    } else if (kind === "animal") {
-      label = "animal (animals.json)";
-      color = "#6ee7b7";
-    } else if (kind === "custom") {
-      label = "custom sandbox-only (not in enemies.json)";
-      color = "#fbbf24";
-    } else {
-      label = "unknown";
-      color = "#fca5a5";
-    }
-
-    txt.textContent = label;
-    line.style.color = color;
-  } catch (_) {}
-}
-
-function loadEnemyTypes() {
-  try {
-    const combined = [];
-    const seen = Object.create(null);
-
-    // Enemy ids from registry
-    try {
-      const EM = (typeof window !== "undefined" ? window.Enemies : null);
-      if (EM && typeof EM.listTypes === "function") {
-        const list = EM.listTypes() || [];
-        if (Array.isArray(list)) {
-          for (let i = 0; i < list.length; i++) {
-            const id = list[i];
-            if (!id) continue;
-            const k = String(id);
-            if (!seen[k]) {
-              seen[k] = true;
-              combined.push(k);
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Animal ids from GameData.animals
-    try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const animals = GD && Array.isArray(GD.animals) ? GD.animals : null;
-      if (animals) {
-        for (let i = 0; i < animals.length; i++) {
-          const row = animals[i];
-          if (!row || !row.id) continue;
-          const k = String(row.id);
-          if (!seen[k]) {
-            seen[k] = true;
-            combined.push(k);
-          }
-        }
-      }
-    } catch (_) {}
-
-    _enemyTypes = combined;
-    _enemyTypes.sort();
-  } catch (_) {
-    _enemyTypes = [];
-  }
-}
-
-function populateEntitySelect() {
-  try {
-    const sel = byId("sandbox-entity-select");
-    if (!sel) return;
-
-    while (sel.firstChild) sel.removeChild(sel.firstChild);
-
-    const optEmpty = document.createElement("option");
-    optEmpty.value = "";
-    optEmpty.textContent = "(custom id)";
-    sel.appendChild(optEmpty);
-
-    if (!_enemyTypes || !_enemyTypes.length) return;
-
-    let animalIds = null;
-    try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const animals = GD && Array.isArray(GD.animals) ? GD.animals : null;
-      if (animals) {
-        animalIds = new Set();
-        for (let i = 0; i < animals.length; i++) {
-          const row = animals[i];
-          if (!row || !row.id) continue;
-          animalIds.add(String(row.id).toLowerCase());
-        }
-      }
-    } catch (_) {}
-
-    for (let i = 0; i < _enemyTypes.length; i++) {
-      const id = _enemyTypes[i];
-      if (!id) continue;
-      const opt = document.createElement("option");
-      opt.value = id;
-      const lower = String(id).toLowerCase();
-      if (animalIds && animalIds.has(lower)) opt.textContent = id + " (animal)";
-      else opt.textContent = id;
-      sel.appendChild(opt);
-    }
-  } catch (_) {}
-}
-
-function setEnemyId(id) {
-  const v = id || "";
-  const input = byId("sandbox-enemy-id");
-  if (input) {
-    input.value = v;
-  }
-  const sel = byId("sandbox-entity-select");
-  if (sel) {
-    let found = false;
-    for (let i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === v) {
-        sel.selectedIndex = i;
-        found = true;
-        break;
-      }
-    }
-    if (!found) sel.selectedIndex = 0;
-  }
-}
 
 /**
  * Update the Enemy AI toggle button label from current ctx.sandboxFlags.
@@ -196,35 +44,24 @@ function setEnemyId(id) {
 function refreshAiToggle() {
   try {
     const btn = byId("sandbox-ai-toggle-btn");
-    if (!btn || !window.GameAPI || typeof window.GameAPI.getCtx !== "function") return;
-    const ctx = window.GameAPI.getCtx();
-    if (!ctx) return;
+    const ctx = getCtxSafe();
+    if (!btn || !ctx) return;
     const flags = ctx.sandboxFlags || {};
     const on = flags.aiEnabled !== false;
     btn.textContent = on ? "Enemy AI: On" : "Enemy AI: Off";
   } catch (_) {}
-}
 
-/**
- * Helper: get current ctx safely.
- */
-function getCtxSafe() {
-  try {
-    if (!window.GameAPI || typeof window.GameAPI.getCtx !== "function") return null;
-    return window.GameAPI.getCtx() || null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
+    const flags = ctx.sandboxFlags || {};
+    const on = flags.aiEnabled !== false;
+    btn.textContent = on ? "Enemy AI: On" : "Enemy AI: Off";</old_code><new_code>/**
  * Sync basic fields (test depth, glyph/color/faction, HP/ATK/XP, damageScale, equipChance)
  * from the base enemy definition and any sandbox override on ctx.
  *
  * For custom ids (not in enemies.json) or animals, we only apply sandbox overrides
  * and leave manual field edits as-is.
+ *
+ * Delegates to sandbox_model helpers.
  */
-function syncBasicFormFromData() {
   try {
     const enemyId = currentEnemyId();
     if (!enemyId) {
