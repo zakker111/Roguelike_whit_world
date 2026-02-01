@@ -1524,10 +1524,6 @@ export function init(UI) {
             }
           }
         } catch (_) {}
-             }
-            }
-          }
-        } catch (_) {}
         const blockBaseVal = baseRow && typeof baseRow.blockBase === "number" ? baseRow.blockBase : 0.06;
 
         let weightByDepthVal = null;
