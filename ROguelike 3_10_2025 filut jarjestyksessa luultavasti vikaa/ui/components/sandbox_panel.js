@@ -1345,6 +1345,7 @@ export function init(UI) {
         if (xpInput && xpInput.value !== "") next.xpAtDepth = Number(xpInput.value) || 0;
         if (dmgInput && dmgInput.value !== "") next.damageScale = Number(dmgInput.value) || 1;
         if (eqInput && eqInput.value !== "") next.equipChance = Number(eqInput.value) || 0;
+        const tierInput = byId("sandbox-equip-tier");
         if (tierInput && tierInput.value !== "") {
           const tRaw = (Number(tierInput.value) || 0) | 0;
           if (tRaw >= 1 && tRaw <= 3) next.equipTierOverride = tRaw;
