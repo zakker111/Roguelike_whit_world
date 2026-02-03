@@ -1,3 +1,11 @@
+v1.71.0 — Overworld minimap toggle and map fog stability
+
+- Overworld minimap:
+  - Added a '+'/'-' toggle button at the bottom-left of the overworld minimap panel that switches between a small, player-centered view and a full-window map view.
+  - Toggle state (full vs small) persists via localStorage (`MINIMAP_FULL`) and is respected across reloads.
+- Overworld fog/minimap sync:
+  - Overworld minimap now uses the same fog-of-war grid and Fog helpers as the main map, so it no longer leaks previously explored chunks when entering and leaving towns, dungeons, ruins, or encounters.
+
 </old_ as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)deernal)
