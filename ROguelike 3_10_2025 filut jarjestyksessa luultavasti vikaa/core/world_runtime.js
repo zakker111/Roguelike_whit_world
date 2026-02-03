@@ -168,9 +168,11 @@ export function generate(ctx, opts = {}) {
     ctx.player.y = centerY;
     ctx.mode = "world";
 
-    // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
-    ctx.seen = allocFog(ctx.world.height, ctx.world.width, false);
-    ctx.visible = allocFog(ctx.world.height, ctx.world.width, false);
+    // Allocate fog-of-war arrays; FOV module will mark seen/visible around player.
+    // Use typed rows (Uint8Array) for overworld fog so future expansions can take advantage
+    // of cheaper per-tile storage without changing consumer code.
+    ctx.seen = allocFog(ctx.world.height, ctx.world.width, false, true);
+    ctx.visible = allocFog(ctx.world.height, ctx.world.width, false, true);
     // Keep references on world so we can restore them after visiting towns/dungeons
     ctx.world.seenRef = ctx.seen;
     ctx.world.visibleRef = ctx.visible;
