@@ -4,7 +4,7 @@
 import * as RenderCore from "../render_core.js";
 import { fillOverworldFor, tilesRef } from "./overworld_tile_cache.js";
 
-const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0 };
+const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0, px: -1, py: -1 };
 
 export function drawMinimap(ctx, view) {
   const { ctx2d, TILE, map, player, cam } = Object.assign({}, view, ctx);
@@ -47,7 +47,7 @@ export function drawMinimap(ctx, view) {
     else if (startY > maxStartY) startY = maxStartY;
 
     const mapRef = map;
-    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.startX !== startX || MINI.startY !== startY;
+    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.startX !== startX || MINI.startY !== startY || MINI.px !== player.x || MINI.py !== player.y;
     if (needsRebuild) {
       MINI.mapRef = mapRef;
       MINI.wpx = wpx;
@@ -56,6 +56,8 @@ export function drawMinimap(ctx, view) {
       MINI._tilesRef = tilesRef();
       MINI.startX = startX;
       MINI.startY = startY;
+      MINI.px = player.x;
+      MINI.py = player.y;
       const off = RenderCore.createOffscreen(wpx, hpx);
       const oc = off.getContext("2d");
       for (let yy = 0; yy < tilesH; yy++) {
