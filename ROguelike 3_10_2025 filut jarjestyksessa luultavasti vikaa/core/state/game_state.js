@@ -6,6 +6,8 @@
  * - applySyncAndRefresh(ctx)
  * - syncFromCtxWithSink(ctx, sink)
  */
+import { allocFog } from "../engine/fog.js";
+
 export function ensureVisibilityShape(ctx) {
   if (!ctx || !Array.isArray(ctx.map)) return;
   const rows = ctx.map.length;
@@ -13,15 +15,23 @@ export function ensureVisibilityShape(ctx) {
 
   function okGrid(grid) {
     try {
-      return Array.isArray(grid) && grid.length === rows && (rows === 0 || (Array.isArray(grid[0]) && grid[0].length === cols));
-    } catch (_) { return false; }
+      if (!Array.isArray(grid) || grid.length !== rows) return false;
+      if (rows === 0) return true;
+      const row0 = grid[0];
+      if (!row0 || typeof row0.length !== "number") return false;
+      // Accept plain arrays and typed arrays (Uint8Array, etc.) for rows.
+      if (!Array.isArray(row0) && !ArrayBuffer.isView(row0)) return false;
+      return row0.length === cols;
+    } catch (_) {
+      return false;
+    }
   }
 
   if (!okGrid(ctx.visible)) {
-    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
+    ctx.visible = allocFog(rows, cols, false);
   }
   if (!okGrid(ctx.seen)) {
-    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
+    ctx.seen = allocFog(rows, cols, false);
   }
 }
 
