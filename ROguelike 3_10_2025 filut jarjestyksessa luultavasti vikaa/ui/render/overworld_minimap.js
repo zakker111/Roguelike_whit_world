@@ -4,7 +4,7 @@
 import * as RenderCore from "../render_core.js";
 import { fillOverworldFor, tilesRef } from "./overworld_tile_cache.js";
 
-const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, px: -1, py: -1 };
+const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0 };
 
 export function drawMinimap(ctx, view) {
   const { ctx2d, TILE, map, player, cam } = Object.assign({}, view, ctx);
@@ -22,31 +22,51 @@ export function drawMinimap(ctx, view) {
         maxW = 180; maxH = 135;
       }
     } catch (_) {}
-    const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
-    const wpx = mw * scale, hpx = mh * scale;
+
+    // Visible tile window around the player; keep minimap footprint roughly constant
+    const tilesW = Math.min(mw, 64);
+    const tilesH = Math.min(mh, 48);
+
+    const scale = Math.max(1, Math.floor(Math.min(maxW / tilesW, maxH / tilesH)));
+    const wpx = tilesW * scale;
+    const hpx = tilesH * scale;
     const pad = 8;
     const bx = cam.width - wpx - pad;
     const by = pad;
 
+    // Center view on player when possible by choosing a window within [0..mw/mh)
+    const halfW = Math.floor(tilesW / 2);
+    const halfH = Math.floor(tilesH / 2);
+    let startX = player.x - halfW;
+    let startY = player.y - halfH;
+    const maxStartX = Math.max(0, mw - tilesW);
+    const maxStartY = Math.max(0, mh - tilesH);
+    if (startX < 0) startX = 0;
+    else if (startX > maxStartX) startX = maxStartX;
+    if (startY < 0) startY = 0;
+    else if (startY > maxStartY) startY = maxStartY;
+
     const mapRef = map;
-    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.px !== player.x || MINI.py !== player.y;
+    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.startX !== startX || MINI.startY !== startY;
     if (needsRebuild) {
       MINI.mapRef = mapRef;
       MINI.wpx = wpx;
       MINI.hpx = hpx;
       MINI.scale = scale;
       MINI._tilesRef = tilesRef();
-      MINI.px = player.x;
-      MINI.py = player.y;
+      MINI.startX = startX;
+      MINI.startY = startY;
       const off = RenderCore.createOffscreen(wpx, hpx);
       const oc = off.getContext("2d");
-      for (let yy = 0; yy < mh; yy++) {
-        const rowM = map[yy];
-        const seenRow = (ctx.seen && ctx.seen[yy]) ? ctx.seen[yy] : null;
-        for (let xx = 0; xx < mw; xx++) {
-          const seenHere = seenRow ? !!seenRow[xx] : false;
+      for (let yy = 0; yy < tilesH; yy++) {
+        const srcY = startY + yy;
+        const rowM = map[srcY];
+        const seenRow = (ctx.seen && ctx.seen[srcY]) ? ctx.seen[srcY] : null;
+        for (let xx = 0; xx < tilesW; xx++) {
+          const srcX = startX + xx;
+          const seenHere = seenRow ? !!seenRow[srcX] : false;
           if (seenHere) {
-            const t = rowM[xx];
+            const t = rowM[srcX];
             const c = fillOverworldFor((typeof window !== "undefined" ? window.World.TILES : {}), t);
             oc.fillStyle = c || "#0b0c10";
           } else {
@@ -90,13 +110,15 @@ export function drawMinimap(ctx, view) {
       const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
       const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
       const qms = Array.isArray(ctx.world?.questMarkers) ? ctx.world.questMarkers : [];
-      const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
-      const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
+      const oxWorld = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+      const oyWorld = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
       ctx2d.save();
       for (const t of towns) {
-        const lx = (t.x | 0) - ox;
-        const ly = (t.y | 0) - oy;
-        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+        const wx = (t.x | 0) - oxWorld;
+        const wy = (t.y | 0) - oyWorld;
+        const lx = wx - startX;
+        const ly = wy - startY;
+        if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
         const isCastle = String(t.kind || "").toLowerCase() === "castle";
         let townColor = isCastle ? "#fde68a" : "#f6c177";
         try {
@@ -110,9 +132,11 @@ export function drawMinimap(ctx, view) {
         ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
       }
       for (const d of dungeons) {
-        const lx = (d.x | 0) - ox;
-        const ly = (d.y | 0) - oy;
-        if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+        const wx = (d.x | 0) - oxWorld;
+        const wy = (d.y | 0) - oyWorld;
+        const lx = wx - startX;
+        const ly = wy - startY;
+        if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
         const lvl = Math.max(1, (d.level | 0) || 1);
         let fill = "#f7768e";
         if (lvl <= 2) fill = "#9ece6a";
@@ -137,17 +161,24 @@ export function drawMinimap(ctx, view) {
         } catch (_) {}
         ctx2d.fillStyle = questColor;
         for (const m of qms) {
-          const lx = (m.x | 0) - ox;
-          const ly = (m.y | 0) - oy;
-          if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+          const wx = (m.x | 0) - oxWorld;
+          const wy = (m.y | 0) - oyWorld;
+          const lx = wx - startX;
+          const ly = wy - startY;
+          if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
           ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
         }
       }
       ctx2d.restore();
     } catch (_) {}
 
-    ctx2d.fillStyle = "#ffffff";
-    ctx2d.fillRect(bx + player.x * scale, by + player.y * scale, Math.max(1, scale), Math.max(1, scale));
+    // Player marker at the center of the current minimap window
+    const plLocalX = player.x - startX;
+    const plLocalY = player.y - startY;
+    if (plLocalX >= 0 && plLocalY >= 0 && plLocalX < tilesW && plLocalY < tilesH) {
+      ctx2d.fillStyle = "#ffffff";
+      ctx2d.fillRect(bx + plLocalX * scale, by + plLocalY * scale, Math.max(1, scale), Math.max(1, scale));
+    }
     ctx2d.restore();
   } catch (_) {}
 }
