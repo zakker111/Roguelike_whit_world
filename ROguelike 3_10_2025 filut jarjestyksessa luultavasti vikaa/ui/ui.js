@@ -262,6 +262,7 @@ export const UI = {
       if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
       if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
       if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
+      if (typeof window.MINIMAP_FULL !== "boolean") window.MINIMAP_FULL = this.getMinimapFullState();
       // HUD toggles baselines
       if (typeof window.SHOW_OVERWORLD_HUD !== "boolean") window.SHOW_OVERWORLD_HUD = this.getOverworldHudState();
       if (typeof window.SHOW_REGION_HUD !== "boolean") window.SHOW_REGION_HUD = this.getRegionHudState();
@@ -779,6 +780,32 @@ export const UI = {
     const on = this.getMinimapState();
     this.els.godToggleMinimapBtn.textContent = `Minimap: ${on ? "On" : "Off"}`;
     this.els.godToggleMinimapBtn.title = on ? "Hide overworld minimap" : "Show overworld minimap";
+  },
+
+  getMinimapFullState() {
+    try {
+      if (typeof window.MINIMAP_FULL === "boolean") return window.MINIMAP_FULL;
+      const v = localStorage.getItem("MINIMAP_FULL");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return false;
+  },
+
+  setMinimapFullState(enabled) {
+    const on = !!enabled;
+    try {
+      window.MINIMAP_FULL = on;
+      localStorage.setItem("MINIMAP_FULL", on ? "1" : "0");
+    } catch (_) {}
+    try {
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
+      }
+    } catch (_) {}
   },
 
   // --- HUD visibility toggles ---

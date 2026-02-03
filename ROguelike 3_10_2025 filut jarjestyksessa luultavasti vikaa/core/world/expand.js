@@ -28,19 +28,36 @@ export function expandMap(ctx, side, K) {
     // prepend K columns; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = toRowArray(ctx.seen[y], cols);
-      const visRow = toRowArray(ctx.visible[y], cols);
       const prepend = new Array(K);
-      const seenPre = new Array(K).fill(false);
-      const visPre = new Array(K).fill(false);
       for (let i = 0; i < K; i++) {
         const wx = world.originX - (K - i); // new world x
         const wy = world.originY + y;
         prepend[i] = gen.tileAt(wx, wy);
       }
       ctx.map[y] = prepend.concat(row);
-      ctx.seen[y] = seenPre.concat(seenRow);
-      ctx.visible[y] = visPre.concat(visRow);
+
+      // Preserve fog row representation (plain array vs typed array) when expanding.
+      const seenSrc = ctx.seen && ctx.seen[y];
+      if (seenSrc && ArrayBuffer.isView(seenSrc)) {
+        const next = new seenSrc.constructor(cols + K);
+        next.set(seenSrc, K);
+        ctx.seen[y] = next;
+      } else {
+        const seenRow = toRowArray(seenSrc, cols);
+        const seenPre = new Array(K).fill(false);
+        ctx.seen[y] = seenPre.concat(seenRow);
+      }
+
+      const visSrc = ctx.visible && ctx.visible[y];
+      if (visSrc && ArrayBuffer.isView(visSrc)) {
+        const nextV = new visSrc.constructor(cols + K);
+        nextV.set(visSrc, K);
+        ctx.visible[y] = nextV;
+      } else {
+        const visRow = toRowArray(visSrc, cols);
+        const visPre = new Array(K).fill(false);
+        ctx.visible[y] = visPre.concat(visRow);
+      }
     }
     const _prevOX = world.originX | 0, _prevOY = world.originY | 0;
     world.originX -= K;
@@ -79,19 +96,36 @@ export function expandMap(ctx, side, K) {
     // append K columns
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = toRowArray(ctx.seen[y], cols);
-      const visRow = toRowArray(ctx.visible[y], cols);
       const append = new Array(K);
-      const seenApp = new Array(K).fill(false);
-      const visApp = new Array(K).fill(false);
       for (let i = 0; i < K; i++) {
         const wx = world.originX + cols + i;
         const wy = world.originY + y;
         append[i] = gen.tileAt(wx, wy);
       }
       ctx.map[y] = row.concat(append);
-      ctx.seen[y] = seenRow.concat(seenApp);
-      ctx.visible[y] = visRow.concat(visApp);
+
+      // Preserve fog row representation when appending.
+      const seenSrc = ctx.seen && ctx.seen[y];
+      if (seenSrc && ArrayBuffer.isView(seenSrc)) {
+        const next = new seenSrc.constructor(cols + K);
+        next.set(seenSrc, 0);
+        ctx.seen[y] = next;
+      } else {
+        const seenRow = toRowArray(seenSrc, cols);
+        const seenApp = new Array(K).fill(false);
+        ctx.seen[y] = seenRow.concat(seenApp);
+      }
+
+      const visSrc = ctx.visible && ctx.visible[y];
+      if (visSrc && ArrayBuffer.isView(visSrc)) {
+        const nextV = new visSrc.constructor(cols + K);
+        nextV.set(visSrc, 0);
+        ctx.visible[y] = nextV;
+      } else {
+        const visRow = toRowArray(visSrc, cols);
+        const visApp = new Array(K).fill(false);
+        ctx.visible[y] = visRow.concat(visApp);
+      }
     }
     // Newly added strip starts at previous width (cols)
     try {
@@ -126,8 +160,43 @@ export function expandMap(ctx, side, K) {
       newVis.push(new Array(cols).fill(false));
     }
     ctx.map = newRows.concat(ctx.map);
-    ctx.seen = newSeen.concat(ctx.seen.map(r => toRowArray(r, cols)));
-    ctx.visible = newVis.concat(ctx.visible.map(r => toRowArray(r, cols)));
+
+    // Preserve fog representation when prepending rows.
+    const seen0 = Array.isArray(ctx.seen) && ctx.seen.length ? ctx.seen[0] : null;
+    if (seen0 && ArrayBuffer.isView(seen0)) {
+      const ctor = seen0.constructor;
+      const mergedSeen = new Array(K + ctx.seen.length);
+      for (let i = 0; i < K; i++) {
+        mergedSeen[i] = new ctor(cols); // zeros
+      }
+      for (let y = 0; y < ctx.seen.length; y++) {
+        const src = ctx.seen[y];
+        const next = new ctor(cols);
+        if (src && typeof src.length === "number") next.set(src);
+        mergedSeen[K + y] = next;
+      }
+      ctx.seen = mergedSeen;
+    } else {
+      ctx.seen = newSeen.concat(ctx.seen.map(r => toRowArray(r, cols)));
+    }
+
+    const vis0 = Array.isArray(ctx.visible) && ctx.visible.length ? ctx.visible[0] : null;
+    if (vis0 && ArrayBuffer.isView(vis0)) {
+      const ctorV = vis0.constructor;
+      const mergedVis = new Array(K + ctx.visible.length);
+      for (let i = 0; i < K; i++) {
+        mergedVis[i] = new ctorV(cols);
+      }
+      for (let y = 0; y < ctx.visible.length; y++) {
+        const srcV = ctx.visible[y];
+        const nextV = new ctorV(cols);
+        if (srcV && typeof srcV.length === "number") nextV.set(srcV);
+        mergedVis[K + y] = nextV;
+      }
+      ctx.visible = mergedVis;
+    } else {
+      ctx.visible = newVis.concat(ctx.visible.map(r => toRowArray(r, cols)));
+    }
     const _prevOX2 = world.originX | 0, _prevOY2 = world.originY | 0;
     world.originY -= K;
     try {
@@ -158,17 +227,36 @@ export function expandMap(ctx, side, K) {
     }
   } else if (side === "bottom") {
     // append K rows
+    const seen0 = Array.isArray(ctx.seen) && ctx.seen.length ? ctx.seen[0] : null;
+    const vis0 = Array.isArray(ctx.visible) && ctx.visible.length ? ctx.visible[0] : null;
+    const useTypedSeen = !!(seen0 && ArrayBuffer.isView(seen0));
+    const useTypedVis = !!(vis0 && ArrayBuffer.isView(vis0));
+
     for (let i = 0; i < K; i++) {
       const arr = new Array(cols);
-      const seenArr = new Array(cols).fill(false);
-      const visArr = new Array(cols).fill(false);
       for (let x = 0; x < cols; x++) {
         const wx = world.originX + x;
         const wy = world.originY + rows + i;
         arr[x] = gen.tileAt(wx, wy);
       }
       ctx.map.push(arr);
+
+      let seenArr;
+      if (useTypedSeen && seen0) {
+        const ctor = seen0.constructor;
+        seenArr = new ctor(cols);
+      } else {
+        seenArr = new Array(cols).fill(false);
+      }
       ctx.seen.push(seenArr);
+
+      let visArr;
+      if (useTypedVis && vis0) {
+        const ctorV = vis0.constructor;
+        visArr = new ctorV(cols);
+      } else {
+        visArr = new Array(cols).fill(false);
+      }
       ctx.visible.push(visArr);
     }
     // Newly added strip starts at previous height (rows)

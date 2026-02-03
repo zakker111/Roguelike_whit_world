@@ -15,6 +15,7 @@
  *   townProps?: Array<{x:number,y:number,type:string}>
  * }
  */
+import { fogSet } from "../core/engine/fog.js";
 
 export function recomputeFOV(ctx) {
   let _fovPerfStart = null;
@@ -84,7 +85,7 @@ export function recomputeFOV(ctx) {
         const dist2 = dx * dx + dy * dy;
         if (dist2 <= radius2) {
           visible[Y][X] = true;
-          if (markSeen) ctx.seen[Y][X] = true;
+          if (markSeen) fogSet(ctx.seen, X, Y, true);
         }
 
         if (blocked) {
@@ -109,7 +110,7 @@ export function recomputeFOV(ctx) {
   // Player-centered visibility
   if (ctx.inBounds(player.x, player.y)) {
     visible[player.y][player.x] = true;
-    ctx.seen[player.y][player.x] = true;
+    fogSet(ctx.seen, player.x, player.y, true);
   }
 
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 1, 0, 0, 1, true);   // E-NE

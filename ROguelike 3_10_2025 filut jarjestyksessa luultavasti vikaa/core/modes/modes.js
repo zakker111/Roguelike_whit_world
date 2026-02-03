@@ -533,7 +533,11 @@ export function enterDungeonIfOnEntrance(ctx) {
     ctx.dungeonExitAt = { x: ctx.player.x, y: ctx.player.y };
     if (inBounds(ctx, ctx.player.x, ctx.player.y)) {
       ctx.map[ctx.player.y][ctx.player.x] = ctx.TILES.STAIRS;
-      if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
+      if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) {
+        const F = ctx.Fog || (typeof window !== "undefined" ? window.Fog : null);
+        if (F && typeof F.fogSet === "function") F.fogSet(ctx.seen, ctx.player.x, ctx.player.y, true);
+        else ctx.seen[ctx.player.y][ctx.player.x] = true;
+      }
       if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
     }
     // Prime occupancy immediately after generation to avoid ghost-blocking (centralized)

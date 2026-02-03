@@ -35,8 +35,19 @@ export function complete(ctx, outcome = "victory") {
       ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
       try {
         if (typeof ctx.inBounds === "function" && ctx.inBounds(ctx.player.x, ctx.player.y)) {
-          ctx.seen[ctx.player.y][ctx.player.x] = true;
-          ctx.visible[ctx.player.y][ctx.player.x] = true;
+          try {
+            const F = ctx.Fog || (typeof window !== "undefined" ? window.Fog : null);
+            if (F && typeof F.fogSet === "function") {
+              F.fogSet(ctx.seen, ctx.player.x, ctx.player.y, true);
+              F.fogSet(ctx.visible, ctx.player.x, ctx.player.y, true);
+            } else {
+              ctx.seen[ctx.player.y][ctx.player.x] = true;
+              ctx.visible[ctx.player.y][ctx.player.x] = true;
+            }
+          } catch (_) {
+            ctx.seen[ctx.player.y][ctx.player.x] = true;
+            ctx.visible[ctx.player.y][ctx.player.x] = true;
+          }
         }
       } catch (_) {}
     }

@@ -17,6 +17,7 @@
  */
 import { attachGlobal } from "../utils/global.js";
 import { getMod } from "../utils/access.js";
+import { fogSet } from "../core/engine/fog.js";
 
 export function heal(ctx) {
   const prev = ctx.player.hp;

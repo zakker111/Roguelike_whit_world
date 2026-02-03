@@ -1446,26 +1446,41 @@ function close(ctx) {
       try { delete ctx.los; } catch (_) { ctx.los = null; }
     }
   } catch (_) {}
+
   ctx.mode = "world";
-  // Restore active map to world
+  // Restore active map to world without revealing unexplored tiles
   if (ctx.world && ctx.world.map) {
     ctx.map = ctx.world.map;
     const rows = ctx.map.length;
     const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-    // Reveal world fully
-    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
+    if (Array.isArray(ctx.world.seenRef) && Array.isArray(ctx.world.visibleRef)) {
+      ctx.seen = ctx.world.seenRef;
+      ctx.visible = ctx.world.visibleRef;
+    } else {
+      ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
+      ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
+      try {
+        if (typeof ctx.inBounds === "function" && ctx.inBounds(ctx.player.x, ctx.player.y)) {
+          ctx.seen[ctx.player.y][ctx.player.x] = true;
+          ctx.visible[ctx.player.y][ctx.player.x] = true;
+        }
+      } catch (_) {}
+    }
   }
+
   if (pos) {
     ctx.player.x = pos.x | 0;
     ctx.player.y = pos.y | 0;
   }
+
+  // Refresh via StateSync so minimap/FOV/UI update
   try {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
   } catch (_) {}
+
   if (ctx.log) ctx.log("Region map closed.", "info");
   return true;
 }

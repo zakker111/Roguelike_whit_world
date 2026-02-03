@@ -19,7 +19,9 @@
 - in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
 - VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
 - there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
-- minimap shows all chunks when going in ruins, dungeons, towns etc and re entering
+- [FIXED] minimap showed all chunks when going in ruins, dungeons, towns etc and re-entering:
+  - Overworld minimap now uses the same fog-of-war grid and Fog helpers as the main overworld view, and rebuilds its offscreen buffer per mode.
+  - Previously explored overworld chunks no longer leak into the minimap when returning from towns, dungeons, ruins, or encounters.
 - minimap shows dungeons and towns
 - dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
