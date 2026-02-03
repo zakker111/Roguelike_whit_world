@@ -13,6 +13,7 @@ import { ensureRoads as ensureRoadsExt, ensureExtraBridges as ensureExtraBridges
 import { ensureInBounds as ensureInBoundsExt } from "./world/expand.js";
 import { tryMovePlayerWorld as tryMovePlayerWorldExt } from "./world/move.js";
 import { tick as tickExt } from "./world/tick.js";
+import { allocFog } from "./engine/fog.js";
 import {
   ensurePOIState,
   addTown,
@@ -168,8 +169,8 @@ export function generate(ctx, opts = {}) {
     ctx.mode = "world";
 
     // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
-    ctx.seen = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
-    ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+    ctx.seen = allocFog(ctx.world.height, ctx.world.width, false);
+    ctx.visible = allocFog(ctx.world.height, ctx.world.width, false);
     // Keep references on world so we can restore them after visiting towns/dungeons
     ctx.world.seenRef = ctx.seen;
     ctx.world.visibleRef = ctx.visible;
