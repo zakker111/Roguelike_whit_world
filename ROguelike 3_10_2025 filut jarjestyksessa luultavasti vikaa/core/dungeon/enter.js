@@ -44,8 +44,19 @@ export function enter(ctx, info) {
     ctx.dungeonExitAt = { x: ctx.player.x, y: ctx.player.y };
     if (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y)) {
       ctx.map[ctx.player.y][ctx.player.x] = ctx.TILES.STAIRS;
-      if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
-      if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
+      try {
+        const F = ctx.Fog || (typeof window !== "undefined" ? window.Fog : null);
+        if (F && typeof F.fogSet === "function") {
+          F.fogSet(ctx.seen, ctx.player.x, ctx.player.y, true);
+          F.fogSet(ctx.visible, ctx.player.x, ctx.player.y, true);
+        } else {
+          if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
+          if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
+        }
+      } catch (_) {
+        if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
+        if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
+      }
     }
   } catch (_) {}
 

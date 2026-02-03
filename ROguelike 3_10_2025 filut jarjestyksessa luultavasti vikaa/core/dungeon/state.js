@@ -106,8 +106,19 @@ export function load(ctx, x, y) {
   // Ensure the entrance tile is marked as stairs
   if (ctx.inBounds(ctx.dungeonExitAt.x, ctx.dungeonExitAt.y)) {
     ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
-    if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
-    if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+    try {
+      const F = ctx.Fog || (typeof window !== "undefined" ? window.Fog : null);
+      if (F && typeof F.fogSet === "function") {
+        F.fogSet(ctx.visible, ctx.dungeonExitAt.x, ctx.dungeonExitAt.y, true);
+        F.fogSet(ctx.seen, ctx.dungeonExitAt.x, ctx.dungeonExitAt.y, true);
+      } else {
+        if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+        if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      }
+    } catch (_) {
+      if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+    }
   }
 
   try {

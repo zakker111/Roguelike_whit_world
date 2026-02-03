@@ -67,8 +67,19 @@ export function generate(ctx, depth) {
         ctx.log && ctx.log("FOV sanity check: player tile not visible after gen; recomputing.", "warn");
         ctx.recomputeFOV && ctx.recomputeFOV();
         if (ctx.inBounds(ctx.player.x, ctx.player.y)) {
-          ctx.visible[ctx.player.y][ctx.player.x] = true;
-          ctx.seen[ctx.player.y][ctx.player.x] = true;
+          try {
+            const F = ctx.Fog || (typeof window !== "undefined" ? window.Fog : null);
+            if (F && typeof F.fogSet === "function") {
+              F.fogSet(ctx.visible, ctx.player.x, ctx.player.y, true);
+              F.fogSet(ctx.seen, ctx.player.x, ctx.player.y, true);
+            } else {
+              ctx.visible[ctx.player.y][ctx.player.x] = true;
+              ctx.seen[ctx.player.y][ctx.player.x] = true;
+            }
+          } catch (_) {
+            ctx.visible[ctx.player.y][ctx.player.x] = true;
+            ctx.seen[ctx.player.y][ctx.player.x] = true;
+          }
         }
       }
     } catch (_) {}
