@@ -4,6 +4,7 @@
  * Default allocFog mode returns plain Array<Array<boolean>> so behavior is unchanged.
  * Callers can opt into typed rows (Uint8Array) via the useTyped flag.
  */
+import { attachGlobal } from "../../utils/global.js";
 
 /**
  * Allocate a 2D visibility/fog grid.
@@ -64,3 +65,6 @@ export function fogGet(grid, x, y) {
   if (!row || typeof row.length !== "number" || x < 0 || x >= row.length) return false;
   return !!row[x];
 }
+
+// Back-compat: expose via window.Fog when running in a browser
+attachGlobal("Fog", { allocFog, fogSet, fogGet });
