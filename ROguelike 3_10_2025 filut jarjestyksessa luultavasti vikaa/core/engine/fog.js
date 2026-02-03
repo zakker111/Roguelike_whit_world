@@ -1,7 +1,7 @@
 /**
- * Fog helpers: allocation for seen/visible grids.
+ * Fog helpers: allocation and access for seen/visible grids.
  *
- * Default mode returns plain Array<Array<boolean>> so behavior is unchanged.
+ * Default allocFog mode returns plain Array<Array<boolean>> so behavior is unchanged.
  * Callers can opt into typed rows (Uint8Array) via the useTyped flag.
  */
 
@@ -37,4 +37,30 @@ export function allocFog(rows, cols, fill = false, useTyped = false) {
 
   // Fallback/default: plain boolean arrays
   return Array.from({ length: r }, () => Array(c).fill(v));
+}
+
+/**
+ * Set a fog cell, handling both plain arrays and typed-array rows.
+ * Values are stored as true/false for arrays and 1/0 for typed rows.
+ */
+export function fogSet(grid, x, y, val) {
+  if (!grid || y < 0 || y >= grid.length) return;
+  const row = grid[y];
+  if (!row || typeof row.length !== "number" || x < 0 || x >= row.length) return;
+  const on = !!val;
+  if (ArrayBuffer.isView(row)) {
+    row[x] = on ? 1 : 0;
+  } else if (Array.isArray(row)) {
+    row[x] = on;
+  }
+}
+
+/**
+ * Read a fog cell as a boolean, regardless of underlying row representation.
+ */
+export function fogGet(grid, x, y) {
+  if (!grid || y < 0 || y >= grid.length) return false;
+  const row = grid[y];
+  if (!row || typeof row.length !== "number" || x < 0 || x >= row.length) return false;
+  return !!row[x];
 }
