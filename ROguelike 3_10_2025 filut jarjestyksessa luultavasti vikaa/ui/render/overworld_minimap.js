@@ -5,17 +5,22 @@ import * as RenderCore from "../render_core.js";
 import { fillOverworldFor, tilesRef } from "./overworld_tile_cache.js";
 import { fogGet } from "../../core/engine/fog.js";
 
-const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0, px: -1, py: -1 };
+const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0, px: -1, py: -1, full: false };
 
 export function drawMinimap(ctx, view) {
   const { ctx2d, TILE, map, player, cam } = Object.assign({}, view, ctx);
   try {
     const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : false;
+    if (typeof window !== "undefined") {
+      try { window.MINIMAP_TOGGLE_BOUNDS = null; } catch (_) {}
+    }
     if (!showMini) return;
 
     const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
     const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
     if (!mw || !mh) return;
+
+    const full = (typeof window !== "undefined" && typeof window.MINIMAP_FULL === "boolean") ? !!window.MINIMAP_FULL : false;
 
     let maxW = 280, maxH = 210;
     try {
@@ -24,11 +29,21 @@ export function drawMinimap(ctx, view) {
       }
     } catch (_) {}
 
-    // Visible tile window around the player; keep minimap footprint roughly constant
-    const tilesW = Math.min(mw, 64);
-    const tilesH = Math.min(mh, 48);
+    // Visible tile window around the player by default; full mode shows the whole current world window.
+    let tilesW = Math.min(mw, 64);
+    let tilesH = Math.min(mh, 48);
+    if (full) {
+      tilesW = mw;
+      tilesH = mh;
+    }
 
-    const scale = Math.max(1, Math.floor(Math.min(maxW / tilesW, maxH / tilesH)));
+    let scale;
+    if (full) {
+      scale = Math.min(maxW / tilesW, maxH / tilesH);
+      if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+    } else {
+      scale = Math.max(1, Math.floor(Math.min(maxW / tilesW, maxH / tilesH)));
+    }
     const wpx = tilesW * scale;
     const hpx = tilesH * scale;
     const pad = 8;
@@ -48,7 +63,7 @@ export function drawMinimap(ctx, view) {
     else if (startY > maxStartY) startY = maxStartY;
 
     const mapRef = map;
-    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.startX !== startX || MINI.startY !== startY || MINI.px !== player.x || MINI.py !== player.y;
+    const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.startX !== startX || MINI.startY !== startY || MINI.px !== player.x || MINI.py !== player.y || MINI.full !== full;
     if (needsRebuild) {
       MINI.mapRef = mapRef;
       MINI.wpx = wpx;
@@ -59,6 +74,7 @@ export function drawMinimap(ctx, view) {
       MINI.startY = startY;
       MINI.px = player.x;
       MINI.py = player.y;
+      MINI.full = full;
       const off = RenderCore.createOffscreen(wpx, hpx);
       const oc = off.getContext("2d");
       for (let yy = 0; yy < tilesH; yy++) {
@@ -102,6 +118,31 @@ export function drawMinimap(ctx, view) {
       ctx2d.fillText("Minimap", bx - 4, by - 22);
       ctx2d.textAlign = prevAlign;
       ctx2d.textBaseline = prevBaseline;
+    } catch (_) {}
+
+    // Minimap toggle button in bottom-left of the panel: switches between local window and full map.
+    try {
+      const btnSize = 16;
+      const btnX = bx - 6 + 4;
+      const btnY = by + hpx + 6 - btnSize - 4;
+      if (typeof window !== "undefined") {
+        try { window.MINIMAP_TOGGLE_BOUNDS = { x: btnX, y: btnY, w: btnSize, h: btnSize }; } catch (_) {}
+      }
+      const prevAlign2 = ctx2d.textAlign;
+      const prevBaseline2 = ctx2d.textBaseline;
+      ctx2d.save();
+      ctx2d.fillStyle = "rgba(15,23,42,0.9)";
+      ctx2d.fillRect(btnX, btnY, btnSize, btnSize);
+      ctx2d.strokeStyle = "rgba(148,163,184,0.85)";
+      ctx2d.strokeRect(btnX + 0.5, btnY + 0.5, btnSize - 1, btnSize - 1);
+      ctx2d.textAlign = "center";
+      ctx2d.textBaseline = "middle";
+      ctx2d.fillStyle = "#e5e7eb";
+      const toggleLabel = full ? "-" : "+";
+      ctx2d.fillText(toggleLabel, btnX + btnSize / 2, btnY + btnSize / 2 + 0.5);
+      ctx2d.restore();
+      ctx2d.textAlign = prevAlign2;
+      ctx2d.textBaseline = prevBaseline2;
     } catch (_) {}
 
     if (MINI.canvas) {

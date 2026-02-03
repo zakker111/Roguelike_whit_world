@@ -71,6 +71,42 @@ export function init(opts) {
         var px = ev.clientX - rect.left;
         var py = ev.clientY - rect.top;
 
+        // Minimap toggle button click (bottom-left of minimap panel) in world mode.
+        if (mode === "world") {
+          try {
+            if (typeof window !== "undefined") {
+              var mm = window.MINIMAP_TOGGLE_BOUNDS || null;
+              if (mm && px >= mm.x && px <= mm.x + mm.w && py >= mm.y && py <= mm.y + mm.h) {
+                try {
+                  var UI = window.UI || null;
+                  if (UI && typeof UI.setMinimapFullState === "function") {
+                    var cur = (typeof UI.getMinimapFullState === "function") ? !!UI.getMinimapFullState() : !!window.MINIMAP_FULL;
+                    UI.setMinimapFullState(!cur);
+                  } else {
+                    var curFull = (typeof window.MINIMAP_FULL === "boolean") ? !!window.MINIMAP_FULL : false;
+                    var nextFull = !curFull;
+                    window.MINIMAP_FULL = nextFull;
+                    try {
+                      if (typeof localStorage !== "undefined") {
+                        localStorage.setItem("MINIMAP_FULL", nextFull ? "1" : "0");
+                      }
+                    } catch (_) {}
+                    try {
+                      var UIO = window.UIOrchestration || null;
+                      if (UIO && typeof UIO.requestDraw === "function") {
+                        UIO.requestDraw(null);
+                      } else if (window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+                        window.GameLoop.requestDraw();
+                      }
+                    } catch (_) {}
+                  }
+                } catch (_) {}
+                return;
+              }
+            }
+          } catch (_) {}
+        }
+
         // Map pixel to tile coordinates considering camera
         var tx = Math.floor((camera.x + Math.max(0, px)) / TILE);
         var ty = Math.floor((camera.y + Math.max(0, py)) / TILE);
