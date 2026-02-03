@@ -3,6 +3,7 @@
  */
 import * as RenderCore from "../render_core.js";
 import { fillOverworldFor, tilesRef } from "./overworld_tile_cache.js";
+import { fogGet } from "../../core/engine/fog.js";
 
 const MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null, startX: 0, startY: 0, px: -1, py: -1 };
 
@@ -63,10 +64,9 @@ export function drawMinimap(ctx, view) {
       for (let yy = 0; yy < tilesH; yy++) {
         const srcY = startY + yy;
         const rowM = map[srcY];
-        const seenRow = (ctx.seen && ctx.seen[srcY]) ? ctx.seen[srcY] : null;
         for (let xx = 0; xx < tilesW; xx++) {
           const srcX = startX + xx;
-          const seenHere = seenRow ? !!seenRow[srcX] : false;
+          const seenHere = fogGet(ctx.seen, srcX, srcY);
           if (seenHere) {
             const t = rowM[srcX];
             const c = fillOverworldFor((typeof window !== "undefined" ? window.World.TILES : {}), t);
