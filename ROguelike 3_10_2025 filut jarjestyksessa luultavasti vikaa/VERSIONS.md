@@ -1,10 +1,19 @@
 v1.71.0 — Overworld minimap toggle and map fog stability
 
-- Overworld minimap:
-  - Added a '+'/'-' toggle button at the bottom-left of the overworld minimap panel that switches between a small, player-centered view and a full-window map view.
+- Overworld fog infrastructure:
+  - Introduced `core/engine/fog.js` with `allocFog`, `fogSet`, and `fogGet` helpers, exported as `window.Fog` for browser runtimes.
+  - Overworld `seen` / `visible` grids are now allocated as `Uint8Array`-backed rows via `allocFog(..., useTyped=true)`, and world expansion preserves these typed rows.
+  - Overworld fog overlay and the overworld minimap both read/write fog through these helpers, so they stay in sync regardless of internal representation.
+- Minimap + fog-of-war behavior:
+  - The overworld minimap now uses `fogGet` over the shared `seen` grid instead of accessing `ctx.seen[y][x]` directly, so it only shows tiles you have actually explored.
+  - Minimap offscreen buffers are rebuilt when the world window, player position, scale, fog reference, or minimap mode (full vs small) changes, preventing stale tiles from previous windows leaking into the view.
+- Overworld minimap UI:
+  - Added a '+'/'-' toggle button at the bottom-left of the overworld minimap panel that switches between a small, player-centered view and a full-window map view of the current world window.
+  - The toggle is clickable directly on the canvas and does not interfere with click-to-move; clicks inside the button only toggle the view mode.
   - Toggle state (full vs small) persists via localStorage (`MINIMAP_FULL`) and is respected across reloads.
-- Overworld fog/minimap sync:
-  - Overworld minimap now uses the same fog-of-war grid and Fog helpers as the main map, so it no longer leaks previously explored chunks when entering and leaving towns, dungeons, ruins, or encounters.
+- Overworld fog/minimap sync fix:
+  - Fixed a bug where the minimap could show all explored chunks after visiting towns, dungeons, ruins, or encounters and returning to the overworld.
+  - The minimap now uses the same fog-of-war grid and Fog helpers as the main map and rebuilds its offscreen buffer per mode, so previously explored overworld chunks no longer leak when changing modes.
 
 </old_ as described in v1.70.0 below.
 
