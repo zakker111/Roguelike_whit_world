@@ -423,9 +423,8 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     if (isRegionLike) {
       if (!regionWalkableAt(x, y)) return true;
       if (x === (p.x | 0) && y === (p.y | 0)) return true;
-      if (occ && typeof occ.isFree === "function") {
-        return !occ.isFree(x, y, { ignorePlayer: true });
-      }
+      // Use dynamic actors/props arrays instead of over-relying on occupancy,
+      // which can occasionally be stale around entry tiles.
       try {
         if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
       } catch (_) {}
@@ -441,10 +440,9 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
     // Default dungeon/encounter walkability via ctx.isWalkable.
     if (!isWalkable(x, y)) return true;
     if (x === (p.x | 0) && y === (p.y | 0)) return true;
-    if (occ && typeof occ.isFree === "function") {
-      return !occ.isFree(x, y, { ignorePlayer: true });
-    }
-    // Fallback: scan enemies/NPCs when occupancy grid is unavailable.
+    // For dungeon/encounter maps, prefer dynamic actors/props arrays for
+    // occupancy checks so a stale occupancy grid does not completely block
+    // follower spawns even when nearby tiles look open to the player.
     try {
       if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
     } catch (_) {}
