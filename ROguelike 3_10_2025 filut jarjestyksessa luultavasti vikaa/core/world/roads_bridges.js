@@ -3,11 +3,7 @@
  * Extracted from core/world_runtime.js without behavior changes.
  */
 
-// Build roads between nearby towns in current window and mark bridge points where crossing water/river.
-// Overworld roads have been removed; keep this as a no-op for back-compat.
-export function ensureRoads(ctx) {
-  return;
-}
+
 
 // Add extra bridges so players can always find at least one crossing point over rivers in the current window.
 // Strategy: scan vertical and horizontal spans of RIVER/WATER and place a BEACH + bridge overlay on

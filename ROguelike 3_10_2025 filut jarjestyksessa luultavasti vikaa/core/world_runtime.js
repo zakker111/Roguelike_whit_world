@@ -9,7 +9,6 @@
 
 import { getMod } from "../utils/access.js";
 import { scanPOIs as scanPOIsExt } from "./world/scan_pois.js";
-import { ensureRoads as ensureRoadsExt, ensureExtraBridges as ensureExtraBridgesExt } from "./world/roads_bridges.js";
 import { ensureInBounds as ensureInBoundsExt } from "./world/expand.js";
 import { tryMovePlayerWorld as tryMovePlayerWorldExt } from "./world/move.js";
 import { tick as tickExt } from "./world/tick.js";
@@ -80,17 +79,6 @@ function featureEnabled(name, defaultVal) {
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 function scanPOIs(ctx, x0, y0, w, h) {
   return scanPOIsExt(ctx, x0, y0, w, h);
-}
-
-// Build roads between nearby towns in current window and mark bridge points where crossing water/river
-function ensureRoads(ctx) {
-  return ensureRoadsExt(ctx);
-}
-
-// Add extra bridges so players can always find at least one crossing point over rivers in the current window.
-// Strategy: scan vertical and horizontal spans of RIVER/WATER and place a BEACH + bridge overlay every N tiles.
-function ensureExtraBridges(ctx) {
-  return ensureExtraBridgesExt(ctx);
 }
 
 // Expose ensureInBoundsExt for other runtimes (town/dungeon) to place the player at absolute world coords.

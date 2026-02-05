@@ -276,7 +276,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Technical / Cleanup
 
-- [ ] CRITICAL: Enemy depth vs dungeon level
+- [x] CRITICAL: Enemy depth vs dungeon level
   - Current enemy HP/ATK/XP curves in `data/entities/enemies.json` are keyed by a conceptual “depth”. The engine historically used `floor`/`depth` for multi-floor dungeons.
   - The game has since moved to a single-floor dungeon model per run, but some code paths (including sandbox helpers and spawn-by-id flows) still conceptually talk about “depth” when sampling curves.
   - Update enemy stat resolution to be driven by a clearer “dungeon level” or difficulty band rather than a notional multi-floor depth:
