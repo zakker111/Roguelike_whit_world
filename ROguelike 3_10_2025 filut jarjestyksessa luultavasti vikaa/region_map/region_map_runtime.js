@@ -16,7 +16,7 @@
  * - tick(ctx): optional no-op hook.
  */
 import * as World from "../world/world.js";
-import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
+import { getTileDef } from "../data/tile_lookup.js";
 import { getMod, getRNGUtils, getUIOrchestration, getGameData } from "../utils/access.js";
 import { attachGlobal } from "../utils/global.js";
 import { spawnInDungeon, syncFollowersFromDungeon } from "../core/followers_runtime.js";
