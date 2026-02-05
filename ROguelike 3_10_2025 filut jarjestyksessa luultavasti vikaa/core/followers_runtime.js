@@ -480,27 +480,60 @@ function findSpawnTileNearPlayer(ctx, maxRadius) {
   // player; do not fall back to arbitrary distant tiles.
   if (isTownLike || isRegionLike) return null;
 
-  // For encounter and dungeon maps, allow a broader fallback: scan the whole map for
-  // any reasonable free tile if the immediate area around the player is too cramped.
-  // Always pick the *nearest* free tile to the player so followers do not appear at
-  // distant corners of the map.
+  // For encounter and dungeon maps, allow a broader fallback: perform a bounded
+  // BFS flood from the player's position over walkable tiles and pick the first
+  // free tile found. This keeps followers reasonably close and avoids spawning
+  // them in distant or disconnected pockets of the map.
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
-    let best = null;
-    let bestDist = Infinity;
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (!inB(x, y)) continue;
-        if (tileBlocked(x, y)) continue;
-        const d = Math.abs(x - (p.x | 0)) + Math.abs(y - (p.y | 0));
-        if (d < bestDist) {
-          bestDist = d;
-          best = { x, y };
+    if (rows && cols) {
+      const startX = p.x | 0;
+      const startY = p.y | 0;
+      const maxBFSDist = Math.max(rMax + 2, 12); // allow some extra distance beyond local ring
+      const q = [];
+      const seen = new Set();
+      const pushIfValid = (x, y) => {
+        if (!inB(x, y)) return;
+        const key = `${x},${y}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        q.push({ x, y });
+      };
+      pushIfValid(startX, startY);
+      const dirs = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 },
+      ];
+      while (q.length) {
+        const cur = q.shift();
+        const dist = Math.abs(cur.x - startX) + Math.abs(cur.y - startY);
+        if (dist > maxBFSDist) continue;
+
+        // First free tile we encounter (other than the player's own tile)
+        // becomes our spawn position.
+        if (!(cur.x === startX && cur.y === startY) && !tileBlocked(cur.x, cur.y)) {
+          return { x: cur.x, y: cur.y };
+        }
+
+        // Only traverse tiles that are structurally walkable; ignore transient
+        // blockers like enemies/NPCs so we can search around crowded entrance
+        // tiles instead of treating them as walls.
+        let tileOK = false;
+        try {
+          tileOK = !!isWalkable(cur.x, cur.y);
+        } catch (_) {}
+        if (!tileOK) continue;
+
+        for (const d of dirs) {
+          const nx = cur.x + d.dx;
+          const ny = cur.y + d.dy;
+          pushIfValid(nx, ny);
         }
       }
     }
-    if (best) return best;
   } catch (_) {}
 
   return null;
@@ -587,6 +620,9 @@ export function spawnInDungeon(ctx) {
           if (ctx.mode === "encounter") where = "encounter";
           else if (ctx.mode === "region") where = "region map";
           ctx.log(`${label} joins you in the ${where}.`, "info");
+          // Extra debug-friendly hint: where the follower actually spawned so it's
+          // easier to verify presence during testing (mirrors the town helper).
+          ctx.log(`(Follower position: ${follower.x},${follower.y})`, "info");
         }
       } catch (_) {}
     }
