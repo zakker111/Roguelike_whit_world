@@ -1,3 +1,41 @@
+v1.72.0 — Region Map modularization and follower spawn fixes
+
+- Region Map runtime split into focused helper modules (internal refactor, no gameplay changes intended):
+  - `region_map/region_map_sampling.js` – biome sampling, downscaled window build, directional biome analysis, orientation, and decorative transforms:
+    - `buildLocalDownscaled`, `collectNeighborSet`, `choosePrimaryTile`, `filterSampleByNeighborSet`, `computeDirectionalTiles`, `orientSampleByCardinals`.
+    - `addMinorWaterAndBeaches`, `addSparseTreesInForests`, `addBerryBushesInForests` for ponds, beaches, trees, and berry bushes.
+  - `region_map/region_map_persistence.js` – Region Map persistence helpers:
+    - Tree/berry bush cuts persisted per region tile via a compact localStorage map (`REGION_CUTS_V1`) with `applyRegionCuts`, `addRegionCut`, and `regionCutKey`.
+    - Animal presence memory per overworld tile (`REGION_ANIMALS_V2`): `markAnimalsSeen`, `markAnimalsCleared`, `animalsSeenHere`, `animalsClearedHere`.
+    - Full Region Map state (sample + corpses) persisted per tile via `saveRegionState`/`loadRegionState` (`REGION_STATE_V1`), so looted chests/corpses stay empty across visits.
+  - `region_map/region_map_animals.js` – Region Map animal behavior at tick-time:
+    - `driveRegionEncounter(ctx)` handles active region encounters: calls AI, rebuilds occupancy, and marks the current overworld tile as cleared (via `markAnimalsCleared`) when all enemies are gone.
+    - `tickNeutralAnimals(ctx)` drives neutral animal wandering in Region Map, reusing tileset walkability and dynamic occupancy rebuilds without changing behavior.
+  - `region_map/region_map_actions.js` – Region Map context actions while in region mode:
+    - Loot interactions for corpses/chests underfoot (FlavorService integration + Loot.lootHere) and empty-search text, persisted via `saveRegionState`.
+    - Harvesting berry bushes and trees (berries, planks, foraging XP, cut persistence via `addRegionCut` + StateSync refresh).
+    - Fishing near water/river tiles when the player has a fishing pole (UIOrchestration confirm + UIBridge/FishingModal).
+  - `region_map/region_map_ruins.js` – RUINS-specific sample decoration and encounter setup:
+    - `decorateRuinsSample(sample, rng, RU)` draws the broken ruin ring, gaps, and interior pillars on RUINS Region Maps.
+    - `spawnRuinsEncounter(ctx, opts)` fills RUINS Region Maps with 2–4 enemies (`skeleton`/`bandit`/`mime_ghost`) and 1–2 loot chests, respecting `animalsCleared` and persisted region state.
+  - `region_map/region_map_runtime.js` – now a thin orchestrator:
+    - `open(ctx)` builds the region sample, applies sampling/persistence helpers, decorates RUINS via `decorateRuinsSample`, initializes `ctx.region`, overrides LOS, spawns followers once via `spawnInDungeon`, and dispatches RUINS encounters + neutral animal spawns to the new helpers.
+    - `tick(ctx)` delegates encounter ticks and neutral-animal wandering to `driveRegionEncounter` / `tickNeutralAnimals`, then handles decal fading.
+    - `onAction(ctx)` handles exit-tiles locally (orange edges closing Region Map) and forwards all other actions to `handleRegionAction`.
+    - `RegionMapRuntime` global and its ctx wiring are unchanged; external callers still use `RegionMapRuntime.open/close/tryMove/onAction/tick`.
+
+- Follower spawn reliability improvements in dungeons, encounters, and Region Map:
+  - `core/followers_runtime.js` (findSpawnTileNearPlayer/tileBlocked):
+    - Region Map branch now relies on dynamic `ctx.enemies` / `ctx.npcs` / `ctx.townProps` arrays plus region walkability instead of `ctx.occupancy.isFree`, avoiding stale occupancy grids that could incorrectly block all nearby tiles and prevent followers from spawning in apparently open Region Map areas.
+    - Dungeon/encounter branch likewise avoids over-reliance on `ctx.occupancy.isFree` when deciding if a tile is blocked; it now prefers:
+      - `ctx.isWalkable(x,y)` for terrain.
+      - Dynamic checks against `ctx.enemies`, `ctx.npcs`, and `ctx.townProps` to avoid standing on actors/props.
+    - Result: followers more reliably spawn near the player in encounters and Region Map (including RUINS) when there is visible space, while still avoiding collisions and non-walkable tiles.
+
+- Behavior notes and verification:
+  - Region Map entry/exit, cursor movement, sampling, tree/berry persistence, corpse/chest persistence, animal-spawn gating, and fishing behavior are intended to be unchanged; only internal structure and follower spawn robustness were modified.
+  - RUINS Region Maps continue to decorate and spawn enemies/loot as before, with the logic now isolated in `region_map_ruins.js` for future tuning.
+
 v1.71.0 — Overworld minimap toggle and map fog stability
 
 - Overworld fog infrastructure:
@@ -15,9 +53,7 @@ v1.71.0 — Overworld minimap toggle and map fog stability
   - Fixed a bug where the minimap could show all explored chunks after visiting towns, dungeons, ruins, or encounters and returning to the overworld.
   - The minimap now uses the same fog-of-war grid and Fog helpers as the main map and rebuilds its offscreen buffer per mode, so previously explored overworld chunks no longer leak when changing modes.
 
-</old_ as described in v1.70.0 below.
-
-v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)deernal)
+v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)
 
 - SandboxPanel implementation refactor:
   - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
