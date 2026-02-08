@@ -153,16 +153,15 @@ export function doAction(ctx) {
     }
   } catch (_) {}
 
-  // Town gate exit priority: when standing exactly on the configured town gate
-  // tile, exiting to the overworld takes precedence over any other town action
-  // (shops, props, NPCs) so the player can always leave via G.
+  // Town gate exit priority: when standing at the gate (as detected by the
+  // centralized Exit helpers), exiting to the overworld takes precedence over
+  // any other town action (shops, props, NPCs) so the player can always leave
+  // via G. This relies on Exit.isAtTownGate/exitTownToWorld, so it does not
+  // depend on ctx.townExitAt being present on older saves.
   try {
-    if (ctx.mode === "town" && ctx.townExitAt && ctx.player) {
-      const gate = ctx.townExitAt;
-      if (ctx.player.x === gate.x && ctx.player.y === gate.y) {
-        const exited = exitToWorld(ctx, { reason: "gate" });
-        if (exited) return true;
-      }
+    if (ctx.mode === "town") {
+      const exited = exitToWorld(ctx, { reason: "gate" });
+      if (exited) return true;
     }
   } catch (_) {}
 
