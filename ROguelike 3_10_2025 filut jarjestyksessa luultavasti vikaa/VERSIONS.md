@@ -1,3 +1,23 @@
+v1.73.0 — Overworld road removal and follower spawn BFS in dungeon-like maps
+
+- Overworld roads system retired; only bridges remain:
+  - World generation no longer carves or maintains free-floating OVERWORLD roads between towns/dungeons/castles.
+  - The overworld renderer no longer draws brown road overlays; the only man-made connections rendered on the world map are bridges across rivers.
+  - Existing world connectivity is still guaranteed via rivers/bridges and POI placement; there are no stray or orphan road segments in the wilderness.
+  - The long-standing bug about “leftover road tiles in unexpected places” is now addressed by removing the visual road feature entirely from the overworld while keeping bridges.
+- Follower spawn search in dungeons/encounters/Region Map now uses a bounded BFS fallback:
+  - `FollowersRuntime.findSpawnTileNearPlayer` still first tries the existing expanding diamond search around the player for a free tile.
+  - When that fails on dungeon/encounter/region maps, it now runs a bounded breadth‑first search flood from the player over structurally walkable tiles and picks the first free tile it finds.
+  - Traversal uses `ctx.isWalkable(x,y)` for terrain and ignores transient blockers (enemies/NPCs) during the flood so it can search around crowded entrances instead of treating temporarily occupied tiles as walls.
+  - Spawn placement still respects dynamic blockers when choosing a final tile (no spawns on top of enemies/NPCs/props or the player), but the BFS greatly reduces cases where followers report “cannot find room” despite obvious nearby space.
+  - This improves reliability in open encounters (including guards_vs_bandits) and in many random ambush/camp/ruins maps where the previous full‑map nearest‑tile scan could pick distant or awkward pockets or be defeated by stale occupancy.
+- Follower spawn logging improved for dungeon-like maps:
+  - When a follower successfully spawns in a dungeon/encounter/region map, the log now prints both a short join message and the exact coordinates:
+    - `<Name> joins you in the dungeon/encounter/region map.`
+    - `(Follower position: X,Y)`
+  - When no follower can be spawned despite active followers, a single explanatory line is logged: `Your followers cannot find room to stand nearby in this area.`
+  - When there are no active followers (none hired or all dead/disabled), the log instead explains: `No active followers available to fight at your side.`
+
 v1.72.0 — Region Map modularization and follower spawn fixes
 
 - Region Map runtime split into focused helper modules (internal refactor, no gameplay changes intended):
