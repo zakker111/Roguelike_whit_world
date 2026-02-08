@@ -53,7 +53,7 @@
   - Seppo appeared in a dungeon context (not town), was stationary, and bumping into him did not open any dialog or shop UI.
   - Needs investigation of how Seppo (or Seppo-like caravan blacksmith NPCs) can leak into dungeon spawns
   - Likely related to shared prefab usage or NPC archetype reuse between town/castle and dungeon maps without proper mode-specific behavior.
-- World map sometimes shows leftover road tiles in unexpected places:
-  - After some world generations, there are isolated or partial road segments that do not connect to towns, castles, or obvious points of interest.
-  - These road remnants look like artifacts from previous road generation passes or abandoned routes and can appear in the middle of wilderness.
-  - Investigate overworld path/road generation and cleanup code to ensure roads are only kept when they connect meaningful locations and that unused draft paths are removed. Or remove them completely
+- [FIXED] World map sometimes shows leftover road tiles in unexpected places:
+  - After some world generations, there were isolated or partial road segments that did not connect to towns, castles, or obvious points of interest.
+  - These remnants came from earlier overworld road generation passes; the current build has removed the overworld road feature entirely while keeping bridges across rivers.
+  - Result: the world map now shows only natural terrain plus bridges; no free-floating or orphan road tiles should appear in the wilderness.

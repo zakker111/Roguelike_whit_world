@@ -3,7 +3,7 @@
  * Registers towns/dungeons/ruins in the current window and triggers roads/bridges when enabled.
  */
 import { addTown, addCastle, addDungeon, addRuins } from "./poi.js";
-import { ensureRoads, ensureExtraBridges } from "./roads_bridges.js";
+import { ensureExtraBridges } from "./roads_bridges.js";
 
 // Config helpers (duplicated from world_runtime for now; will be centralized later)
 function _getConfig() {
@@ -134,10 +134,6 @@ export function scanPOIs(ctx, x0, y0, w, h) {
       }
     }
   }
-  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).
-  try {
-    if (featureEnabled("WORLD_ROADS", false)) ensureRoads(ctx);
-  } catch (_) {}
   // Ensure there are usable river crossings independent of roads (feature-gated).
   try {
     if (featureEnabled("WORLD_BRIDGES", false)) {
