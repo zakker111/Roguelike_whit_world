@@ -1,3 +1,62 @@
+2026-02-08 — File size snapshot (Top 10 largest files)
+
+Top 10 largest files in the repo
+- Ranked by text size using line counts as a proxy (larger line counts ⇒ larger file).
+- Approximate character and KB sizes are estimates; ordering is what matters.
+
+1. smoketest/runner/runner.js
+   - ~2170 lines (largest file)
+   - ≈ 170 KB
+   - Smoketest orchestrator: runs automated scenarios (world, dungeon, town, overlays, determinism), aggregates results, exports reports.
+
+2. core/game.js
+   - ~1401 lines
+   - ≈ 110 KB
+   - Main game orchestrator: modes (world/town/dungeon/region), RNG, FOV, camera, combat hooks, UI, GOD panel bridge, followers, etc.
+
+3. ai/town_runtime.js
+   - ~1227 lines
+   - ≈ 100 KB
+   - Town NPC AI tick: guards, shopkeepers, residents, pets, inn behavior, bandit events, benches, rain logic, upstairs sleeping, path budgets.
+
+4. region_map/region_map_runtime.js
+   - ~889 lines
+   - ≈ 70 KB
+   - Region Map runtime: opening/closing the region overlay, sampling overworld biomes, spawning neutral animals and ruins encounters, LOS overrides, persistence.
+
+5. data/world/world_assets.json
+   - ~662 lines
+   - ≈ 53 KB
+   - Combined tile + prop registry: overworld/region/dungeon/town tiles and props, colors, walkability/FOV flags, decorators, light sources, etc.
+
+6. world/world.js
+   - ~529 lines
+   - ≈ 42 KB
+   - Finite overworld generator: map layout, biomes, rivers, towns/dungeons/ruins placement, connectivity carving, start-position picking.
+
+7. data/worldgen/prefabs.json
+   - ~407 lines
+   - ≈ 33 KB
+   - Town/world prefabs: houses, shops, inns, plazas, caravans, boats, with embedded props and constraints (rotations, mustFaceRoad, setbacks, etc.).
+
+8. world/infinite_gen.js
+   - ~374 lines
+   - ≈ 30 KB
+   - Infinite overworld generator: hash-based noise, biomes, rivers, POI placement (town, dungeon, tower, ruins), start position logic.
+
+9. ui/render_overworld.js
+   - ~222 lines
+   - ≈ 18 KB
+   - Overworld renderer: base layer, shoreline/coast outlines, fog-of-war, POI markers, biome embellishments, bridges, minimap, day/night/weather overlays.
+
+10. core/world_runtime_poi.js
+    - ~221 lines
+    - ≈ 18 KB
+    - Overworld POI/town/dungeon runtime helpers: managing POIs, castle/tower behavior, hooks into world runtime.
+
+Near miss:
+- ui/render_dungeon.js – ~191 lines, ≈ 15 KB (next-largest file just outside the top 10).
+
 v1.73.0 — Overworld road removal and follower spawn BFS in dungeon-like maps
 
 - Overworld roads system retired; only bridges remain:
