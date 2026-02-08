@@ -931,13 +931,11 @@ import "./sandbox/runtime.js";
     const LF = modHandle("LootFlow");
     if (LF && typeof LF.show === "function") {
       LF.show(getCtx(), list);
-      requestDraw();
       return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showLoot === "function") {
       UIO.showLoot(getCtx(), list);
-      requestDraw();
     }
   }
 
@@ -945,13 +943,11 @@ import "./sandbox/runtime.js";
     const LF = modHandle("LootFlow");
     if (LF && typeof LF.hide === "function") {
       LF.hide(getCtx());
-      requestDraw();
       return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideLoot === "function") {
       UIO.hideLoot(getCtx());
-      requestDraw();
     }
   }
 
