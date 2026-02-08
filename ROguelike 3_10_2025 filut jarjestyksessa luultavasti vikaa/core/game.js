@@ -697,25 +697,16 @@ import "./sandbox/runtime.js";
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
-    // Prefer centralized Movement facade
+    // Centralized Movement.fastForwardMinutes already handles per-turn calls,
+    // FOV recompute, and UI updates using ctx. Keep this as a thin wrapper
+    // so callers do not need to import Movement directly from core/game.js.
     try {
       const MV = modHandle("Movement");
       if (MV && typeof MV.fastForwardMinutes === "function") {
         return MV.fastForwardMinutes(getCtx(), mins);
       }
     } catch (_) {}
-    const total = Math.max(0, (Number(mins) || 0) | 0);
-    if (total <= 0) return 0;
-    const minutesPerTurn = getMinutesPerTurn();
-    const turns = Math.max(1, Math.ceil(total / (minutesPerTurn || 1)));
-    _suppressDraw = true;
-    for (let i = 0; i < turns; i++) {
-      try { turn(); } catch (_) { break; }
-    }
-    _suppressDraw = false;
-    recomputeFOV();
-    updateUI();
-    return turns;
+    return 0;
   }
 
   
@@ -770,57 +761,17 @@ import "./sandbox/runtime.js";
   }
 
   /**
-   * Auto-escort travel: after resolving a caravan ambush encounter and choosing to continue
-   * guarding the caravan, automatically advance overworld turns with a small delay so the
-   * caravan (and player) visibly travel toward their destination.
+   * Auto-escort travel: thin wrapper to a dedicated helper so core/game.js
+   * stays focused on orchestration. The actual timed loop lives in the
+   * WorldRuntime or a dedicated world/escort helper.
    */
   function startEscortAutoTravel() {
     try {
-      const ctx0 = getCtx();
-      if (!ctx0 || !ctx0.world) return;
-      const world = ctx0.world;
-      world._escortAutoTravel = world._escortAutoTravel || { running: false };
-      const state = world._escortAutoTravel;
-      if (state.running) return;
-      state.running = true;
-
-      let steps = 0;
-      const maxSteps = 2000; // safety cap
-      const delayMs = 140;
-
-      function step() {
-        try {
-          const ctx = getCtx();
-          if (!ctx || !ctx.world) { state.running = false; return; }
-          const w = ctx.world;
-          const escort = w.caravanEscort;
-          if (!escort || !escort.active || ctx.mode !== "world") {
-            state.running = false;
-            return;
-          }
-          if (typeof ctx.turn === "function") ctx.turn();
-        } catch (_) {}
-        steps++;
-        if (steps >= maxSteps) { state.running = false; return; }
-        setTimeout(step, delayMs);
-      }
-
-      // Do one immediate step so the player sees the caravan start moving as soon
-      // as they return to the overworld, then continue with a timed loop.
-      try {
-        const ctx = getCtx();
-        const w = ctx.world;
-        const escort = w && w.caravanEscort;
-        if (escort && escort.active && ctx.mode === "world" && typeof ctx.turn === "function") {
-          ctx.turn();
-          steps++;
-        }
-      } catch (_) {}
-
-      if (steps < maxSteps) {
-        setTimeout(step, delayMs);
-      } else {
-        state.running = false;
+      const ctx = getCtx();
+      if (!ctx || !ctx.world) return;
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.startEscortAutoTravel === "function") {
+        WR.startEscortAutoTravel(ctx);
       }
     } catch (_) {}
   }
