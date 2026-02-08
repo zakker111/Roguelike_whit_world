@@ -314,6 +314,18 @@ export function doAction(ctx) {
       if (exited) return true;
     } catch (_) {}
 
+    // Attempt underfoot loot via DungeonRuntime.lootHere when standing on a corpse/chest
+    try {
+      const DR = getMod(ctx, "DungeonRuntime");
+      if (DR && typeof DR.lootHere === "function" && Array.isArray(ctx.corpses)) {
+        const here = ctx.corpses.find(c => c && c.x === ctx.player.x && c.y === ctx.player.y);
+        if (here) {
+          const handled = !!DR.lootHere(ctx);
+          if (handled) return true;
+        }
+      }
+    } catch (_) {}
+
     // Delegate prop interactions to EncounterInteractions
     try {
       let EI = getMod(ctx, "EncounterInteractions");
