@@ -57,6 +57,21 @@ Top 10 largest files in the repo
 Near miss:
 - ui/render_dungeon.js – ~191 lines, ≈ 15 KB (next-largest file just outside the top 10).
 
+v1.74.0 — G-key action routing refactor
+
+- Core G-key routing is now owned entirely by `core/modes/actions.js::doAction(ctx)`:
+  - All context-sensitive actions for the G key (loot UI toggle, town/dungeon/encounter exits, Region Map, loot underfoot) are decided in Actions using only `ctx` and module handles.
+  - Loot UI gating now checks `UIOrchestration.isLootOpen(ctx)` and, when open, hides the loot panel and returns `true` without triggering any other actions.
+  - Town gate exit has explicit priority: when `ctx.mode === "town"` and the player stands on `ctx.townExitAt`, `exitToWorld(ctx, { reason: "gate" })` is invoked before any town props/shops/NPC interactions.
+  - When no mode-specific handler runs and `ctx.mode` is not `"world"`, `Actions.loot(ctx)` is called as a final fallback so town/dungeon/encounter modes all share the same underfoot loot / "nothing to do here" behavior.
+- `core/game.js::doAction()` has been slimmed to a thin wrapper:
+  - Builds a fresh `ctx` via `getCtx()`, calls `Actions.doAction(ctx)` when available, and then calls `applyCtxSyncAndRefresh(ctx)` once when the action reports `handled`.
+  - All previous local G-key special casing (loot UI closing, town gate exit checks, non-world loot fallbacks) has been removed from `core/game.js` to keep it focused on orchestration and state sync.
+- Behavior is intended to remain unchanged:
+  - Pressing G while the loot panel is open only closes the loot UI and does not trigger movement, exits, or other interactions.
+  - Standing on the town gate tile and pressing G exits to the overworld even when there are nearby props or shop doors.
+  - Dungeon/encounter exits via stairs, Region Map open/close, and loot-underfoot behavior in town/dungeon/encounters continue to match earlier builds, now routed through the centralized Actions module.
+
 v1.73.0 — Overworld road removal and follower spawn BFS in dungeon-like maps
 
 - Overworld roads system retired; only bridges remain:

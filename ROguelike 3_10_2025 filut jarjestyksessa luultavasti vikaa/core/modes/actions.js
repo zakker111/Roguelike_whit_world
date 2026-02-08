@@ -138,10 +138,32 @@ function isInnStairsTile(ctx, x, y) {
 }
 
 export function doAction(ctx) {
-  // Hide loot UI if open
+  if (!ctx) return false;
+
+  // Loot UI gating: if the loot panel is open, close it and do nothing else.
+  // This should not consume a turn or trigger any other context action.
   try {
-    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
-    if (UIO && typeof UIO.hideLoot === "function") UIO.hideLoot(ctx);
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.isLootOpen === "function" && typeof UIO.hideLoot === "function") {
+      const open = !!UIO.isLootOpen(ctx);
+      if (open) {
+        UIO.hideLoot(ctx);
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // Town gate exit priority: when standing exactly on the configured town gate
+  // tile, exiting to the overworld takes precedence over any other town action
+  // (shops, props, NPCs) so the player can always leave via G.
+  try {
+    if (ctx.mode === "town" && ctx.townExitAt && ctx.player) {
+      const gate = ctx.townExitAt;
+      if (ctx.player.x === gate.x && ctx.player.y === gate.y) {
+        const exited = exitToWorld(ctx, { reason: "gate" });
+        if (exited) return true;
+      }
+    }
   } catch (_) {}
 
   if (ctx.mode === "world") {
@@ -251,7 +273,7 @@ export function doAction(ctx) {
         return loot(ctx);
       }
     }
-    // Nothing else: allow fallback
+    // Nothing else: allow fallback (town-specific loot/"nothing to do here" via global fallback)
     return false;
   }
 
@@ -351,14 +373,23 @@ export function doAction(ctx) {
       }
     } catch (_) {}
 
-    // Otherwise fall back to loot/guidance behavior
+    // Otherwise fall back to loot/guidance behavior in this mode
     const handled = loot(ctx);
     if (handled) return true;
-    // Otherwise allow fallback
     return false;
   }
 
-  // Default: let fallback handle
+  // Non-world fallback loot: if no branch handled the action and we are not
+  // in overworld mode, defer to generic loot(ctx) so dungeon/town/encounter
+  // modes get consistent underfoot loot / "nothing to do here" messaging.
+  if (ctx.mode !== "world") {
+    try {
+      const handled = loot(ctx);
+      if (handled) return true;
+    } catch (_) {}
+  }
+
+  // Default: nothing happened
   return false;
 }
 

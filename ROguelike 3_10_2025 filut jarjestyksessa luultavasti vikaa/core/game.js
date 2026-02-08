@@ -888,46 +888,14 @@ import "./sandbox/runtime.js";
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
-    // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
-        hideLootPanel();
-        return;
-      }
-    } catch (_) {}
-
-    // Town gate exit takes priority over other interactions
-    if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      const ctxGate = getCtx();
-      if (exitToWorldExt(ctxGate, { reason: "gate", applyCtxSyncAndRefresh })) return;
-    }
-
-    // Prefer ctx-first Actions module
-    {
-      const A = modHandle("Actions");
-      if (A && typeof A.doAction === "function") {
-        const ctxMod = getCtx();
-        const handled = A.doAction(ctxMod);
-        if (handled) {
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
+    const ctx = getCtx();
+    const A = modHandle("Actions");
+    if (A && typeof A.doAction === "function") {
+      const handled = !!A.doAction(ctx);
+      if (handled) {
+        applyCtxSyncAndRefresh(ctx);
       }
     }
-
-    
-
-    if (mode === "town") {
-      // Prefer local interactions/logs first so guidance hint doesn't drown them out
-      lootCorpse();
-      // Then, if standing on the gate, leave town (or show exit hint if applicable)
-      if (returnToWorldFromTown()) return;
-      return;
-    }
-
-    // Fallback for non-world modes when Actions.doAction did not handle:
-    lootCorpse();
   }
 
   function descendIfPossible() {

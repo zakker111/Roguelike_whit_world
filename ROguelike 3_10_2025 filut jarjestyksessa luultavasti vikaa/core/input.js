@@ -242,7 +242,6 @@ export function init(handlers) {
     // Action / interact (G)
     if (e.key && e.key.toLowerCase() === "g") {
       e.preventDefault();
-      _handlers.onHideLoot && _handlers.onHideLoot();
       _handlers.onLoot && _handlers.onLoot();
       return;
     }
