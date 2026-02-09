@@ -15,6 +15,7 @@ export function fallbackFillOverworld(WT, id) {
   try {
     if (id === WT.WATER) return "#0a1b2a";
     if (id === WT.RIVER) return "#0e2f4a";
+    if (WT.SHALLOW != null && id === WT.SHALLOW) return "#1c3a4a";
     if (id === WT.BEACH) return "#b59b6a";
     if (id === WT.SWAMP) return "#1b2a1e";
     if (id === WT.FOREST) return "#0d2615";

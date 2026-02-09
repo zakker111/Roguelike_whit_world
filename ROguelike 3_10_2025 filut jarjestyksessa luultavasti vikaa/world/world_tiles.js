@@ -14,6 +14,7 @@ export const TILES = {
   SNOW: 10,
   TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
   RUINS: 12, // overworld ruins POI; opens a themed Region Map
+  SHALLOW: 22, // shallow water/ford; walkable overworld water tile
   BERRY_BUSH: 14, // region-only forage bush; walkable, does not block FOV
   CASTLE: 15, // overworld castle POI; uses town-mode layout but marked as castle
   SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
@@ -36,6 +37,7 @@ export function biomeName(tile) {
   switch (tile) {
     case TILES.WATER: return "Ocean/Lake";
     case TILES.RIVER: return "River";
+    case TILES.SHALLOW: return "Shallows";
     case TILES.BEACH: return "Beach";
     case TILES.SWAMP: return "Swamp";
     case TILES.FOREST: return "Forest";
