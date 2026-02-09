@@ -105,6 +105,13 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Define clear effects of encumbrance (e.g., slower movement, reduced dodge/DEX benefits, or hard item caps) and ensure they are explained in the Character/Follower sheets.
   - Extend inventory/loot flows so picking up items respects weight limits and forces meaningful choices about what to carry, stash, or leave behind.
   - Ensure follower inventories and auto-loot behavior also honor weight limits, preventing followers from acting as infinite backpacks.
+- [ ] Difficulty scaling that accounts for player attributes
+  - Now that STR/DEX/INT/CHA/LCK affect combat, shops, and loot, revisit difficulty curves so enemies remain interesting and not trivial at high attribute values.
+  - Define a simple notion of "effective power" for the player that includes level, gear, and attributes, and use it to:
+    - Adjust encounter composition and enemy tiers (especially in late game or deep dungeons).
+    - Tune enemy HP/ATK multipliers so high-attribute builds still face meaningful threats.
+  - Ensure scaling remains data-driven (e.g., via combat/balance JSON) so attribute-impact tuning does not require hard-coded changes.
+  - Keep early game forgiving, but avoid situations where stacked attributes make most fights completely effortless.
 - [ ] Healer / surgeon NPC for permanent injuries
   - Add a dedicated healer (e.g., in towns or temples) who can treat permanent injuries for gold.
   - Healing options:
