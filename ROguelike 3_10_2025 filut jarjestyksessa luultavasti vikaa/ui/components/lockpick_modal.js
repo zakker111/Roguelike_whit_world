@@ -230,6 +230,19 @@ function setupPuzzle(ctx, opts) {
   _fineLimit = 1 + Math.max(0, fineExtra);
   _fineUsed = 0;
 
+  // INT: slight bonus to move and fine-nudge budget.
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const intVal = attrs && typeof attrs.int === "number" ? attrs.int : 0;
+    const n = intVal | 0;
+    const nonNeg = n < 0 ? 0 : n;
+    const intMovesBonus = Math.min(4, Math.floor(nonNeg / 5));   // +1 move per 5 INT, up to +4
+    const intFineBonus  = Math.min(2, Math.floor(nonNeg / 10));  // +1 fine per 10 INT, up to +2
+    _movesLimit += intMovesBonus;
+    _fineLimit = Math.max(0, (_fineLimit | 0) + intFineBonus);
+  } catch (_) {}
+
   _pins = [];
   for (let c = 0; c < _cols; c++) {
     let row = Math.floor(Math.random() * _rows);

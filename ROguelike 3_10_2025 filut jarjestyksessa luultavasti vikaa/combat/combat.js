@@ -68,7 +68,19 @@ export function getEnemyBlockChance(ctx, enemy, loc) {
 export function enemyDamageAfterDefense(ctx, raw) {
   const def = getPlayerDefenseFromCtx(ctx);
   const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
-  const reduced = raw * (1 - DR);
+
+  // DEX: small additional damage reduction on top of armor.
+  let dexBonus = 0;
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const dex = attrs && typeof attrs.dex === "number" ? attrs.dex : 0;
+    const n = dex | 0;
+    const nonNeg = n < 0 ? 0 : n;
+    dexBonus = Math.min(0.10, nonNeg * 0.004); // up to +10% extra DR
+  } catch (_) {}
+
+  let reduced = raw * (1 - DR) * (1 - dexBonus);
   return Math.max(0.1, round1(ctx, reduced));
 }
 
@@ -95,6 +107,19 @@ export function enemyDamageMultiplier(level) {
  */
 export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
+
+  function getDexFromCtx() {
+    try {
+      const p = ctx && ctx.player ? ctx.player : null;
+      const attrs = p && p.attributes ? p.attributes : null;
+      const dex = attrs && typeof attrs.dex === "number" ? attrs.dex : 0;
+      const n = dex | 0;
+      return n < 0 ? 0 : n;
+    } catch (_) {
+      return 0;
+    }
+  }
+  const _dex = getDexFromCtx();
 
   // Guard attack confirmation: prevent accidental guard aggression.
   try {
@@ -205,6 +230,16 @@ export function playerAttackEnemy(ctx, enemy) {
     if (typeof ctx.getEnemyBlockChance === "function") blockChance = ctx.getEnemyBlockChance(enemy, loc);
     else blockChance = getEnemyBlockChance(ctx, enemy, loc);
   } catch (_) { blockChance = 0; }
+  // DEX: slightly reduces enemy block chance (better accuracy for the player).
+  try {
+    const d = _dex;
+    if (d > 0 && blockChance > 0) {
+      const capped = d > 30 ? 30 : d;
+      const reduction = Math.min(0.20, capped * 0.006); // up to -20% relative
+      blockChance = blockChance * (1 - reduction);
+      if (blockChance < 0) blockChance = 0;
+    }
+  } catch (_) {}
   // Prefer RNGUtils.chance when available for determinism; fallback to raw rng comparison
   const didBlock = (function () {
     try {
@@ -270,7 +305,16 @@ export function playerAttackEnemy(ctx, enemy) {
 
   let isCrit = false;
   const alwaysCrit = !!(((typeof ctx.alwaysCrit === "boolean") ? ctx.alwaysCrit : ((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false)));
-  const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
+  let critChance = 0.12 + (loc.critBonus || 0);
+  // DEX: small crit chance bonus, capped.
+  try {
+    if (_dex > 0) {
+      const capped = _dex > 40 ? 40 : _dex;
+      const dexBonus = Math.min(0.15, capped * 0.003); // up to +15% absolute
+      critChance += dexBonus;
+    }
+  } catch (_) {}
+  critChance = Math.max(0, Math.min(0.6, critChance));
   let critMult = 1.8;
   try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(rng); } catch (_) {}
   const didCrit = (function () {
