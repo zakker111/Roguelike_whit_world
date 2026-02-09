@@ -117,6 +117,7 @@ import '/core/capabilities.js';
 import '/core/god/handlers.js';
 import '/core/validation_runner.js';
 import '/analysis/world_stats.js';
+import '/analysis/world_stats_bridges.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
 // Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.
