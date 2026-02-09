@@ -205,6 +205,38 @@ function buildContent(ctx) {
     }
   })();
 
+  const attributesHTML = (function () {
+    try {
+      if (!p) return "";
+      const a = (p.attributes && typeof p.attributes === "object") ? p.attributes : {};
+      const toInt = (v) => {
+        const n = (typeof v === "number" ? v : 0) | 0;
+        return n < 0 ? 0 : n;
+      };
+      const ap = (typeof p.attributePoints === "number" && p.attributePoints > 0)
+        ? (p.attributePoints | 0)
+        : 0;
+      const str = toInt(a.str);
+      const dex = toInt(a.dex);
+      const intVal = toInt(a.int);
+      const cha = toInt(a.cha);
+      const lck = toInt(a.lck);
+      return [
+        "<div style='margin-top:10px;'>Attributes</div>",
+        `<div style='margin:2px 0 0 0; font-size:12px; color:#cbd5f5;'>Unspent points: ${ap}</div>`,
+        "<ul style='margin:4px 0 0 14px;'>",
+        `<li>STR: ${str} <button data-attr="str" data-delta="+1" style="margin-left:4px;">+</button><button data-attr="str" data-delta="-1" style="margin-left:2px;">-</button></li>`,
+        `<li>DEX: ${dex} <button data-attr="dex" data-delta="+1" style="margin-left:4px;">+</button><button data-attr="dex" data-delta="-1" style="margin-left:2px;">-</button></li>`,
+        `<li>INT: ${intVal} <button data-attr="int" data-delta="+1" style="margin-left:4px;">+</button><button data-attr="int" data-delta="-1" style="margin-left:2px;">-</button></li>`,
+        `<li>CHA: ${cha} <button data-attr="cha" data-delta="+1" style="margin-left:4px;">+</button><button data-attr="cha" data-delta="-1" style="margin-left:2px;">-</button></li>`,
+        `<li>LCK: ${lck} <button data-attr="lck" data-delta="+1" style="margin-left:4px;">+</button><button data-attr="lck" data-delta="-1" style="margin-left:2px;">-</button></li>`,
+        "</ul>",
+      ].join("");
+    } catch (_) {
+      return "";
+    }
+  })();
+
   const html = [
     "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Character Sheet</div>",
     `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
@@ -212,6 +244,7 @@ function buildContent(ctx) {
     `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
     "<div style='margin-top:6px;'>Injuries:</div>",
     `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
+    attributesHTML,
     partyHTML,
     skillsHTML
   ].join("");
@@ -219,11 +252,75 @@ function buildContent(ctx) {
   return html;
 }
 
+function adjustAttribute(ctx, name, delta) {
+  try {
+    if (!ctx || !ctx.player || !ctx.player.attributes) return;
+    const p = ctx.player;
+    if (typeof p.attributePoints !== "number") p.attributePoints = 0;
+    p.attributePoints = (p.attributePoints | 0);
+    if (p.attributePoints < 0) p.attributePoints = 0;
+    const attrs = p.attributes;
+    const curRaw = attrs && typeof attrs[name] === "number" ? attrs[name] : 0;
+    let cur = (curRaw | 0);
+    if (cur < 0) cur = 0;
+    const step = (delta | 0);
+    if (step === 0) return;
+    if (step > 0) {
+      if (p.attributePoints <= 0) return; // respect pool on increment
+      cur += step;
+      p.attributePoints -= step;
+    } else {
+      // step negative: allow refund while keeping attribute >= 0
+      const newVal = cur + step;
+      if (newVal < 0) return;
+      cur = newVal;
+      p.attributePoints += (-step);
+    }
+    if (!attrs) return;
+    attrs[name] = cur;
+    // Force HUD refresh (Attack/Defense, HP line, etc.)
+    try {
+      if (typeof window !== "undefined" && window.Player && typeof window.Player.forceUpdate === "function") {
+        window.Player.forceUpdate(p);
+      }
+    } catch (_) {}
+    // Rebuild the character sheet content so values/buttons update
+    if (_content) {
+      try {
+        const html = buildContent(ctx);
+        _content.innerHTML = html;
+        wireAttributeButtons(ctx);
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+function wireAttributeButtons(ctx) {
+  try {
+    if (!_content) return;
+    const buttons = _content.querySelectorAll("button[data-attr][data-delta]");
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i];
+      btn.onclick = function () {
+        try {
+          const name = btn.getAttribute("data-attr");
+          const d = Number(btn.getAttribute("data-delta") || 0);
+          if (!name || !d) return;
+          adjustAttribute(ctx, name, d);
+        } catch (_) {}
+      };
+    }
+  } catch (_) {}
+}
+
 export function show(ctx = null) {
   const panel = ensurePanel();
   try {
     const html = buildContent(ctx);
-    if (_content) _content.innerHTML = html;
+    if (_content) {
+      _content.innerHTML = html;
+      wireAttributeButtons(ctx);
+    }
   } catch (_) {}
   panel.style.display = "block";
 }

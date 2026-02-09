@@ -1,6 +1,34 @@
 import * as World from "../world/world.js";
-import { getUIOrchestration, getMod } from "../utils/access.js";
+import { getUIOrchestration, getMod, getRNGUtils } from "../utils/access.js";
 import { saveRegionState, addRegionCut } from "./region_map_persistence.js";
+
+function getIntAttribute(ctx) {
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const intVal = attrs && typeof attrs.int === "number" ? attrs.int : 0;
+    const n = intVal | 0;
+    return n < 0 ? 0 : n;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function chanceIntBonus(ctx, prob) {
+  try {
+    if (!(prob > 0)) return false;
+    const RU = getRNGUtils(ctx);
+    if (RU && typeof RU.chance === "function") {
+      let rng = null;
+      try {
+        if (typeof ctx.rng === "function") rng = ctx.rng;
+      } catch (_) {}
+      return RU.chance(prob, rng);
+    }
+  } catch (_) {}
+  // If RNG helpers are unavailable, skip bonus for determinism.
+  return false;
+}
 
 // Handle all non-exit Region Map context actions (loot, harvest, fishing).
 export function handleRegionAction(ctx) {
@@ -86,14 +114,30 @@ export function handleRegionAction(ctx) {
       // Pick berries and remove bush (convert to forest)
       try {
         const inv = ctx.player.inventory || (ctx.player.inventory = []);
-        const existing = inv.find(it => it && it.kind === "material" && (String(it.name || it.type || "").toLowerCase() === "berries"));
-        if (existing) {
-          if (typeof existing.amount === "number") existing.amount += 1;
-          else if (typeof existing.count === "number") existing.count += 1;
-          else existing.amount = 1;
-        } else {
-          inv.push({ kind: "material", type: "berries", name: "berries", amount: 1 });
+        let existing = inv.find(it => it && it.kind === "material" && (String(it.name || it.type || "").toLowerCase() === "berries"));
+        if (!existing) {
+          existing = { kind: "material", type: "berries", name: "berries", amount: 0 };
+          inv.push(existing);
         }
+        if (typeof existing.amount === "number") existing.amount += 1;
+        else if (typeof existing.count === "number") existing.count += 1;
+        else existing.amount = 1;
+
+        // INT: small chance to find an extra handful of berries.
+        try {
+          const intVal = getIntAttribute(ctx);
+          if (intVal > 0) {
+            const capped = intVal > 40 ? 40 : intVal;
+            const pBonus = Math.min(0.25, capped * 0.006); // up to +25%
+            if (chanceIntBonus(ctx, pBonus)) {
+              const extra = 1;
+              if (typeof existing.amount === "number") existing.amount += extra;
+              else if (typeof existing.count === "number") existing.count += extra;
+              else existing.amount = (existing.amount | 0) + extra;
+            }
+          }
+        } catch (_) {}
+
         // Foraging skill gain
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
         if (ctx.log) ctx.log("You pick berries.", "info");
@@ -135,14 +179,30 @@ export function handleRegionAction(ctx) {
       // Grant planks material in inventory (stacking)
       try {
         const inv = ctx.player.inventory || (ctx.player.inventory = []);
-        const existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
-        if (existing) {
-          if (typeof existing.amount === "number") existing.amount += 10;
-          else if (typeof existing.count === "number") existing.count += 10;
-          else existing.amount = 10;
-        } else {
-          inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
+        let existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
+        if (!existing) {
+          existing = { kind: "material", type: "wood", name: "planks", amount: 0 };
+          inv.push(existing);
         }
+        if (typeof existing.amount === "number") existing.amount += 10;
+        else if (typeof existing.count === "number") existing.count += 10;
+        else existing.amount = 10;
+
+        // INT: small chance to harvest a few extra planks from each tree.
+        try {
+          const intVal = getIntAttribute(ctx);
+          if (intVal > 0) {
+            const capped = intVal > 40 ? 40 : intVal;
+            const pBonus = Math.min(0.20, capped * 0.005); // up to +20%
+            if (chanceIntBonus(ctx, pBonus)) {
+              const extra = 5;
+              if (typeof existing.amount === "number") existing.amount += extra;
+              else if (typeof existing.count === "number") existing.count += extra;
+              else existing.amount = (existing.amount | 0) + extra;
+            }
+          }
+        } catch (_) {}
+
         if (typeof ctx.updateUI === "function") ctx.updateUI();
       } catch (_) {}
 

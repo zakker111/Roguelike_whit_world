@@ -297,6 +297,48 @@ function _getRules(shopType) {
   } catch (_) { return {}; }
 }
 
+function _getCharisma(ctx) {
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const cha = attrs && typeof attrs.cha === "number" ? attrs.cha : 0;
+    const n = cha | 0;
+    return n < 0 ? 0 : n;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function _buyPriceMultiplierForCharisma(ctx) {
+  const cha = _getCharisma(ctx);
+  if (cha <= 0) return 1.0;
+  const perPoint = 0.02; // 2% cheaper per CHA
+  const maxDiscount = 0.4; // cap at 40% off
+  const discount = Math.min(maxDiscount, Math.max(0, cha) * perPoint);
+  return 1.0 - discount;
+}
+
+function _sellPriceMultiplierForCharisma(ctx) {
+  const cha = _getCharisma(ctx);
+  if (cha <= 0) return 1.0;
+  const perPoint = 0.01; // 1% more per CHA when selling
+  const maxBonus = 0.3; // cap at +30%
+  const bonus = Math.min(maxBonus, Math.max(0, cha) * perPoint);
+  return 1.0 + bonus;
+}
+
+function _computeSellPay(ctx, shopType, item) {
+  var phase = getPhase(ctx);
+  var price = calculatePrice(shopType, item, phase, null);
+  var rules = _getRules(shopType);
+  var buyMult = (rules && typeof rules.buyMultiplier === "number") ? rules.buyMultiplier : 0.5;
+  var basePay = Math.max(1, Math.round(price * buyMult));
+  var mult = _sellPriceMultiplierForCharisma(ctx);
+  if (!(mult > 0)) mult = 1.0;
+  var pay = Math.max(1, Math.round(basePay * mult));
+  return pay;
+}
+
 export function canBuyFromShop(shopType, itemKind) {
   var r = _getRules(shopType);
   var sells = Array.isArray(r.sells) ? r.sells.map(x => String(x).toLowerCase()) : [];
@@ -636,7 +678,21 @@ export function restockIfNeeded(ctx, shop) {
 
 export function getInventoryForShop(ctx, shop) {
   var st = restockIfNeeded(ctx, shop);
-  return Array.isArray(st.rows) ? st.rows : [];
+  var rows = Array.isArray(st.rows) ? st.rows : [];
+  var mult = _buyPriceMultiplierForCharisma(ctx);
+  if (!(mult > 0)) mult = 1.0;
+  // Return a mapped copy so UI sees CHA-adjusted prices but does not mutate internal state
+  return rows.map(function (r) {
+    var basePrice = (r && typeof r.price === "number") ? r.price : 0;
+    var item = r && r.item;
+    var kind = item && String(item.kind || "").toLowerCase();
+    var effective = basePrice;
+    // Do not apply charisma to inn services (e.g., room rentals)
+    if (kind !== "service") {
+      effective = Math.max(1, Math.round(basePrice * mult));
+    }
+    return { item: item, price: effective, qty: r.qty };
+  });
 }
 
 function _giveItemToPlayer(ctx, item) {
@@ -737,14 +793,18 @@ export function buyItem(ctx, shop, idx) {
   } catch (_) {}
 
   var g = _playerGold(ctx);
-  if ((g.cur | 0) < (row.price | 0)) { try { ctx.log && ctx.log("You don't have enough gold.", "warn"); } catch (_) {} return false; }
+  var basePrice = (row.price | 0);
+  var mult = _buyPriceMultiplierForCharisma(ctx);
+  if (!(mult > 0)) mult = 1.0;
+  var finalPrice = Math.max(1, Math.round(basePrice * mult));
+  if ((g.cur | 0) < finalPrice) { try { ctx.log && ctx.log("You don't have enough gold.", "warn"); } catch (_) {} return false; }
   if (!g.goldObj) { g.goldObj = { kind: "gold", amount: 0, name: "gold" }; (ctx.player.inventory || (ctx.player.inventory = [])).push(g.goldObj); }
-  g.goldObj.amount = (g.goldObj.amount | 0) - (row.price | 0);
+  g.goldObj.amount = (g.goldObj.amount | 0) - finalPrice;
   var copy;
   try { copy = JSON.parse(JSON.stringify(row.item)); } catch (_) { copy = Object.assign({}, row.item); }
   _giveItemToPlayer(ctx, copy);
   row.qty = (row.qty | 0) - 1;
-  try { ctx.log && ctx.log("You bought " + (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item") + " for " + row.price + " gold.", "good"); } catch (_) {}
+  try { ctx.log && ctx.log("You bought " + (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item") + " for " + finalPrice + " gold.", "good"); } catch (_) {}
   return true;
 }
 
@@ -759,11 +819,7 @@ export function sellItem(ctx, shop, playerInvIdx) {
   if (!ok) { try { ctx.log && ctx.log("This shop won't buy that.", "warn"); } catch (_) {} return false; }
 
   // price
-  var phase = getPhase(ctx);
-  var price = calculatePrice(shop.type, it, phase, null);
-  var rules = _getRules(shop.type);
-  var buyMult = (rules && typeof rules.buyMultiplier === "number") ? rules.buyMultiplier : 0.5;
-  var pay = Math.max(1, Math.round(price * buyMult));
+  var pay = _computeSellPay(ctx, shop.type, it);
 
   // pay gold
   var goldObj = null;
@@ -783,6 +839,14 @@ export function sellItem(ctx, shop, playerInvIdx) {
   return true;
 }
 
+export function getSellPrice(ctx, shop, item) {
+  try {
+    if (!ctx || !shop || !item) return 0;
+    return _computeSellPay(ctx, shop.type, item);
+  } catch (_) {
+    return 0;
+  }
+}
 
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
@@ -799,6 +863,7 @@ attachGlobal("ShopService", {
   canBuyFromShop,
   canSellToShop,
   calculatePrice,
+  getSellPrice,
   buyItem,
   sellItem
 });

@@ -56,7 +56,15 @@ export const defaults = {
     cooking: 0,
     survivalism: 0,
     lockpicking: 0
-  }
+  },
+  attributes: {
+    str: 5,
+    dex: 5,
+    int: 5,
+    cha: 5,
+    lck: 5
+  },
+  attributePoints: 0
 };
 
 function clone(obj) {
@@ -224,6 +232,32 @@ export function normalize(p) {
       lockpicking: Math.max(0, (s.lockpicking | 0)),
     };
   } catch (_) {}
+
+  // Normalize base attributes and unspent attribute points
+  try {
+    const base = (defaults.attributes && typeof defaults.attributes === "object") ? defaults.attributes : {};
+    const a = (p.attributes && typeof p.attributes === "object") ? p.attributes : {};
+    const from = (key) => {
+      const defVal = typeof base[key] === "number" ? base[key] : 0;
+      const v = (typeof a[key] === "number") ? a[key] : defVal;
+      const n = (v | 0);
+      return n < 0 ? 0 : n;
+    };
+    p.attributes = {
+      str: from("str"),
+      dex: from("dex"),
+      int: from("int"),
+      cha: from("cha"),
+      lck: from("lck"),
+    };
+    let ap = p.attributePoints;
+    if (typeof ap !== "number") {
+      ap = typeof defaults.attributePoints === "number" ? defaults.attributePoints : 0;
+    }
+    ap = (ap | 0);
+    if (ap < 0) ap = 0;
+    p.attributePoints = ap;
+  } catch (_) {}
   return p;
 }
 
@@ -282,7 +316,18 @@ export function getAttack(player) {
   addAtk(eq.hands);
 
   const levelBonus = Math.floor((player.level - 1) / 2);
-  return round1(player.atk + bonus + levelBonus);
+
+  // Strength provides a small additive bonus to attack.
+  let strBonus = 0;
+  try {
+    const attrs = (player && player.attributes && typeof player.attributes === "object") ? player.attributes : {};
+    const raw = attrs.str;
+    const v = (typeof raw === "number" ? raw : 0) | 0;
+    const nonNeg = v < 0 ? 0 : v;
+    strBonus = Math.floor(nonNeg / 3);
+  } catch (_) {}
+
+  return round1(player.atk + bonus + levelBonus + strBonus);
 }
 
 export function getDefense(player) {
@@ -398,6 +443,13 @@ export function decayEquipped(player, slot, amount, hooks = {}) {
 export function gainXP(player, amount, hooks = {}) {
   player.xp += amount;
   if (hooks.log) hooks.log(`You gain ${amount} XP.`);
+  const pointsPerLevel = 3;
+  if (typeof player.attributePoints !== "number") {
+    player.attributePoints = 0;
+  } else {
+    player.attributePoints = (player.attributePoints | 0);
+    if (player.attributePoints < 0) player.attributePoints = 0;
+  }
   while (player.xp >= player.xpNext) {
     player.xp -= player.xpNext;
     player.level += 1;
@@ -405,6 +457,7 @@ export function gainXP(player, amount, hooks = {}) {
     player.hp = player.maxHp;
     if (player.level % 2 === 0) player.atk += 1;
     player.xpNext = Math.floor(player.xpNext * 1.3 + 10);
+    player.attributePoints += pointsPerLevel;
     if (hooks.log) hooks.log(`You are now level ${player.level}. Max HP increased.`, "good");
   }
   if (hooks.updateUI) hooks.updateUI();

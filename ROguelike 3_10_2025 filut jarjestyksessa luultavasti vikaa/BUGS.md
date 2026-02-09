@@ -61,3 +61,11 @@
   - During the bandits-at-the-gate town event, pressing G while standing on some guard/bandit corpses near the gate reports nothing to loot or shows only flavor, with no items or gold granted.
   - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
   - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
+- While the lockpicking mini-game is open, some keyboard movement keys still move the player:
+  - Arrow keys and certain Numpad keys (1–7) may continue to move the player character even though the lockpicking overlay is active.
+  - Expected: while the lockpicking modal is open, world/region/dungeon movement keys should be swallowed so the player cannot walk around during the puzzle.
+  - Needs input handling audit so LockpickModal correctly blocks arrow and numpad movement from reaching the core input/movement handlers.
+- Loot sometimes logs that an item was "equipped" without actually changing player equipment:
+  - After looting corpses/chests, the log occasionally reports entries like "equipped [item desc]" but the corresponding slot on the player remains unchanged.
+  - This suggests a mismatch between ctx.equipIfBetter/autoequip behavior in entities/loot.js and the inventory/equipment update path used by Player/PlayerEquip.
+  - Needs a focused repro with logging around Loot.lootHere(ctx) to verify when equipIfBetter returns true vs when inventory/equipment actually change.

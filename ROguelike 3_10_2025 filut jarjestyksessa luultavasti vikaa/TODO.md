@@ -58,6 +58,28 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Player skill tree and skill points
   - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
+- [ ] Follower attribute preferences (faction/archetype driven, visible/hidden)
+  - Design and implement a simple attribute system for followers that mirrors (or reuses) the player attribute model.
+  - On follower level-up, automatically allocate follower attribute points according to their faction/archetype:
+    - Guard-style followers prioritize STR/CON-style toughness and DEX for blocking.
+    - Thief/rogue followers favor DEX and INT for accuracy, crits, and utility (lockpicking/foraging).
+    - Caster/support-style followers (if introduced) would favor INT/CHA.
+  - Decide whether follower attributes are:
+    - Fully visible on a follower inspect panel (explicit STR/DEX/INT/CHA/LCK lines), or
+    - Mostly hidden, with only summarized effects shown (e.g., “Prefers agility and precision”).
+  - Ensure follower attribute spending is data-driven:
+    - Define simple per-archetype weights or priority lists in JSON (e.g., `attributes: { str: 2, dex: 3, int: 1 }`).
+    - Runtime level-up logic distributes points using these weights so different factions feel distinct without hardcoding per-follower behavior.
+  - Keep this system optional/low-noise for players:
+    - Default UI only needs to show high-level effects (Attack, Defense, role description);
+      raw attribute lines can remain a debug/EXPERIMENTAL view until the system is stable.
+- [ ] Player / follower level caps, attribute caps, and respec limits
+  - Introduce clear maximum levels (soft and/or hard caps) for both the player and followers so combat and economy remain tunable at late game.
+  - Add per-attribute caps (either global or per-attribute) so single stats cannot be pushed to absurd values on either the player or followers.
+  - Define strict respec rules:
+    - Attribute points should not be freely and repeatedly respec’d from the Character Sheet during normal runs.
+    - Consider rare/expensive respec options (e.g., special shrine/NPC, high gold cost, or limited-use items) instead of free point shuffling.
+  - Keep the current +/- Character Sheet controls as a debug/EXPERIMENTAL tool only; wire them behind a clear dev flag once proper respec rules exist.
 - [ ] Passive combat skills
   - One-handed, two-handed, shield use, and striking skills that grow with use up to a cap and affect combat stats.
 - [ ] Deeper character sheet and lasting injuries
@@ -71,6 +93,25 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Integrate with healing systems:
     - Normal rest/potions handle temporary HP/status.
     - Permanent injuries require special treatment (see healer below).
+- [ ] Remove or gate auto-equip behavior once testing is complete
+  - Auto-equipping "best" gear on loot is currently helpful for testing and quick progression but can feel intrusive or confusing for players.
+  - Plan to remove or strictly gate auto-equip so that:
+    - Normal runs favor explicit player choice via the inventory/equipment UI instead of silent auto-upgrades.
+    - Any remaining auto-equip paths (e.g., debug flows, GOD tools, smoketests) are clearly marked as testing-only and not used in normal gameplay.
+  - Review Loot.lootHere(ctx) and PlayerEquip.equipIfBetter usage so that production paths only equip when the player explicitly chooses to.
+- [ ] Weight / encumbrance system for player and followers
+  - Introduce a simple weight or encumbrance model so the player (and followers) cannot carry every item indefinitely without tradeoffs.
+  - Assign weight values to equipment and loot (data-driven in items JSON) and track total carried weight per actor.
+  - Define clear effects of encumbrance (e.g., slower movement, reduced dodge/DEX benefits, or hard item caps) and ensure they are explained in the Character/Follower sheets.
+  - Extend inventory/loot flows so picking up items respects weight limits and forces meaningful choices about what to carry, stash, or leave behind.
+  - Ensure follower inventories and auto-loot behavior also honor weight limits, preventing followers from acting as infinite backpacks.
+- [ ] Difficulty scaling that accounts for player attributes
+  - Now that STR/DEX/INT/CHA/LCK affect combat, shops, and loot, revisit difficulty curves so enemies remain interesting and not trivial at high attribute values.
+  - Define a simple notion of "effective power" for the player that includes level, gear, and attributes, and use it to:
+    - Adjust encounter composition and enemy tiers (especially in late game or deep dungeons).
+    - Tune enemy HP/ATK multipliers so high-attribute builds still face meaningful threats.
+  - Ensure scaling remains data-driven (e.g., via combat/balance JSON) so attribute-impact tuning does not require hard-coded changes.
+  - Keep early game forgiving, but avoid situations where stacked attributes make most fights completely effortless.
 - [ ] Healer / surgeon NPC for permanent injuries
   - Add a dedicated healer (e.g., in towns or temples) who can treat permanent injuries for gold.
   - Healing options:

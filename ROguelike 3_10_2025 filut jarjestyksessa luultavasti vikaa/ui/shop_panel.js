@@ -87,10 +87,16 @@ function listSellables(ctx) {
       // Show estimated sell price using rules
       let est = 5;
       try {
-        const phase = (window.ShopService && typeof window.ShopService.getPhase === "function") ? window.ShopService.getPhase(ctx) : "morning";
-        const base = (window.ShopService && typeof window.ShopService.calculatePrice === "function") ? window.ShopService.calculatePrice((_shopRef && _shopRef.type) || "trader", it, phase, null) : 10;
-        const rules = (window.GameData && window.GameData.shopRules && _shopRef && window.GameData.shopRules[_shopRef.type]) ? window.GameData.shopRules[_shopRef.type] : { buyMultiplier: 0.5 };
-        est = Math.max(1, Math.round(base * (rules.buyMultiplier || 0.5)));
+        if (window.ShopService && typeof window.ShopService.getSellPrice === "function" && _shopRef) {
+          est = window.ShopService.getSellPrice(ctx, _shopRef, it) | 0;
+          if (est < 1) est = 1;
+        } else {
+          // Fallback: replicate old estimate path if helper is missing (back-compat)
+          const phase = (window.ShopService && typeof window.ShopService.getPhase === "function") ? window.ShopService.getPhase(ctx) : "morning";
+          const base = (window.ShopService && typeof window.ShopService.calculatePrice === "function") ? window.ShopService.calculatePrice((_shopRef && _shopRef.type) || "trader", it, phase, null) : 10;
+          const rules = (window.GameData && window.GameData.shopRules && _shopRef && window.GameData.shopRules[_shopRef.type]) ? window.GameData.shopRules[_shopRef.type] : { buyMultiplier: 0.5 };
+          est = Math.max(1, Math.round(base * (rules.buyMultiplier || 0.5)));
+        }
       } catch (_) {}
       out.push({ idx: i, item: it, price: est });
     }

@@ -1,3 +1,42 @@
+2026-02-09 — Player attribute system, Character Sheet, and early STR/DEX/INT/CHA/LCK integration
+
+- Added an experimental player attribute system with five core stats and an unspent point pool:
+  - **STR (Strength)** — melee offense:
+    - Increases base melee Attack; every few points of STR add a small flat bonus to attack power via `Player.getAttack`.
+  - **DEX (Dexterity)** — accuracy and avoidance:
+    - When the player attacks: slightly reduces enemy block chance and slightly increases critical hit chance in `combat/combat.js::playerAttackEnemy`.
+    - When enemies hit the player: grants a small extra damage reduction layered on top of armor DR in `enemyDamageAfterDefense`.
+  - **INT (Intellect)** — utility and finesse:
+    - Lockpicking mini-game (`ui/components/lockpick_modal.js`): INT adds extra total moves and extra fine nudges.
+    - Region Map foraging (`region_map/region_map_actions.js`): INT gives a small chance to gain extra berries from bushes and extra planks from trees.
+  - **CHA (Charisma)** — economy:
+    - ShopService uses CHA to adjust buy/sell prices, giving discounts on purchases and better sell payouts (inn room prices intentionally unaffected).
+  - **LCK (Luck)** — loot quality:
+    - Slightly increases the chance for equipment drops from enemies (higher LCK ⇒ more frequent gear over time).
+- Level-ups now grant a small number of attribute points, tracked on the player and shown in the Character Sheet.
+- Character Sheet (`ui/components/character_modal.js`):
+  - Shows current attributes and unspent attribute points alongside HP/Attack/Defense, injuries, skills, and followers.
+  - Includes +/- buttons as a **developer-facing cheat UI** to spend/refund attribute points for testing; this is documented as experimental and slated to be gated/removed for normal play.
+- Combat integration:
+  - `entities/player.js::getAttack` uses STR to add a small flat attack bonus on top of base ATK, gear, and level scaling.
+  - `combat/combat.js::playerAttackEnemy` reads DEX from `ctx.player.attributes.dex` and:
+    - Reduces enemy block chance by up to ~20% relative at very high DEX.
+    - Adds a small absolute crit chance bonus (capped, still clamped to an overall 60% crit chance).
+  - `combat/combat.js::enemyDamageAfterDefense` adds a DEX-based damage reduction bonus (up to ~10% extra DR) after armor DR.
+- Non-combat integration:
+  - Lockpicking: `LockpickModal.setupPuzzle` now adds INT-based bonuses on top of lockpicking skill, giving extra move budget and fine nudges.
+  - Region Map foraging: berry bushes and trees call new helpers (`getIntAttribute`, `chanceIntBonus`) so INT can occasionally grant extra berries/planks using RNGUtils and ctx.rng (no Math.random in core flows).
+- Documentation and planning:
+  - FEATURES.md now includes an **Attribute system & Character Sheet (EXPERIMENTAL)** section describing STR/DEX/INT/CHA/LCK effects and the cheat UI.
+  - TODO.md gained entries for:
+    - Follower attribute preferences (archetype/faction-driven attribute spending, visible/hidden in follower panels).
+    - Player/follower level caps and per-attribute caps, plus stricter respec rules (current +/- controls are marked as debug-only).
+    - Removing/gating auto-equip behavior so explicit player choice drives equipment in normal runs.
+    - Weight/encumbrance system for player and followers, including equipment/loot weights and encumbrance effects.
+    - Difficulty scaling that takes attributes into account so high-attribute builds still face interesting fights.
+- BUGS.md additions:
+  - Recorded that some movement keys (arrow keys and Numpad 1–7) can still move the player while the lockpicking mini-game is open, and that loot logs sometimes say an item was "equipped" without equipment actually changing, both slated for investigation.
+
 2026-02-08 — File size snapshot (Top 10 largest files)
 
 Top 10 largest files in the repo

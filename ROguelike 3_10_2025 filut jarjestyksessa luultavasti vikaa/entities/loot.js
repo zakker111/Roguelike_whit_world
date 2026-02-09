@@ -391,7 +391,21 @@ export function generate(ctx, source) {
       }
     }
   } catch (_) {}
-  if (ctx.chance(equipChance)) {
+
+  // Luck slightly increases the chance to drop equipment.
+  let finalEquipChance = equipChance;
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const lck = attrs && typeof attrs.lck === "number" ? attrs.lck : 0;
+    const n = lck | 0;
+    const nonNeg = n < 0 ? 0 : n;
+    // 1% absolute bonus per LCK, capped at +20%
+    const bonus = Math.min(0.2, nonNeg * 0.01);
+    finalEquipChance = Math.min(1, Math.max(0, equipChance + bonus));
+  } catch (_) {}
+
+  if (ctx.chance(finalEquipChance)) {
     // Only use enemy-specific loot pool; no general fallback
     const biased = pickEnemyBiasedEquipment(ctx, type, tier);
     if (biased) {
