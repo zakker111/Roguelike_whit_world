@@ -73,9 +73,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Keep this system optional/low-noise for players:
     - Default UI only needs to show high-level effects (Attack, Defense, role description);
       raw attribute lines can remain a debug/EXPERIMENTAL view until the system is stable.
-- [ ] Player level / attribute caps and respec limits
-  - Introduce a clear maximum player level (soft and/or hard cap) so combat and economy remain tunable at late game.
-  - Add per-attribute caps (either global or per-attribute) so single stats cannot be pushed to absurd values.
+- [ ] Player / follower level caps, attribute caps, and respec limits
+  - Introduce clear maximum levels (soft and/or hard caps) for both the player and followers so combat and economy remain tunable at late game.
+  - Add per-attribute caps (either global or per-attribute) so single stats cannot be pushed to absurd values on either the player or followers.
   - Define strict respec rules:
     - Attribute points should not be freely and repeatedly respec’d from the Character Sheet during normal runs.
     - Consider rare/expensive respec options (e.g., special shrine/NPC, high gold cost, or limited-use items) instead of free point shuffling.
