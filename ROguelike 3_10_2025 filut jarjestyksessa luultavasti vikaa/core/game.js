@@ -1111,21 +1111,15 @@ import "./sandbox/runtime.js";
   }
 
   function killEnemy(enemy) {
-    // Prefer centralized DungeonRuntime to handle loot, occupancy, XP, and persistence
+    // Delegate enemy death handling (loot, XP, occupancy, persistence) to
+    // DungeonRuntime.killEnemy, which now owns the full implementation.
     const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.killEnemy === "function") {
-      const ctx = getCtx();
-      DR.killEnemy(ctx, enemy);
-      syncFromCtx(ctx);
-      return;
+    if (!DR || typeof DR.killEnemy !== "function") {
+      throw new Error("DungeonRuntime.killEnemy missing; enemy death handling cannot proceed");
     }
-    // Fallback: module-only; minimal corpse + removal
-    const name = capitalize(enemy.type || "enemy");
-    log(`${name} dies.`, "info");
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
-    enemies = enemies.filter(e => e !== enemy);
-    try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}
-    gainXP(enemy.xp || 5);
+    const ctx = getCtx();
+    DR.killEnemy(ctx, enemy);
+    syncFromCtx(ctx);
   }
 
   
