@@ -684,6 +684,28 @@ These exist partially in code or design but are **known unstable** or not yet im
     - World generation and expansion can become slow/sluggish as more chunks are visited.
   - Tracked as a bug in `BUGS.md` and targeted for future performance work in world/infinite_gen + world_runtime.
 
+### 12.6 Attribute system & Character Sheet (EXPERIMENTAL)
+
+- Character attributes and the Character Sheet are wired into core systems but are still considered **experimental** and subject to tuning.
+- The Character Sheet (`C`) shows five core attributes and an unspent points pool:
+  - **STR (Strength)** — melee offense:
+    - Increases base melee Attack; every few points of STR add a small flat bonus to attack power.
+    - Affects all bump-attacks via the shared `Player.getAttack` helper.
+  - **DEX (Dexterity)** — accuracy and avoidance:
+    - When you attack: slightly reduces enemy block chance and slightly increases your critical hit chance.
+    - When enemies hit you: grants a small extra damage reduction on top of armor DR.
+  - **INT (Intellect)** — utility and finesse:
+    - Lockpicking mini-game: adds extra move budget and a few extra fine nudges based on INT.
+    - Foraging on the Region Map: small INT-based chance to gain extra berries from bushes and extra planks from trees.
+  - **CHA (Charisma)** — economy:
+    - Improves shop prices: reduces buy prices and increases sell payouts through `ShopService` helpers.
+    - Currently does **not** discount inn room services to avoid surprising behavior.
+  - **LCK (Luck)** — loot quality:
+    - Slightly increases the chance for defeated enemies to drop equipment (higher LCK → more frequent gear drops over time).
+- Attribute points:
+  - Level-ups grant a small number of attribute points; the Character Sheet includes `+/-` buttons as a **developer-facing cheat UI** to spend/refund points during testing.
+  - Long-term progression rules (how many points per level, caps, and respec rules) are still in flux and may change.
+
 ---
 
 ## 13. Platform & Input
