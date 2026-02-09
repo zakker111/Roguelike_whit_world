@@ -57,6 +57,28 @@ Top 10 largest files in the repo
 Near miss:
 - ui/render_dungeon.js – ~191 lines, ≈ 15 KB (next-largest file just outside the top 10).
 
+v1.75.0 — Core/game slimming, escort travel, and centralized dungeon death/loot
+
+- Time and fast-forward now rely on the Movement module:
+  - `core/game.js::fastForwardMinutes(mins)` no longer implements its own turn loop and `_suppressDraw` fallback.
+  - It delegates to `Movement.fastForwardMinutes(ctx, mins)`, which runs turns, recomputes FOV, and updates UI using the ctx-first movement facade.
+  - This removes duplicated logic while preserving sleep/rest behavior and fast-forward semantics.
+- Escort auto-travel moved into the world runtime layer:
+  - `core/game.js::startEscortAutoTravel()` is now a thin wrapper that calls `WorldRuntime.startEscortAutoTravel(ctx)` when available.
+  - The timed auto-travel loop (delayed `turn()` calls with a safety cap) now lives in `core/world/tick.js::startEscortAutoTravel(ctx)`, alongside other world-level caravan logic.
+  - Behavior remains the same: after confirming to continue guarding the caravan, returning to the overworld automatically advances turns until the escort completes or is cancelled.
+- Encounter looting path aligned with dungeon behavior:
+  - In `core/modes/actions.js::doAction(ctx)`, the encounter branch now explicitly calls `DungeonRuntime.lootHere(ctx)` when the player stands on a corpse/chest (`ctx.corpses` matches player tile) before falling back to prop interactions.
+  - This reuses the same `lootHere` implementation as dungeons, which in turn delegates to the `Loot` subsystem (`entities/loot.js`) and shows the loot panel via `UIOrchestration.showLoot(ctx, acquired)`.
+  - Result: pressing G on a corpse in encounters consistently opens the loot panel and transfers items, matching dungeon behavior.
+- Dungeon enemy death is centralized in `DungeonRuntime.killEnemy`:
+  - `core/game.js::killEnemy(enemy)` now always delegates to `DungeonRuntime.killEnemy(ctx, enemy)` and then calls `syncFromCtx(ctx)`.
+  - The old local fallback (manual corpse push, occupancy clear, and direct XP gain) has been removed; all enemy death handling (loot, corpse meta, XP for player/followers, occupancy, and dungeon save) now lives in `core/dungeon/kill_enemy.js`.
+  - This ensures consistent behavior across dungeons, encounters, and sandbox dungeons and avoids divergence between game.js and dungeon runtime logic.
+- Loot panel helpers simplified:
+  - `core/game.js::showLootPanel(list)` and `hideLootPanel()` now defer solely to `LootFlow.show/hide` (or `UIOrchestration.showLoot/hideLoot` as a fallback) without manually calling `requestDraw()`.
+  - `UIOrchestration.showLoot/hideLoot` already issues draw requests when open state changes, so this removes redundant draws while keeping visible behavior unchanged.
+
 v1.74.0 — G-key action routing refactor
 
 - Core G-key routing is now owned entirely by `core/modes/actions.js::doAction(ctx)`:
