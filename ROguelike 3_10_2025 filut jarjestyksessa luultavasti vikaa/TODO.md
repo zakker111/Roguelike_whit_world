@@ -93,6 +93,18 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Integrate with healing systems:
     - Normal rest/potions handle temporary HP/status.
     - Permanent injuries require special treatment (see healer below).
+- [ ] Remove or gate auto-equip behavior once testing is complete
+  - Auto-equipping "best" gear on loot is currently helpful for testing and quick progression but can feel intrusive or confusing for players.
+  - Plan to remove or strictly gate auto-equip so that:
+    - Normal runs favor explicit player choice via the inventory/equipment UI instead of silent auto-upgrades.
+    - Any remaining auto-equip paths (e.g., debug flows, GOD tools, smoketests) are clearly marked as testing-only and not used in normal gameplay.
+  - Review Loot.lootHere(ctx) and PlayerEquip.equipIfBetter usage so that production paths only equip when the player explicitly chooses to.
+- [ ] Weight / encumbrance system for player and followers
+  - Introduce a simple weight or encumbrance model so the player (and followers) cannot carry every item indefinitely without tradeoffs.
+  - Assign weight values to equipment and loot (data-driven in items JSON) and track total carried weight per actor.
+  - Define clear effects of encumbrance (e.g., slower movement, reduced dodge/DEX benefits, or hard item caps) and ensure they are explained in the Character/Follower sheets.
+  - Extend inventory/loot flows so picking up items respects weight limits and forces meaningful choices about what to carry, stash, or leave behind.
+  - Ensure follower inventories and auto-loot behavior also honor weight limits, preventing followers from acting as infinite backpacks.
 - [ ] Healer / surgeon NPC for permanent injuries
   - Add a dedicated healer (e.g., in towns or temples) who can treat permanent injuries for gold.
   - Healing options:
