@@ -26,6 +26,7 @@ const TILES = {
   DESERT: 9,
   SNOW: 10,
   RUINS: 12,
+  SHALLOW: 22, // shallow water/ford; keep id aligned with World.TILES
   CASTLE: 15,
   SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
   TOWER: 17,       // overworld tower POI; kept aligned with World.TILES
@@ -176,8 +177,15 @@ function create(seed, opts = {}) {
 
     const nearRiver = Math.abs((rBase * 0.8 + rMeander * 0.2) - 0.5) < tol;
 
-    // Rivers take priority over all other terrain
+    // Rivers take priority over all other terrain, but allow occasional shallow fords.
     if (nearRiver) {
+      // Narrow, jagged fords cutting across the river band.
+      const fordNoise = valueNoise2(s ^ 0xF0F0, x + 17, y - 31, 1 / 64);
+      const fordMask = Math.abs(fordNoise - 0.5) < 0.02;
+
+      if (fordMask) {
+        return TILES.SHALLOW;
+      }
       return TILES.RIVER;
     }
 
@@ -220,8 +228,18 @@ function create(seed, opts = {}) {
       return TILES.SNOW;
     }
 
+    // Precompute potential mountain-pass corridors: rare, wiggly stripes
+    const passNoiseX = valueNoise2(s ^ 0xA51, x, y, 1 / 96);
+    const passNoiseY = valueNoise2(s ^ 0xA52, x, y, 1 / 96);
+    const passBand =
+      Math.abs(passNoiseX - 0.5) < 0.03 ||
+      Math.abs(passNoiseY - 0.5) < 0.03;
+
     // Mountains at high elevation
-    if (elevation > 0.78) return TILES.MOUNTAIN;
+    if (elevation > 0.78) {
+      if (passBand) return TILES.GRASS; // mountain pass
+      return TILES.MOUNTAIN;
+    }
 
     // If we are in the hot+dry desert-prone zone and not a mountain, resolve to desert now
     if (forceDesert) {
