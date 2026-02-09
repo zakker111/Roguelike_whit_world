@@ -58,6 +58,21 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Player skill tree and skill points
   - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
   - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
+- [ ] Follower attribute preferences (faction/archetype driven, visible/hidden)
+  - Design and implement a simple attribute system for followers that mirrors (or reuses) the player attribute model.
+  - On follower level-up, automatically allocate follower attribute points according to their faction/archetype:
+    - Guard-style followers prioritize STR/CON-style toughness and DEX for blocking.
+    - Thief/rogue followers favor DEX and INT for accuracy, crits, and utility (lockpicking/foraging).
+    - Caster/support-style followers (if introduced) would favor INT/CHA.
+  - Decide whether follower attributes are:
+    - Fully visible on a follower inspect panel (explicit STR/DEX/INT/CHA/LCK lines), or
+    - Mostly hidden, with only summarized effects shown (e.g., “Prefers agility and precision”).
+  - Ensure follower attribute spending is data-driven:
+    - Define simple per-archetype weights or priority lists in JSON (e.g., `attributes: { str: 2, dex: 3, int: 1 }`).
+    - Runtime level-up logic distributes points using these weights so different factions feel distinct without hardcoding per-follower behavior.
+  - Keep this system optional/low-noise for players:
+    - Default UI only needs to show high-level effects (Attack, Defense, role description);
+      raw attribute lines can remain a debug/EXPERIMENTAL view until the system is stable.
 - [ ] Passive combat skills
   - One-handed, two-handed, shield use, and striking skills that grow with use up to a cap and affect combat stats.
 - [ ] Deeper character sheet and lasting injuries
