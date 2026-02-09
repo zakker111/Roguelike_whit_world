@@ -24,6 +24,59 @@ export function tick(ctx) {
 }
 
 /**
+ * Auto-escort travel: run world turns over time so the caravan (and player)
+ * visibly travels toward its destination. This is invoked via GameAPI
+ * (Game.startEscortAutoTravel wrapper) after completing a caravan encounter.
+ */
+export function startEscortAutoTravel(ctx) {
+  if (!ctx || !ctx.world) return;
+  const world = ctx.world;
+  world._escortAutoTravel = world._escortAutoTravel || { running: false };
+  const state = world._escortAutoTravel;
+  if (state.running) return;
+  state.running = true;
+
+  let steps = 0;
+  const maxSteps = 2000; // safety cap
+  const delayMs = 140;
+
+  function step() {
+    try {
+      const c = ctx && typeof ctx.getCtx === "function" ? ctx.getCtx() : ctx;
+      const w = c && c.world;
+      if (!c || !w) { state.running = false; return; }
+      const escort = w.caravanEscort;
+      if (!escort || !escort.active || c.mode !== "world") {
+        state.running = false;
+        return;
+      }
+      if (typeof c.turn === "function") c.turn();
+    } catch (_) {}
+    steps++;
+    if (steps >= maxSteps) { state.running = false; return; }
+    setTimeout(step, delayMs);
+  }
+
+  // Do one immediate step so the player sees the caravan start moving as soon
+  // as they return to the overworld, then continue with a timed loop.
+  try {
+    const c = ctx && typeof ctx.getCtx === "function" ? ctx.getCtx() : ctx;
+    const w = c && c.world;
+    const escort = w && w.caravanEscort;
+    if (escort && escort.active && c.mode === "world" && typeof c.turn === "function") {
+      c.turn();
+      steps++;
+    }
+  } catch (_) {}
+
+  if (steps < maxSteps) {
+    setTimeout(step, delayMs);
+  } else {
+    state.running = false;
+  }
+}
+
+/**
  * Ensure caravans array exists on world.
  */
 function ensureCaravanState(world) {

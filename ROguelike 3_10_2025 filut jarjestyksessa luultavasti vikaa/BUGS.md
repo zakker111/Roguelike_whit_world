@@ -57,3 +57,7 @@
   - After some world generations, there were isolated or partial road segments that did not connect to towns, castles, or obvious points of interest.
   - These remnants came from earlier overworld road generation passes; the current build has removed the overworld road feature entirely while keeping bridges across rivers.
   - Result: the world map now shows only natural terrain plus bridges; no free-floating or orphan road tiles should appear in the wilderness.
+- Bandits-at-the-gate town event: guard/bandit corpses seem to have no loot when looted via G at the gate:
+  - During the bandits-at-the-gate town event, pressing G while standing on some guard/bandit corpses near the gate reports nothing to loot or shows only flavor, with no items or gold granted.
+  - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
+  - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.

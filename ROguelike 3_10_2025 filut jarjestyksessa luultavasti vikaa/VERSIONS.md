@@ -1,3 +1,99 @@
+2026-02-08 — File size snapshot (Top 10 largest files)
+
+Top 10 largest files in the repo
+- Ranked by text size using line counts as a proxy (larger line counts ⇒ larger file).
+- Approximate character and KB sizes are estimates; ordering is what matters.
+
+1. smoketest/runner/runner.js
+   - ~2170 lines (largest file)
+   - ≈ 170 KB
+   - Smoketest orchestrator: runs automated scenarios (world, dungeon, town, overlays, determinism), aggregates results, exports reports.
+
+2. core/game.js
+   - ~1401 lines
+   - ≈ 110 KB
+   - Main game orchestrator: modes (world/town/dungeon/region), RNG, FOV, camera, combat hooks, UI, GOD panel bridge, followers, etc.
+
+3. ai/town_runtime.js
+   - ~1227 lines
+   - ≈ 100 KB
+   - Town NPC AI tick: guards, shopkeepers, residents, pets, inn behavior, bandit events, benches, rain logic, upstairs sleeping, path budgets.
+
+4. region_map/region_map_runtime.js
+   - ~889 lines
+   - ≈ 70 KB
+   - Region Map runtime: opening/closing the region overlay, sampling overworld biomes, spawning neutral animals and ruins encounters, LOS overrides, persistence.
+
+5. data/world/world_assets.json
+   - ~662 lines
+   - ≈ 53 KB
+   - Combined tile + prop registry: overworld/region/dungeon/town tiles and props, colors, walkability/FOV flags, decorators, light sources, etc.
+
+6. world/world.js
+   - ~529 lines
+   - ≈ 42 KB
+   - Finite overworld generator: map layout, biomes, rivers, towns/dungeons/ruins placement, connectivity carving, start-position picking.
+
+7. data/worldgen/prefabs.json
+   - ~407 lines
+   - ≈ 33 KB
+   - Town/world prefabs: houses, shops, inns, plazas, caravans, boats, with embedded props and constraints (rotations, mustFaceRoad, setbacks, etc.).
+
+8. world/infinite_gen.js
+   - ~374 lines
+   - ≈ 30 KB
+   - Infinite overworld generator: hash-based noise, biomes, rivers, POI placement (town, dungeon, tower, ruins), start position logic.
+
+9. ui/render_overworld.js
+   - ~222 lines
+   - ≈ 18 KB
+   - Overworld renderer: base layer, shoreline/coast outlines, fog-of-war, POI markers, biome embellishments, bridges, minimap, day/night/weather overlays.
+
+10. core/world_runtime_poi.js
+    - ~221 lines
+    - ≈ 18 KB
+    - Overworld POI/town/dungeon runtime helpers: managing POIs, castle/tower behavior, hooks into world runtime.
+
+Near miss:
+- ui/render_dungeon.js – ~191 lines, ≈ 15 KB (next-largest file just outside the top 10).
+
+v1.75.0 — Core/game slimming, escort travel, and centralized dungeon death/loot
+
+- Time and fast-forward now rely on the Movement module:
+  - `core/game.js::fastForwardMinutes(mins)` no longer implements its own turn loop and `_suppressDraw` fallback.
+  - It delegates to `Movement.fastForwardMinutes(ctx, mins)`, which runs turns, recomputes FOV, and updates UI using the ctx-first movement facade.
+  - This removes duplicated logic while preserving sleep/rest behavior and fast-forward semantics.
+- Escort auto-travel moved into the world runtime layer:
+  - `core/game.js::startEscortAutoTravel()` is now a thin wrapper that calls `WorldRuntime.startEscortAutoTravel(ctx)` when available.
+  - The timed auto-travel loop (delayed `turn()` calls with a safety cap) now lives in `core/world/tick.js::startEscortAutoTravel(ctx)`, alongside other world-level caravan logic.
+  - Behavior remains the same: after confirming to continue guarding the caravan, returning to the overworld automatically advances turns until the escort completes or is cancelled.
+- Encounter looting path aligned with dungeon behavior:
+  - In `core/modes/actions.js::doAction(ctx)`, the encounter branch now explicitly calls `DungeonRuntime.lootHere(ctx)` when the player stands on a corpse/chest (`ctx.corpses` matches player tile) before falling back to prop interactions.
+  - This reuses the same `lootHere` implementation as dungeons, which in turn delegates to the `Loot` subsystem (`entities/loot.js`) and shows the loot panel via `UIOrchestration.showLoot(ctx, acquired)`.
+  - Result: pressing G on a corpse in encounters consistently opens the loot panel and transfers items, matching dungeon behavior.
+- Dungeon enemy death is centralized in `DungeonRuntime.killEnemy`:
+  - `core/game.js::killEnemy(enemy)` now always delegates to `DungeonRuntime.killEnemy(ctx, enemy)` and then calls `syncFromCtx(ctx)`.
+  - The old local fallback (manual corpse push, occupancy clear, and direct XP gain) has been removed; all enemy death handling (loot, corpse meta, XP for player/followers, occupancy, and dungeon save) now lives in `core/dungeon/kill_enemy.js`.
+  - This ensures consistent behavior across dungeons, encounters, and sandbox dungeons and avoids divergence between game.js and dungeon runtime logic.
+- Loot panel helpers simplified:
+  - `core/game.js::showLootPanel(list)` and `hideLootPanel()` now defer solely to `LootFlow.show/hide` (or `UIOrchestration.showLoot/hideLoot` as a fallback) without manually calling `requestDraw()`.
+  - `UIOrchestration.showLoot/hideLoot` already issues draw requests when open state changes, so this removes redundant draws while keeping visible behavior unchanged.
+
+v1.74.0 — G-key action routing refactor
+
+- Core G-key routing is now owned entirely by `core/modes/actions.js::doAction(ctx)`:
+  - All context-sensitive actions for the G key (loot UI toggle, town/dungeon/encounter exits, Region Map, loot underfoot) are decided in Actions using only `ctx` and module handles.
+  - Loot UI gating now checks `UIOrchestration.isLootOpen(ctx)` and, when open, hides the loot panel and returns `true` without triggering any other actions.
+  - Town gate exit has explicit priority: when `ctx.mode === "town"` and the player stands on `ctx.townExitAt`, `exitToWorld(ctx, { reason: "gate" })` is invoked before any town props/shops/NPC interactions.
+  - When no mode-specific handler runs and `ctx.mode` is not `"world"`, `Actions.loot(ctx)` is called as a final fallback so town/dungeon/encounter modes all share the same underfoot loot / "nothing to do here" behavior.
+- `core/game.js::doAction()` has been slimmed to a thin wrapper:
+  - Builds a fresh `ctx` via `getCtx()`, calls `Actions.doAction(ctx)` when available, and then calls `applyCtxSyncAndRefresh(ctx)` once when the action reports `handled`.
+  - All previous local G-key special casing (loot UI closing, town gate exit checks, non-world loot fallbacks) has been removed from `core/game.js` to keep it focused on orchestration and state sync.
+- Behavior is intended to remain unchanged:
+  - Pressing G while the loot panel is open only closes the loot UI and does not trigger movement, exits, or other interactions.
+  - Standing on the town gate tile and pressing G exits to the overworld even when there are nearby props or shop doors.
+  - Dungeon/encounter exits via stairs, Region Map open/close, and loot-underfoot behavior in town/dungeon/encounters continue to match earlier builds, now routed through the centralized Actions module.
+
 v1.73.0 — Overworld road removal and follower spawn BFS in dungeon-like maps
 
 - Overworld roads system retired; only bridges remain:

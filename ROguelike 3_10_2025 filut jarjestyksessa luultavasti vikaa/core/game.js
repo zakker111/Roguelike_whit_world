@@ -697,25 +697,16 @@ import "./sandbox/runtime.js";
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
-    // Prefer centralized Movement facade
+    // Centralized Movement.fastForwardMinutes already handles per-turn calls,
+    // FOV recompute, and UI updates using ctx. Keep this as a thin wrapper
+    // so callers do not need to import Movement directly from core/game.js.
     try {
       const MV = modHandle("Movement");
       if (MV && typeof MV.fastForwardMinutes === "function") {
         return MV.fastForwardMinutes(getCtx(), mins);
       }
     } catch (_) {}
-    const total = Math.max(0, (Number(mins) || 0) | 0);
-    if (total <= 0) return 0;
-    const minutesPerTurn = getMinutesPerTurn();
-    const turns = Math.max(1, Math.ceil(total / (minutesPerTurn || 1)));
-    _suppressDraw = true;
-    for (let i = 0; i < turns; i++) {
-      try { turn(); } catch (_) { break; }
-    }
-    _suppressDraw = false;
-    recomputeFOV();
-    updateUI();
-    return turns;
+    return 0;
   }
 
   
@@ -770,57 +761,17 @@ import "./sandbox/runtime.js";
   }
 
   /**
-   * Auto-escort travel: after resolving a caravan ambush encounter and choosing to continue
-   * guarding the caravan, automatically advance overworld turns with a small delay so the
-   * caravan (and player) visibly travel toward their destination.
+   * Auto-escort travel: thin wrapper to a dedicated helper so core/game.js
+   * stays focused on orchestration. The actual timed loop lives in the
+   * WorldRuntime or a dedicated world/escort helper.
    */
   function startEscortAutoTravel() {
     try {
-      const ctx0 = getCtx();
-      if (!ctx0 || !ctx0.world) return;
-      const world = ctx0.world;
-      world._escortAutoTravel = world._escortAutoTravel || { running: false };
-      const state = world._escortAutoTravel;
-      if (state.running) return;
-      state.running = true;
-
-      let steps = 0;
-      const maxSteps = 2000; // safety cap
-      const delayMs = 140;
-
-      function step() {
-        try {
-          const ctx = getCtx();
-          if (!ctx || !ctx.world) { state.running = false; return; }
-          const w = ctx.world;
-          const escort = w.caravanEscort;
-          if (!escort || !escort.active || ctx.mode !== "world") {
-            state.running = false;
-            return;
-          }
-          if (typeof ctx.turn === "function") ctx.turn();
-        } catch (_) {}
-        steps++;
-        if (steps >= maxSteps) { state.running = false; return; }
-        setTimeout(step, delayMs);
-      }
-
-      // Do one immediate step so the player sees the caravan start moving as soon
-      // as they return to the overworld, then continue with a timed loop.
-      try {
-        const ctx = getCtx();
-        const w = ctx.world;
-        const escort = w && w.caravanEscort;
-        if (escort && escort.active && ctx.mode === "world" && typeof ctx.turn === "function") {
-          ctx.turn();
-          steps++;
-        }
-      } catch (_) {}
-
-      if (steps < maxSteps) {
-        setTimeout(step, delayMs);
-      } else {
-        state.running = false;
+      const ctx = getCtx();
+      if (!ctx || !ctx.world) return;
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.startEscortAutoTravel === "function") {
+        WR.startEscortAutoTravel(ctx);
       }
     } catch (_) {}
   }
@@ -888,46 +839,14 @@ import "./sandbox/runtime.js";
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
-    // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
-        hideLootPanel();
-        return;
-      }
-    } catch (_) {}
-
-    // Town gate exit takes priority over other interactions
-    if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      const ctxGate = getCtx();
-      if (exitToWorldExt(ctxGate, { reason: "gate", applyCtxSyncAndRefresh })) return;
-    }
-
-    // Prefer ctx-first Actions module
-    {
-      const A = modHandle("Actions");
-      if (A && typeof A.doAction === "function") {
-        const ctxMod = getCtx();
-        const handled = A.doAction(ctxMod);
-        if (handled) {
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
+    const ctx = getCtx();
+    const A = modHandle("Actions");
+    if (A && typeof A.doAction === "function") {
+      const handled = !!A.doAction(ctx);
+      if (handled) {
+        applyCtxSyncAndRefresh(ctx);
       }
     }
-
-    
-
-    if (mode === "town") {
-      // Prefer local interactions/logs first so guidance hint doesn't drown them out
-      lootCorpse();
-      // Then, if standing on the gate, leave town (or show exit hint if applicable)
-      if (returnToWorldFromTown()) return;
-      return;
-    }
-
-    // Fallback for non-world modes when Actions.doAction did not handle:
-    lootCorpse();
   }
 
   function descendIfPossible() {
@@ -1012,13 +931,11 @@ import "./sandbox/runtime.js";
     const LF = modHandle("LootFlow");
     if (LF && typeof LF.show === "function") {
       LF.show(getCtx(), list);
-      requestDraw();
       return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showLoot === "function") {
       UIO.showLoot(getCtx(), list);
-      requestDraw();
     }
   }
 
@@ -1026,13 +943,11 @@ import "./sandbox/runtime.js";
     const LF = modHandle("LootFlow");
     if (LF && typeof LF.hide === "function") {
       LF.hide(getCtx());
-      requestDraw();
       return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideLoot === "function") {
       UIO.hideLoot(getCtx());
-      requestDraw();
     }
   }
 
@@ -1196,21 +1111,15 @@ import "./sandbox/runtime.js";
   }
 
   function killEnemy(enemy) {
-    // Prefer centralized DungeonRuntime to handle loot, occupancy, XP, and persistence
+    // Delegate enemy death handling (loot, XP, occupancy, persistence) to
+    // DungeonRuntime.killEnemy, which now owns the full implementation.
     const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.killEnemy === "function") {
-      const ctx = getCtx();
-      DR.killEnemy(ctx, enemy);
-      syncFromCtx(ctx);
-      return;
+    if (!DR || typeof DR.killEnemy !== "function") {
+      throw new Error("DungeonRuntime.killEnemy missing; enemy death handling cannot proceed");
     }
-    // Fallback: module-only; minimal corpse + removal
-    const name = capitalize(enemy.type || "enemy");
-    log(`${name} dies.`, "info");
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
-    enemies = enemies.filter(e => e !== enemy);
-    try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}
-    gainXP(enemy.xp || 5);
+    const ctx = getCtx();
+    DR.killEnemy(ctx, enemy);
+    syncFromCtx(ctx);
   }
 
   
