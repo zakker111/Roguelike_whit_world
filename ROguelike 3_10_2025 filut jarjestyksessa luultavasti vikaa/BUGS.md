@@ -72,3 +72,7 @@
 - Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
   - Likely due to floating-point arithmetic and stringification in follower health UI.
   - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
+- Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
+  - In one run, when the overworld map loaded, all tiles outside towns/dungeons/ruins were effectively blacked out or heavily darkened, even though movement and mode transitions still worked.
+  - Towns, dungeons, and ruins views were unaffected and rendered normally, suggesting an overworld-only rendering/state issue (fog-of-war, tints, or palette overlays misapplied).
+  - Needs focused repro with logs on overworld fog, tint application, and palette overlays to determine whether FOV, weather, or GOD/debug overlays can accidentally force a full-screen black tint.
