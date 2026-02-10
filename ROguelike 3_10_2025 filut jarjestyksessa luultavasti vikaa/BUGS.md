@@ -69,3 +69,6 @@
   - After looting corpses/chests, the log occasionally reports entries like "equipped [item desc]" but the corresponding slot on the player remains unchanged.
   - This suggests a mismatch between ctx.equipIfBetter/autoequip behavior in entities/loot.js and the inventory/equipment update path used by Player/PlayerEquip.
   - Needs a focused repro with logging around Loot.lootHere(ctx) to verify when equipIfBetter returns true vs when inventory/equipment actually change.
+- Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
+  - Likely due to floating-point arithmetic and stringification in follower health UI.
+  - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
