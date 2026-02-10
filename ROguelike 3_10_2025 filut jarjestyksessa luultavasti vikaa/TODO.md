@@ -4,6 +4,18 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
+- [ ] Invisible GM system (Game Master) and admin panel (design phase)
+  - Core GM entity with mood (passive/active/aggressive) and boredom driving how often and how strongly it intervenes.
+  - Human-like memory and soft traits (e.g., Troll Slayer, Town Protector, Caravan Ally/Threat, Dungeon Delver, Angler, Follower Friend) that build from player behavior and fade over time.
+  - Mechanic awareness states per system (Fishing, Foraging, Lockpicking, Quest Board, Followers, etc.): unseen → seen-not-tried → tried-recently → tried-long-ago → disinterested; polite nudging that stops after a few ignored hints.
+  - Simple GM-driven Artefact Quests v1:
+    - Fishing bottle map quest: occasionally fish up a "Bottle with a Map"; opening it marks an X on the overworld near the fishing town/region, with a small crime-scene chest event at the X.
+    - Room to extend to key-based mini-dungeons and multi-step chains later.
+  - GM Admin Panel (F9) always available in-game as a draggable floating window:
+    - Shows live mood, boredom, traits, mechanic states, active artefact quests, and a GM decision log while the player plays.
+    - Master controls to enable/disable GM, pause decisions, or switch to manual/sandbox mode.
+    - Testing tools to inject artefact quests, adjust traits and mechanic states, and fire specific GM events without waiting for normal logic.
+
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
 - [x] Shop UI (buy/sell) and currency
