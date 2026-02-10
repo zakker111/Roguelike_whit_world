@@ -1,3 +1,49 @@
+2026-02-10 — Overworld infinite generator refinements, SHALLOW fords, and connectivity corridors
+
+- Infinite overworld generator (InfiniteGen) climate and terrain:
+  - Reworked `temperatureAt(x, y)` into a smooth sinusoidal field that cycles climate bands every ~900 tiles vertically, with low-frequency noise for variation. This produces repeating cold → temperate → hot → temperate → cold zones instead of a single pole–equator gradient.
+  - Added ridge-shaped mountain elevation by rotating coordinates and combining ridged noise with base elevation and detail noise, creating long diagonal mountain belts instead of isolated blobs.
+  - Constrained deserts and snow biomes to explicit temperature/moisture bands:
+    - Deserts only appear in hot + dry zones; snow only in very cold zones with limited moisture, eliminating direct snow–desert borders.
+  - Introduced coarse "lake depressions" so inland lakes and basins are larger and more natural, with multi-band waterlines (deep water, shore bands) that distinguish BEACH vs SWAMP near coasts based on climate.
+  - Added rare desert oases by occasionally converting hot/dry desert tiles into small WATER pools with GRASS rings, without introducing new tile ids.
+
+- SHALLOW fords and river behavior in infinite worlds:
+  - Extended `InfiniteGen.TILES` with `SHALLOW: 22`, aligned with `World.TILES.SHALLOW` and `data/world/world_assets.json` so renderers and helpers treat SHALLOW as a walkable water tile.
+  - Updated river classification so a small, noise-driven fraction of river-band tiles become SHALLOW instead of RIVER, forming narrow, jagged ford crossings along rivers without breaking river continuity.
+  - Verified via `analysis/world_stats.js` that SHALLOW tiles appear at a modest but real rate (typically ~5–13% of river+ford tiles in sampled regions), and that some 1D river segments contain at least one SHALLOW tile.
+
+- Finite overworld connectivity corridors and SHALLOW tile:
+  - Added a dedicated `SHALLOW` tile (id 22) in `world/world_tiles.js` and `data/world/world_assets.json` as a walkable shallow-water/ford tile with lighter water coloring and proper walkability flags; added a fallback color in `ui/render/overworld_tile_cache.js`.
+  - Replaced the old line-based `carvePath` in `world/world.js` with a new `carveCorridor` used by `ensureConnectivity()`:
+    - Uses a Bresenham-style line between POIs but, at each step, carves a 3–5 tile wide circular brush with small random jitter.
+    - Converts WATER/RIVER tiles under the brush to SHALLOW instead of BEACH, and converts MOUNTAIN tiles to GRASS, leaving other terrain unchanged.
+    - Result: wider, slightly jagged corridors through mountains and across water instead of single-tile straight BEACH bridges.
+  - Ensured SHALLOW’s tile id (22) is unique and consistent across overworld, region, and infinite-world tilesets, resolving earlier clashes with region-only tiles.
+
+- Bridges and SHALLOW integration at runtime (infinite + finite worlds):
+  - Updated `core/world/roads_bridges.js::ensureExtraBridges(ctx)` so that extra bridges carved at runtime:
+    - Convert underlying WATER/RIVER tiles in the current world window to SHALLOW (id 22) instead of BEACH, using a small span-width cap to avoid ocean-sized crossings.
+    - Always record a bridge overlay `world.bridges[x,y]` purely for visuals; underlying passability now comes from SHALLOW rather than BEACH.
+  - Updated `core/world/scan_pois.js::carveLocalMountainPass` so mountain-adjacent dungeon entrances carve tiny passes that convert adjacent MOUNTAIN to GRASS and adjacent WATER/RIVER to SHALLOW (with BEACH as a fallback only if SHALLOW is unavailable).
+  - Kept bridges feature-gated via `config.world.bridgesEnabled` (WORLD_BRIDGES), so extra crossings are optional and controlled via config/localStorage.
+
+- Overworld diagnostics and stats for infinite worlds:
+  - Added and wired `analysis/world_stats.js` (previously experimental) to sample a large tile region around (0,0) using InfiniteGen and log:
+    - Tile distribution for all overworld tiles (WATER, RIVER, SHALLOW, MOUNTAIN, FOREST, GRASS, DESERT, SNOW, etc.).
+    - River/ford share statistics (RIVER vs SHALLOW counts and percentages) and how many 1D river segments contain at least one SHALLOW tile.
+  - Implemented `analysis/world_stats_bridges.js` (gated by `?worldstats_bridges=1`) to inspect the **current world window**:
+    - Resolves the live game ctx via `GameAPI.getCtx()`/`Game.ctx` and reads `ctx.world.map`, `originX/Y`, and `world.bridges`.
+    - Counts RIVER/WATER/SHALLOW tiles in the window and classifies each bridge overlay by the underlying tile (WATER, RIVER, SHALLOW, OTHER).
+    - Logs a concise summary (`[WorldBridges] ...`) and up to 10 per-bridge sample lines into both the Logger and a DOM `<pre id="world-bridges-panel">` for diagnostics.
+  - Used these tools to verify that InfiniteGen emits SHALLOW fords at expected frequencies and that runtime bridges, when present, now sit on SHALLOW tiles rather than BEACH.
+
+- Planning and bug tracking for overworld scalability and SHALLOW/Region Map integration:
+  - Added TODO entries to:
+    - Ensure SHALLOW tiles are **not** used as Region Map entry points; only proper land/coast tiles should open Region Map views.
+    - Clean up remaining bridge-vs-SHALLOW logic so crossings are driven by SHALLOW fords first and bridge overlays are purely a visual layer, or alternatively retire explicit bridges entirely in favor of SHALLOW.
+  - Recorded a critical overworld rendering bug in BUGS.md where, after heavy exploration and many chunks loaded, the entire overworld (outside towns/dungeons/ruins) appeared black-tinted while other modes rendered correctly; likely tied to fog/tint/palette overlays under high world-load and earmarked for incremental/streamed overworld updates.
+
 2026-02-09 — Player attribute system, Character Sheet, and early STR/DEX/INT/CHA/LCK integration
 
 - Added an experimental player attribute system with five core stats and an unspent point pool:

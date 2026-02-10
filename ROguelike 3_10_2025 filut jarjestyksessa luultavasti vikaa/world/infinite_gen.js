@@ -8,6 +8,7 @@
  * - Uses a simple coordinate-hash noise to derive elevation/moisture/temperature.
  * - Coarse grid features ensure large biomes; fine noise adds variation.
  * - Towns/dungeons placed sparsely on a coarse lattice using the same hash.
+ * - Phase 1: sinusoidal climate temperature field and ridge-shaped mountains for the overworld.
  */
 import { attachGlobal } from "../utils/global.js";
 
@@ -25,6 +26,7 @@ const TILES = {
   DESERT: 9,
   SNOW: 10,
   RUINS: 12,
+  SHALLOW: 22, // shallow water/ford; keep id aligned with World.TILES
   CASTLE: 15,
   SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
   TOWER: 17,       // overworld tower POI; kept aligned with World.TILES
@@ -118,19 +120,44 @@ function create(seed, opts = {}) {
     }
   } catch (_) {}
 
-  function temperatureAt(y) {
-    // Latitude proxy: colder near negative y, hotter near positive y
-    const t = clamp((y / 400), -1, 1); // -1..1 across ~800 tiles
-    // Map to 0..1 (0 cold, 1 hot)
+  const RIDGE_ANGLE = Math.PI / 4;
+  const COS_RIDGE = Math.cos(RIDGE_ANGLE);
+  const SIN_RIDGE = Math.sin(RIDGE_ANGLE);
+
+  function temperatureAt(x, y) {
+    const period = 900;
+    const phase = (y / period) * Math.PI * 2;
+    const lat = -Math.cos(phase); // -1 cold, 0 mild, 1 hot
+    const noise = valueNoise2(s ^ 0xF1, x + 1234, y - 5678, 1 / 256);
+    const noiseCentered = noise * 2 - 1; // -1..1
+    let t = lat * 0.8 + noiseCentered * 0.2;
+    t = clamp(t, -1, 1);
     return (t + 1) / 2;
   }
 
   function classify(x, y) {
     // Base noises
-    const elev = valueNoise2(s ^ 0xA1, x, y, cfg.elevationFreq); // 0..1
+    const elevBase = valueNoise2(s ^ 0xA1, x, y, cfg.elevationFreq); // 0..1
     const moist = valueNoise2(s ^ 0xB3, x + 73, y - 19, cfg.moistureFreq);
     // Add detail for coastline/forest speckle
     const detail = valueNoise2(s ^ 0xC5, x - 11, y + 37, cfg.detailFreq) * 0.25;
+
+    // Temperature field varies smoothly with latitude and low-frequency noise
+    const temp = temperatureAt(x, y);
+
+    // Elevation with ridged mountain ranges
+    const xr = x * COS_RIDGE - y * SIN_RIDGE;
+    const yr = x * SIN_RIDGE + y * COS_RIDGE;
+    const ridgeBase = valueNoise2(s ^ 0xE1, xr, yr, 1 / 96);
+    let ridge = 1 - Math.abs(ridgeBase * 2 - 1);
+    const ridgeWarp = valueNoise2(s ^ 0xE2, x - 2000, y + 2000, 1 / 64);
+    ridge *= 0.6 + ridgeWarp * 0.4;
+
+    // Coarse lake depressions to encourage larger inland lakes
+    const lakeNoise = valueNoise2(s ^ 0xFACE, x + 5000, y - 5000, 1 / 96);
+    const lakeFactor = lakeNoise > 0.7 ? (lakeNoise - 0.7) * 0.5 : 0;
+
+    const elevation = clamp(elevBase - lakeFactor + ridge * 0.35 + detail * 0.5, 0, 1);
 
     // Rivers: variable width (1..3) bands with slight meander, trending toward the up-ocean (negative y)
     const rBase = valueNoise2(s ^ 0xD7, x + 999, y - 999, cfg.riverFreq);
@@ -143,33 +170,87 @@ function create(seed, opts = {}) {
     // Bias toward flowing to negative y (up) by tightening band when far from ocean and widening slightly as y gets smaller
     const flowBias = clamp((0 - y) / 1200, 0, 0.25); // increases as we go up
     tol += flowBias * 0.02;
+
+    // Slightly widen river bands in and near highlands so rivers are a bit more common around mountains.
+    const highland = elevation > 0.7 ? (elevation - 0.7) / 0.3 : 0; // 0..1
+    tol += highland * 0.005;
+
     const nearRiver = Math.abs((rBase * 0.8 + rMeander * 0.2) - 0.5) < tol;
 
-    // Temperature bias by latitude
-    const temp = temperatureAt(y);
-
-    // Elevation thresholds to water/land
-    const elevation = clamp(elev + detail * 0.5, 0, 1);
+    // Rivers take priority over all other terrain, but allow occasional shallow fords.
     if (nearRiver) {
+      // Narrow, jagged fords cutting across the river band.
+      const fordNoise = valueNoise2(s ^ 0xF0F0, x + 17, y - 31, 1 / 64);
+      const fordMask = Math.abs(fordNoise - 0.5) < 0.02;
+
+      if (fordMask) {
+        return TILES.SHALLOW;
+      }
       return TILES.RIVER;
     }
-    if (elevation < 0.28) return TILES.WATER;
-    if (elevation < 0.31) return TILES.BEACH;
+
+    // Multi-band elevation shaping around the waterline
+    if (elevation < 0.20) return TILES.WATER; // deep water
+    if (elevation < 0.25) return TILES.WATER; // shallow water band (same tile; renderer can style differently)
+
+    if (elevation < 0.30) {
+      // Shore ring: BEACH or SWAMP based on local climate
+      const isCold = temp < 0.30;
+      if (!isCold && moist > 0.60) return TILES.SWAMP;
+      return TILES.BEACH;
+    }
 
     // Land biomes by moisture and temperature
-    if (temp > 0.7 && moist < 0.25) return TILES.DESERT;
-    if (temp < 0.25 && moist < 0.7) {
+    const veryCold = temp < 0.20;
+    const veryHot = temp >= 0.80;
+    const dry = moist < 0.25;
+
+    // Occasional oases in deserts: small WATER + GRASS patches inside the desert belt
+    const oasisNoise = valueNoise2(s ^ 0x0A515, x - 7000, y + 7000, 1 / 16);
+
+    // Desert only in hot+dry band, but allow very high elevation to remain mountain later.
+    let forceDesert = false;
+    if (veryHot && dry) {
+      if (oasisNoise > 0.82 && moist > 0.20) {
+        return TILES.WATER; // oasis pool
+      }
+      if (oasisNoise > 0.74 && moist > 0.18) {
+        return TILES.GRASS; // green ring around oasis
+      }
+      forceDesert = true;
+    }
+
+    // Snow only in very cold band (split by moisture into open vs forested snow)
+    if (!forceDesert && veryCold && moist < 0.7) {
       // Split cold land into open snow vs forested snow based on moisture.
       // Drier cold -> open SNOW, more moist cold -> SNOW_FOREST.
       if (moist > 0.45) return TILES.SNOW_FOREST;
       return TILES.SNOW;
     }
 
-    // Mountains at high elevation
-    if (elevation > 0.78) return TILES.MOUNTAIN;
+    // Precompute potential mountain-pass corridors: rare, wiggly stripes
+    const passNoiseX = valueNoise2(s ^ 0xA51, x, y, 1 / 96);
+    const passNoiseY = valueNoise2(s ^ 0xA52, x, y, 1 / 96);
+    const passBand =
+      Math.abs(passNoiseX - 0.5) < 0.03 ||
+      Math.abs(passNoiseY - 0.5) < 0.03;
 
-    // Swamp near water with high moisture
-    if (moist > 0.75 && elevation < 0.46) return TILES.SWAMP;
+    // Mountains at high elevation
+    if (elevation > 0.78) {
+      if (passBand) return TILES.GRASS; // mountain pass
+      return TILES.MOUNTAIN;
+    }
+
+    // If we are in the hot+dry desert-prone zone and not a mountain, resolve to desert now
+    if (forceDesert) {
+      return TILES.DESERT;
+    }
+
+    // Swamp in warm, low, very wet areas (inland; shore band handled above)
+    const isCold = temp < 0.30;
+    if (!isCold && moist > 0.75 && elevation < 0.46) {
+      return TILES.SWAMP;
+    }
 
     // Forest where moisture is decent and not too hot/cold
     if (moist > 0.55) return TILES.FOREST;

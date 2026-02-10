@@ -415,8 +415,8 @@ if (towns.length) {
     return seen;
   }
 
-  function carvePath(x0, y0, x1, y1) {
-    // Bresenham-ish line, carve blockers into walkable tiles
+  function carveCorridor(x0, y0, x1, y1) {
+    // Bresenham-style corridor carving that creates a wider, slightly jagged path.
     let x = x0, y = y0;
     const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
@@ -424,10 +424,29 @@ if (towns.length) {
     let err = dx - dy;
     while (true) {
       if (inBounds(x, y, width, height)) {
-        const t = map[y][x];
-        if (t === TILES.WATER || t === TILES.RIVER) map[y][x] = TILES.BEACH;
-        else if (t === TILES.MOUNTAIN) map[y][x] = TILES.GRASS;
-        // leave forests/grass as is; towns/dungeons untouched
+        // Use a small brush radius (1..2) so corridors are about 3-5 tiles wide.
+        const baseR = 1 + ((rng() * 2) | 0);
+        // Occasionally jitter the brush center to avoid perfectly straight corridors.
+        const jitterX = rng() < 0.4 ? (rng() < 0.5 ? -1 : 1) : 0;
+        const jitterY = rng() < 0.4 ? (rng() < 0.5 ? -1 : 1) : 0;
+        const cx = x + jitterX;
+        const cy = y + jitterY;
+
+        for (let yy = cy - baseR; yy <= cy + baseR; yy++) {
+          for (let xx = cx - baseR; xx <= cx + baseR; xx++) {
+            if (!inBounds(xx, yy, width, height)) continue;
+            const ddx = xx - cx;
+            const ddy = yy - cy;
+            if (ddx * ddx + ddy * ddy > baseR * baseR) continue;
+            const t = map[yy][xx];
+            if (t === TILES.WATER || t === TILES.RIVER) {
+              map[yy][xx] = TILES.SHALLOW;
+            } else if (t === TILES.MOUNTAIN) {
+              map[yy][xx] = TILES.GRASS;
+            }
+            // leave other tiles (grass/forest/towns/etc.) untouched
+          }
+        }
       }
       if (x === x1 && y === y1) break;
       const e2 = 2 * err;
@@ -456,7 +475,7 @@ if (towns.length) {
         if (d < bestDist) { bestDist = d; best = { x: sx, y: sy }; }
       }
       if (best) {
-        carvePath(best.x, best.y, p.x, p.y);
+        carveCorridor(best.x, best.y, p.x, p.y);
         // update reachability after carving
         reach = bfsReachable(seed.x, seed.y);
       }

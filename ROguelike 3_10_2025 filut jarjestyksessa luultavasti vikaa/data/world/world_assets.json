@@ -22,6 +22,16 @@
         "tags": ["water"]
       },
       {
+        "id": 22,
+        "key": "SHALLOW",
+        "name": "Shallow Water",
+        "glyph": "~",
+        "colors": { "fill": "#1c3a4a", "fg": "#93c5fd" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["overworld"],
+        "tags": ["water", "shore"]
+      },
+      {
         "id": 8,
         "key": "BEACH",
         "name": "Beach",

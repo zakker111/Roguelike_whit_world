@@ -61,7 +61,8 @@ function carveLocalMountainPass(ctx, lx, ly, WT) {
       if (tile === WT.MOUNTAIN) {
         mapRef[y][x] = WT.GRASS;
       } else if (tile === WT.WATER || tile === WT.RIVER) {
-        mapRef[y][x] = WT.BEACH;
+        const shallowId = WT.SHALLOW != null ? WT.SHALLOW : WT.BEACH;
+        mapRef[y][x] = shallowId;
       }
     };
 
@@ -75,7 +76,7 @@ function carveLocalMountainPass(ctx, lx, ly, WT) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 export function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17, SHALLOW: 22 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;

@@ -69,3 +69,11 @@
   - After looting corpses/chests, the log occasionally reports entries like "equipped [item desc]" but the corresponding slot on the player remains unchanged.
   - This suggests a mismatch between ctx.equipIfBetter/autoequip behavior in entities/loot.js and the inventory/equipment update path used by Player/PlayerEquip.
   - Needs a focused repro with logging around Loot.lootHere(ctx) to verify when equipIfBetter returns true vs when inventory/equipment actually change.
+- Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
+  - Likely due to floating-point arithmetic and stringification in follower health UI.
+  - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
+- Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
+  - In one run, when the overworld map loaded after extensive exploration (many chunks/tiles revealed), all tiles outside towns/dungeons/ruins were effectively blacked out or heavily darkened, even though movement and mode transitions still worked.
+  - Towns, dungeons, and ruins views were unaffected and rendered normally, suggesting an overworld-only rendering/state issue (fog-of-war, tints, or palette overlays misapplied) that may surface when the visible/seen grids or tile caches grow large.
+  - Likely related to the infinite overworld getting "too big" in memory or computation for a single redraw; we may need a more incremental/streamed map update system so expanding the explored area does not trigger heavy, one-shot calculations that can break tint/fog state.
+  - Needs focused repro with logs on overworld fog, tint application, palette overlays, and world expansion timing to determine whether FOV, weather, or GOD/debug overlays can accidentally force a full-screen black tint under heavy world-load conditions.

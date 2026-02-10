@@ -370,3 +370,11 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Ensure town-only NPC archetypes (e.g., Seppo and caravan blacksmiths) cannot spawn as “wild” NPCs in dungeon contexts unless explicitly intended, and that any such NPCs have correct movement and interaction handlers when they do appear.
 - [ ] Overworld road cleanup:
   - Review overworld road/path generation and pruning so that roads only remain when they connect meaningful POIs (towns, castles, dungeons, ruins) and stray/isolated road segments in wilderness are removed as part of a final cleanup pass.
+- [ ] Region Map / overworld integration:
+  - Shallow water tiles (SHALLOW) should not be treated as valid entrances into Region Map views; only proper land or intended coast tiles should generate Region Map entry points.
+- [ ] Bridges vs shallows cleanup:
+  - Bridges currently use SHALLOW tiles underneath as walkable crossings.
+  - Decide on a final design:
+    - Either remove remaining explicit bridge functionality and rely purely on SHALLOW fords generated at crossings, or
+    - Keep bridge overlays but generate SHALLOW tiles first and treat bridges purely as a visual layer over those fords.
+  - Update world generation and runtime helpers so there is a single, consistent source of SHALLOW crossings and no duplicate or conflicting bridge logic.

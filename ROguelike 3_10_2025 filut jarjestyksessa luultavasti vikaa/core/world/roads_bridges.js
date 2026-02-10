@@ -9,7 +9,7 @@
 // Strategy: scan vertical and horizontal spans of RIVER/WATER and place a BEACH + bridge overlay on
 // relatively narrow crossings ("rivers") while avoiding very wide spans ("oceans"/large lakes).
 export function ensureExtraBridges(ctx) {
-  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6 };
+  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, SHALLOW: 22 };
   const world = ctx.world;
   const ox = world.originX | 0, oy = world.originY | 0;
   const cols = ctx.map[0] ? ctx.map[0].length : 0;
@@ -24,8 +24,13 @@ export function ensureExtraBridges(ctx) {
     const ax = ox + lx, ay = oy + ly;
     const key = `${ax},${ay}`;
     if (bridgeSet.has(key)) return;
-    // Carve to BEACH to be walkable and record overlay
-    ctx.map[ly][lx] = WT.BEACH;
+    const tile = ctx.map[ly][lx];
+    const shallowId = WT.SHALLOW != null ? WT.SHALLOW : WT.BEACH;
+    // Convert water/river under the bridge to SHALLOW (or BEACH as fallback) so crossings are ford-like.
+    if (tile === WT.WATER || tile === WT.RIVER) {
+      ctx.map[ly][lx] = shallowId;
+    }
+    // Always record a bridge overlay so the renderer can draw wooden planks, regardless of underlying tile.
     world.bridges.push({ x: ax, y: ay });
     bridgeSet.add(key);
   }
