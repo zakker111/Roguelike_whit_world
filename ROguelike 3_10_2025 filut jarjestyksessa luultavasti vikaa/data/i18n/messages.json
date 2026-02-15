@@ -16,5 +16,22 @@
   },
   "encounter": {
     "exitHint": "Return to the exit (>) to leave this encounter."
+  },
+  "gm": {
+    "entrance": {
+      "familyRumor": "You hear rumors about recent troubles with {family}.",
+      "generalRumor": "You catch a stray rumor as you arrive.",
+      "variety": {
+        "tryTown": "You get the sense the townsfolk have different work for you.",
+        "tryDungeon": "You hear whispers that the dungeons have changed since your last delve.",
+        "tryWorld": "Rumors speak of new routes and encounters out on the overworld."
+      }
+    },
+    "mechanic": {
+      "fishingHint": "You overhear talk about strange fish being caught nearby.",
+      "lockpickingHint": "Someone brags that locked chests hold more than the obvious rewards.",
+      "questBoardHint": "Adventurers whisper that unusual jobs sometimes appear on this board.",
+      "followersHint": "You catch a comment that no one survives long in these lands alone."
+    }
   }
 }

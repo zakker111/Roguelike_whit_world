@@ -36,25 +36,105 @@ function gmEvent(ctx, event) {
           const intent = GM.getEntranceIntent(ctx, scope);
           if (intent && intent.kind === "flavor") {
             const topic = typeof intent.topic === "string" ? intent.topic : "";
-            let msg = "";
+            const M = ctx.Messages || getMod(ctx, "Messages");
+            const hasMessages = !!(M && typeof M.get === "function" && typeof M.log === "function");
+
             if (topic.startsWith("family:")) {
               const famKey = topic.slice("family:".length) || "unknown";
               const rawLabel = famKey.replace(/_/g, " ").trim();
               const label = rawLabel ? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1) : "your family";
-              msg = `You hear rumors about recent troubles with ${label}.`;
+
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.familyRumor";
+                  const vars = { family: label };
+                  const text = M.get(key, vars);
+                  if (text) {
+                    M.log(ctx, key, vars, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log(`You hear rumors about recent troubles with ${label}.`, "flavor", { category: "gm" });
+              }
             } else if (topic === "general_rumor") {
-              msg = "You catch a stray rumor as you arrive.";
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.generalRumor";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You catch a stray rumor as you arrive.", "flavor", { category: "gm" });
+              }
             } else if (topic === "variety:try_town") {
-              msg = "You get the sense the townsfolk have different work for you.";
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryTown";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You get the sense the townsfolk have different work for you.", "flavor", { category: "gm" });
+              }
             } else if (topic === "variety:try_dungeon") {
-              msg = "You hear whispers that the dungeons have changed since your last delve.";
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryDungeon";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You hear whispers that the dungeons have changed since your last delve.", "flavor", { category: "gm" });
+              }
             } else if (topic === "variety:try_world") {
-              msg = "Rumors speak of new routes and encounters out on the overworld.";
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryWorld";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("Rumors speak of new routes and encounters out on the overworld.", "flavor", { category: "gm" });
+              }
             } else {
-              msg = "You catch a stray rumor as you arrive.";
-            }
-            if (msg) {
-              ctx.log(msg, "flavor", { category: "gm" });
+              // Generic fallback rumor
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.generalRumor";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You catch a stray rumor as you arrive.", "flavor", { category: "gm" });
+              }
             }
           }
         } catch (_) {}
