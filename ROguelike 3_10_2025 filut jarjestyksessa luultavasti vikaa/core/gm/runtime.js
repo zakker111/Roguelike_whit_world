@@ -16,7 +16,7 @@
 import { attachGlobal } from "../../utils/global.js";
 
 let _state = null;
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const MAX_DEBUG_EVENTS = 50;
 const MAX_INTENT_HISTORY = 20;
 const ACTION_COOLDOWN_TURNS = 80;
@@ -91,7 +91,9 @@ function createDefaultState() {
       turnsSinceLastInterestingEvent: 0,
       lastInterestingEvent: null,
     },
-    storyFlags: {},
+    storyFlags: {
+      factionEvents: {},
+    },
     debug: {
       enabled: false,
       logTicks: false,
@@ -282,6 +284,55 @@ function ensureTraitsAndMechanics(gm) {
       dbg.intentHistory.length = MAX_INTENT_HISTORY;
     }
   }
+}
+
+function ensureFactionEvents(gm) {
+  if (!gm || typeof gm !== "object") return;
+
+  if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+    gm.storyFlags = {};
+  }
+
+  let factionEvents = gm.storyFlags.factionEvents;
+  if (!factionEvents || typeof factionEvents !== "object" || Array.isArray(factionEvents)) {
+    factionEvents = {};
+    gm.storyFlags.factionEvents = factionEvents;
+  }
+
+  function normalizeTurnField(value) {
+    if (typeof value !== "number") return 0;
+    let v = value | 0;
+    if (v < 0) v = 0;
+    return v;
+  }
+
+  function ensureSlot(key) {
+    let slot = factionEvents[key];
+    if (!slot || typeof slot !== "object") {
+      slot = {};
+      factionEvents[key] = slot;
+    }
+
+    let status = typeof slot.status === "string" ? slot.status : "none";
+    if (status !== "none" && status !== "scheduled" && status !== "consumed") {
+      status = "none";
+    }
+    slot.status = status;
+
+    const earliest = normalizeTurnField(slot.earliestTurn);
+    let latest = normalizeTurnField(slot.latestTurn);
+
+    if (latest !== 0 && latest < earliest) {
+      latest = earliest;
+    }
+
+    slot.earliestTurn = earliest;
+    slot.latestTurn = latest;
+  }
+
+  ensureSlot("banditBounty");
+  ensureSlot("guardFine");
+  ensureSlot("trollHunt");
 }
 
 // Returns one of: "unseen", "seenNotTried", "triedRecently", "triedLongAgo", "disinterested".
@@ -871,6 +922,12 @@ export function onEvent(ctx, event) {
     if (type === "mechanic") {
       updateMechanicsUsage(gm.mechanics, event, turn);
     }
+
+    if (type === "gm.guardFine.pay" || type === "gm.guardFine.refuse") {
+      applyGuardFineOutcome(gm, type, turn);
+    }
+
+    maybeScheduleFactionEvents(ctx, gm, turn);
   }
 
   // Optional concise debug logging for events.
@@ -879,6 +936,111 @@ export function onEvent(ctx, event) {
       const label = type || "?";
       ctx.log(`[GM] event ${label} @${scope}`, "info", { category: "gm" });
     } catch (_) {}
+  }
+}
+
+function maybeScheduleFactionEvents(ctx, gm, turn) {
+  if (!gm || typeof gm !== "object") return;
+
+  // Traits/factions/families and factionEvents should always be normalized before we
+  // derive any scheduling from them. This keeps scheduling deterministic and
+  // robust to partial/malformed GM states.
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
+
+  const storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : null;
+  const factionEvents = storyFlags && storyFlags.factionEvents && typeof storyFlags.factionEvents === "object"
+    ? storyFlags.factionEvents
+    : null;
+  if (!factionEvents) return;
+
+  const safeTurn = normalizeTurn(turn);
+
+  function slotIsFree(slot) {
+    if (!slot || typeof slot !== "object") return false;
+    const status = typeof slot.status === "string" ? slot.status : "none";
+    return status !== "scheduled" && status !== "consumed";
+  }
+
+  function extractSeenAndScore(entry) {
+    if (!entry || typeof entry !== "object") {
+      return { seen: 0, score: 0 };
+    }
+    let seen = entry.seen | 0;
+    if (seen < 0) seen = 0;
+    let positive = entry.positive | 0;
+    if (positive < 0) positive = 0;
+    let negative = entry.negative | 0;
+    if (negative < 0) negative = 0;
+    const samples = positive + negative;
+    const score = samples > 0 ? (positive - negative) / samples : 0;
+    return { seen, score };
+  }
+
+  const factions = gm.factions && typeof gm.factions === "object" ? gm.factions : {};
+  const families = gm.families && typeof gm.families === "object" ? gm.families : {};
+
+  // Bandit bounty hunters: driven purely by bandit faction reputation.
+  const banditSlot = factionEvents.banditBounty;
+  if (slotIsFree(banditSlot)) {
+    const banditEntry = factions.bandit;
+    const metrics = extractSeenAndScore(banditEntry);
+    if (metrics.seen >= 8 && metrics.score >= 0.8) {
+      banditSlot.status = "scheduled";
+      banditSlot.earliestTurn = normalizeTurn(safeTurn + 50);
+      banditSlot.latestTurn = normalizeTurn(safeTurn + 300);
+    }
+  }
+
+  // Guard fine: aggregate hostility across guard/town related factions.
+  const guardSlot = factionEvents.guardFine;
+  if (slotIsFree(guardSlot)) {
+    let bestGuardSeen = 0;
+    let bestGuardScore = -1;
+
+    const guardEntry = factions.guard;
+    if (guardEntry && typeof guardEntry === "object") {
+      const m = extractSeenAndScore(guardEntry);
+      if (m.seen > bestGuardSeen || (m.seen === bestGuardSeen && m.score > bestGuardScore)) {
+        bestGuardSeen = m.seen;
+        bestGuardScore = m.score;
+      }
+    }
+
+    const townEntry = factions.town;
+    if (townEntry && typeof townEntry === "object") {
+      const m = extractSeenAndScore(townEntry);
+      if (m.seen > bestGuardSeen || (m.seen === bestGuardSeen && m.score > bestGuardScore)) {
+        bestGuardSeen = m.seen;
+        bestGuardScore = m.score;
+      }
+    }
+
+    if (bestGuardSeen >= 3 && bestGuardScore >= 0.6) {
+      guardSlot.status = "scheduled";
+      guardSlot.earliestTurn = normalizeTurn(safeTurn + 30);
+      guardSlot.latestTurn = normalizeTurn(safeTurn + 240);
+    }
+  }
+
+  // Troll hunt: prefer family "troll" if present, else fall back to faction "trolls".
+  const trollSlot = factionEvents.trollHunt;
+  if (slotIsFree(trollSlot)) {
+    let source = null;
+    if (families && typeof families === "object" && families.troll && typeof families.troll === "object") {
+      source = families.troll;
+    } else if (factions && typeof factions === "object" && factions.trolls && typeof factions.trolls === "object") {
+      source = factions.trolls;
+    }
+
+    if (source) {
+      const metrics = extractSeenAndScore(source);
+      if (metrics.seen >= 4 && metrics.score >= 0.7) {
+        trollSlot.status = "scheduled";
+        trollSlot.earliestTurn = normalizeTurn(safeTurn + 40);
+        trollSlot.latestTurn = normalizeTurn(safeTurn + 260);
+      }
+    }
   }
 }
 
@@ -1135,6 +1297,58 @@ function updateTraitsFromCaravanEvent(traits, event, turn) {
   applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn);
 }
 
+function applyGuardFineOutcome(gm, type, turn) {
+  if (!gm || typeof gm !== "object") return;
+
+  // Guard fine outcomes are deterministic bookkeeping on faction attitudes.
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
+
+  const factions = gm.factions && typeof gm.factions === "object" ? gm.factions : {};
+  const guard = factions.guard && typeof factions.guard === "object" ? factions.guard : null;
+  const town = factions.town && typeof factions.town === "object" ? factions.town : null;
+
+  const storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : (gm.storyFlags = {});
+  const factionEvents = storyFlags.factionEvents && typeof storyFlags.factionEvents === "object"
+    ? storyFlags.factionEvents
+    : (storyFlags.factionEvents = {});
+  let slot = factionEvents.guardFine;
+  if (!slot || typeof slot !== "object") {
+    slot = {};
+    factionEvents.guardFine = slot;
+  }
+  slot.status = "consumed";
+
+  const safeTurn = normalizeTurn(turn);
+
+  function bump(entry, deltaPositive, deltaNegative) {
+    if (!entry || typeof entry !== "object") return;
+    let seen = (entry.seen | 0) + 1;
+    if (seen < 0) seen = 0;
+    entry.seen = seen;
+
+    let positive = (entry.positive | 0) + (deltaPositive | 0);
+    if (positive < 0) positive = 0;
+    entry.positive = positive;
+
+    let negative = (entry.negative | 0) + (deltaNegative | 0);
+    if (negative < 0) negative = 0;
+    entry.negative = negative;
+
+    entry.lastUpdatedTurn = safeTurn;
+  }
+
+  if (type === "gm.guardFine.pay") {
+    bump(guard, 0, 1);
+    bump(town, 0, 1);
+    storyFlags.guardFinePaid = true;
+  } else if (type === "gm.guardFine.refuse") {
+    bump(guard, 1, 0);
+    bump(town, 1, 0);
+    storyFlags.guardHostilityLocked = true;
+  }
+}
+
 function updateMechanicsUsage(mechanics, event, turn) {
   if (!mechanics || !event) return;
 
@@ -1369,6 +1583,70 @@ export function getMechanicHint(ctx) {
   return intent;
 }
 
+export function getFactionTravelEvent(ctx) {
+  const gm = _ensureState(ctx);
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
+
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+
+  if (gm.enabled === false) {
+    return { kind: "none" };
+  }
+
+  const storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : null;
+  const factionEvents = storyFlags && storyFlags.factionEvents && typeof storyFlags.factionEvents === "object"
+    ? storyFlags.factionEvents
+    : null;
+  if (!factionEvents) {
+    return { kind: "none" };
+  }
+
+  function isEligible(slot) {
+    if (!slot || typeof slot !== "object") return false;
+    if (slot.status !== "scheduled") return false;
+    const earliest = normalizeTurn(slot.earliestTurn);
+    const latest = normalizeTurn(slot.latestTurn);
+    if (turn < earliest) return false;
+    if (turn > latest) return false;
+    return true;
+  }
+
+  let intent = null;
+
+  const guardSlot = factionEvents.guardFine;
+  if (isEligible(guardSlot)) {
+    guardSlot.status = "consumed";
+    gm.lastActionTurn = turn;
+    intent = { kind: "guard_fine" };
+  }
+
+  if (!intent) {
+    const banditSlot = factionEvents.banditBounty;
+    if (isEligible(banditSlot)) {
+      banditSlot.status = "consumed";
+      gm.lastActionTurn = turn;
+      intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
+    }
+  }
+
+  if (!intent) {
+    const trollSlot = factionEvents.trollHunt;
+    if (isEligible(trollSlot)) {
+      trollSlot.status = "consumed";
+      gm.lastActionTurn = turn;
+      intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
+    }
+  }
+
+  if (!intent) {
+    return { kind: "none" };
+  }
+
+  pushIntentDebug(gm, intent, turn);
+  return intent;
+}
+
 export function reset(ctx, opts = {}) {
   _state = null;
   const nextOpts = Object.assign({}, opts, { reset: true });
@@ -1376,4 +1654,4 @@ export function reset(ctx, opts = {}) {
 }
 
 // Back-compat: attach to window via helper
-attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint });
+attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint, getFactionTravelEvent });

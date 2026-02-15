@@ -39,6 +39,12 @@
       "caravanAlly": "Merchants whisper: \"Caravans seem to like that one.\"",
       "familySlayer": "Someone mentions trouble for the {family} in recent days.",
       "familyAlly": "An idle rumor suggests the {family} have a friend in town."
+    },
+    "guardFine": {
+      "prompt": "A patrol of guards stops you on the road.\nThey demand a fine of {amount} gold for your crimes.\n\nPay the fine?",
+      "noMoney": "A patrol of guards stops you on the road, but you cannot afford their fine. They will remember this.",
+      "paid": "You pay {amount} gold to settle your fine with the guards.",
+      "refused": "You refuse to pay the fine. The guards will remember this."
     }
   }
 }

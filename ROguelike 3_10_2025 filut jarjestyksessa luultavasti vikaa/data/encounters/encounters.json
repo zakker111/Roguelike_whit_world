@@ -104,6 +104,28 @@
         { "type": "moon_wraith", "count": { "min": 1, "max": 2 }, "faction": "undead" },
         { "type": "skeleton", "count": { "min": 4, "max": 7 }, "faction": "undead" }
       ]
+    },
+    {
+      "id": "gm_bandit_bounty",
+      "name": "GM: Bandit Bounty Hunters",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH"],
+      "map": { "generator": "camp", "w": 28, "h": 18 },
+      "groups": [
+        { "type": "bandit", "count": { "min": 4, "max": 7 }, "faction": "bandit" },
+        { "type": "bandit", "count": { "min": 2, "max": 3 }, "faction": "bandit" }
+      ]
+    },
+    {
+      "id": "gm_troll_hunt",
+      "name": "GM: Troll Warband Hunt",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["MOUNTAIN", "FOREST", "SNOW"],
+      "map": { "generator": "ambush_forest", "w": 26, "h": 18 },
+      "groups": [
+        { "type": "troll", "count": { "min": 2, "max": 4 } },
+        { "type": "troll", "count": { "min": 1, "max": 2 } }
+      ]
     }
   ]
 }

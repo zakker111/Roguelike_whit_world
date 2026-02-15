@@ -42,7 +42,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
 
   // If the target tile has a travelling caravan (not one parked in a town), block movement
   // and offer an ambush/encounter option. Caravans that are currently atTown are considered
-  // \"inside\" the settlement and should not block or prompt on the overworld tile.
+  // "inside" the settlement and should not block or prompt on the overworld tile.
   try {
     const caravans = Array.isArray(ctx.world.caravans) ? ctx.world.caravans : [];
     if (caravans.length) {
@@ -115,14 +115,244 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     }
   } catch (_) {}
 
-  // Encounter roll before advancing time (modules may switch mode)
+  let gmHandled = false;
   try {
-    const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
-    if (ES && typeof ES.maybeTryEncounter === "function") {
-      ES.maybeTryEncounter(ctx);
+    gmHandled = maybeHandleGMFactionTravelEvent(ctx);
+  } catch (_) {}
+
+  // Encounter roll before advancing time (modules may switch mode)
+  if (!gmHandled) {
+    try {
+      const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
+      if (ES && typeof ES.maybeTryEncounter === "function") {
+        ES.maybeTryEncounter(ctx);
+      }
+    } catch (_) {}
+  }
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+  return true;
+}
+
+function maybeHandleGMFactionTravelEvent(ctx) {
+  if (!ctx) return false;
+
+  try {
+    const GM = ctx.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (!GM || typeof GM.getFactionTravelEvent !== "function") return false;
+
+    const intent = GM.getFactionTravelEvent(ctx) || { kind: "none" };
+    if (!intent || intent.kind === "none") return false;
+
+    if (intent.kind === "guard_fine") {
+      return !!handleGuardFineTravelEvent(ctx);
+    }
+
+    if (intent.kind === "encounter" && typeof intent.encounterId === "string" && intent.encounterId) {
+      return !!startGmFactionEncounter(ctx, intent.encounterId);
+    }
+
+    return false;
+  } catch (_) {
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log("[GM] Failed to process faction travel event intent.", "warn");
+      }
+    } catch (_) {}
+    return false;
+  }
+}
+
+function handleGuardFineTravelEvent(ctx) {
+  if (!ctx || !ctx.player) return false;
+
+  try {
+    const GM = ctx.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+    const MZ = ctx.Messages || (typeof window !== "undefined" ? window.Messages : null);
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+
+    const inv = Array.isArray(ctx.player?.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+    let goldObj = inv.find(it => it && it.kind === "gold");
+    if (!goldObj) {
+      goldObj = { kind: "gold", amount: 0, name: "gold" };
+      inv.push(goldObj);
+    }
+    const currentGold = (typeof goldObj.amount === "number" ? goldObj.amount : 0) | 0;
+
+    const level = (typeof ctx.player.level === "number" ? (ctx.player.level | 0) : 1);
+    let fine = 20 + level * 10;
+    if (fine < 30) fine = 30;
+    if (fine > 300) fine = 300;
+
+    if (currentGold < fine) {
+      try {
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(ctx, "gm.guardFine.noMoney", null, "warn");
+        } else if (typeof ctx.log === "function") {
+          ctx.log("A patrol of guards demands a fine you cannot afford. They will remember this.", "warn");
+        }
+      } catch (_) {}
+
+      try {
+        if (GM && typeof GM.onEvent === "function") {
+          GM.onEvent(ctx, { type: "gm.guardFine.refuse", scope: ctx.mode || "world", interesting: true });
+        }
+      } catch (_) {}
+
+      return true;
+    }
+
+    const vars = { amount: fine };
+    let prompt = "";
+    try {
+      if (MZ && typeof MZ.get === "function") {
+        prompt = MZ.get("gm.guardFine.prompt", vars) || "";
+      }
+    } catch (_) {}
+    if (!prompt) {
+      prompt = `A patrol of guards demands a fine of ${fine} gold for your crimes.\n\nPay the fine?`;
+    }
+
+    const onPay = () => {
+      try {
+        let next = currentGold - fine;
+        if (next < 0) next = 0;
+        goldObj.amount = next;
+      } catch (_) {}
+
+      try {
+        if (GM && typeof GM.onEvent === "function") {
+          GM.onEvent(ctx, { type: "gm.guardFine.pay", scope: ctx.mode || "world", interesting: true });
+        }
+      } catch (_) {}
+
+      try {
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(ctx, "gm.guardFine.paid", { amount: fine }, "notice");
+        } else if (typeof ctx.log === "function") {
+          ctx.log(`You pay ${fine} gold to settle your fine with the guards.`, "notice");
+        }
+      } catch (_) {}
+
+      try {
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+      } catch (_) {}
+    };
+
+    const onRefuse = () => {
+      try {
+        if (GM && typeof GM.onEvent === "function") {
+          GM.onEvent(ctx, { type: "gm.guardFine.refuse", scope: ctx.mode || "world", interesting: true });
+        }
+      } catch (_) {}
+
+      try {
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(ctx, "gm.guardFine.refused", null, "warn");
+        } else if (typeof ctx.log === "function") {
+          ctx.log("You refuse to pay the fine. The guards will remember this.", "warn");
+        }
+      } catch (_) {}
+    };
+
+    if (UIO && typeof UIO.showConfirm === "function") {
+      UIO.showConfirm(ctx, prompt, null, onPay, onRefuse);
+    } else {
+      onRefuse();
+    }
+
+    return true;
+  } catch (_) {
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log("[GM] Error handling guard fine travel event.", "warn");
+      }
+    } catch (_) {}
+    return false;
+  }
+}
+
+function startGmFactionEncounter(ctx, encounterId) {
+  if (!ctx) return false;
+
+  const id = String(encounterId || "");
+  if (!id) return false;
+
+  let tmpl = null;
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+    tmpl = reg.find(t => t && String(t.id) === id) || null;
+  } catch (_) {}
+
+  if (!tmpl) {
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log(`[GM] Faction encounter template '${id}' not found.`, "warn");
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  let biome = "GRASS";
+  try {
+    const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+    const wmap = ctx.world && ctx.world.map ? ctx.world.map : null;
+    const y = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
+    const x = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
+    const row = wmap && wmap[y] ? wmap[y] : null;
+    const tile = row ? row[x] : null;
+    if (W && typeof W.biomeName === "function") {
+      const name = W.biomeName(tile) || "";
+      if (name) biome = String(name).toUpperCase();
     }
   } catch (_) {}
-  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+
+  let difficulty = 1;
+  try {
+    const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
+    if (ES && typeof ES.computeDifficulty === "function") {
+      difficulty = ES.computeDifficulty(ctx, biome);
+    }
+  } catch (_) {}
+  if (typeof difficulty !== "number" || !Number.isFinite(difficulty)) difficulty = 1;
+  difficulty = difficulty | 0;
+  if (difficulty < 1) difficulty = 1;
+  if (difficulty > 5) difficulty = 5;
+
+  let ok = false;
+
+  try {
+    const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
+    if (GA && typeof GA.enterEncounter === "function") {
+      ok = !!GA.enterEncounter(tmpl, biome, difficulty);
+    }
+  } catch (_) {}
+
+  if (!ok) {
+    try {
+      const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
+      if (ER && typeof ER.enter === "function") {
+        ok = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
+      }
+    } catch (_) {}
+  }
+
+  if (!ok) {
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log("[GM] Failed to start faction encounter.", "warn");
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  try {
+    if (ctx && typeof ctx.log === "function") {
+      const name = tmpl && tmpl.name ? tmpl.name : id;
+      ctx.log(`[GM] A special encounter begins: ${name}.`, "notice");
+    }
+  } catch (_) {}
+
   return true;
 }
 
