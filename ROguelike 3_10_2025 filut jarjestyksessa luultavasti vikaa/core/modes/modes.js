@@ -21,8 +21,33 @@ function gmEvent(ctx, event) {
   try {
     if (!ctx) return;
     const GM = ctx.GMRuntime || getMod(ctx, "GMRuntime");
-    if (GM && typeof GM.onEvent === "function") {
+    if (!GM) return;
+
+    if (typeof GM.onEvent === "function") {
       GM.onEvent(ctx, event || {});
+    }
+
+    // Phase 0–1 GM integration: lightweight flavor intent on mode enter.
+    const ev = event || {};
+    if (ev.type === "mode.enter" && typeof GM.getEntranceIntent === "function" && typeof ctx.log === "function") {
+      const scope = ev.scope || ctx.mode || "unknown";
+      if (scope === "world" || scope === "town" || scope === "dungeon" || scope === "tavern") {
+        try {
+          const intent = GM.getEntranceIntent(ctx, scope);
+          if (intent && intent.kind === "flavor") {
+            const topic = typeof intent.topic === "string" ? intent.topic : "";
+            let msg = "";
+            if (topic.startsWith("family:")) {
+              const famKey = topic.slice("family:".length) || "unknown";
+              const label = famKey.replace(/_/g, " ");
+              msg = `You hear rumors about recent troubles with ${label}.`;
+            } else {
+              msg = "You catch a stray rumor as you arrive.";
+            }
+            ctx.log(msg, "flavor", { category: "gm" });
+          }
+        } catch (_) {}
+      }
     }
   } catch (_) {}
 }

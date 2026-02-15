@@ -18,14 +18,66 @@ import { attachGlobal } from "/utils/global.js";
 let _panelEl = null;
 let _summaryEl = null;
 let _statsEl = null;
+let _profileEl = null;
 let _traitsEl = null;
+let _moodEl = null;
 let _mechEl = null;
+let _intentsEl = null;
 let _eventsEl = null;
 let _toggleBtn = null;
 let _open = false;
 let _refreshTimer = null;
 
 const MAX_EVENTS = 20;
+
+function formatValenceBar(val) {
+  const totalSlots = 8;
+  const half = totalSlots / 2;
+  let v = typeof val === "number" && Number.isFinite(val) ? val : 0;
+  if (v < -1) v = -1;
+  else if (v > 1) v = 1;
+
+  let negFilled = 0;
+  let posFilled = 0;
+  if (v < 0) {
+    const magnitude = -v;
+    negFilled = Math.round(magnitude * half);
+  } else if (v > 0) {
+    const magnitude = v;
+    posFilled = Math.round(magnitude * half);
+  }
+
+  if (negFilled < 0) negFilled = 0;
+  if (negFilled > half) negFilled = half;
+  if (posFilled < 0) posFilled = 0;
+  if (posFilled > half) posFilled = half;
+
+  let left = "";
+  for (let i = 0; i < half; i++) {
+    left += i < negFilled ? "-" : ".";
+  }
+
+  let right = "";
+  for (let i = 0; i < half; i++) {
+    right += i < posFilled ? "+" : ".";
+  }
+
+  return `[${left}${right}]`;
+}
+
+function formatArousalBar(val) {
+  const totalSlots = 10;
+  let a = typeof val === "number" && Number.isFinite(val) ? val : 0;
+  if (a < 0) a = 0;
+  else if (a > 1) a = 1;
+
+  const filled = Math.round(a * totalSlots);
+  let bar = "";
+  for (let i = 0; i < totalSlots; i++) {
+    bar += i < filled ? "+" : "-";
+  }
+  return `[${bar}]`;
+}
 
 function getGMState() {
   try {
@@ -242,6 +294,26 @@ function ensurePanel() {
   _statsEl.style.padding = "6px 8px";
   body.appendChild(_statsEl);
 
+  const profileLabel = document.createElement("div");
+  profileLabel.textContent = "Profile";
+  profileLabel.style.fontSize = "11px";
+  profileLabel.style.textTransform = "uppercase";
+  profileLabel.style.letterSpacing = "0.05em";
+  profileLabel.style.color = "#9ca3af";
+  profileLabel.style.marginTop = "4px";
+  body.appendChild(profileLabel);
+
+  _profileEl = document.createElement("div");
+  _profileEl.className = "gm-panel-profile";
+  _profileEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _profileEl.style.fontSize = "11px";
+  _profileEl.style.whiteSpace = "pre-wrap";
+  _profileEl.style.background = "#020617";
+  _profileEl.style.borderRadius = "6px";
+  _profileEl.style.border = "1px solid #1f2937";
+  _profileEl.style.padding = "6px 8px";
+  body.appendChild(_profileEl);
+
   const traitsLabel = document.createElement("div");
   traitsLabel.textContent = "Traits";
   traitsLabel.style.fontSize = "11px";
@@ -262,6 +334,26 @@ function ensurePanel() {
   _traitsEl.style.padding = "6px 8px";
   body.appendChild(_traitsEl);
 
+  const moodLabel = document.createElement("div");
+  moodLabel.textContent = "Mood";
+  moodLabel.style.fontSize = "11px";
+  moodLabel.style.textTransform = "uppercase";
+  moodLabel.style.letterSpacing = "0.05em";
+  moodLabel.style.color = "#9ca3af";
+  moodLabel.style.marginTop = "4px";
+  body.appendChild(moodLabel);
+
+  _moodEl = document.createElement("div");
+  _moodEl.className = "gm-panel-mood";
+  _moodEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _moodEl.style.fontSize = "11px";
+  _moodEl.style.whiteSpace = "pre-wrap";
+  _moodEl.style.background = "#020617";
+  _moodEl.style.borderRadius = "6px";
+  _moodEl.style.border = "1px solid #1f2937";
+  _moodEl.style.padding = "6px 8px";
+  body.appendChild(_moodEl);
+
   const mechLabel = document.createElement("div");
   mechLabel.textContent = "Mechanics";
   mechLabel.style.fontSize = "11px";
@@ -281,6 +373,28 @@ function ensurePanel() {
   _mechEl.style.border = "1px solid #1f2937";
   _mechEl.style.padding = "6px 8px";
   body.appendChild(_mechEl);
+
+  const intentsLabel = document.createElement("div");
+  intentsLabel.textContent = "GM intents";
+  intentsLabel.style.fontSize = "11px";
+  intentsLabel.style.textTransform = "uppercase";
+  intentsLabel.style.letterSpacing = "0.05em";
+  intentsLabel.style.color = "#9ca3af";
+  intentsLabel.style.marginTop = "4px";
+  body.appendChild(intentsLabel);
+
+  _intentsEl = document.createElement("div");
+  _intentsEl.className = "gm-panel-intents";
+  _intentsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _intentsEl.style.fontSize = "11px";
+  _intentsEl.style.whiteSpace = "pre-wrap";
+  _intentsEl.style.background = "#020617";
+  _intentsEl.style.borderRadius = "6px";
+  _intentsEl.style.border = "1px solid #1f2937";
+  _intentsEl.style.padding = "6px 8px";
+  _intentsEl.style.maxHeight = "160px";
+  _intentsEl.style.overflowY = "auto";
+  body.appendChild(_intentsEl);
 
   const eventsLabel = document.createElement("div");
   eventsLabel.textContent = "Recent events";
@@ -320,8 +434,13 @@ function renderSnapshot(gm) {
   if (!gm) {
     _summaryEl.textContent = "GM state not available (GMRuntime or GameAPI missing).";
     _statsEl.textContent = "";
+    if (_profileEl) _profileEl.textContent = "";
     if (_traitsEl) _traitsEl.textContent = "";
+    if (_moodEl) {
+      _moodEl.textContent = "mood: (no data)\nvalence:  [........]\narousal:  [----------]";
+    }
     if (_mechEl) _mechEl.textContent = "";
+    if (_intentsEl) _intentsEl.textContent = "GM intents (latest first)\n  No GM intents yet.";
     _eventsEl.textContent = "No GM events (GMRuntime not available).";
     if (_toggleBtn) {
       _toggleBtn.textContent = "GM N/A";
@@ -376,6 +495,89 @@ function renderSnapshot(gm) {
   }
 
   _statsEl.textContent = lines.join("\n");
+
+  if (_profileEl) {
+    const linesProfile = [];
+    linesProfile.push(`  boredom: ${boredomLevel.toFixed(2)}`);
+
+    const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
+    const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);
+    if (mtEntriesProfile.length) {
+      mtEntriesProfile.sort((a, b) => b[1] - a[1]);
+      linesProfile.push("  top modes:");
+      mtEntriesProfile.slice(0, 3).forEach(([key, val]) => {
+        linesProfile.push(`    - ${key}: ${val}`);
+      });
+    }
+
+    const familiesProfile = gm.families && typeof gm.families === "object" ? gm.families : {};
+    const famRows = [];
+    const famKeysProfile = Object.keys(familiesProfile);
+    for (let i = 0; i < famKeysProfile.length; i++) {
+      const key = famKeysProfile[i];
+      const entry = familiesProfile[key];
+      if (!entry || typeof entry !== "object") continue;
+      const seen = entry.seen | 0;
+      if (seen < 1) continue;
+      const pos = entry.positive | 0;
+      const neg = entry.negative | 0;
+      const denom = pos + neg;
+      let score = 0;
+      if (denom > 0) {
+        score = (pos - neg) / denom;
+      }
+      famRows.push({ key, seen, score });
+    }
+    if (famRows.length) {
+      famRows.sort((a, b) => {
+        if (b.seen !== a.seen) return b.seen - a.seen;
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.key < b.key) return -1;
+        if (a.key > b.key) return 1;
+        return 0;
+      });
+      const topFamilies = famRows.slice(0, 3);
+      linesProfile.push("  top families:");
+      for (let i = 0; i < topFamilies.length; i++) {
+        const f = topFamilies[i];
+        const scoreStr = f.score.toFixed(2);
+        linesProfile.push(`    - ${f.key}:  seen=${f.seen} score=${scoreStr}`);
+      }
+    }
+
+    const traitLines = [];
+    const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : null;
+    const TRAIT_MIN_SAMPLES_PROFILE = 3;
+    const TRAIT_MIN_SCORE_PROFILE = 0.4;
+
+    function addTraitSummary(key, label) {
+      if (!traits) return;
+      const tr = traits[key];
+      if (!tr) return;
+      const seen = tr.seen | 0;
+      const pos = tr.positive | 0;
+      const neg = tr.negative | 0;
+      const samples = pos + neg;
+      if (seen < TRAIT_MIN_SAMPLES_PROFILE) return;
+      if (samples <= 0) return;
+      const score = (pos - neg) / samples;
+      if (Math.abs(score) < TRAIT_MIN_SCORE_PROFILE) return;
+      traitLines.push(`    - ${label} (${score.toFixed(2)})`);
+    }
+
+    addTraitSummary("trollSlayer", "Troll Slayer");
+    addTraitSummary("townProtector", "Town Protector");
+    addTraitSummary("caravanAlly", "Caravan Ally");
+
+    if (traitLines.length) {
+      linesProfile.push("  traits:");
+      for (let i = 0; i < traitLines.length; i++) {
+        linesProfile.push(traitLines[i]);
+      }
+    }
+
+    _profileEl.textContent = linesProfile.join("\n");
+  }
 
   if (_traitsEl) {
     const t = gm.traits || {};
@@ -490,6 +692,26 @@ function renderSnapshot(gm) {
     }
   }
 
+  if (_moodEl) {
+    const mood = gm.mood && typeof gm.mood === "object" ? gm.mood : null;
+    const linesMood = [];
+    if (!mood) {
+      linesMood.push("mood: (no data)");
+      linesMood.push("valence:  [........]");
+      linesMood.push("arousal:  [----------]");
+    } else {
+      const primary = typeof mood.primary === "string" && mood.primary ? mood.primary : "neutral";
+      const rawValence = typeof mood.valence === "number" && Number.isFinite(mood.valence) ? mood.valence : 0;
+      const rawArousal = typeof mood.arousal === "number" && Number.isFinite(mood.arousal) ? mood.arousal : 0;
+      const valenceStr = rawValence.toFixed(2);
+      const arousalStr = rawArousal.toFixed(2);
+      linesMood.push(`mood: ${primary} (val=${valenceStr}, ar=${arousalStr})`);
+      linesMood.push(`valence:  ${formatValenceBar(rawValence)}`);
+      linesMood.push(`arousal:  ${formatArousalBar(rawArousal)}`);
+    }
+    _moodEl.textContent = linesMood.join("\n");
+  }
+
   if (_mechEl) {
     const m = gm.mechanics || {};
     const linesM = [];
@@ -518,7 +740,46 @@ function renderSnapshot(gm) {
     _mechEl.textContent = linesM.join("\n");
   }
 
-  const evBuf = gm.debug && Array.isArray(gm.debug.lastEvents) ? gm.debug.lastEvents : [];
+  const debug = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
+
+  if (_intentsEl) {
+    const intentHistory = Array.isArray(debug.intentHistory) ? debug.intentHistory : null;
+    if (!intentHistory || !intentHistory.length) {
+      _intentsEl.textContent = "GM intents (latest first)\n  No GM intents yet.";
+    } else {
+      const intentLines = [];
+      intentLines.push("GM intents (latest first)");
+      const maxIntents = Math.min(intentHistory.length, 10);
+      let count = 0;
+      for (let i = intentHistory.length - 1; i >= 0 && count < maxIntents; i--) {
+        const it = intentHistory[i];
+        if (!it || typeof it !== "object") continue;
+        const turn = typeof it.turn === "number" ? (it.turn | 0) : "?";
+        let kindPart = it.kind || "none";
+        if (it.topic) kindPart += `:${it.topic}`;
+        if (it.target) kindPart += `:${it.target}`;
+        if (it.id) kindPart += `:${it.id}`;
+        const gmMood = gm.mood && typeof gm.mood === "object" ? gm.mood : null;
+        const moodLabel =
+          typeof it.mood === "string" && it.mood
+            ? it.mood
+            : gmMood && typeof gmMood.primary === "string" && gmMood.primary
+            ? gmMood.primary
+            : "?";
+        const boredomValue =
+          typeof it.boredom === "number" && Number.isFinite(it.boredom)
+            ? it.boredom.toFixed(2)
+            : typeof gm.boredom === "object" && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+            ? gm.boredom.level.toFixed(2)
+            : "?";
+        intentLines.push(`  [T ${turn}] ${kindPart}  mood=${moodLabel} boredom=${boredomValue}`);
+        count++;
+      }
+      _intentsEl.textContent = intentLines.join("\n");
+    }
+  }
+
+  const evBuf = Array.isArray(debug.lastEvents) ? debug.lastEvents : [];
   if (!_eventsEl) return;
   if (!evBuf.length) {
     _eventsEl.textContent = "No events observed yet.";

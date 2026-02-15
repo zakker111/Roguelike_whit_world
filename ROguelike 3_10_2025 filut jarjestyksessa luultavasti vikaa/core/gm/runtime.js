@@ -16,8 +16,16 @@
 import { attachGlobal } from "../../utils/global.js";
 
 let _state = null;
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MAX_DEBUG_EVENTS = 50;
+const MAX_INTENT_HISTORY = 20;
+const ACTION_COOLDOWN_TURNS = 80;
+const MOOD_DECAY_PER_TURN = 0.98;
+const MOOD_BOREDOM_HIGH = 0.8;
+const MOOD_BOREDOM_LOW = 0.2;
+const MOOD_RECENT_INTERESTING_TURNS = 30;
+const MOOD_NUDGE_DELTA = 0.01;
+const MOOD_NUDGE_DELTA_SMALL = 0.005;
 
 function createDefaultStats() {
   return {
@@ -49,21 +57,26 @@ function createDefaultMechanics() {
   };
 }
 
+function createDefaultMood() {
+  return {
+    primary: "neutral",
+    valence: 0.0,
+    arousal: 0.0,
+    lastUpdatedTurn: null,
+  };
+}
+
 function createDefaultState() {
   return {
     schemaVersion: SCHEMA_VERSION,
     enabled: true,
-    mood: {
-      primary: "neutral",
-      valence: 0.0,
-      arousal: 0.0,
-      lastUpdatedTurn: null,
-    },
+    mood: createDefaultMood(),
     boredom: {
       level: 0.0,
       turnsSinceLastInterestingEvent: 0,
       lastInterestingEvent: null,
     },
+    storyFlags: {},
     debug: {
       enabled: false,
       logTicks: false,
@@ -76,12 +89,15 @@ function createDefaultState() {
         events: 0,
         interestingEvents: 0,
       },
+      lastIntent: null,
+      intentHistory: [],
     },
     stats: createDefaultStats(),
     traits: createDefaultTraits(),
     mechanics: createDefaultMechanics(),
     families: {},
     lastMode: "world",
+    lastActionTurn: -1,
   };
 }
 
@@ -118,6 +134,10 @@ function ensureStats(gm) {
 
 function ensureTraitsAndMechanics(gm) {
   if (!gm || typeof gm !== "object") return;
+
+  if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+    gm.storyFlags = {};
+  }
 
   // Traits
   let traits = gm.traits;
@@ -213,7 +233,7 @@ function ensureTraitsAndMechanics(gm) {
     }
   }
 
-  // Debug lastEvents buffer
+  // Debug ring buffers
   if (gm.debug && typeof gm.debug === "object") {
     const dbg = gm.debug;
     if (!Array.isArray(dbg.lastEvents)) {
@@ -221,6 +241,12 @@ function ensureTraitsAndMechanics(gm) {
     }
     if (dbg.lastEvents.length > MAX_DEBUG_EVENTS) {
       dbg.lastEvents.length = MAX_DEBUG_EVENTS;
+    }
+    if (!Array.isArray(dbg.intentHistory)) {
+      dbg.intentHistory = [];
+    }
+    if (dbg.intentHistory.length > MAX_INTENT_HISTORY) {
+      dbg.intentHistory.length = MAX_INTENT_HISTORY;
     }
   }
 }
@@ -241,6 +267,209 @@ function normalizeFamilyTrait(family) {
     if (!Number.isFinite(t) || t < 0) family.lastUpdatedTurn = null;
     else family.lastUpdatedTurn = t;
   }
+}
+
+function normalizeMood(gm) {
+  if (!gm || typeof gm !== "object") return;
+  let mood = gm.mood;
+  if (!mood || typeof mood !== "object") {
+    mood = createDefaultMood();
+    gm.mood = mood;
+  }
+
+  let v = Number(mood.valence);
+  let a = Number(mood.arousal);
+  if (!Number.isFinite(v)) v = 0;
+  if (!Number.isFinite(a)) a = 0;
+
+  v = localClamp(v, -1, 1);
+  a = localClamp(a, 0, 1);
+
+  mood.valence = v;
+  mood.arousal = a;
+  if (typeof mood.primary !== "string") {
+    mood.primary = "neutral";
+  }
+}
+
+function labelMood(gm, turn) {
+  if (!gm || typeof gm !== "object") return;
+  const mood = gm.mood;
+  if (!mood || typeof mood !== "object") return;
+
+  const v = typeof mood.valence === "number" && Number.isFinite(mood.valence) ? mood.valence : 0;
+  const a = typeof mood.arousal === "number" && Number.isFinite(mood.arousal) ? mood.arousal : 0;
+
+  let primary = "neutral";
+  if (a < 0.2) {
+    primary = "calm";
+  } else if (a < 0.6) {
+    if (v > 0.2) primary = "curious";
+    else if (v < -0.2) primary = "bored";
+    else primary = "neutral";
+  } else {
+    if (v > 0.2) primary = "playful";
+    else if (v < -0.2) primary = "stern";
+    else primary = "restless";
+  }
+
+  mood.primary = primary;
+  mood.lastUpdatedTurn = normalizeTurn(turn);
+}
+
+function pushIntentDebug(gm, intent, turn) {
+  if (!gm || typeof gm !== "object") return;
+  let dbg = gm.debug;
+  if (!dbg || typeof dbg !== "object") {
+    dbg = {
+      enabled: false,
+      logTicks: false,
+      logEvents: false,
+      lastTickTurn: -1,
+      lastEvent: null,
+      lastEvents: [],
+      counters: {
+        ticks: 0,
+        events: 0,
+        interestingEvents: 0,
+      },
+      lastIntent: null,
+      intentHistory: [],
+    };
+    gm.debug = dbg;
+  }
+
+  const src = intent && typeof intent === "object" ? intent : {};
+  const normalized = {
+    kind: src.kind || "none",
+    topic: src.topic != null ? src.topic : null,
+    target: src.target != null ? src.target : null,
+    id: src.id != null ? src.id : null,
+    turn: normalizeTurn(turn),
+    mood: gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "unknown",
+    boredom: gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+      ? gm.boredom.level
+      : 0,
+  };
+
+  dbg.lastIntent = normalized;
+  const buf = Array.isArray(dbg.intentHistory) ? dbg.intentHistory : (dbg.intentHistory = []);
+  buf.unshift(normalized);
+  if (buf.length > MAX_INTENT_HISTORY) buf.length = MAX_INTENT_HISTORY;
+}
+
+function buildProfile(gm) {
+  const profile = {
+    boredomLevel: 0,
+    totalTurns: 0,
+    topModes: [],
+    topFamilies: [],
+    activeTraits: [],
+  };
+
+  if (!gm || typeof gm !== "object") return profile;
+
+  const stats = ensureStats(gm);
+  const boredomLevelRaw = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+    ? gm.boredom.level
+    : 0;
+  profile.boredomLevel = localClamp(boredomLevelRaw, 0, 1);
+  profile.totalTurns = stats.totalTurns | 0;
+
+  // Top modes: sort by turns desc, then mode name for determinism.
+  const modeTurns = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
+  const topModes = [];
+  for (const key in modeTurns) {
+    if (!Object.prototype.hasOwnProperty.call(modeTurns, key)) continue;
+    const turns = modeTurns[key] | 0;
+    if (turns <= 0) continue;
+    topModes.push({ mode: key, turns });
+  }
+  topModes.sort((a, b) => {
+    if (b.turns !== a.turns) return b.turns - a.turns;
+    if (a.mode < b.mode) return -1;
+    if (a.mode > b.mode) return 1;
+    return 0;
+  });
+  profile.topModes = topModes.slice(0, 3);
+
+  // Families: derive top families by seen count, then score.
+  ensureTraitsAndMechanics(gm);
+  const families = gm.families && typeof gm.families === "object" ? gm.families : {};
+  const topFamilies = [];
+  for (const key in families) {
+    if (!Object.prototype.hasOwnProperty.call(families, key)) continue;
+    const fam = families[key];
+    if (!fam || typeof fam !== "object") continue;
+    const seen = fam.seen | 0;
+    if (seen < 1) continue;
+    const pos = fam.positive | 0;
+    const neg = fam.negative | 0;
+    const samples = pos + neg;
+    const score = samples > 0 ? (pos - neg) / samples : 0;
+    topFamilies.push({ key, seen, score });
+  }
+  topFamilies.sort((a, b) => {
+    if (b.seen !== a.seen) return b.seen - a.seen;
+    const absA = Math.abs(a.score);
+    const absB = Math.abs(b.score);
+    if (absB !== absA) return absB - absA;
+    if (a.key < b.key) return -1;
+    if (a.key > b.key) return 1;
+    return 0;
+  });
+  profile.topFamilies = topFamilies.slice(0, 5);
+
+  // Active named traits: mirror GM panel gating (evidence + bias + memory).
+  const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : {};
+  const dbg = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
+  const currentTurn = typeof dbg.lastTickTurn === "number" ? (dbg.lastTickTurn | 0) : null;
+  const TRAIT_MIN_SAMPLES = 3;
+  const TRAIT_MIN_SCORE = 0.4;
+  const TRAIT_FORGET_TURNS = 300;
+
+  const traitDefs = [
+    { key: "trollSlayer", label: "Troll Slayer" },
+    { key: "townProtector", label: "Town Protector" },
+    { key: "caravanAlly", label: "Caravan Ally" },
+  ];
+
+  const activeTraits = [];
+  for (let i = 0; i < traitDefs.length; i++) {
+    const def = traitDefs[i];
+    const tr = traits[def.key];
+    if (!tr || typeof tr !== "object") continue;
+    const seen = tr.seen | 0;
+    const pos = tr.positive | 0;
+    const neg = tr.negative | 0;
+    const samples = pos + neg;
+    const score = samples > 0 ? (pos - neg) / samples : 0;
+    const lastTurn = tr.lastUpdatedTurn == null ? null : (tr.lastUpdatedTurn | 0);
+
+    const hasEnoughSamples = seen >= TRAIT_MIN_SAMPLES;
+    const hasStrongBias = Math.abs(score) >= TRAIT_MIN_SCORE;
+    let remembered = true;
+    if (currentTurn != null && lastTurn != null) {
+      const delta = currentTurn - lastTurn;
+      if (delta > TRAIT_FORGET_TURNS) remembered = false;
+    }
+
+    if (!hasEnoughSamples || !hasStrongBias || !remembered) continue;
+
+    activeTraits.push({ key: def.key, label: def.label, score });
+  }
+
+  activeTraits.sort((a, b) => {
+    const absA = Math.abs(a.score);
+    const absB = Math.abs(b.score);
+    if (absB !== absA) return absB - absA;
+    if (a.key < b.key) return -1;
+    if (a.key > b.key) return 1;
+    return 0;
+  });
+  profile.activeTraits = activeTraits;
+
+  return profile;
 }
 
 function _ensureState(ctx) {
@@ -313,8 +542,37 @@ export function tick(ctx) {
     mt[modeKey] = (mt[modeKey] | 0) + 1;
   }
 
-  // Mood fields remain placeholders in Phase 0–1; we only track when they were last updated.
-  gm.mood.lastUpdatedTurn = turn;
+  // Mood: decay gently toward neutral each turn and respond to boredom.
+  let valence = gm.mood && typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
+  let arousal = gm.mood && typeof gm.mood.arousal === "number" ? gm.mood.arousal : 0;
+
+  if (isNewTurn) {
+    valence *= MOOD_DECAY_PER_TURN;
+    arousal *= MOOD_DECAY_PER_TURN;
+  }
+
+  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" ? gm.boredom.level : 0;
+  if (boredomLevel > MOOD_BOREDOM_HIGH) {
+    // High boredom: mood drifts slightly negative and more restless.
+    valence -= MOOD_NUDGE_DELTA;
+    arousal += MOOD_NUDGE_DELTA;
+  } else if (boredomLevel < MOOD_BOREDOM_LOW) {
+    const lastInteresting = gm.boredom.lastInterestingEvent;
+    const lastInterestingTurn =
+      lastInteresting && typeof lastInteresting.turn === "number"
+        ? (lastInteresting.turn | 0)
+        : null;
+    if (lastInterestingTurn != null && (turn - lastInterestingTurn) <= MOOD_RECENT_INTERESTING_TURNS) {
+      // Recent interesting events with low boredom: slightly more positive and a bit calmer.
+      valence += MOOD_NUDGE_DELTA;
+      arousal -= MOOD_NUDGE_DELTA_SMALL;
+    }
+  }
+
+  gm.mood.valence = valence;
+  gm.mood.arousal = arousal;
+  normalizeMood(gm);
+  labelMood(gm, turn);
 
   // Track the last observed mode without mutating any mode logic.
   if (ctx.mode) {
@@ -391,6 +649,22 @@ export function onEvent(ctx, event) {
     gm.boredom.lastInterestingEvent = { type, scope, turn };
   }
 
+  // Event-driven mood nudges for a few coarse outcomes (Phase 1 flavor only).
+  if (!gm.mood || typeof gm.mood !== "object") {
+    gm.mood = createDefaultMood();
+  }
+  if (type === "encounter.exit") {
+    const baseValence = typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
+    const baseArousal = typeof gm.mood.arousal === "number" ? gm.mood.arousal : 0;
+    gm.mood.valence = baseValence + 0.02;
+    gm.mood.arousal = baseArousal + 0.01;
+  } else if (type === "quest.complete") {
+    const baseValence = typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
+    gm.mood.valence = baseValence + 0.03;
+  }
+  normalizeMood(gm);
+  labelMood(gm, turn);
+
   if (gm.enabled !== false) {
     if (type === "combat.kill") {
       const traits = gm.traits;
@@ -424,6 +698,16 @@ function normalizeTurn(turn) {
   let t = typeof turn === "number" ? (turn | 0) : 0;
   if (t < 0) t = 0;
   return t;
+}
+
+function getCurrentTurn(ctx, gm) {
+  if (ctx && ctx.time && typeof ctx.time.turnCounter === "number") {
+    return ctx.time.turnCounter | 0;
+  }
+  if (gm && gm.debug && typeof gm.debug.lastTickTurn === "number") {
+    return gm.debug.lastTickTurn | 0;
+  }
+  return 0;
 }
 
 function extractFamilyKeyFromTags(rawTags) {
@@ -661,6 +945,119 @@ export function getState(ctx) {
   return _ensureState(ctx);
 }
 
+export function getEntranceIntent(ctx, mode) {
+  const gm = _ensureState(ctx);
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+
+  if (gm.enabled === false) {
+    return { kind: "none" };
+  }
+
+  if (!gm.debug || typeof gm.debug !== "object") {
+    gm.debug = createDefaultState().debug;
+  }
+  if (!gm.config || typeof gm.config !== "object") {
+    gm.config = {};
+  }
+
+  const lastActionTurn = typeof gm.lastActionTurn === "number" ? (gm.lastActionTurn | 0) : -1;
+  if (lastActionTurn >= 0 && (turn - lastActionTurn) < ACTION_COOLDOWN_TURNS) {
+    return { kind: "none" };
+  }
+
+  normalizeMood(gm);
+  labelMood(gm, turn);
+
+  const profile = buildProfile(gm);
+  const moodLabel = gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "neutral";
+  const modeKey = typeof mode === "string" && mode ? mode : (ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown"));
+
+  let intent = { kind: "none" };
+
+  if ((moodLabel === "stern" || moodLabel === "restless") && profile.boredomLevel > 0.7) {
+    const fam = Array.isArray(profile.topFamilies) && profile.topFamilies.length ? profile.topFamilies[0] : null;
+    if (fam && fam.key) {
+      intent = {
+        kind: "flavor",
+        topic: `family:${fam.key}`,
+        strength: "medium",
+        mode: modeKey,
+      };
+    }
+  } else if ((moodLabel === "curious" || moodLabel === "playful") && profile.boredomLevel > 0.5) {
+    intent = {
+      kind: "flavor",
+      topic: "general_rumor",
+      strength: "low",
+      mode: modeKey,
+    };
+  }
+
+  if (!intent || intent.kind === "none") {
+    return { kind: "none" };
+  }
+
+  gm.lastActionTurn = turn;
+  pushIntentDebug(gm, intent, turn);
+  return intent;
+}
+
+export function getMechanicHint(ctx) {
+  const gm = _ensureState(ctx);
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+
+  if (gm.enabled === false) {
+    return { kind: "none" };
+  }
+
+  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+    ? gm.boredom.level
+    : 0;
+  if (boredomLevel <= 0.6) {
+    return { kind: "none" };
+  }
+
+  ensureTraitsAndMechanics(gm);
+
+  const lastActionTurn = typeof gm.lastActionTurn === "number" ? (gm.lastActionTurn | 0) : -1;
+  if (lastActionTurn >= 0 && (turn - lastActionTurn) < ACTION_COOLDOWN_TURNS) {
+    return { kind: "none" };
+  }
+
+  const mechanics = gm.mechanics && typeof gm.mechanics === "object" ? gm.mechanics : {};
+  const keys = ["fishing", "lockpicking", "questBoard", "followers"];
+
+  let bestKey = null;
+  let bestSeen = -1;
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const m = mechanics[key];
+    if (!m || typeof m !== "object") continue;
+    const seen = m.seen | 0;
+    const tried = m.tried | 0;
+    if (seen > 0 && tried === 0) {
+      if (seen > bestSeen) {
+        bestSeen = seen;
+        bestKey = key;
+      }
+    }
+  }
+
+  if (!bestKey) {
+    return { kind: "none" };
+  }
+
+  const intent = {
+    kind: "nudge",
+    target: `mechanic:${bestKey}`,
+    strength: "low",
+  };
+
+  gm.lastActionTurn = turn;
+  pushIntentDebug(gm, intent, turn);
+  return intent;
+}
+
 export function reset(ctx, opts = {}) {
   _state = null;
   const nextOpts = Object.assign({}, opts, { reset: true });
@@ -668,4 +1065,4 @@ export function reset(ctx, opts = {}) {
 }
 
 // Back-compat: attach to window via helper
-attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset });
+attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint });
