@@ -328,12 +328,15 @@ function renderSnapshot(gm) {
   if (_traitsEl) {
     const t = gm.traits || {};
     const linesT = [];
-    function pushTrait(key, label) {
+    const dbg = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
+    const currentTurn = typeof dbg.lastTickTurn === "number" ? (dbg.lastTickTurn | 0) : null;
+    const TRAIT_MIN_SAMPLES = 3; // minimum relevant events (kills/quests) before we treat this as an active trait
+    const TRAIT_MIN_SCORE = 0.4; // how strongly skewed pos vs neg must be
+    const TRAIT_FORGET_TURNS = 300; // after this many turns without updates, trait is considered forgotten
+
+    function pushTraitIfActive(key, label) {
       const tr = t[key];
-      if (!tr) {
-        linesT.push(`${label}: (no data)`);
-        return;
-      }
+      if (!tr) return;
       const seen = tr.seen | 0;
       const pos = tr.positive | 0;
       const neg = tr.negative | 0;
@@ -342,13 +345,35 @@ function renderSnapshot(gm) {
       if (samples > 0) {
         score = (pos - neg) / samples;
       }
+      const lastTurn = tr.lastUpdatedTurn == null ? null : (tr.lastUpdatedTurn | 0);
+
+      // Activation: enough evidence + clear bias
+      const hasEnoughSamples = seen >= TRAIT_MIN_SAMPLES;
+      const hasStrongBias = Math.abs(score) >= TRAIT_MIN_SCORE;
+
+      // Memory: if we know current turn and last update, drop the trait after a long gap
+      let remembered = true;
+      if (currentTurn != null && lastTurn != null) {
+        const delta = currentTurn - lastTurn;
+        if (delta > TRAIT_FORGET_TURNS) remembered = false;
+      }
+
+      const isActive = hasEnoughSamples && hasStrongBias && remembered;
+      if (!isActive) return;
+
       const scoreStr = score.toFixed(2);
       linesT.push(`${label}: seen=${seen} pos=${pos} neg=${neg} score=${scoreStr}`);
     }
-    pushTrait("trollSlayer", "Troll Slayer");
-    pushTrait("townProtector", "Town Protector");
-    pushTrait("caravanAlly", "Caravan Ally");
-    _traitsEl.textContent = linesT.join("\n");
+
+    pushTraitIfActive("trollSlayer", "Troll Slayer");
+    pushTraitIfActive("townProtector", "Town Protector");
+    pushTraitIfActive("caravanAlly", "Caravan Ally");
+
+    if (!linesT.length) {
+      _traitsEl.textContent = "No active traits yet.";
+    } else {
+      _traitsEl.textContent = linesT.join("\n");
+    }
   }
 
   if (_mechEl) {
