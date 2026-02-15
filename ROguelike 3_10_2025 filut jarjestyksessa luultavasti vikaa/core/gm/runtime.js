@@ -30,6 +30,8 @@ const MOOD_BOREDOM_LOW = 0.2;
 const MOOD_RECENT_INTERESTING_TURNS = 30;
 const MOOD_NUDGE_DELTA = 0.01;
 const MOOD_NUDGE_DELTA_SMALL = 0.005;
+const BOREDOM_SMOOTHING_ALPHA = 0.15; // how fast boredom reacts to changes
+const MOOD_TRANSIENT_DECAY_PER_TURN = 0.9; // transients decay faster than base mood
 
 function createDefaultStats() {
   return {
@@ -67,6 +69,10 @@ function createDefaultMood() {
     valence: 0.0,
     arousal: 0.0,
     lastUpdatedTurn: null,
+    baselineValence: 0.0,
+    baselineArousal: 0.0,
+    transientValence: 0.0,
+    transientArousal: 0.0,
   };
 }
 
@@ -285,6 +291,12 @@ function normalizeMood(gm) {
     gm.mood = mood;
   }
 
+  // Ensure extended mood fields exist with safe defaults.
+  if (!Number.isFinite(mood.baselineValence)) mood.baselineValence = 0;
+  if (!Number.isFinite(mood.baselineArousal)) mood.baselineArousal = 0;
+  if (!Number.isFinite(mood.transientValence)) mood.transientValence = 0;
+  if (!Number.isFinite(mood.transientArousal)) mood.transientArousal = 0;
+
   let v = Number(mood.valence);
   let a = Number(mood.arousal);
   if (!Number.isFinite(v)) v = 0;
@@ -323,6 +335,42 @@ function labelMood(gm, turn) {
 
   mood.primary = primary;
   mood.lastUpdatedTurn = normalizeTurn(turn);
+}
+
+function addMoodImpulse(gm, baseValence, baseArousal) {
+  if (!gm || typeof gm !== "object") return;
+  let mood = gm.mood;
+  if (!mood || typeof mood !== "object") {
+    mood = createDefaultMood();
+    gm.mood = mood;
+  }
+
+  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+    ? gm.boredom.level
+    : 0;
+  const b = boredomLevel < 0 ? 0 : (boredomLevel > 1 ? 1 : boredomLevel);
+
+  let scale = 1.0;
+  if (baseValence < 0) {
+    // Negative impulses (annoyance) are amplified by boredom: 0.5x at low boredom, up to 1.5x at high boredom.
+    scale = 0.5 + b;
+  } else if (baseValence > 0) {
+    // Positive impulses are slightly damped when very bored: 1.0x at low boredom, down to 0.5x at high boredom.
+    scale = 1.0 - 0.5 * b;
+  }
+
+  const dv = baseValence * scale;
+  const da = baseArousal * scale;
+
+  const prevTv = typeof mood.transientValence === "number" && Number.isFinite(mood.transientValence)
+    ? mood.transientValence
+    : 0;
+  const prevTa = typeof mood.transientArousal === "number" && Number.isFinite(mood.transientArousal)
+    ? mood.transientArousal
+    : 0;
+
+  mood.transientValence = prevTv + dv;
+  mood.transientArousal = prevTa + da;
 }
 
 function pushIntentDebug(gm, intent, turn) {
@@ -538,7 +586,15 @@ export function tick(ctx) {
   const MAX_TURNS_BORED = 200;
   const rawTurns = gm.boredom.turnsSinceLastInterestingEvent | 0;
   const clampedTurns = clamp(rawTurns, 0, MAX_TURNS_BORED);
-  gm.boredom.level = clampedTurns / MAX_TURNS_BORED;
+  const normalized = clampedTurns / MAX_TURNS_BORED;
+  const prevLevel = (gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level))
+    ? gm.boredom.level
+    : 0;
+  const alpha = BOREDOM_SMOOTHING_ALPHA;
+  let nextLevel = prevLevel + alpha * (normalized - prevLevel);
+  // Safety clamp to [0,1]
+  nextLevel = clamp(nextLevel, 0, 1);
+  gm.boredom.level = nextLevel;
 
   // Lightweight, deterministic stats tracking for turns and modes.
   if (isNewTurn) {
@@ -550,35 +606,60 @@ export function tick(ctx) {
     mt[modeKey] = (mt[modeKey] | 0) + 1;
   }
 
-  // Mood: decay gently toward neutral each turn and respond to boredom.
-  let valence = gm.mood && typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
-  let arousal = gm.mood && typeof gm.mood.arousal === "number" ? gm.mood.arousal : 0;
+  // Mood: baseline from boredom plus transient impulses.
+  if (!gm.mood || typeof gm.mood !== "object") {
+    gm.mood = createDefaultMood();
+  }
+  const mood = gm.mood;
 
+  // On new turns, decay transient mood components toward zero.
   if (isNewTurn) {
-    valence *= MOOD_DECAY_PER_TURN;
-    arousal *= MOOD_DECAY_PER_TURN;
+    const decay = MOOD_TRANSIENT_DECAY_PER_TURN;
+    const tv = typeof mood.transientValence === "number" && Number.isFinite(mood.transientValence)
+      ? mood.transientValence
+      : 0;
+    const ta = typeof mood.transientArousal === "number" && Number.isFinite(mood.transientArousal)
+      ? mood.transientArousal
+      : 0;
+    mood.transientValence = tv * decay;
+    mood.transientArousal = ta * decay;
   }
 
-  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" ? gm.boredom.level : 0;
-  if (boredomLevel > MOOD_BOREDOM_HIGH) {
-    // High boredom: mood drifts slightly negative and more restless.
-    valence -= MOOD_NUDGE_DELTA;
-    arousal += MOOD_NUDGE_DELTA;
-  } else if (boredomLevel < MOOD_BOREDOM_LOW) {
-    const lastInteresting = gm.boredom.lastInterestingEvent;
-    const lastInterestingTurn =
-      lastInteresting && typeof lastInteresting.turn === "number"
-        ? (lastInteresting.turn | 0)
-        : null;
-    if (lastInterestingTurn != null && (turn - lastInterestingTurn) <= MOOD_RECENT_INTERESTING_TURNS) {
-      // Recent interesting events with low boredom: slightly more positive and a bit calmer.
-      valence += MOOD_NUDGE_DELTA;
-      arousal -= MOOD_NUDGE_DELTA_SMALL;
-    }
-  }
+  // Baseline mood is driven by smoothed boredom level.
+  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+    ? gm.boredom.level
+    : 0;
+  const b = clamp(boredomLevel, 0, 1);
 
-  gm.mood.valence = valence;
-  gm.mood.arousal = arousal;
+  // Low boredom (b≈0) → slightly positive, calm.
+  // High boredom (b≈1) → more negative, more restless.
+  const baseValLow = 0.15;
+  const baseValHigh = -0.5;
+  const baseArLow = 0.25;
+  const baseArHigh = 0.75;
+
+  const baselineValence = baseValLow + (baseValHigh - baseValLow) * b;
+  const baselineArousal = baseArLow + (baseArHigh - baseArLow) * b;
+
+  mood.baselineValence = baselineValence;
+  mood.baselineArousal = baselineArousal;
+
+  // Combine baseline and transient components for final mood.
+  const tv2 = typeof mood.transientValence === "number" && Number.isFinite(mood.transientValence)
+    ? mood.transientValence
+    : 0;
+  const ta2 = typeof mood.transientArousal === "number" && Number.isFinite(mood.transientArousal)
+    ? mood.transientArousal
+    : 0;
+
+  let v = baselineValence + tv2;
+  let a = baselineArousal + ta2;
+
+  v = clamp(v, -1, 1);
+  a = clamp(a, 0, 1);
+
+  mood.valence = v;
+  mood.arousal = a;
   normalizeMood(gm);
   labelMood(gm, turn);
 
@@ -657,21 +738,14 @@ export function onEvent(ctx, event) {
     gm.boredom.lastInterestingEvent = { type, scope, turn };
   }
 
-  // Event-driven mood nudges for a few coarse outcomes (Phase 1 flavor only).
-  if (!gm.mood || typeof gm.mood !== "object") {
-    gm.mood = createDefaultMood();
-  }
+  // Event-driven mood impulses for a few coarse outcomes (Phase 1 flavor only).
   if (type === "encounter.exit") {
-    const baseValence = typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
-    const baseArousal = typeof gm.mood.arousal === "number" ? gm.mood.arousal : 0;
-    gm.mood.valence = baseValence + 0.02;
-    gm.mood.arousal = baseArousal + 0.01;
+    // Small positive impulse: encounter completion.
+    addMoodImpulse(gm, 0.02, 0.01);
   } else if (type === "quest.complete") {
-    const baseValence = typeof gm.mood.valence === "number" ? gm.mood.valence : 0;
-    gm.mood.valence = baseValence + 0.03;
+    // Slightly stronger positive valence impulse for quests.
+    addMoodImpulse(gm, 0.03, 0.0);
   }
-  normalizeMood(gm);
-  labelMood(gm, turn);
 
   if (gm.enabled !== false) {
     if (type === "combat.kill") {
