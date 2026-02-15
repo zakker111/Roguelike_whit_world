@@ -16,10 +16,14 @@
 import { attachGlobal } from "../../utils/global.js";
 
 let _state = null;
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const MAX_DEBUG_EVENTS = 50;
 const MAX_INTENT_HISTORY = 20;
 const ACTION_COOLDOWN_TURNS = 80;
+// Entrance flavor can be a bit more frequent than mechanics hints.
+const ENTRANCE_INTENT_COOLDOWN_TURNS = 40;
+// Hints stay on the original, rarer cadence.
+const HINT_INTENT_COOLDOWN_TURNS = ACTION_COOLDOWN_TURNS;
 const MOOD_DECAY_PER_TURN = 0.98;
 const MOOD_BOREDOM_HIGH = 0.8;
 const MOOD_BOREDOM_LOW = 0.2;
@@ -97,7 +101,11 @@ function createDefaultState() {
     mechanics: createDefaultMechanics(),
     families: {},
     lastMode: "world",
+    // Legacy/global last GM action turn; keep for back-compat and debugging.
     lastActionTurn: -1,
+    // Separate cooldown tracking for entrance flavor vs mechanic hints.
+    lastEntranceIntentTurn: -1,
+    lastHintIntentTurn: -1,
   };
 }
 
@@ -960,8 +968,8 @@ export function getEntranceIntent(ctx, mode) {
     gm.config = {};
   }
 
-  const lastActionTurn = typeof gm.lastActionTurn === "number" ? (gm.lastActionTurn | 0) : -1;
-  if (lastActionTurn >= 0 && (turn - lastActionTurn) < ACTION_COOLDOWN_TURNS) {
+  const lastEntranceTurn = typeof gm.lastEntranceIntentTurn === "number" ? (gm.lastEntranceIntentTurn | 0) : -1;
+  if (lastEntranceTurn >= 0 && (turn - lastEntranceTurn) < ENTRANCE_INTENT_COOLDOWN_TURNS) {
     return { kind: "none" };
   }
 
@@ -971,10 +979,33 @@ export function getEntranceIntent(ctx, mode) {
   const profile = buildProfile(gm);
   const moodLabel = gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "neutral";
   const modeKey = typeof mode === "string" && mode ? mode : (ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown"));
+  const boredomLevel = profile.boredomLevel;
+
+  // Precompute a variety topic based on long-term mode usage if the run looks monotonous.
+  let varietyTopic = null;
+  const topModes = Array.isArray(profile.topModes) ? profile.topModes : [];
+  if (profile.totalTurns >= 100 && boredomLevel > 0.5 && topModes.length > 0) {
+    const dominantEntry = topModes[0];
+    const dominantTurns = dominantEntry.turns | 0;
+    if (dominantTurns > 0) {
+      const ratio = dominantTurns / profile.totalTurns;
+      if (ratio >= 0.7) {
+        const dominantMode = dominantEntry.mode;
+        if (dominantMode === "dungeon" && modeKey !== "town") {
+          varietyTopic = "variety:try_town";
+        } else if (dominantMode === "town" && modeKey !== "dungeon") {
+          varietyTopic = "variety:try_dungeon";
+        } else if ((dominantMode === "town" || dominantMode === "dungeon") && modeKey !== "world") {
+          varietyTopic = "variety:try_world";
+        }
+      }
+    }
+  }
 
   let intent = { kind: "none" };
 
-  if ((moodLabel === "stern" || moodLabel === "restless") && profile.boredomLevel > 0.7) {
+  // Family flavor: moderately bored and focused on a known family.
+  if ((moodLabel === "stern" || moodLabel === "restless" || moodLabel === "bored") && boredomLevel > 0.5) {
     const fam = Array.isArray(profile.topFamilies) && profile.topFamilies.length ? profile.topFamilies[0] : null;
     if (fam && fam.key) {
       intent = {
@@ -984,19 +1015,44 @@ export function getEntranceIntent(ctx, mode) {
         mode: modeKey,
       };
     }
-  } else if ((moodLabel === "curious" || moodLabel === "playful") && profile.boredomLevel > 0.5) {
+  }
+
+  // Generic/variety flavor: slightly lower boredom gate and more moods.
+  if ((!intent || intent.kind === "none")
+    && (moodLabel === "curious" || moodLabel === "playful" || moodLabel === "neutral")
+    && boredomLevel > 0.3) {
+    const topic = varietyTopic || "general_rumor";
     intent = {
       kind: "flavor",
-      topic: "general_rumor",
+      topic,
       strength: "low",
       mode: modeKey,
     };
+  }
+
+  // First-run flavor: early game, mild boredom, and only once per run.
+  if ((!intent || intent.kind === "none")
+    && profile.totalTurns < 50
+    && boredomLevel > 0.2) {
+    if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+      gm.storyFlags = {};
+    }
+    if (gm.storyFlags.firstEntranceFlavorShown !== true) {
+      intent = {
+        kind: "flavor",
+        topic: "general_rumor",
+        strength: "low",
+        mode: modeKey,
+      };
+      gm.storyFlags.firstEntranceFlavorShown = true;
+    }
   }
 
   if (!intent || intent.kind === "none") {
     return { kind: "none" };
   }
 
+  gm.lastEntranceIntentTurn = turn;
   gm.lastActionTurn = turn;
   pushIntentDebug(gm, intent, turn);
   return intent;
@@ -1019,8 +1075,8 @@ export function getMechanicHint(ctx) {
 
   ensureTraitsAndMechanics(gm);
 
-  const lastActionTurn = typeof gm.lastActionTurn === "number" ? (gm.lastActionTurn | 0) : -1;
-  if (lastActionTurn >= 0 && (turn - lastActionTurn) < ACTION_COOLDOWN_TURNS) {
+  const lastHintTurn = typeof gm.lastHintIntentTurn === "number" ? (gm.lastHintIntentTurn | 0) : -1;
+  if (lastHintTurn >= 0 && (turn - lastHintTurn) < HINT_INTENT_COOLDOWN_TURNS) {
     return { kind: "none" };
   }
 
@@ -1053,6 +1109,7 @@ export function getMechanicHint(ctx) {
     strength: "low",
   };
 
+  gm.lastHintIntentTurn = turn;
   gm.lastActionTurn = turn;
   pushIntentDebug(gm, intent, turn);
   return intent;

@@ -449,6 +449,7 @@ function renderSnapshot(gm) {
     return;
   }
 
+  const debug = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
   const stats = gm.stats && typeof gm.stats === "object" ? gm.stats : {};
   const totalTurns = typeof stats.totalTurns === "number" ? stats.totalTurns : 0;
   const mode = typeof gm.lastMode === "string" && gm.lastMode ? gm.lastMode : "world";
@@ -709,6 +710,19 @@ function renderSnapshot(gm) {
       linesMood.push(`valence:  ${formatValenceBar(rawValence)}`);
       linesMood.push(`arousal:  ${formatArousalBar(rawArousal)}`);
     }
+
+    const lastIntent = debug.lastIntent && typeof debug.lastIntent === "object" ? debug.lastIntent : null;
+    if (lastIntent) {
+      let label = lastIntent.kind || "none";
+      if (lastIntent.topic) label += `:${lastIntent.topic}`;
+      if (lastIntent.target) label += `:${lastIntent.target}`;
+      if (lastIntent.id) label += `:${lastIntent.id}`;
+      const t = typeof lastIntent.turn === "number" ? (lastIntent.turn | 0) : "?";
+      linesMood.push(`last intent: [T ${t}] ${label}`);
+    } else {
+      linesMood.push("last intent: (none)");
+    }
+
     _moodEl.textContent = linesMood.join("\n");
   }
 
@@ -740,8 +754,6 @@ function renderSnapshot(gm) {
     _mechEl.textContent = linesM.join("\n");
   }
 
-  const debug = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
-
   if (_intentsEl) {
     const intentHistory = Array.isArray(debug.intentHistory) ? debug.intentHistory : null;
     if (!intentHistory || !intentHistory.length) {
@@ -750,8 +762,7 @@ function renderSnapshot(gm) {
       const intentLines = [];
       intentLines.push("GM intents (latest first)");
       const maxIntents = Math.min(intentHistory.length, 10);
-      let count = 0;
-      for (let i = intentHistory.length - 1; i >= 0 && count < maxIntents; i--) {
+      for (let i = 0; i < maxIntents; i++) {
         const it = intentHistory[i];
         if (!it || typeof it !== "object") continue;
         const turn = typeof it.turn === "number" ? (it.turn | 0) : "?";
@@ -773,7 +784,6 @@ function renderSnapshot(gm) {
             ? gm.boredom.level.toFixed(2)
             : "?";
         intentLines.push(`  [T ${turn}] ${kindPart}  mood=${moodLabel} boredom=${boredomValue}`);
-        count++;
       }
       _intentsEl.textContent = intentLines.join("\n");
     }

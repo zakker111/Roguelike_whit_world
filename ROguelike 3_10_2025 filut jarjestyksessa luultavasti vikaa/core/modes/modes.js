@@ -39,12 +39,23 @@ function gmEvent(ctx, event) {
             let msg = "";
             if (topic.startsWith("family:")) {
               const famKey = topic.slice("family:".length) || "unknown";
-              const label = famKey.replace(/_/g, " ");
+              const rawLabel = famKey.replace(/_/g, " ").trim();
+              const label = rawLabel ? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1) : "your family";
               msg = `You hear rumors about recent troubles with ${label}.`;
+            } else if (topic === "general_rumor") {
+              msg = "You catch a stray rumor as you arrive.";
+            } else if (topic === "variety:try_town") {
+              msg = "You get the sense the townsfolk have different work for you.";
+            } else if (topic === "variety:try_dungeon") {
+              msg = "You hear whispers that the dungeons have changed since your last delve.";
+            } else if (topic === "variety:try_world") {
+              msg = "Rumors speak of new routes and encounters out on the overworld.";
             } else {
               msg = "You catch a stray rumor as you arrive.";
             }
-            ctx.log(msg, "flavor", { category: "gm" });
+            if (msg) {
+              ctx.log(msg, "flavor", { category: "gm" });
+            }
           }
         } catch (_) {}
       }
