@@ -18,11 +18,11 @@ import { attachGlobal } from "/utils/global.js";
 let _panelEl = null;
 let _summaryEl = null;
 let _statsEl = null;
+let _traitsEl = null;
+let _mechEl = null;
 let _eventsEl = null;
 let _open = false;
 let _refreshTimer = null;
-let _eventBuffer = [];
-let _lastEventKey = null;
 
 const MAX_EVENTS = 20;
 
@@ -198,6 +198,46 @@ function ensurePanel() {
   _statsEl.style.padding = "6px 8px";
   body.appendChild(_statsEl);
 
+  const traitsLabel = document.createElement("div");
+  traitsLabel.textContent = "Traits";
+  traitsLabel.style.fontSize = "11px";
+  traitsLabel.style.textTransform = "uppercase";
+  traitsLabel.style.letterSpacing = "0.05em";
+  traitsLabel.style.color = "#9ca3af";
+  traitsLabel.style.marginTop = "4px";
+  body.appendChild(traitsLabel);
+
+  _traitsEl = document.createElement("div");
+  _traitsEl.className = "gm-panel-traits";
+  _traitsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _traitsEl.style.fontSize = "11px";
+  _traitsEl.style.whiteSpace = "pre-wrap";
+  _traitsEl.style.background = "#020617";
+  _traitsEl.style.borderRadius = "6px";
+  _traitsEl.style.border = "1px solid #1f2937";
+  _traitsEl.style.padding = "6px 8px";
+  body.appendChild(_traitsEl);
+
+  const mechLabel = document.createElement("div");
+  mechLabel.textContent = "Mechanics";
+  mechLabel.style.fontSize = "11px";
+  mechLabel.style.textTransform = "uppercase";
+  mechLabel.style.letterSpacing = "0.05em";
+  mechLabel.style.color = "#9ca3af";
+  mechLabel.style.marginTop = "4px";
+  body.appendChild(mechLabel);
+
+  _mechEl = document.createElement("div");
+  _mechEl.className = "gm-panel-mechanics";
+  _mechEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _mechEl.style.fontSize = "11px";
+  _mechEl.style.whiteSpace = "pre-wrap";
+  _mechEl.style.background = "#020617";
+  _mechEl.style.borderRadius = "6px";
+  _mechEl.style.border = "1px solid #1f2937";
+  _mechEl.style.padding = "6px 8px";
+  body.appendChild(_mechEl);
+
   const eventsLabel = document.createElement("div");
   eventsLabel.textContent = "Recent events";
   eventsLabel.style.fontSize = "11px";
@@ -236,9 +276,9 @@ function renderSnapshot(gm) {
   if (!gm) {
     _summaryEl.textContent = "GM state not available (GMRuntime or GameAPI missing).";
     _statsEl.textContent = "";
+    if (_traitsEl) _traitsEl.textContent = "";
+    if (_mechEl) _mechEl.textContent = "";
     _eventsEl.textContent = "No GM events (GMRuntime not available).";
-    _eventBuffer = [];
-    _lastEventKey = null;
     return;
   }
 
@@ -284,36 +324,75 @@ function renderSnapshot(gm) {
 
   _statsEl.textContent = lines.join("\n");
 
-  const lastEvent =
-    gm.debug && gm.debug.lastEvent && typeof gm.debug.lastEvent === "object"
-      ? gm.debug.lastEvent
-      : null;
-
-  if (lastEvent) {
-    const key = `${(lastEvent.turn | 0)}:${String(lastEvent.type || "")}:${String(lastEvent.scope || "")}`;
-    if (key !== _lastEventKey) {
-      _lastEventKey = key;
-      const entry = {
-        turn: typeof lastEvent.turn === "number" ? (lastEvent.turn | 0) : null,
-        type: String(lastEvent.type || ""),
-        scope: String(lastEvent.scope || ""),
-      };
-      _eventBuffer.unshift(entry);
-      if (_eventBuffer.length > MAX_EVENTS) {
-        _eventBuffer.length = MAX_EVENTS;
+  if (_traitsEl) {
+    const t = gm.traits || {};
+    const linesT = [];
+    function pushTrait(key, label) {
+      const tr = t[key];
+      if (!tr) {
+        linesT.push(`${label}: (no data)`);
+        return;
       }
+      const seen = tr.seen | 0;
+      const pos = tr.positive | 0;
+      const neg = tr.negative | 0;
+      const samples = pos + neg;
+      let score = 0;
+      if (samples > 0) {
+        score = (pos - neg) / samples;
+      }
+      const scoreStr = score.toFixed(2);
+      linesT.push(`${label}: seen=${seen} pos=${pos} neg=${neg} score=${scoreStr}`);
     }
+    pushTrait("trollSlayer", "Troll Slayer");
+    pushTrait("townProtector", "Town Protector");
+    pushTrait("caravanAlly", "Caravan Ally");
+    _traitsEl.textContent = linesT.join("\n");
   }
 
-  if (!_eventBuffer.length) {
+  if (_mechEl) {
+    const m = gm.mechanics || {};
+    const linesM = [];
+    function pushMech(key, label) {
+      const mc = m[key];
+      if (!mc) {
+        linesM.push(`${label}: (no data)`);
+        return;
+      }
+      const seen = mc.seen | 0;
+      const tried = mc.tried | 0;
+      const success = mc.success | 0;
+      const failure = mc.failure | 0;
+      const dismiss = mc.dismiss | 0;
+      let status = "unseen";
+      if (seen > 0 && tried === 0) status = "seen";
+      else if (tried > 0) status = "tried";
+      const succRate = success + failure > 0 ? success / (success + failure) : 0;
+      const succStr = succRate.toFixed(2);
+      linesM.push(`${label}: status=${status} seen=${seen} tried=${tried} suc=${success} fail=${failure} dis=${dismiss} rate=${succStr}`);
+    }
+    pushMech("fishing", "Fishing");
+    pushMech("lockpicking", "Lockpicking");
+    pushMech("questBoard", "Quest Board");
+    pushMech("followers", "Followers");
+    _mechEl.textContent = linesM.join("\n");
+  }
+
+  const evBuf = gm.debug && Array.isArray(gm.debug.lastEvents) ? gm.debug.lastEvents : [];
+  if (!_eventsEl) return;
+  if (!evBuf.length) {
     _eventsEl.textContent = "No events observed yet.";
   } else {
-    const evLines = _eventBuffer.map((e) => {
-      const t = e.turn != null ? e.turn : "?";
+    const max = Math.min(evBuf.length, MAX_EVENTS);
+    const evLines = [];
+    for (let i = 0; i < max; i++) {
+      const e = evBuf[i];
+      if (!e) continue;
+      const t = typeof e.turn === "number" ? (e.turn | 0) : "?";
       const type = e.type || "?";
       const scope = e.scope || "?";
-      return `[T ${t}] ${type} @ ${scope}`;
-    });
+      evLines.push(`[T ${t}] ${type} @ ${scope}`);
+    }
     _eventsEl.textContent = evLines.join("\n");
   }
 }

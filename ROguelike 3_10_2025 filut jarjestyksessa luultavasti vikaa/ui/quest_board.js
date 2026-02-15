@@ -12,6 +12,7 @@
 
 let _panel = null;
 let _escBound = false;
+let _ctxForBoard = null;
 
 function bindEsc() {
   if (_escBound) return;
@@ -263,6 +264,16 @@ export function hide() {
     if (!el) el = ensurePanel();
     if (el) el.hidden = true;
   } catch (_) {}
+
+  // GMRuntime: quest board dismissed
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const ctx = _ctxForBoard;
+      const scope = ctx && ctx.mode ? ctx.mode : "town";
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "dismiss", detail: "close" });
+    }
+  } catch (_) {}
 }
 
 export function isOpen() {
@@ -275,11 +286,22 @@ export function isOpen() {
 export function open(ctx) {
   const el = ensurePanel();
   if (!el) return;
+  _ctxForBoard = ctx || null;
   el.hidden = false;
   try {
     const ttl = el.querySelector("#questboard-title");
     if (ttl) ttl.textContent = "Quest Board";
   } catch (_) {}
+
+  // GMRuntime: quest board seen
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const scope = ctx && ctx.mode ? ctx.mode : "town";
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "seen", detail: "open" });
+    }
+  } catch (_) {}
+
   render(ctx);
 }
 

@@ -16,7 +16,8 @@
 import { attachGlobal } from "../../utils/global.js";
 
 let _state = null;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+const MAX_DEBUG_EVENTS = 50;
 
 function createDefaultStats() {
   return {
@@ -28,6 +29,23 @@ function createDefaultStats() {
     // encounter counts
     encounterStarts: 0,
     encounterCompletions: 0,
+  };
+}
+
+function createDefaultTraits() {
+  return {
+    trollSlayer: { seen: 0, positive: 0, negative: 0, lastUpdatedTurn: null },
+    townProtector: { seen: 0, positive: 0, negative: 0, lastUpdatedTurn: null },
+    caravanAlly: { seen: 0, positive: 0, negative: 0, lastUpdatedTurn: null },
+  };
+}
+
+function createDefaultMechanics() {
+  return {
+    fishing: { seen: 0, tried: 0, success: 0, failure: 0, dismiss: 0, firstSeenTurn: null, lastUsedTurn: null },
+    lockpicking: { seen: 0, tried: 0, success: 0, failure: 0, dismiss: 0, firstSeenTurn: null, lastUsedTurn: null },
+    questBoard: { seen: 0, tried: 0, success: 0, failure: 0, dismiss: 0, firstSeenTurn: null, lastUsedTurn: null },
+    followers: { seen: 0, tried: 0, success: 0, failure: 0, dismiss: 0, firstSeenTurn: null, lastUsedTurn: null },
   };
 }
 
@@ -52,6 +70,7 @@ function createDefaultState() {
       logEvents: false,
       lastTickTurn: -1,
       lastEvent: null,
+      lastEvents: [],
       counters: {
         ticks: 0,
         events: 0,
@@ -59,6 +78,8 @@ function createDefaultState() {
       },
     },
     stats: createDefaultStats(),
+    traits: createDefaultTraits(),
+    mechanics: createDefaultMechanics(),
     lastMode: "world",
   };
 }
@@ -92,6 +113,102 @@ function ensureStats(gm) {
   stats.encounterCompletions = stats.encounterCompletions | 0;
 
   return stats;
+}
+
+function ensureTraitsAndMechanics(gm) {
+  if (!gm || typeof gm !== "object") return;
+
+  // Traits
+  let traits = gm.traits;
+  if (!traits || typeof traits !== "object") {
+    traits = createDefaultTraits();
+    gm.traits = traits;
+  }
+
+  function normalizeNonNegative(obj, key) {
+    let v = obj[key] | 0;
+    if (v < 0) v = 0;
+    obj[key] = v;
+  }
+
+  function normalizeTurnField(obj, key) {
+    const raw = obj[key];
+    if (raw == null) {
+      obj[key] = null;
+      return;
+    }
+    let v = typeof raw === "number" ? (raw | 0) : NaN;
+    if (!Number.isFinite(v) || v < 0) {
+      obj[key] = null;
+    } else {
+      obj[key] = v;
+    }
+  }
+
+  function ensureTrait(key) {
+    if (!traits[key] || typeof traits[key] !== "object") {
+      traits[key] = {
+        seen: 0,
+        positive: 0,
+        negative: 0,
+        lastUpdatedTurn: null,
+      };
+    }
+    const t = traits[key];
+    normalizeNonNegative(t, "seen");
+    normalizeNonNegative(t, "positive");
+    normalizeNonNegative(t, "negative");
+    normalizeTurnField(t, "lastUpdatedTurn");
+  }
+
+  ensureTrait("trollSlayer");
+  ensureTrait("townProtector");
+  ensureTrait("caravanAlly");
+
+  // Mechanics
+  let mechanics = gm.mechanics;
+  if (!mechanics || typeof mechanics !== "object") {
+    mechanics = createDefaultMechanics();
+    gm.mechanics = mechanics;
+  }
+
+  function ensureMechanic(key) {
+    if (!mechanics[key] || typeof mechanics[key] !== "object") {
+      mechanics[key] = {
+        seen: 0,
+        tried: 0,
+        success: 0,
+        failure: 0,
+        dismiss: 0,
+        firstSeenTurn: null,
+        lastUsedTurn: null,
+      };
+    }
+    const m = mechanics[key];
+    normalizeNonNegative(m, "seen");
+    normalizeNonNegative(m, "tried");
+    normalizeNonNegative(m, "success");
+    normalizeNonNegative(m, "failure");
+    normalizeNonNegative(m, "dismiss");
+    normalizeTurnField(m, "firstSeenTurn");
+    normalizeTurnField(m, "lastUsedTurn");
+  }
+
+  ensureMechanic("fishing");
+  ensureMechanic("lockpicking");
+  ensureMechanic("questBoard");
+  ensureMechanic("followers");
+
+  // Debug lastEvents buffer
+  if (gm.debug && typeof gm.debug === "object") {
+    const dbg = gm.debug;
+    if (!Array.isArray(dbg.lastEvents)) {
+      dbg.lastEvents = [];
+    }
+    if (dbg.lastEvents.length > MAX_DEBUG_EVENTS) {
+      dbg.lastEvents.length = MAX_DEBUG_EVENTS;
+    }
+  }
 }
 
 function _ensureState(ctx) {
@@ -202,6 +319,7 @@ export function onEvent(ctx, event) {
   const interesting = event.interesting !== false;
 
   const stats = ensureStats(gm);
+  ensureTraitsAndMechanics(gm);
 
   if (type === "mode.enter" && scope) {
     const me = stats.modeEntries;
@@ -219,16 +337,44 @@ export function onEvent(ctx, event) {
     gm.debug.counters.interestingEvents = (gm.debug.counters.interestingEvents | 0) + 1;
   }
 
-  gm.debug.lastEvent = {
+  const hasPayload = Object.prototype.hasOwnProperty.call(event, "payload");
+  const snapshot = {
     type,
     scope,
     turn,
-    payload: Object.prototype.hasOwnProperty.call(event, "payload") ? event.payload : null,
+    payload: hasPayload ? event.payload : null,
   };
+
+  gm.debug.lastEvent = snapshot;
+  const buf = gm.debug.lastEvents;
+  if (Array.isArray(buf)) {
+    buf.unshift(snapshot);
+    if (buf.length > MAX_DEBUG_EVENTS) buf.length = MAX_DEBUG_EVENTS;
+  } else {
+    gm.debug.lastEvents = [snapshot];
+  }
 
   if (interesting) {
     gm.boredom.turnsSinceLastInterestingEvent = 0;
     gm.boredom.lastInterestingEvent = { type, scope, turn };
+  }
+
+  if (gm.enabled !== false) {
+    if (type === "combat.kill") {
+      const traits = gm.traits;
+      updateTraitsFromCombatKill(traits, event, turn);
+    } else if (type === "quest.complete") {
+      const traits = gm.traits;
+      updateTraitsFromQuestComplete(traits, event, turn);
+    }
+
+    if (type === "caravan.accepted" || type === "caravan.completed" || type === "caravan.attacked") {
+      updateTraitsFromCaravanEvent(gm.traits, event, turn);
+    }
+
+    if (type === "mechanic") {
+      updateMechanicsUsage(gm.mechanics, event, turn);
+    }
   }
 
   // Optional concise debug logging for events.
@@ -238,6 +384,195 @@ export function onEvent(ctx, event) {
       ctx.log(`[GM] event ${label} @${scope}`, "info", { category: "gm" });
     } catch (_) {}
   }
+}
+
+function normalizeTurn(turn) {
+  let t = typeof turn === "number" ? (turn | 0) : 0;
+  if (t < 0) t = 0;
+  return t;
+}
+
+function applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn) {
+  if (!trait) return;
+  const hasDelta = (deltaSeen | 0) !== 0 || (deltaPositive | 0) !== 0 || (deltaNegative | 0) !== 0;
+  if (!hasDelta) return;
+
+  if (deltaSeen) {
+    let v = (trait.seen | 0) + (deltaSeen | 0);
+    if (v < 0) v = 0;
+    trait.seen = v;
+  }
+  if (deltaPositive) {
+    let v = (trait.positive | 0) + (deltaPositive | 0);
+    if (v < 0) v = 0;
+    trait.positive = v;
+  }
+  if (deltaNegative) {
+    let v = (trait.negative | 0) + (deltaNegative | 0);
+    if (v < 0) v = 0;
+    trait.negative = v;
+  }
+
+  trait.lastUpdatedTurn = normalizeTurn(turn);
+}
+
+function updateTraitsFromCombatKill(traits, event, turn) {
+  if (!traits || !event) return;
+  const rawTags = Array.isArray(event.tags) ? event.tags : [];
+  if (!rawTags.length) return;
+
+  const tags = [];
+  for (let i = 0; i < rawTags.length; i++) {
+    const tag = rawTags[i];
+    if (tag == null) continue;
+    tags.push(String(tag).toLowerCase());
+  }
+  if (!tags.length) return;
+
+  const hasKindTroll = tags.indexOf("kind:troll") !== -1;
+  const hasRaceTroll = tags.indexOf("race:troll") !== -1;
+  if (hasKindTroll || hasRaceTroll) {
+    applyTraitDelta(traits.trollSlayer, 1, 1, 0, turn);
+  }
+
+  const hasBandit = tags.indexOf("faction:bandit") !== -1;
+  const hasGuard = tags.indexOf("faction:guard") !== -1;
+  const hasTownFaction = tags.indexOf("faction:town") !== -1;
+  const hasContextTown = tags.indexOf("context:town") !== -1;
+  const hasContextCastle = tags.indexOf("context:castle") !== -1;
+
+  if (hasBandit && (hasContextTown || hasContextCastle)) {
+    applyTraitDelta(traits.townProtector, 1, 1, 0, turn);
+  }
+
+  if ((hasGuard || hasTownFaction) && (hasContextTown || hasContextCastle)) {
+    applyTraitDelta(traits.townProtector, 1, 0, 1, turn);
+  }
+
+  const hasCaravanTag = tags.indexOf("caravan") !== -1;
+  const hasCaravanGuardTag = tags.indexOf("caravanguard") !== -1;
+  if (hasCaravanTag || hasCaravanGuardTag) {
+    applyTraitDelta(traits.caravanAlly, 1, 0, 1, turn);
+  }
+}
+
+function updateTraitsFromQuestComplete(traits, event, turn) {
+  if (!traits || !event) return;
+  const rawTags = Array.isArray(event.tags) ? event.tags : [];
+  if (!rawTags.length) return;
+
+  const tags = [];
+  for (let i = 0; i < rawTags.length; i++) {
+    const tag = rawTags[i];
+    if (tag == null) continue;
+    tags.push(String(tag).toLowerCase());
+  }
+  if (!tags.length) return;
+
+  const hasTrollHunt = tags.indexOf("trollhunt") !== -1;
+  const hasTrollSlayerTag = tags.indexOf("trollslayer") !== -1;
+  const hasTrollHelp = tags.indexOf("trollhelp") !== -1;
+  if (hasTrollHunt || hasTrollSlayerTag || hasTrollHelp) {
+    let deltaPositive = 0;
+    let deltaNegative = 0;
+    if (hasTrollHunt || hasTrollSlayerTag) deltaPositive += 1;
+    if (hasTrollHelp) deltaNegative += 1;
+    applyTraitDelta(traits.trollSlayer, 1, deltaPositive, deltaNegative, turn);
+  }
+
+  const hasTownDefense = tags.indexOf("towndefense") !== -1;
+  const hasTownHelp = tags.indexOf("townhelp") !== -1;
+  const hasAttackTown = tags.indexOf("attacktown") !== -1;
+  if (hasTownDefense || hasTownHelp || hasAttackTown) {
+    let deltaPositive = 0;
+    let deltaNegative = 0;
+    if (hasTownDefense || hasTownHelp) deltaPositive += 1;
+    if (hasAttackTown) deltaNegative += 1;
+    applyTraitDelta(traits.townProtector, 1, deltaPositive, deltaNegative, turn);
+  }
+
+  const hasCaravanHelp = tags.indexOf("caravanhelp") !== -1;
+  const hasEscortCaravan = tags.indexOf("escortcaravan") !== -1;
+  if (hasCaravanHelp || hasEscortCaravan) {
+    applyTraitDelta(traits.caravanAlly, 1, 1, 0, turn);
+  }
+}
+
+function updateTraitsFromCaravanEvent(traits, event, turn) {
+  if (!traits || !event) return;
+  const trait = traits.caravanAlly;
+  if (!trait) return;
+
+  const type = String(event.type || "");
+  let deltaSeen = 0;
+  let deltaPositive = 0;
+  let deltaNegative = 0;
+
+  if (type === "caravan.accepted") {
+    const reason = String(event.reason || "");
+    if (reason === "escort") {
+      deltaSeen += 1;
+      deltaPositive += 1;
+    }
+  } else if (type === "caravan.completed") {
+    if (event.success === true) {
+      deltaSeen += 1;
+      deltaPositive += 2;
+    } else if (event.success === false) {
+      deltaSeen += 1;
+      deltaNegative += 1;
+    }
+  } else if (type === "caravan.attacked") {
+    deltaSeen += 1;
+    deltaNegative += 1;
+  }
+
+  applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn);
+}
+
+function updateMechanicsUsage(mechanics, event, turn) {
+  if (!mechanics || !event) return;
+
+  const mechanic = String(event.mechanic || "");
+  const action = String(event.action || "");
+  const m = mechanics[mechanic];
+  if (!m) return; // unknown mechanic
+
+  function inc(key) {
+    let v = (m[key] | 0) + 1;
+    if (v < 0) v = 0;
+    m[key] = v;
+  }
+
+  let changed = false;
+
+  if (action === "seen") {
+    inc("seen");
+    changed = true;
+  } else if (action === "tried") {
+    inc("tried");
+    changed = true;
+  } else if (action === "success") {
+    inc("tried");
+    inc("success");
+    changed = true;
+  } else if (action === "failure") {
+    inc("tried");
+    inc("failure");
+    changed = true;
+  } else if (action === "dismiss") {
+    inc("dismiss");
+    changed = true;
+  }
+
+  if (!changed) return;
+
+  const safeTurn = normalizeTurn(turn);
+
+  if (m.firstSeenTurn == null || (m.firstSeenTurn | 0) < 0) {
+    m.firstSeenTurn = safeTurn;
+  }
+  m.lastUsedTurn = safeTurn;
 }
 
 export function getState(ctx) {

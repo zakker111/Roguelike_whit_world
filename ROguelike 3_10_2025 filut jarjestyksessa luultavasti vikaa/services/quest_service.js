@@ -478,23 +478,72 @@ import { getMod } from "../utils/access.js";
 
   function accept(ctx, templateId) {
     const town = _currentTownEntry(ctx);
-    if (!town) { try { ctx.log && ctx.log("No town context for quest acceptance.", "warn"); } catch (_) {} return false; }
+    if (!town) {
+      try { ctx.log && ctx.log("No town context for quest acceptance.", "warn"); } catch (_) {}
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = ctx && ctx.mode ? ctx.mode : "town";
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+        }
+      } catch (_) {}
+      return false;
+    }
     const st = _ensureTownQuestState(ctx, town);
     const idx = st.available.findIndex(q => q && q.templateId === templateId);
-    if (idx === -1) { try { ctx.log && ctx.log("This quest is no longer available.", "warn"); } catch (_) {} return false; }
+    if (idx === -1) {
+      try { ctx.log && ctx.log("This quest is no longer available.", "warn"); } catch (_) {}
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = ctx && ctx.mode ? ctx.mode : "town";
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+        }
+      } catch (_) {}
+      return false;
+    }
     const offer = st.available[idx];
     const tmpl = _templateById(templateId);
-    if (!tmpl) { try { ctx.log && ctx.log("Quest template missing.", "bad"); } catch (_) {} return false; }
+    if (!tmpl) {
+      try { ctx.log && ctx.log("Quest template missing.", "bad"); } catch (_) {}
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = ctx && ctx.mode ? ctx.mode : "town";
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+        }
+      } catch (_) {}
+      return false;
+    }
 
     // Global uniqueness: block acceptance if this template is active in any other town
     try {
       if (_isTemplateActiveInOtherTown(ctx, templateId, town)) {
         try { ctx.log && ctx.log("This quest has already been accepted in another town.", "warn"); } catch (_) {}
+        try {
+          const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (GM && typeof GM.onEvent === "function") {
+            const scope = ctx && ctx.mode ? ctx.mode : "town";
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+          }
+        } catch (_) {}
         return false;
       }
       // Ownership uniqueness: if owned by a different town, block acceptance here
       if (!_ownerMatchesTown(ctx, templateId, town)) {
         try { ctx.log && ctx.log("This quest belongs to a different town.", "warn"); } catch (_) {}
+        try {
+          const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (GM && typeof GM.onEvent === "function") {
+            const scope = ctx && ctx.mode ? ctx.mode : "town";
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+          }
+        } catch (_) {}
         return false;
       }
     } catch (_) {}
@@ -529,7 +578,18 @@ import { getMod } from "../utils/access.js";
     _setOwnerIfUnset(ctx, tmpl.id, town);
 
     st.active.push(inst);
-    try { ctx.log && ctx.log(`Accepted quest: ${inst.title}`, "good"); } catch (_) {}
+    try { ctx.log && ctx.log(`Accepted quest: ${inst.title}` , "good"); } catch (_) {}
+
+    // GMRuntime: quest board accept mechanic
+    try {
+      const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+      if (GM && typeof GM.onEvent === "function") {
+        const scope = ctx && ctx.mode ? ctx.mode : "town";
+        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "success", detail: "accept" });
+      }
+    } catch (_) {}
+
     _applyAndRefresh(ctx);
     return true;
   }
@@ -639,17 +699,50 @@ import { getMod } from "../utils/access.js";
       idx = (qs.active || []).findIndex(q => q && q.instanceId === instanceId);
       if (idx !== -1) { found = qs.active[idx]; townRef = t; break; }
     }
-    if (!found || !townRef) { try { ctx.log && ctx.log("Quest not found.", "warn"); } catch (_) {} return false; }
+    if (!found || !townRef) {
+      try { ctx.log && ctx.log("Quest not found.", "warn"); } catch (_) {}
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = ctx && ctx.mode ? ctx.mode : "town";
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+        }
+      } catch (_) {}
+      return false;
+    }
 
     // Validate completion criteria
     if (found.kind === "gather") {
       const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : (ctx.player.inventory = []);
       const have = _materialCountInInventory(inv, found.material?.type, found.material?.name);
-      if (have < (found.amount | 0)) { try { ctx.log && ctx.log("You don't have the required items.", "warn"); } catch (_) {} return false; }
+      if (have < (found.amount | 0)) {
+        try { ctx.log && ctx.log("You don't have the required items.", "warn"); } catch (_) {}
+        try {
+          const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (GM && typeof GM.onEvent === "function") {
+            const scope = ctx && ctx.mode ? ctx.mode : "town";
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+          }
+        } catch (_) {}
+        return false;
+      }
       _removeMaterialFromInventory(inv, found.material?.type, found.material?.name, found.amount | 0);
     } else if (found.kind === "encounter") {
       // Strict gating: only allow claim if the quest was marked completed by EncounterRuntime
-      if (found.status !== "completedPendingTurnIn") { try { ctx.log && ctx.log("This task is not complete yet.", "warn"); } catch (_) {} return false; }
+      if (found.status !== "completedPendingTurnIn") {
+        try { ctx.log && ctx.log("This task is not complete yet.", "warn"); } catch (_) {}
+        try {
+          const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (GM && typeof GM.onEvent === "function") {
+            const scope = ctx && ctx.mode ? ctx.mode : "town";
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+            GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "failure", detail: "accept" });
+          }
+        } catch (_) {}
+        return false;
+      }
     }
 
     // Pay gold
@@ -663,6 +756,42 @@ import { getMod } from "../utils/access.js";
       const qs = townRef.quests;
       qs.active.splice(idx, 1);
       qs.completed.push({ ...found, completedAtTurn: _nowTurn(ctx), finalStatus: "completed" });
+    } catch (_) {}
+
+    // GMRuntime: quest completion + quest board mechanic
+    try {
+      const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+      if (GM && typeof GM.onEvent === "function") {
+        const qi = found;
+        const tags = [];
+        try {
+          const GD = _gd();
+          const templates = GD && GD.quests && Array.isArray(GD.quests.templates) ? GD.quests.templates : [];
+          const tmpl = templates.find(t => t && t.id === qi.templateId);
+          if (tmpl) {
+            const kind = tmpl.kind ? String(tmpl.kind).toLowerCase() : "";
+            if (kind) tags.push(`kind:${kind}`);
+            if (Array.isArray(tmpl.tags)) {
+              for (const raw of tmpl.tags) {
+                if (!raw) continue;
+                tags.push(String(raw).toLowerCase());
+              }
+            }
+          }
+        } catch (_) {}
+        GM.onEvent(ctx, {
+          type: "quest.complete",
+          scope: ctx && ctx.mode ? ctx.mode : "town",
+          questId: String(qi.templateId || qi.instanceId || "unknown"),
+          tags,
+          goldReward: pay,
+        });
+        try {
+          const scope = ctx && ctx.mode ? ctx.mode : "town";
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "success", detail: "accept" });
+        } catch (_) {}
+      }
     } catch (_) {}
 
     try { ctx.log && ctx.log(`Quest complete: ${found.title}. You receive ${pay} gold.`, "good"); } catch (_) {}

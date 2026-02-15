@@ -19,6 +19,7 @@ let _raf = 0;
 let _running = false;
 let _press = false;
 let _onDone = null;
+let _gameCtx = null;
 
 // Mini-game state
 let _marker = 0.5;     // 0..1 bottom..top
@@ -115,6 +116,13 @@ function ensureOverlay() {
       _press = (e.type === 'keydown');
     } else if (e.key === 'Escape' || e.key === 'Esc') {
       try { if (typeof _onDone === 'function') _onDone(false); } catch (_) {}
+      try {
+        const GM = (typeof window !== 'undefined' ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === 'function') {
+          const scope = _gameCtx && _gameCtx.mode ? _gameCtx.mode : 'world';
+          GM.onEvent(_gameCtx, { type: 'mechanic', scope, mechanic: 'fishing', action: 'dismiss' });
+        }
+      } catch (_) {}
       hide();
     }
   };
@@ -309,7 +317,18 @@ function step(ts, hooks) {
 
 export function show(ctx, opts = {}) {
   ensureOverlay();
+  _gameCtx = ctx || null;
   resetState(opts, ctx);
+
+  // GMRuntime: fishing mechanic seen/tried
+  try {
+    const GM = (typeof window !== 'undefined' ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === 'function') {
+      const scope = ctx && ctx.mode ? ctx.mode : 'world';
+      GM.onEvent(ctx, { type: 'mechanic', scope, mechanic: 'fishing', action: 'seen' });
+      GM.onEvent(ctx, { type: 'mechanic', scope, mechanic: 'fishing', action: 'tried' });
+    }
+  } catch (_) {}
 
   // Hooks for completion
   const minutes = (typeof opts.minutesPerAttempt === 'number') ? Math.max(1, Math.min(60, opts.minutesPerAttempt | 0)) : 15;
@@ -321,6 +340,15 @@ export function show(ctx, opts = {}) {
       else if (typeof window !== 'undefined' && window.GameAPI && typeof window.GameAPI.advanceMinutes === 'function') window.GameAPI.advanceMinutes(minutes);
     } catch (_) {}
     try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
+
+    // GMRuntime: fishing mechanic outcome
+    try {
+      const GM = (typeof window !== 'undefined' ? window.GMRuntime : null);
+      if (GM && typeof GM.onEvent === 'function') {
+        const scope = (ctx && ctx.mode) ? ctx.mode : 'world';
+        GM.onEvent(ctx, { type: 'mechanic', scope, mechanic: 'fishing', action: ok ? 'success' : 'failure' });
+      }
+    } catch (_) {}
 
     if (ok) {
       // Small chance to catch an item instead of a fish
