@@ -71,8 +71,8 @@
 - Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
   - Likely due to floating-point arithmetic and stringification in follower health UI.
   - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
-- Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
+- [FIXED] Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
   - In one run, when the overworld map loaded after extensive exploration (many chunks/tiles revealed), all tiles outside towns/dungeons/ruins were effectively blacked out or heavily darkened, even though movement and mode transitions still worked.
   - Towns, dungeons, and ruins views were unaffected and rendered normally, suggesting an overworld-only rendering/state issue (fog-of-war, tints, or palette overlays misapplied) that may surface when the visible/seen grids or tile caches grow large.
-  - Likely related to the infinite overworld getting "too big" in memory or computation for a single redraw; we may need a more incremental/streamed map update system so expanding the explored area does not trigger heavy, one-shot calculations that can break tint/fog state.
-  - Needs focused repro with logs on overworld fog, tint application, palette overlays, and world expansion timing to determine whether FOV, weather, or GOD/debug overlays can accidentally force a full-screen black tint under heavy world-load conditions.
+  - The immediate failure mode (entire overworld appearing black) is now prevented by a defensive guard in `ui/render/overworld_fog.js` that skips drawing the fog overlay when the fog grids look invalid or out of sync with the current overworld window. The world may appear more revealed than intended in that edge case, but it will no longer be fully blacked out.
+  - Performance and long-run infinite-world behavior are still tracked separately under world/infinite_gen + world_runtime performance work.
