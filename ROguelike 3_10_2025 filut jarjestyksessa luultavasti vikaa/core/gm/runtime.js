@@ -33,6 +33,11 @@ const MOOD_NUDGE_DELTA_SMALL = 0.005;
 const BOREDOM_SMOOTHING_ALPHA = 0.15; // how fast boredom reacts to changes
 const MOOD_TRANSIENT_DECAY_PER_TURN = 0.9; // transients decay faster than base mood
 
+// Mechanic knowledge thresholds; see getMechanicKnowledge.
+const MECH_RECENT_TURNS = 200;
+const MECH_DISINTEREST_DISMISS = 3;
+const MECH_DISINTEREST_AGE = 600;
+
 function createDefaultStats() {
   return {
     totalTurns: 0,
@@ -263,6 +268,64 @@ function ensureTraitsAndMechanics(gm) {
       dbg.intentHistory.length = MAX_INTENT_HISTORY;
     }
   }
+}
+
+// Returns one of: "unseen", "seenNotTried", "triedRecently", "triedLongAgo", "disinterested".
+// Derived from counts and lastUsedTurn; does not mutate the mechanic object.
+function getMechanicKnowledge(m, currentTurn) {
+  if (!m || typeof m !== "object") return "unseen";
+
+  const seen = m.seen | 0;
+  const tried = m.tried | 0;
+  const dismiss = m.dismiss | 0;
+
+  let turn = typeof currentTurn === "number" ? (currentTurn | 0) : 0;
+  if (turn < 0) turn = 0;
+
+  let normalizedLastUsed = null;
+  const rawLastUsed = m.lastUsedTurn;
+  if (rawLastUsed != null) {
+    const num = typeof rawLastUsed === "number" ? (rawLastUsed | 0) : NaN;
+    if (Number.isFinite(num) && num >= 0) {
+      normalizedLastUsed = num;
+    }
+  }
+
+  let age = null;
+  if (normalizedLastUsed != null) {
+    age = turn - normalizedLastUsed;
+    if (age < 0) age = 0;
+  }
+
+  if (seen <= 0) {
+    return "unseen";
+  }
+
+  if (tried === 0) {
+    if (dismiss >= MECH_DISINTEREST_DISMISS) {
+      return "disinterested";
+    }
+    return "seenNotTried";
+  }
+
+  // tried > 0
+  if (normalizedLastUsed == null) {
+    age = MECH_DISINTEREST_AGE + 1;
+  }
+
+  if (dismiss >= MECH_DISINTEREST_DISMISS && age != null && age > MECH_RECENT_TURNS) {
+    return "disinterested";
+  }
+
+  if (age != null && age <= MECH_RECENT_TURNS) {
+    return "triedRecently";
+  }
+
+  if (age != null && age > MECH_DISINTEREST_AGE) {
+    return "disinterested";
+  }
+
+  return "triedLongAgo";
 }
 
 function normalizeFamilyTrait(family) {
@@ -1158,18 +1221,41 @@ export function getMechanicHint(ctx) {
   const keys = ["fishing", "lockpicking", "questBoard", "followers"];
 
   let bestKey = null;
+  let bestScore = -1;
   let bestSeen = -1;
+
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     const m = mechanics[key];
     if (!m || typeof m !== "object") continue;
+
+    const state = getMechanicKnowledge(m, turn);
+    if (state !== "seenNotTried" && state !== "triedLongAgo") continue;
+
     const seen = m.seen | 0;
-    const tried = m.tried | 0;
-    if (seen > 0 && tried === 0) {
+
+    let score = 0;
+    if (state === "seenNotTried") {
+      score += 3;
+    } else if (state === "triedLongAgo") {
+      score += 1;
+    }
+
+    score += Math.round(boredomLevel * 2);
+    if (seen > 5) {
+      score += 1;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestSeen = seen;
+      bestKey = key;
+    } else if (score === bestScore && bestKey !== null) {
       if (seen > bestSeen) {
         bestSeen = seen;
         bestKey = key;
       }
+      // If score and seen are equal we keep the earlier key, preserving fixed key ordering.
     }
   }
 

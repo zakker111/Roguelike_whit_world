@@ -17,6 +17,84 @@ import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
 import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
+const NPC_RUMOR_COOLDOWN_TURNS = 200;
+const NPC_TRAIT_MIN_SAMPLES = 3;
+const NPC_TRAIT_MIN_SCORE = 0.4;
+const NPC_TRAIT_FORGET_TURNS = 300;
+
+function formatFamilyLabel(key) {
+  const base = String(key || "").trim();
+  if (!base) return "your family";
+  const cleaned = base.replace(/_/g, " ");
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function pickNpcRumorTopic(gm, currentTurn) {
+  if (!gm || typeof gm !== "object") return null;
+
+  // 1) Named traits (priority order)
+  const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : null;
+  if (traits) {
+    const order = ["trollSlayer", "townProtector", "caravanAlly"];
+    for (let i = 0; i < order.length; i++) {
+      const key = order[i];
+      const tr = traits[key];
+      if (!tr || typeof tr !== "object") continue;
+      const seen = tr.seen | 0;
+      if (seen < NPC_TRAIT_MIN_SAMPLES) continue;
+      const pos = tr.positive | 0;
+      const neg = tr.negative | 0;
+      const samples = pos + neg;
+      if (samples <= 0) continue;
+      const score = (pos - neg) / samples;
+      if (Math.abs(score) < NPC_TRAIT_MIN_SCORE) continue;
+      const lastTurn = tr.lastUpdatedTurn == null ? null : (tr.lastUpdatedTurn | 0);
+      if (currentTurn != null && lastTurn != null) {
+        const delta = currentTurn - lastTurn;
+        if (delta > NPC_TRAIT_FORGET_TURNS) continue;
+      }
+      return { kind: "trait", id: key };
+    }
+  }
+
+  // 2) Families: top by seen (>=3), then lexicographically, with score gate.
+  const families = gm.families && typeof gm.families === "object" ? gm.families : null;
+  if (!families) return null;
+
+  let bestKey = null;
+  let bestSeen = -1;
+  for (const key in families) {
+    if (!Object.prototype.hasOwnProperty.call(families, key)) continue;
+    const fam = families[key];
+    if (!fam || typeof fam !== "object") continue;
+    const seen = fam.seen | 0;
+    if (seen < 3) continue;
+    if (seen > bestSeen || (seen === bestSeen && bestKey != null && key < bestKey)) {
+      bestSeen = seen;
+      bestKey = key;
+    } else if (seen === bestSeen && bestKey == null) {
+      bestSeen = seen;
+      bestKey = key;
+    }
+  }
+
+  if (!bestKey) return null;
+  const fam = families[bestKey];
+  const pos = fam.positive | 0;
+  const neg = fam.negative | 0;
+  const samples = pos + neg;
+  if (samples <= 0) return null;
+  const score = (pos - neg) / samples;
+  const THRESHOLD = 0.4;
+  if (score >= THRESHOLD) {
+    return { kind: "family", polarity: "slayer", key: bestKey };
+  }
+  if (score <= -THRESHOLD) {
+    return { kind: "family", polarity: "ally", key: bestKey };
+  }
+  return null;
+}
+
 function gmEvent(ctx, event) {
   try {
     if (!ctx) return;
@@ -27,10 +105,12 @@ function gmEvent(ctx, event) {
       GM.onEvent(ctx, event || {});
     }
 
-    // Phase 0–1 GM integration: lightweight flavor intent on mode enter.
+    // Phase 01 GM integration: lightweight flavor intent on mode enter.
     const ev = event || {};
-    if (ev.type === "mode.enter" && typeof GM.getEntranceIntent === "function" && typeof ctx.log === "function") {
-      const scope = ev.scope || ctx.mode || "unknown";
+    const isModeEnter = ev.type === "mode.enter";
+    const scope = ev.scope || ctx.mode || "unknown";
+
+    if (isModeEnter && typeof GM.getEntranceIntent === "function" && typeof ctx.log === "function") {
       if (scope === "world" || scope === "town" || scope === "dungeon" || scope === "tavern") {
         try {
           const intent = GM.getEntranceIntent(ctx, scope);
@@ -41,8 +121,7 @@ function gmEvent(ctx, event) {
 
             if (topic.startsWith("family:")) {
               const famKey = topic.slice("family:".length) || "unknown";
-              const rawLabel = famKey.replace(/_/g, " ").trim();
-              const label = rawLabel ? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1) : "your family";
+              const label = formatFamilyLabel(famKey);
 
               let usedMessages = false;
               if (hasMessages) {
@@ -139,6 +218,72 @@ function gmEvent(ctx, event) {
           }
         } catch (_) {}
       }
+    }
+
+    // Secondary flavor channel: NPC trait/family rumors on town/tavern entry.
+    if (isModeEnter && (scope === "town" || scope === "tavern")) {
+      try {
+        if (typeof ctx.log !== "function") return;
+        if (typeof GM.getState !== "function") return;
+        const gm = GM.getState(ctx);
+        if (!gm || gm.enabled === false) return;
+
+        // Cooldown to avoid spam: at least N turns between NPC rumors.
+        let turn = 0;
+        if (ctx.time && typeof ctx.time.turnCounter === "number") {
+          turn = ctx.time.turnCounter | 0;
+        } else if (gm.debug && typeof gm.debug.lastTickTurn === "number") {
+          turn = gm.debug.lastTickTurn | 0;
+        }
+
+        const lastTurn = typeof ctx._gmNpcLastRumorTurn === "number" ? (ctx._gmNpcLastRumorTurn | 0) : -1;
+        if (lastTurn >= 0 && (turn - lastTurn) < NPC_RUMOR_COOLDOWN_TURNS) return;
+
+        const topic = pickNpcRumorTopic(gm, turn);
+        if (!topic) return;
+
+        const M = ctx.Messages || getMod(ctx, "Messages");
+        let text = null;
+
+        if (topic.kind === "trait") {
+          const key = `gm.npcRumors.${topic.id}`;
+          if (M && typeof M.get === "function") {
+            try {
+              text = M.get(key, null);
+            } catch (_) {}
+          }
+          if (!text) {
+            if (topic.id === "trollSlayer") {
+              text = "A local mutters: \"They say someone has a grudge against trolls around here...\"";
+            } else if (topic.id === "townProtector") {
+              text = "You overhear: \"The town sleeps easier thanks to a certain defender.\"";
+            } else if (topic.id === "caravanAlly") {
+              text = "Merchants whisper: \"Caravans seem to like that one.\"";
+            }
+          }
+        } else if (topic.kind === "family") {
+          const label = formatFamilyLabel(topic.key);
+          const vars = { family: label };
+          const msgKey = topic.polarity === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+          if (M && typeof M.get === "function") {
+            try {
+              text = M.get(msgKey, vars);
+            } catch (_) {}
+          }
+          if (!text) {
+            if (topic.polarity === "slayer") {
+              text = `Someone mentions trouble for the ${label} in recent days.`;
+            } else {
+              text = `An idle rumor suggests the ${label} have a friend in town.`;
+            }
+          }
+        }
+
+        if (text) {
+          ctx._gmNpcLastRumorTurn = turn;
+          ctx.log(text, "flavor", { category: "gm-npc" });
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 }

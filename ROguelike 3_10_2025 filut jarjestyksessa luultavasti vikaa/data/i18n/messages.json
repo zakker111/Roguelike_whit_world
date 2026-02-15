@@ -32,6 +32,13 @@
       "lockpickingHint": "Someone brags that locked chests hold more than the obvious rewards.",
       "questBoardHint": "Adventurers whisper that unusual jobs sometimes appear on this board.",
       "followersHint": "You catch a comment that no one survives long in these lands alone."
+    },
+    "npcRumors": {
+      "trollSlayer": "A local mutters: \"They say someone has a grudge against trolls around here...\"",
+      "townProtector": "You overhear: \"The town sleeps easier thanks to a certain defender.\"",
+      "caravanAlly": "Merchants whisper: \"Caravans seem to like that one.\"",
+      "familySlayer": "Someone mentions trouble for the {family} in recent days.",
+      "familyAlly": "An idle rumor suggests the {family} have a friend in town."
     }
   }
 }
