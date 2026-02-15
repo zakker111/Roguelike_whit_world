@@ -326,6 +326,36 @@ export function install(getCtx) {
       }
     },
 
+    // GM faction travel events: dev-only helpers to force GM-driven special events.
+    onGodTriggerGmFactionEvent: (id) => {
+      const c = getCtx();
+      try {
+        const GM = c.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (!GM || typeof GM.forceFactionTravelEvent !== "function") {
+          c.log("GOD: GMRuntime.forceFactionTravelEvent not available.", "warn");
+          return;
+        }
+        const key = String(id || "").trim();
+        if (!key) {
+          c.log("GOD: Select a GM faction event first.", "warn");
+          return;
+        }
+        const intent = GM.forceFactionTravelEvent(c, key) || { kind: "none" };
+        if (!intent || intent.kind === "none") {
+          c.log(`GOD: GM faction event '${key}' could not be armed (no intent).`, "warn");
+          return;
+        }
+        // We only arm the GM slot here; actual triggering happens on next world move
+        // via World.move -> maybeHandleGMFactionTravelEvent/getFactionTravelEvent.
+        c.log(`[GOD] Armed GM faction event '${key}' (intent kind=${intent.kind}). It will trigger on the next eligible world step.`, "notice");
+      } catch (e) {
+        try {
+          c.log("GOD: Trigger GM faction event handler threw an error; see console.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
+
     // Town diagnostics
     onGodCheckHomes: () => {
       const c = getCtx();

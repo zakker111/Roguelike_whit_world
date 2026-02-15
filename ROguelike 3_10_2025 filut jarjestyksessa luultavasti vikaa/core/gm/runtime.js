@@ -1647,6 +1647,71 @@ export function getFactionTravelEvent(ctx) {
   return intent;
 }
 
+/**
+ * Force-trigger a specific faction travel event immediately.
+ *
+ * This is intended for GOD/debug usage only. It bypasses scheduling windows
+ * and returns the same kind of intent object that getFactionTravelEvent()
+ * would normally emit when a slot is eligible.
+ *
+ * Supported ids map to internal faction event slots:
+ * - "bandit_bounty" -> bandit bounty encounter
+ * - "guard_fine"    -> guard fine travel event
+ * - "troll_hunt"    -> troll hunt encounter
+ */
+export function forceFactionTravelEvent(ctx, id) {
+  const gm = _ensureState(ctx);
+  if (!ctx) return { kind: "none" };
+
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
+
+  if (gm.enabled === false) {
+    return { kind: "none" };
+  }
+
+  const key = String(id || "").toLowerCase();
+  if (!key) return { kind: "none" };
+
+  const storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : (gm.storyFlags = {});
+  const factionEvents = storyFlags.factionEvents && typeof storyFlags.factionEvents === "object"
+    ? storyFlags.factionEvents
+    : (storyFlags.factionEvents = {});
+
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+
+  function ensureSlot(name) {
+    let slot = factionEvents[name];
+    if (!slot || typeof slot !== "object") {
+      slot = {};
+      factionEvents[name] = slot;
+    }
+    slot.status = "scheduled";
+    slot.earliestTurn = turn;
+    slot.latestTurn = turn;
+    return slot;
+  }
+
+  let intent = { kind: "none" };
+
+  if (key === "guard_fine" || key === "guard" || key === "guard_fine_event") {
+    ensureSlot("guardFine");
+    intent = { kind: "guard_fine" };
+  } else if (key === "bandit_bounty" || key === "bandit" || key === "bounty") {
+    ensureSlot("banditBounty");
+    intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
+  } else if (key === "troll_hunt" || key === "troll" || key === "trolls") {
+    ensureSlot("trollHunt");
+    intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
+  } else {
+    return { kind: "none" };
+  }
+
+  gm.lastActionTurn = turn;
+  pushIntentDebug(gm, intent, turn);
+  return intent;
+}
+
 export function reset(ctx, opts = {}) {
   _state = null;
   const nextOpts = Object.assign({}, opts, { reset: true });
@@ -1654,4 +1719,4 @@ export function reset(ctx, opts = {}) {
 }
 
 // Back-compat: attach to window via helper
-attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint, getFactionTravelEvent });
+attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint, getFactionTravelEvent, forceFactionTravelEvent });

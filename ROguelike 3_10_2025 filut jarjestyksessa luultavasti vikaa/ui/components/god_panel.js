@@ -415,6 +415,18 @@ export function init(UI) {
     });
   }
 
+  // GM faction travel events: dev-only arming of GM special events
+  const gmFactionSelect = byId("god-gm-faction-select");
+  const gmFactionBtn = byId("god-gm-faction-btn");
+  if (gmFactionBtn) {
+    gmFactionBtn.addEventListener("click", () => {
+      const sel = gmFactionSelect ? (gmFactionSelect.value || "") : "";
+      if (typeof UI.handlers.onGodTriggerGmFactionEvent === "function") {
+        UI.handlers.onGodTriggerGmFactionEvent(sel);
+      }
+    });
+  }
+
   // Side Log toggle
   const mirrorBtn = byId("god-toggle-mirror-btn");
   if (mirrorBtn) {
