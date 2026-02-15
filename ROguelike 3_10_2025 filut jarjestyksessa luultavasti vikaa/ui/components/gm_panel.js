@@ -21,6 +21,7 @@ let _statsEl = null;
 let _traitsEl = null;
 let _mechEl = null;
 let _eventsEl = null;
+let _toggleBtn = null;
 let _open = false;
 let _refreshTimer = null;
 
@@ -40,6 +41,22 @@ function getGMState() {
   }
 }
 
+function toggleGMEnabled() {
+  try {
+    if (typeof window === "undefined") return;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.getState !== "function") return;
+    const ctx = GA.getCtx();
+    if (!ctx) return;
+    const gm = GM.getState(ctx);
+    if (!gm || typeof gm !== "object") return;
+    if (gm.enabled === false) gm.enabled = true;
+    else gm.enabled = false;
+    refresh();
+  } catch (_) {}
+}
+
 function installDrag(headerEl, panelEl) {
   if (!headerEl || !panelEl || typeof window === "undefined") return;
 
@@ -47,7 +64,7 @@ function installDrag(headerEl, panelEl) {
     try {
       if (ev.button !== 0) return;
       const target = ev.target;
-      if (target && typeof target.closest === "function" && target.closest(".gm-panel-close")) return;
+      if (target && typeof target.closest === "function" && (target.closest(".gm-panel-close") || target.closest(".gm-panel-toggle"))) return;
 
       ev.preventDefault();
       const rect = panelEl.getBoundingClientRect();
@@ -147,6 +164,29 @@ function ensurePanel() {
   titleWrap.appendChild(title);
   titleWrap.appendChild(dragHint);
 
+  const actionsWrap = document.createElement("div");
+  actionsWrap.style.display = "flex";
+  actionsWrap.style.alignItems = "center";
+  actionsWrap.style.gap = "4px";
+
+  _toggleBtn = document.createElement("button");
+  _toggleBtn.type = "button";
+  _toggleBtn.className = "gm-panel-toggle";
+  _toggleBtn.textContent = "Toggle GM";
+  _toggleBtn.style.background = "transparent";
+  _toggleBtn.style.border = "1px solid #4b5563";
+  _toggleBtn.style.borderRadius = "999px";
+  _toggleBtn.style.color = "#e5e7eb";
+  _toggleBtn.style.cursor = "pointer";
+  _toggleBtn.style.fontSize = "10px";
+  _toggleBtn.style.lineHeight = "1";
+  _toggleBtn.style.padding = "2px 6px";
+  _toggleBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleGMEnabled();
+  });
+
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "gm-panel-close";
@@ -163,8 +203,11 @@ function ensurePanel() {
     hide();
   });
 
+  actionsWrap.appendChild(_toggleBtn);
+  actionsWrap.appendChild(closeBtn);
+
   header.appendChild(titleWrap);
-  header.appendChild(closeBtn);
+  header.appendChild(actionsWrap);
 
   const body = document.createElement("div");
   body.className = "gm-panel-body";
@@ -280,6 +323,10 @@ function renderSnapshot(gm) {
     if (_traitsEl) _traitsEl.textContent = "";
     if (_mechEl) _mechEl.textContent = "";
     _eventsEl.textContent = "No GM events (GMRuntime not available).";
+    if (_toggleBtn) {
+      _toggleBtn.textContent = "GM N/A";
+      _toggleBtn.disabled = true;
+    }
     return;
   }
 
@@ -292,6 +339,11 @@ function renderSnapshot(gm) {
   if (boredomLevel > 1) boredomLevel = 1;
   const boredomPct = Math.round(boredomLevel * 100);
   const enabled = gm.enabled !== false;
+
+  if (_toggleBtn) {
+    _toggleBtn.textContent = enabled ? "Disable GM" : "Enable GM";
+    _toggleBtn.disabled = false;
+  }
 
   _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | Enabled: ${enabled ? "On" : "Off"}`;
 
@@ -334,6 +386,11 @@ function renderSnapshot(gm) {
     const TRAIT_MIN_SCORE = 0.4; // how strongly skewed pos vs neg must be
     const TRAIT_FORGET_TURNS = 300; // after this many turns without updates, trait is considered forgotten
 
+    const families = gm.families && typeof gm.families === "object" ? gm.families : {};
+    const FAMILY_MIN_SEEN = 3; // minimum interactions with a family before we surface it
+    const FAMILY_FORGET_TURNS = 300; // same forgetting window as named traits
+    const FAMILY_MAX_ROWS = 6; // cap rows to keep panel compact
+
     function pushTraitIfActive(key, label) {
       const tr = t[key];
       if (!tr) return;
@@ -368,6 +425,63 @@ function renderSnapshot(gm) {
     pushTraitIfActive("trollSlayer", "Troll Slayer");
     pushTraitIfActive("townProtector", "Town Protector");
     pushTraitIfActive("caravanAlly", "Caravan Ally");
+
+    // Dynamic family-based traits (e.g., Troll Slayer, Lizardman Ally, etc.)
+    const famEntries = [];
+    const famKeys = Object.keys(families);
+    for (let i = 0; i < famKeys.length; i++) {
+      const key = famKeys[i];
+      const entry = families[key];
+      if (!entry || typeof entry !== "object") continue;
+      const seen = entry.seen | 0;
+      const pos = entry.positive | 0;
+      const neg = entry.negative | 0;
+      if (seen < FAMILY_MIN_SEEN) continue;
+
+      const lastTurn = entry.lastUpdatedTurn == null ? null : (entry.lastUpdatedTurn | 0);
+      let remembered = true;
+      if (currentTurn != null && lastTurn != null) {
+        const delta = currentTurn - lastTurn;
+        if (delta > FAMILY_FORGET_TURNS) remembered = false;
+      }
+      if (!remembered) continue;
+
+      const samples = pos + neg;
+      let score = 0;
+      if (samples > 0) {
+        score = (pos - neg) / samples;
+      }
+      famEntries.push({ key, seen, pos, neg, score });
+    }
+
+    if (famEntries.length) {
+      famEntries.sort((a, b) => {
+        if (b.seen !== a.seen) return b.seen - a.seen;
+        const absA = Math.abs(a.score);
+        const absB = Math.abs(b.score);
+        if (absB !== absA) return absB - absA;
+        if (a.key < b.key) return -1;
+        if (a.key > b.key) return 1;
+        return 0;
+      });
+
+      const limited = famEntries.slice(0, FAMILY_MAX_ROWS);
+
+      function formatFamilyName(key) {
+        const base = String(key || "").trim();
+        if (!base) return "Unknown";
+        const cleaned = base.replace(/_/g, " ");
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      }
+
+      for (let i = 0; i < limited.length; i++) {
+        const f = limited[i];
+        const famName = formatFamilyName(f.key);
+        const role = f.score >= 0 ? "Slayer" : "Ally";
+        const scoreStr = f.score.toFixed(2);
+        linesT.push(`${famName} ${role}: seen=${f.seen} pos=${f.pos} neg=${f.neg} score=${scoreStr}`);
+      }
+    }
 
     if (!linesT.length) {
       _traitsEl.textContent = "No active traits yet.";
