@@ -17,6 +17,16 @@ import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
 import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
+function gmEvent(ctx, event) {
+  try {
+    if (!ctx) return;
+    const GM = ctx.GMRuntime || getMod(ctx, "GMRuntime");
+    if (GM && typeof GM.onEvent === "function") {
+      GM.onEvent(ctx, event || {});
+    }
+  } catch (_) {}
+}
+
 // Helpers
 function inBounds(ctx, x, y) {
   try {
@@ -198,6 +208,7 @@ function movePlayerToTownGateInterior(ctx) {
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
+  const prevMode = ctx.mode;
 
   // Town exit must go through the heuristic gate logic so there is a single
   // source of truth for leaving towns.
@@ -244,6 +255,19 @@ export function leaveTownNow(ctx) {
   }
   if (ctx.log) ctx.log("You return to the overworld.", "info");
   syncAfterMutation(ctx);
+
+  if (prevMode && prevMode !== "world") {
+    gmEvent(ctx, {
+      type: "mode.leave",
+      scope: prevMode,
+      interesting: true,
+    });
+  }
+  gmEvent(ctx, {
+    type: "mode.enter",
+    scope: "world",
+    interesting: true,
+  });
 }
 
 export function requestLeaveTown(ctx) {
@@ -394,6 +418,15 @@ export function enterTownIfOnTile(ctx) {
                 : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
+            gmEvent(ctx, {
+              type: "mode.enter",
+              scope: "town",
+              interesting: true,
+              payload: {
+                name: ctx.townName || null,
+                size: ctx.townSize || null,
+              },
+            });
             syncAfterMutation(ctx);
             return true;
           }
@@ -420,6 +453,15 @@ export function enterTownIfOnTile(ctx) {
                 : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
+            gmEvent(ctx, {
+              type: "mode.enter",
+              scope: "town",
+              interesting: true,
+              payload: {
+                name: ctx.townName || null,
+                size: ctx.townSize || null,
+              },
+            });
             syncAfterMutation(ctx);
             return true;
           }
@@ -519,7 +561,18 @@ export function enterDungeonIfOnEntrance(ctx) {
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.enter === "function") {
         const ok = ctx.DungeonRuntime.enter(ctx, info);
-        if (ok) { syncAfterMutation(ctx); return true; }
+        if (ok) {
+          gmEvent(ctx, {
+            type: "mode.enter",
+            scope: "dungeon",
+            interesting: true,
+            payload: {
+              level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
+            },
+          });
+          syncAfterMutation(ctx);
+          return true;
+        }
       }
     } catch (_) {}
 
@@ -551,6 +604,14 @@ export function enterDungeonIfOnEntrance(ctx) {
     try { spawnInDungeon(ctx); } catch (_) {}
     
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info");
+    gmEvent(ctx, {
+      type: "mode.enter",
+      scope: "dungeon",
+      interesting: true,
+      payload: {
+        level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
+      },
+    });
     syncAfterMutation(ctx);
     return true;
   }
@@ -574,6 +635,11 @@ export function enterRuinsIfOnTile(ctx) {
         const ok = !!RMR.open(ctx);
         if (ok) {
           if (ctx.log) ctx.log("You enter the ancient ruins.", "info");
+          gmEvent(ctx, {
+            type: "mode.enter",
+            scope: "ruins",
+            interesting: true,
+          });
           syncAfterMutation(ctx);
           return true;
         }
@@ -602,6 +668,14 @@ export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAnd
     } catch (_) {}
     const ok = !!ER.enter(ctx, { template, biome, difficulty: diff });
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.enter",
+      scope: "encounter",
+      interesting: true,
+      payload: {
+        templateId: (template && template.id) || null,
+      },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -619,6 +693,16 @@ export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
     if (RMR && typeof RMR.open === "function") {
       const ok = !!RMR.open(ctx);
       if (!ok) return false;
+      gmEvent(ctx, {
+        type: "mode.leave",
+        scope: "world",
+        interesting: true,
+      });
+      gmEvent(ctx, {
+        type: "mode.enter",
+        scope: "region",
+        interesting: true,
+      });
       if (typeof applyCtxSyncAndRefresh === "function") {
         try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
       } else {
@@ -644,6 +728,14 @@ export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefres
     } catch (_) {}
     const ok = !!ER.enterRegion(ctx, { template, biome, difficulty: diff });
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.enter",
+      scope: "encounter",
+      interesting: true,
+      payload: {
+        templateId: (template && template.id) || null,
+      },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -661,6 +753,12 @@ export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers)
     if (!ER || typeof ER.complete !== "function") return false;
     const ok = !!ER.complete(ctx, outcome || "victory");
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.exit",
+      scope: "encounter",
+      interesting: true,
+      payload: { outcome: outcome || null },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -723,6 +821,16 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
       const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
+        gmEvent(ctx, {
+          type: "mode.leave",
+          scope: "town",
+          interesting: true,
+        });
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
         if (typeof applyCtxSyncAndRefresh === "function") {
           try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
         } else {
@@ -745,11 +853,26 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
 }
 
 export function returnToWorldIfAtExit(ctx) {
+  const prevMode = ctx && ctx.mode;
   // Prefer DungeonRuntime centralization first
   try {
     if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
       const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
+      if (ok) {
+        syncAfterMutation(ctx);
+        if (prevMode && prevMode !== "world") {
+          gmEvent(ctx, {
+            type: "mode.leave",
+            scope: prevMode,
+            interesting: true,
+          });
+        }
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
+      }
       return ok;
     }
   } catch (_) {}
@@ -759,7 +882,21 @@ export function returnToWorldIfAtExit(ctx) {
     const DS = ctx.DungeonState || (typeof window !== "undefined" ? window.DungeonState : null);
     if (DS && typeof DS.returnToWorldIfAtExit === "function") {
       const ok = DS.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
+      if (ok) {
+        syncAfterMutation(ctx);
+        if (prevMode && prevMode !== "world") {
+          gmEvent(ctx, {
+            type: "mode.leave",
+            scope: prevMode,
+            interesting: true,
+          });
+        }
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
+      }
       return ok;
     }
   } catch (_) {}
