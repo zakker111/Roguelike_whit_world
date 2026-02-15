@@ -236,6 +236,14 @@ export function killEnemy(ctx, enemy) {
         const race = enemy.race ? String(enemy.race).toLowerCase() : "";
         if (race) tags.push(`race:${race}`);
       } catch (_) {}
+      // NEW: ensure we always have a kind:* family tag when possible
+      try {
+        const hasKind = tags.some((t) => t && String(t).toLowerCase().startsWith("kind:"));
+        if (!hasKind) {
+          const typeStr = enemy.type ? String(enemy.type).toLowerCase() : "";
+          if (typeStr) tags.push(`kind:${typeStr}`);
+        }
+      } catch (_) {}
       try {
         const ctxMode = ctx && ctx.mode ? String(ctx.mode).toLowerCase() : "";
         if (ctxMode === "town") tags.push("context:town");

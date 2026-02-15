@@ -111,7 +111,8 @@ function ensurePanel() {
   root.style.color = "#e5e7eb";
   root.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   root.style.fontSize = "13px";
-  root.style.overflow = "hidden";
+  root.style.overflowX = "hidden";
+  root.style.overflowY = "auto";
 
   const header = document.createElement("div");
   header.className = "gm-panel-header";
