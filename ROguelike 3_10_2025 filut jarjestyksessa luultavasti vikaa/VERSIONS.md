@@ -43,6 +43,7 @@
     - Ensure SHALLOW tiles are **not** used as Region Map entry points; only proper land/coast tiles should open Region Map views.
     - Clean up remaining bridge-vs-SHALLOW logic so crossings are driven by SHALLOW fords first and bridge overlays are purely a visual layer, or alternatively retire explicit bridges entirely in favor of SHALLOW.
   - Recorded a critical overworld rendering bug in BUGS.md where, after heavy exploration and many chunks loaded, the entire overworld (outside towns/dungeons/ruins) appeared black-tinted while other modes rendered correctly; likely tied to fog/tint/palette overlays under high world-load and earmarked for incremental/streamed overworld updates.
+- Added Phase 0–1 GM runtime scaffolding: `core/gm/runtime.js`, `ctx.gm` state bag, and a per-turn GM tick hook (no gameplay effects yet; GM is currently observability-only).
 
 2026-02-09 — Player attribute system, Character Sheet, and early STR/DEX/INT/CHA/LCK integration
 

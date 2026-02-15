@@ -117,6 +117,14 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
+  // GM runtime (Phase 0–1: read-only, ctx.gm-only updates; no gameplay side effects)
+  try {
+    const GM = modHandle(ctx, "GMRuntime");
+    if (GM && typeof GM.tick === "function") {
+      GM.tick(ctx);
+    }
+  } catch (_) {}
+
   // Visual updates via StateSync (mandatory)
   try {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");
