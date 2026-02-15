@@ -80,6 +80,7 @@ function createDefaultState() {
     stats: createDefaultStats(),
     traits: createDefaultTraits(),
     mechanics: createDefaultMechanics(),
+    families: {},
     lastMode: "world",
   };
 }
@@ -199,6 +200,19 @@ function ensureTraitsAndMechanics(gm) {
   ensureMechanic("questBoard");
   ensureMechanic("followers");
 
+  // Families: ensure container exists and normalize existing entries.
+  let families = gm.families;
+  if (!families || typeof families !== "object") {
+    families = {};
+    gm.families = families;
+  } else {
+    for (const key in families) {
+      if (Object.prototype.hasOwnProperty.call(families, key)) {
+        normalizeFamilyTrait(families[key]);
+      }
+    }
+  }
+
   // Debug lastEvents buffer
   if (gm.debug && typeof gm.debug === "object") {
     const dbg = gm.debug;
@@ -208,6 +222,24 @@ function ensureTraitsAndMechanics(gm) {
     if (dbg.lastEvents.length > MAX_DEBUG_EVENTS) {
       dbg.lastEvents.length = MAX_DEBUG_EVENTS;
     }
+  }
+}
+
+function normalizeFamilyTrait(family) {
+  if (!family || typeof family !== "object") return;
+  family.seen = (family.seen | 0);
+  if (family.seen < 0) family.seen = 0;
+  family.positive = (family.positive | 0);
+  if (family.positive < 0) family.positive = 0;
+  family.negative = (family.negative | 0);
+  if (family.negative < 0) family.negative = 0;
+  const rawTurn = family.lastUpdatedTurn;
+  if (rawTurn == null) {
+    family.lastUpdatedTurn = null;
+  } else {
+    let t = typeof rawTurn === "number" ? (rawTurn | 0) : NaN;
+    if (!Number.isFinite(t) || t < 0) family.lastUpdatedTurn = null;
+    else family.lastUpdatedTurn = t;
   }
 }
 
@@ -363,6 +395,8 @@ export function onEvent(ctx, event) {
     if (type === "combat.kill") {
       const traits = gm.traits;
       updateTraitsFromCombatKill(traits, event, turn);
+      const families = gm.families || (gm.families = {});
+      updateFamiliesFromCombatKill(families, event, turn);
     } else if (type === "quest.complete") {
       const traits = gm.traits;
       updateTraitsFromQuestComplete(traits, event, turn);
@@ -390,6 +424,54 @@ function normalizeTurn(turn) {
   let t = typeof turn === "number" ? (turn | 0) : 0;
   if (t < 0) t = 0;
   return t;
+}
+
+function extractFamilyKeyFromTags(rawTags) {
+  if (!Array.isArray(rawTags) || rawTags.length === 0) return null;
+  const tags = [];
+  for (let i = 0; i < rawTags.length; i++) {
+    const tag = rawTags[i];
+    if (tag == null) continue;
+    tags.push(String(tag).toLowerCase());
+  }
+  if (!tags.length) return null;
+
+  // Prefer kind:*
+  for (let i = 0; i < tags.length; i++) {
+    const t = tags[i];
+    if (t.startsWith("kind:")) {
+      const fam = t.slice(5).trim();
+      if (fam) return fam;
+    }
+  }
+  // Fallback to race:*
+  for (let i = 0; i < tags.length; i++) {
+    const t = tags[i];
+    if (t.startsWith("race:")) {
+      const fam = t.slice(5).trim();
+      if (fam) return fam;
+    }
+  }
+  return null;
+}
+
+function updateFamiliesFromCombatKill(families, event, turn) {
+  if (!families || !event) return;
+  const famKey = extractFamilyKeyFromTags(event.tags);
+  if (!famKey) return;
+
+  let fam = families[famKey];
+  if (!fam || typeof fam !== "object") {
+    fam = { seen: 0, positive: 0, negative: 0, lastUpdatedTurn: null };
+    families[famKey] = fam;
+  }
+
+  // For now: killing a member of a family is always "positive" evidence that the player is a slayer of that family.
+  fam.seen = (fam.seen | 0) + 1;
+  if (fam.seen < 0) fam.seen = 0;
+  fam.positive = (fam.positive | 0) + 1;
+  if (fam.positive < 0) fam.positive = 0;
+  fam.lastUpdatedTurn = normalizeTurn(turn);
 }
 
 function applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn) {
