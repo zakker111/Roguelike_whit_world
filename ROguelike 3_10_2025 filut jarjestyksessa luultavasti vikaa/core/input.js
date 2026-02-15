@@ -6,7 +6,8 @@
  * - init(handlers): installs keydown listener. `handlers` can include:
  *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, isHelpOpen, isCharacterOpen,
  *     onRestart, onShowInventory, onHideInventory, onHideLoot, onHideGod, onHideShop, onHideSmoke,
- *     onShowGod, onShowHelp, onHideHelp, onShowCharacter, onHideCharacter, onMove(dx,dy), onWait, onLoot, adjustFov(delta) }
+ *     onShowGod, onShowHelp, onHideHelp, onShowCharacter, onHideCharacter,
+ *     onMove(dx,dy), onWait, onLoot, adjustFov(delta), toggleSandboxPanel, toggleGMPanel }
  * - destroy(): removes listener.
  *
  * Rules and priorities
@@ -175,6 +176,15 @@ export function init(handlers) {
     if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
       e.preventDefault();
       _handlers.onShowGod && _handlers.onShowGod();
+      return;
+    }
+
+    // GM panel toggle (O)
+    if ((e.key && e.key.toLowerCase() === "o") || e.code === "KeyO") {
+      e.preventDefault();
+      if (_handlers.toggleGMPanel) {
+        _handlers.toggleGMPanel();
+      }
       return;
     }
 

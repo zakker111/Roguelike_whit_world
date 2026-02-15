@@ -30,8 +30,10 @@ import * as InventoryPanel from "/ui/components/inventory_panel.js";
 import * as LootPanel from "/ui/components/loot_panel.js";
 import * as Hud from "/ui/components/hud.js";
 import * as SandboxPanel from "/ui/components/sandbox_panel_v2.js";
+import * as GMPanel from "/ui/components/gm_panel.js";
 
 export const UI = {
+  GMPanel,
   els: {},
   handlers: {
     onEquip: null,
@@ -156,6 +158,8 @@ export const UI = {
     try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
     // Sandbox controls panel (F10, sandbox-only)
     try { if (SandboxPanel && typeof SandboxPanel.init === "function") SandboxPanel.init(this); } catch (_) {}
+    // GM overlay (O) – non-blocking debug panel
+    try { if (GMPanel && typeof GMPanel.init === "function") GMPanel.init(this); } catch (_) {}
     // Inventory panel wiring moved to component
     try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (_) {}
     this.updateSeedUI();

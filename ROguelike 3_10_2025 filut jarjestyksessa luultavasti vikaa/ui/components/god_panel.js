@@ -17,70 +17,7 @@ function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
 }
 
-function getGMState() {
-  try {
-    const GA = (typeof window !== "undefined" ? window.GameAPI : null);
-    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
-    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.getState !== "function") return null;
-    const ctx = GA.getCtx();
-    if (!ctx) return null;
-    return GM.getState(ctx) || null;
-  } catch (_) {
-    return null;
-  }
-}
 
-function renderGMSection() {
-  try {
-    const summaryEl = byId("god-gm-summary");
-    const detailsEl = byId("god-gm-details");
-    const toggleEnabledBtn = byId("god-gm-toggle-enabled-btn");
-    const toggleDebugBtn = byId("god-gm-toggle-debug-btn");
-    if (!summaryEl || !detailsEl || !toggleEnabledBtn || !toggleDebugBtn) return;
-
-    const gm = getGMState();
-    if (!gm) {
-      summaryEl.textContent = "GM state not available (GMRuntime or GameAPI missing).";
-      detailsEl.textContent = "";
-      toggleEnabledBtn.textContent = "GM: ?";
-      toggleDebugBtn.textContent = "Debug: ?";
-      return;
-    }
-
-    const enabled = !!gm.enabled;
-    const debugEnabled = !!(gm.debug && gm.debug.enabled);
-    const turns = gm.stats && typeof gm.stats.totalTurns === "number" ? gm.stats.totalTurns : 0;
-    const boredom = typeof gm.boredom === "object" && typeof gm.boredom.level === "number" ? gm.boredom.level : 0;
-    const mode = gm.lastMode || "world";
-
-    const boredomPct = Math.round(boredom * 100);
-    summaryEl.textContent = `Mode: ${mode} | Turns: ${turns} | Boredom: ${boredomPct}%`;
-
-    toggleEnabledBtn.textContent = enabled ? "GM: On" : "GM: Off";
-    toggleDebugBtn.textContent = debugEnabled ? "Debug: On" : "Debug: Off";
-
-    let snapshot = {
-      enabled: gm.enabled,
-      mood: gm.mood || null,
-      boredom: gm.boredom || null,
-      stats: gm.stats || null,
-      debug: {
-        enabled: gm.debug && gm.debug.enabled,
-        logTicks: gm.debug && gm.debug.logTicks,
-        logEvents: gm.debug && gm.debug.logEvents,
-        lastTickTurn: gm.debug && gm.debug.lastTickTurn,
-        lastEvent: gm.debug && gm.debug.lastEvent,
-      },
-      lastMode: gm.lastMode || null,
-    };
-
-    try {
-      detailsEl.textContent = JSON.stringify(snapshot, null, 2);
-    } catch (_) {
-      detailsEl.textContent = "[GM snapshot unavailable]";
-    }
-  } catch (_) {}
-}
 
 function populateEncounterSelect() {
   try {
@@ -960,47 +897,6 @@ export function init(UI) {
   }
   try { UI.updateSeedUI(); } catch (_) {}
 
-  const gmRefreshBtn = byId("god-gm-refresh-btn");
-  gmRefreshBtn?.addEventListener("click", () => {
-    renderGMSection();
-  });
-
-  const gmToggleEnabledBtn = byId("god-gm-toggle-enabled-btn");
-  gmToggleEnabledBtn?.addEventListener("click", () => {
-    try {
-      const GA = (typeof window !== "undefined" ? window.GameAPI : null);
-      const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
-      if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.getState !== "function") return;
-      const ctx = GA.getCtx();
-      if (!ctx) return;
-      const gm = GM.getState(ctx);
-      if (!gm) return;
-      gm.enabled = !gm.enabled;
-      renderGMSection();
-    } catch (_) {}
-  });
-
-  const gmToggleDebugBtn = byId("god-gm-toggle-debug-btn");
-  gmToggleDebugBtn?.addEventListener("click", () => {
-    try {
-      const GA = (typeof window !== "undefined" ? window.GameAPI : null);
-      const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
-      if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.getState !== "function") return;
-      const ctx = GA.getCtx();
-      if (!ctx) return;
-      const gm = GM.getState(ctx);
-      if (!gm || !gm.debug) return;
-      gm.debug.enabled = !gm.debug.enabled;
-      // For now we leave logTicks/logEvents as-is; user can toggle those via console if desired.
-      renderGMSection();
-    } catch (_) {}
-  });
-
-  // Initial GM render when panel is initialized
-  try {
-    renderGMSection();
-  } catch (_) {}
-
   // Checkers
   const checkHome = byId("god-check-home-btn");
   checkHome?.addEventListener("click", () => {
@@ -1031,7 +927,6 @@ export function init(UI) {
 export function show() {
   const p = panel();
   if (p) p.hidden = false;
-  try { renderGMSection(); } catch (_) {}
 }
 export function hide() {
   const p = panel();
