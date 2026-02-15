@@ -16,7 +16,20 @@
 import { attachGlobal } from "../../utils/global.js";
 
 let _state = null;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+function createDefaultStats() {
+  return {
+    totalTurns: 0,
+    // turns spent in each mode/scope, e.g. { world: 123, town: 45, dungeon: 67, ... }
+    modeTurns: {},
+    // number of times we entered each mode/scope via events, e.g. { world: 10, town: 5, ... }
+    modeEntries: {},
+    // encounter counts
+    encounterStarts: 0,
+    encounterCompletions: 0,
+  };
+}
 
 function createDefaultState() {
   return {
@@ -45,6 +58,7 @@ function createDefaultState() {
         interestingEvents: 0,
       },
     },
+    stats: createDefaultStats(),
     lastMode: "world",
   };
 }
@@ -53,6 +67,31 @@ function localClamp(v, lo, hi) {
   if (v < lo) return lo;
   if (v > hi) return hi;
   return v;
+}
+
+function ensureStats(gm) {
+  if (!gm || typeof gm !== "object") {
+    return createDefaultStats();
+  }
+
+  let stats = gm.stats;
+  if (!stats || typeof stats !== "object") {
+    stats = createDefaultStats();
+    gm.stats = stats;
+  }
+
+  // Normalize fields to simple integer counters and plain-object maps.
+  stats.totalTurns = stats.totalTurns | 0;
+  if (!stats.modeTurns || typeof stats.modeTurns !== "object") {
+    stats.modeTurns = {};
+  }
+  if (!stats.modeEntries || typeof stats.modeEntries !== "object") {
+    stats.modeEntries = {};
+  }
+  stats.encounterStarts = stats.encounterStarts | 0;
+  stats.encounterCompletions = stats.encounterCompletions | 0;
+
+  return stats;
 }
 
 function _ensureState(ctx) {
@@ -115,6 +154,16 @@ export function tick(ctx) {
   const clampedTurns = clamp(rawTurns, 0, MAX_TURNS_BORED);
   gm.boredom.level = clampedTurns / MAX_TURNS_BORED;
 
+  // Lightweight, deterministic stats tracking for turns and modes.
+  if (isNewTurn) {
+    const stats = ensureStats(gm);
+    const modeKey =
+      typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown");
+    stats.totalTurns = (stats.totalTurns | 0) + 1;
+    const mt = stats.modeTurns;
+    mt[modeKey] = (mt[modeKey] | 0) + 1;
+  }
+
   // Mood fields remain placeholders in Phase 0–1; we only track when they were last updated.
   gm.mood.lastUpdatedTurn = turn;
 
@@ -151,6 +200,19 @@ export function onEvent(ctx, event) {
   const type = String(event.type || "");
   const scope = event.scope || ctx.mode || "unknown";
   const interesting = event.interesting !== false;
+
+  const stats = ensureStats(gm);
+
+  if (type === "mode.enter" && scope) {
+    const me = stats.modeEntries;
+    me[scope] = (me[scope] | 0) + 1;
+  }
+
+  if (type === "encounter.enter") {
+    stats.encounterStarts = (stats.encounterStarts | 0) + 1;
+  } else if (type === "encounter.exit") {
+    stats.encounterCompletions = (stats.encounterCompletions | 0) + 1;
+  }
 
   gm.debug.counters.events = (gm.debug.counters.events | 0) + 1;
   if (interesting) {
