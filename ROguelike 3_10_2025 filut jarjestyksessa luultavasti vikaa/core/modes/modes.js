@@ -29,6 +29,81 @@ function formatFamilyLabel(key) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function pickFactionIdentity(gm, currentTurn) {
+  if (!gm || typeof gm !== "object") return null;
+  const factions = gm.factions && typeof gm.factions === "object" ? gm.factions : null;
+  if (!factions) return null;
+
+  let bestKey = null;
+  let bestSeen = -1;
+  let bestAbsScore = 0;
+  let bestScore = 0;
+  const curTurn = typeof currentTurn === "number" && Number.isFinite(currentTurn) ? (currentTurn | 0) : null;
+
+  for (const key in factions) {
+    if (!Object.prototype.hasOwnProperty.call(factions, key)) continue;
+    const entry = factions[key];
+    if (!entry || typeof entry !== "object") continue;
+
+    const seen = entry.seen | 0;
+    if (seen < NPC_TRAIT_MIN_SAMPLES) continue;
+
+    const pos = entry.positive | 0;
+    const neg = entry.negative | 0;
+    const samples = pos + neg;
+    if (samples <= 0) continue;
+
+    const score = (pos - neg) / samples;
+    const absScore = Math.abs(score);
+    if (absScore < NPC_TRAIT_MIN_SCORE) continue;
+
+    let lastTurn = null;
+    const rawLast = entry.lastUpdatedTurn;
+    if (typeof rawLast === "number" && Number.isFinite(rawLast)) {
+      lastTurn = rawLast | 0;
+    }
+
+    if (curTurn != null && lastTurn != null) {
+      const delta = curTurn - lastTurn;
+      if (delta > NPC_TRAIT_FORGET_TURNS) continue;
+    }
+
+    if (
+      seen > bestSeen ||
+      (seen === bestSeen && absScore > bestAbsScore) ||
+      (seen === bestSeen && absScore === bestAbsScore && (bestKey == null || key < bestKey))
+    ) {
+      bestKey = key;
+      bestSeen = seen;
+      bestAbsScore = absScore;
+      bestScore = score;
+    }
+  }
+
+  if (!bestKey) return null;
+
+  let role = null;
+  if (bestScore >= NPC_TRAIT_MIN_SCORE) {
+    role = "slayer";
+  } else if (bestScore <= -NPC_TRAIT_MIN_SCORE) {
+    role = "ally";
+  } else {
+    return null;
+  }
+
+  const baseLabel = formatFamilyLabel(bestKey);
+  const label = role === "slayer" ? `${baseLabel} Slayer` : `${baseLabel} Ally`;
+
+  return {
+    kind: "faction",
+    key: bestKey,
+    role,
+    label,
+    score: bestScore,
+    seen: bestSeen
+  };
+}
+
 function pickNpcRumorTopic(gm, currentTurn) {
   if (!gm || typeof gm !== "object") return null;
 
@@ -57,7 +132,18 @@ function pickNpcRumorTopic(gm, currentTurn) {
     }
   }
 
-  // 2) Families: top by seen (>=3), then lexicographically, with score gate.
+  // 2) Factions: prefer faction identity before families when available.
+  const faction = pickFactionIdentity(gm, currentTurn);
+  if (faction) {
+    return {
+      kind: "faction",
+      key: faction.key,
+      role: faction.role,
+      label: faction.label
+    };
+  }
+
+  // 3) Families: top by seen (>=3), then lexicographically, with score gate.
   const families = gm.families && typeof gm.families === "object" ? gm.families : null;
   if (!families) return null;
 
@@ -275,6 +361,22 @@ function gmEvent(ctx, event) {
               text = `Someone mentions trouble for the ${label} in recent days.`;
             } else {
               text = `An idle rumor suggests the ${label} have a friend in town.`;
+            }
+          }
+        } else if (topic.kind === "faction") {
+          const label = String(topic.label || formatFamilyLabel(topic.key));
+          const vars = { family: label };
+          const msgKey = topic.role === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+          if (M && typeof M.get === "function") {
+            try {
+              text = M.get(msgKey, vars);
+            } catch (_) {}
+          }
+          if (!text) {
+            if (topic.role === "slayer") {
+              text = `Someone mentions trouble for the ${label} in recent days.`;
+            } else {
+              text = `An idle rumor suggests the ${label} has a friend in town.`;
             }
           }
         }

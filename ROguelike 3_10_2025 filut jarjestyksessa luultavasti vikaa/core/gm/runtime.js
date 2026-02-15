@@ -111,6 +111,7 @@ function createDefaultState() {
     traits: createDefaultTraits(),
     mechanics: createDefaultMechanics(),
     families: {},
+    factions: {},
     lastMode: "world",
     // Legacy/global last GM action turn; keep for back-compat and debugging.
     lastActionTurn: -1,
@@ -248,6 +249,19 @@ function ensureTraitsAndMechanics(gm) {
     for (const key in families) {
       if (Object.prototype.hasOwnProperty.call(families, key)) {
         normalizeFamilyTrait(families[key]);
+      }
+    }
+  }
+
+  // Factions: ensure container exists and normalize existing entries.
+  let factions = gm.factions;
+  if (!factions || typeof factions !== "object" || Array.isArray(factions)) {
+    factions = {};
+    gm.factions = factions;
+  } else {
+    for (const key in factions) {
+      if (Object.prototype.hasOwnProperty.call(factions, key)) {
+        normalizeFamilyTrait(factions[key]);
       }
     }
   }
@@ -483,6 +497,7 @@ function buildProfile(gm) {
     totalTurns: 0,
     topModes: [],
     topFamilies: [],
+    topFactions: [],
     activeTraits: [],
   };
 
@@ -538,6 +553,32 @@ function buildProfile(gm) {
     return 0;
   });
   profile.topFamilies = topFamilies.slice(0, 5);
+
+  // Factions: derive top factions by seen count, then score.
+  const factions = gm.factions && typeof gm.factions === "object" ? gm.factions : {};
+  const topFactions = [];
+  for (const key in factions) {
+    if (!Object.prototype.hasOwnProperty.call(factions, key)) continue;
+    const fac = factions[key];
+    if (!fac || typeof fac !== "object") continue;
+    const seen = fac.seen | 0;
+    if (seen < 1) continue;
+    const pos = fac.positive | 0;
+    const neg = fac.negative | 0;
+    const samples = pos + neg;
+    const score = samples > 0 ? (pos - neg) / samples : 0;
+    topFactions.push({ key, seen, score });
+  }
+  topFactions.sort((a, b) => {
+    if (b.seen !== a.seen) return b.seen - a.seen;
+    const absA = Math.abs(a.score);
+    const absB = Math.abs(b.score);
+    if (absB !== absA) return absB - absA;
+    if (a.key < b.key) return -1;
+    if (a.key > b.key) return 1;
+    return 0;
+  });
+  profile.topFactions = topFactions.slice(0, 5);
 
   // Active named traits: mirror GM panel gating (evidence + bias + memory).
   const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : {};
@@ -816,6 +857,8 @@ export function onEvent(ctx, event) {
       updateTraitsFromCombatKill(traits, event, turn);
       const families = gm.families || (gm.families = {});
       updateFamiliesFromCombatKill(families, event, turn);
+      const factions = gm.factions || (gm.factions = {});
+      updateFactionsFromCombatKill(factions, event, turn);
     } else if (type === "quest.complete") {
       const traits = gm.traits;
       updateTraitsFromQuestComplete(traits, event, turn);
@@ -884,6 +927,35 @@ function extractFamilyKeyFromTags(rawTags) {
   return null;
 }
 
+function extractFactionKeysFromTags(rawTags) {
+  if (!rawTags) return [];
+
+  let length = 0;
+  if (Array.isArray(rawTags)) {
+    length = rawTags.length;
+  } else if (typeof rawTags.length === "number") {
+    length = rawTags.length | 0;
+    if (length < 0) length = 0;
+  }
+
+  if (length === 0) return [];
+
+  const keys = [];
+  const seen = Object.create(null);
+  for (let i = 0; i < length; i++) {
+    const tag = rawTags[i];
+    if (tag == null) continue;
+    const t = String(tag).toLowerCase();
+    if (!t || !t.startsWith("faction:")) continue;
+    const key = t.slice(8).trim();
+    if (!key || seen[key]) continue;
+    seen[key] = true;
+    keys.push(key);
+  }
+
+  return keys;
+}
+
 function updateFamiliesFromCombatKill(families, event, turn) {
   if (!families || !event) return;
   const famKey = extractFamilyKeyFromTags(event.tags);
@@ -901,6 +973,28 @@ function updateFamiliesFromCombatKill(families, event, turn) {
   fam.positive = (fam.positive | 0) + 1;
   if (fam.positive < 0) fam.positive = 0;
   fam.lastUpdatedTurn = normalizeTurn(turn);
+}
+
+function updateFactionsFromCombatKill(factions, event, turn) {
+  if (!factions || !event) return;
+
+  const keys = extractFactionKeysFromTags(event.tags);
+  if (!keys.length) return;
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    let entry = factions[key];
+    if (!entry || typeof entry !== "object") {
+      entry = { seen: 0, positive: 0, negative: 0, lastUpdatedTurn: null };
+      factions[key] = entry;
+    }
+
+    entry.seen = (entry.seen | 0) + 1;
+    if (entry.seen < 0) entry.seen = 0;
+    entry.positive = (entry.positive | 0) + 1;
+    if (entry.positive < 0) entry.positive = 0;
+    entry.lastUpdatedTurn = normalizeTurn(turn);
+  }
 }
 
 function applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn) {
