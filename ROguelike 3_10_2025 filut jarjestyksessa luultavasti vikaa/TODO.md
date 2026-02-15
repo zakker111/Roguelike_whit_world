@@ -4,6 +4,73 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
+- [ ] Invisible GM system (Game Master) and admin panel (design phase)
+  - Phase 1: Core GM runtime
+    - Implement a single invisible GM controller that runs alongside the main loop.
+    - Track GM mood (passive/active/aggressive) and a boredom value that rises when nothing notable happens and drops when GM fires events.
+    - Define basic mood rules:
+      - Passive: mostly observing; allowed to do only small, low-impact flavor/reward actions.
+      - Active: boredom high; allowed to schedule and run small/medium events and artefact quests.
+      - Aggressive: only when player behavior is strongly provoking (e.g., heavy troll-killing); allowed to run rare, high-impact events.
+    - Wire GM ticks to game turns so mood/boredom can react every time the player acts.
+
+  - Phase 2: Human-like memory and traits (lightweight)
+    - Track soft, fading traits that describe player behavior instead of raw counters:
+      - Examples: Troll Slayer, Town Protector, Caravan Ally/Threat, Dungeon Delver, Angler, Forager, Follower Friend.
+    - Each trait has a simple strength that increases with matching actions and decays over time if behavior stops.
+    - GM uses only a small set of "top" active traits at a time when choosing events or flavor.
+    - Hook traits into NPC flavor lines and rumors (rare one-liners like "Are you the Troll Slayer?" or "Thanks for freeing my friend from bandits.").
+
+  - Phase 3: Mechanic awareness and polite nudging
+    - For key mechanics (Fishing, Foraging, Lockpicking, Quest Board, Followers, etc.) track a coarse knowledge state per run:
+      - unseen → seen-not-tried → tried-recently → tried-long-ago → disinterested.
+    - Nudge rules (conceptual):
+      - unseen: rare, simple introductions when context is good.
+      - seen-not-tried: a few stronger nudges; if repeatedly ignored, mark as disinterested.
+      - tried-recently: no nudges.
+      - tried-long-ago: occasional reminder; if ignored again, mark as disinterested.
+      - disinterested: no further hints for this mechanic in this run.
+    - Integrate nudges via NPC rumors/one-liners ("Ship landed at harbor", "New quest on inn board", "Two clans fighting near town"), not intrusive popups.
+
+  - Phase 4: GM-driven Artefact Quests v1 (simple, one-step quests)
+    - General concept:
+      - GM creates physical items (maps, keys) as one-shot quests that are entirely optional and single-resolution in v1.
+      - Artefacts are tied to how the player already plays (e.g., fishing players get map bottles, dungeon delvers get key quests).
+    - Bottle Map quest (first implementation):
+      - While fishing, with a small chance and no other map quest active, player fishes up a "Bottle with a Map" instead of a fish.
+      - On first click in inventory, GM picks an overworld tile near the town/region where the bottle was fished and marks it internally as a crime-scene target.
+      - GM shows an X marker on the overworld and a short description ("A faint map marks an X near [Town Name].").
+      - When the player steps on the X tile, GM spawns a small crime-scene event (minimal corpse flavor + chest) and rewards special loot from the chest.
+      - After looting, the quest is marked complete and the X marker is cleared.
+      - If the bottle or X is ignored for a long time, GM simply treats map quests as lower priority for that run (no punishment).
+    - Leave design room to extend to key-based mini-dungeons and multi-step chains later.
+
+  - Phase 5: GM Admin Panel (F9) – live debug and testing UI
+    - F9 toggles a floating GM panel that stays visible while the player continues to play; panel is draggable so it can be moved out of the way.
+    - GM State overview:
+      - Show current mood (passive/active/aggressive) with color, boredom as a bar, and last major GM action.
+    - Player profile:
+      - List active traits with simple strength bars and last-update timestamps.
+      - Optional simple charts (e.g., time spent per mode, kills by faction) to help explain why traits are set.
+    - Mechanic awareness:
+      - Table of tracked mechanics with current knowledge state (unseen/seen-not-tried/tried-recently/tried-long-ago/disinterested), last-used times, and per-mechanic nudge toggle.
+    - Artefact quests:
+      - List active and recent artefact quests (type, target, status: planned/active/completed/ignored) with basic details.
+    - GM decision log:
+      - Scrollable view of key GM decisions (trait updates, mood/boredom changes, quest creation/completion, nudges fired).
+
+  - Phase 6: GM control and injection tools (for development)
+    - Master switches in the panel:
+      - [GM Enabled] to hard-toggle all automatic GM behavior.
+      - Mode selector: Normal (full behavior), Paused (no new decisions), Manual/Sandbox (no auto events, manual injections only).
+    - Feature toggles:
+      - Enable/disable nudges, small events, artefact quests, and big events independently to test one slice at a time.
+    - Injection helpers:
+      - Buttons to spawn test Bottle Map/Key quests immediately (near player or a selected town) without waiting for conditions.
+      - Trait adjustment controls (boost/clear specific traits) for testing how GM and NPC flavor respond.
+      - Mechanic state adjustment (force unseen/seen/tried/disinterested) to exercise nudge logic.
+    - Ensure all of this works while the panel is open and the game is running so behavior can be inspected in real time.
+
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
 - [x] Shop UI (buy/sell) and currency
