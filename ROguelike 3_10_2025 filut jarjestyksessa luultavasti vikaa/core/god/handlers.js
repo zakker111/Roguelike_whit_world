@@ -182,8 +182,29 @@ export function install(getCtx) {
     // Encounter debug helpers
     onGodStartEncounterNow: (encId) => {
       try {
-        const id = String(encId || "").toLowerCase();
+        const rawId = String(encId || "");
+        const id = rawId.toLowerCase();
         const c = getCtx();
+
+        if (id === "gm_guard_fine") {
+          if (c.mode !== "world") {
+            c.log("GOD: Guard Fine test works in overworld only. Enter world mode first.", "warn");
+            return;
+          }
+          const GM = c.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (!GM || typeof GM.forceFactionTravelEvent !== "function") {
+            c.log("GOD: GMRuntime.forceFactionTravelEvent not available (cannot test guard fine).", "warn");
+            return;
+          }
+          const intent = GM.forceFactionTravelEvent(c, "guard_fine") || { kind: "none" };
+          if (!intent || intent.kind === "none") {
+            c.log("GOD: Failed to arm GM guard fine event.", "warn");
+            return;
+          }
+          c.log("[GOD] Guard fine GM event armed; move one tile on the overworld to trigger it.", "notice");
+          return;
+        }
+
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
         const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
@@ -220,11 +241,32 @@ export function install(getCtx) {
     },
     onGodArmEncounterNextMove: (encId) => {
       try {
-        const id = String(encId || "");
+        const rawId = String(encId || "");
+        const id = rawId.toLowerCase();
         const c = getCtx();
-        if (!id) { c.log("GOD: Select an encounter first.", "warn"); return; }
-        window.DEBUG_ENCOUNTER_ARM = id;
-        c.log(`GOD: Armed '${id}' — will trigger on next overworld move.`, "notice");
+        if (!rawId) { c.log("GOD: Select an encounter first.", "warn"); return; }
+
+        if (id === "gm_guard_fine") {
+          if (c.mode !== "world") {
+            c.log("GOD: Guard Fine test works in overworld only. Enter world mode first.", "warn");
+            return;
+          }
+          const GM = c.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (!GM || typeof GM.forceFactionTravelEvent !== "function") {
+            c.log("GOD: GMRuntime.forceFactionTravelEvent not available (cannot test guard fine).", "warn");
+            return;
+          }
+          const intent = GM.forceFactionTravelEvent(c, "guard_fine") || { kind: "none" };
+          if (!intent || intent.kind === "none") {
+            c.log("GOD: Failed to arm GM guard fine event.", "warn");
+            return;
+          }
+          c.log("[GOD] Guard fine GM event armed; move one tile on the overworld to trigger it.", "notice");
+          return;
+        }
+
+        window.DEBUG_ENCOUNTER_ARM = rawId;
+        c.log(`GOD: Armed '${rawId}' — will trigger on next overworld move.`, "notice");
       } catch (_) {}
     },
     // Status effects
