@@ -1598,6 +1598,18 @@ export function getMechanicHint(ctx) {
   return intent;
 }
 
+/**
+ * Derive the next GM-driven faction travel event, if any.
+ *
+ * Contract:
+ * - Purely inspects gm.storyFlags.factionEvents plus the current turn.
+ * - Consumes a scheduled slot by marking it "consumed" when an intent is emitted.
+ * - Returns { kind: "none" } when no eligible slot exists.
+ *
+ * This function does not perform gameplay side effects itself; callers (e.g.
+ * core/world/move.maybeHandleGMFactionTravelEvent) are responsible for
+ * interpreting the intent and driving any encounters or prompts.
+ */
 export function getFactionTravelEvent(ctx) {
   const gm = _ensureState(ctx);
   ensureTraitsAndMechanics(gm);

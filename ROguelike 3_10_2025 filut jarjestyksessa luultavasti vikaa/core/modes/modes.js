@@ -191,7 +191,7 @@ function gmEvent(ctx, event) {
       GM.onEvent(ctx, event || {});
     }
 
-    // Phase 01 GM integration: lightweight flavor intent on mode enter.
+    // Phase 0–1 GM integration: lightweight flavor intent on mode enter.
     const ev = event || {};
     const isModeEnter = ev.type === "mode.enter";
     const scope = ev.scope || ctx.mode || "unknown";
@@ -545,18 +545,6 @@ function detectHarborContext(ctx, wx, wy, WT) {
 
     
 
-function debugPortHarborsEnabled() {
-  try {
-    if (typeof window === "undefined") return false;
-    const v = localStorage.getItem("DEBUG_PORT_TOWNS");
-    if (typeof v === "string") {
-      const s = v.toLowerCase();
-      return s === "1" || s === "true" || s === "yes" || s === "on";
-    }
-  } catch (_) {}
-  return false;
-}
-
 // Ensure player stands on the town gate interior tile on entry
 function movePlayerToTownGateInterior(ctx) {
   try {
@@ -696,7 +684,9 @@ export function enterTownIfOnTile(ctx) {
   let approachedDir = "";
   const onTownTile = !!(WT && (t === WT.TOWN || (WT.CASTLE != null && t === WT.CASTLE)));
 
-  // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
+  // Record approach direction (used by Town generation to pick gate side). With
+  // strict on-tile entry this is always the empty string, which layout_core
+  // treats as "no preferred side".
   if (onTownTile) {
     ctx.enterFromDir = approachedDir || "";
   }

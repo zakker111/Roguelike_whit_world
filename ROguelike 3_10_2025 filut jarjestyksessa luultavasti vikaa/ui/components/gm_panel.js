@@ -10,7 +10,8 @@
  *
  * Behavior:
  * - Non-blocking overlay; does not participate in modal gating.
- * - Read-only view onto GMRuntime.getState(ctx) via GameAPI.getCtx().
+ * - Primarily a read-only view onto GMRuntime.getState(ctx) via GameAPI.getCtx(),
+ *   with a small toggle for gm.enabled.
  */
 
 import { attachGlobal } from "/utils/global.js";

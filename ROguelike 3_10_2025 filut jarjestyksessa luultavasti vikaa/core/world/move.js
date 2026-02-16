@@ -133,6 +133,13 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   return true;
 }
 
+/**
+ * World movement hook for GMRuntime.getFactionTravelEvent intents.
+ *
+ * Called after a successful world step; interprets the GM intent and, when
+ * appropriate, starts a special encounter or guard fine event. Returns true
+ * if the intent was handled and no normal encounter roll should occur.
+ */
 function maybeHandleGMFactionTravelEvent(ctx) {
   if (!ctx) return false;
 
@@ -144,13 +151,16 @@ function maybeHandleGMFactionTravelEvent(ctx) {
     if (!intent || intent.kind === "none") return false;
 
     if (intent.kind === "guard_fine") {
-      return !!handleGuardFineTravelEvent(ctx);
+      return handleGuardFineTravelEvent(ctx);
     }
 
-    if (intent.kind === "encounter" && typeof intent.encounterId === "string" && intent.encounterId) {
-      return !!startGmFactionEncounter(ctx, intent.encounterId);
+    if (intent.kind === "encounter") {
+      const encId = intent.encounterId || intent.id || null;
+      if (!encId) return false;
+      return startGmFactionEncounter(ctx, encId);
     }
 
+    // Unknown intent kinds are ignored for forward compatibility.
     return false;
   } catch (_) {
     try {
@@ -162,6 +172,14 @@ function maybeHandleGMFactionTravelEvent(ctx) {
   }
 }
 
+/**
+ * Resolve a GM-driven guard fine travel event.
+ *
+ * Contract:
+ * - Presents a pay/refuse choice to the player when possible.
+ * - Emits gm.guardFine.pay / gm.guardFine.refuse events back to GMRuntime,
+ *   which in turn updates faction attitudes and consumes the scheduled slot.
+ */
 function handleGuardFineTravelEvent(ctx) {
   if (!ctx || !ctx.player) return false;
 
@@ -170,16 +188,21 @@ function handleGuardFineTravelEvent(ctx) {
     const MZ = ctx.Messages || (typeof window !== "undefined" ? window.Messages : null);
     const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
 
-    const inv = Array.isArray(ctx.player?.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
-    let goldObj = inv.find(it => it && it.kind === "gold");
+    if (!GM || typeof GM.onEvent !== "function") {
+      return false;
+    }
+
+    const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+    let goldObj = inv.find(it => it && String(it.kind || it.type || "").toLowerCase() === "gold");
     if (!goldObj) {
       goldObj = { kind: "gold", amount: 0, name: "gold" };
       inv.push(goldObj);
     }
+
     const currentGold = (typeof goldObj.amount === "number" ? goldObj.amount : 0) | 0;
 
     const level = (typeof ctx.player.level === "number" ? (ctx.player.level | 0) : 1);
-    let fine = 20 + level * 10;
+    let fine = level * 10;
     if (fine < 30) fine = 30;
     if (fine > 300) fine = 300;
 
@@ -188,14 +211,12 @@ function handleGuardFineTravelEvent(ctx) {
         if (MZ && typeof MZ.log === "function") {
           MZ.log(ctx, "gm.guardFine.noMoney", null, "warn");
         } else if (typeof ctx.log === "function") {
-          ctx.log("A patrol of guards demands a fine you cannot afford. They will remember this.", "warn");
+          ctx.log("A patrol of guards demands a fine you cannot afford. They let you go with a warning this time.", "warn");
         }
       } catch (_) {}
 
       try {
-        if (GM && typeof GM.onEvent === "function") {
-          GM.onEvent(ctx, { type: "gm.guardFine.refuse", scope: ctx.mode || "world", interesting: true });
-        }
+        GM.onEvent(ctx, { type: "gm.guardFine.refuse" });
       } catch (_) {}
 
       return true;
@@ -209,7 +230,7 @@ function handleGuardFineTravelEvent(ctx) {
       }
     } catch (_) {}
     if (!prompt) {
-      prompt = `A patrol of guards demands a fine of ${fine} gold for your crimes.\n\nPay the fine?`;
+      prompt = `A patrol of guards demands a fine of ${fine} gold for your crimes.\nPay?`;
     }
 
     const onPay = () => {
@@ -220,16 +241,14 @@ function handleGuardFineTravelEvent(ctx) {
       } catch (_) {}
 
       try {
-        if (GM && typeof GM.onEvent === "function") {
-          GM.onEvent(ctx, { type: "gm.guardFine.pay", scope: ctx.mode || "world", interesting: true });
-        }
+        GM.onEvent(ctx, { type: "gm.guardFine.pay" });
       } catch (_) {}
 
       try {
         if (MZ && typeof MZ.log === "function") {
-          MZ.log(ctx, "gm.guardFine.paid", { amount: fine }, "notice");
+          MZ.log(ctx, "gm.guardFine.paid", { amount: fine }, "good");
         } else if (typeof ctx.log === "function") {
-          ctx.log(`You pay ${fine} gold to settle your fine with the guards.`, "notice");
+          ctx.log(`You pay ${fine} gold to settle your fines with the guards.`, "info");
         }
       } catch (_) {}
 
@@ -240,9 +259,7 @@ function handleGuardFineTravelEvent(ctx) {
 
     const onRefuse = () => {
       try {
-        if (GM && typeof GM.onEvent === "function") {
-          GM.onEvent(ctx, { type: "gm.guardFine.refuse", scope: ctx.mode || "world", interesting: true });
-        }
+        GM.onEvent(ctx, { type: "gm.guardFine.refuse" });
       } catch (_) {}
 
       try {
@@ -257,7 +274,7 @@ function handleGuardFineTravelEvent(ctx) {
     if (UIO && typeof UIO.showConfirm === "function") {
       UIO.showConfirm(ctx, prompt, null, onPay, onRefuse);
     } else {
-      onRefuse();
+      onPay();
     }
 
     return true;
@@ -271,17 +288,25 @@ function handleGuardFineTravelEvent(ctx) {
   }
 }
 
+/**
+ * Start a GM-driven overworld faction encounter based on a GM intent.
+ *
+ * Looks up the encounter template in GameData.encounters.templates and
+ * starts it via GameAPI/EncounterRuntime using world-mode difficulty.
+ */
 function startGmFactionEncounter(ctx, encounterId) {
   if (!ctx) return false;
 
-  const id = String(encounterId || "");
+  const idRaw = encounterId != null ? String(encounterId) : "";
+  const id = idRaw.trim();
   if (!id) return false;
 
   let tmpl = null;
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
     const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-    tmpl = reg.find(t => t && String(t.id) === id) || null;
+    const key = id.toLowerCase();
+    tmpl = reg.find(t => t && String(t.id || "").toLowerCase() === key) || null;
   } catch (_) {}
 
   if (!tmpl) {
@@ -299,8 +324,7 @@ function startGmFactionEncounter(ctx, encounterId) {
     const wmap = ctx.world && ctx.world.map ? ctx.world.map : null;
     const y = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
     const x = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
-    const row = wmap && wmap[y] ? wmap[y] : null;
-    const tile = row ? row[x] : null;
+    const tile = wmap && wmap[y] ? wmap[y][x] : null;
     if (W && typeof W.biomeName === "function") {
       const name = W.biomeName(tile) || "";
       if (name) biome = String(name).toUpperCase();
@@ -315,7 +339,6 @@ function startGmFactionEncounter(ctx, encounterId) {
     }
   } catch (_) {}
   if (typeof difficulty !== "number" || !Number.isFinite(difficulty)) difficulty = 1;
-  difficulty = difficulty | 0;
   if (difficulty < 1) difficulty = 1;
   if (difficulty > 5) difficulty = 5;
 
@@ -364,7 +387,9 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
     // Close any confirm dialog before switching modes
     try {
       const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+      if (UIO && typeof UIO.closeConfirm === "function") {
+        UIO.closeConfirm(ctx);
+      }
     } catch (_) {}
 
     // Mark the caravan as ambushed so it no longer moves or spawns merchants.
