@@ -37,6 +37,8 @@ const MOOD_TRANSIENT_DECAY_PER_TURN = 0.9; // transients decay faster than base 
 const MECH_RECENT_TURNS = 200;
 const MECH_DISINTEREST_DISMISS = 3;
 const MECH_DISINTEREST_AGE = 600;
+// Guard fine "heat" forget window; same scale as trait forgetting.
+const GUARD_FINE_HEAT_TURNS = 300;
 
 function createDefaultStats() {
   return {
@@ -1297,6 +1299,16 @@ function updateTraitsFromCaravanEvent(traits, event, turn) {
   applyTraitDelta(trait, deltaSeen, deltaPositive, deltaNegative, turn);
 }
 
+/**
+ * Apply outcomes for the GM-driven guard fine.
+ *
+ * Paying slightly improves guard/town attitude and records guardFinePaid.
+ * Refusing increases hostility and records non-permanent "heat":
+ * - guardFineRefusals: cumulative count of refusals.
+ * - guardFineLastRefusalTurn: last turn a refusal happened.
+ * Heat gradually cools off after GUARD_FINE_HEAT_TURNS so that guards
+ * don't stay permanently hostile from a very old refusal.
+ */
 function applyGuardFineOutcome(gm, type, turn) {
   if (!gm || typeof gm !== "object") return;
 
@@ -1338,6 +1350,37 @@ function applyGuardFineOutcome(gm, type, turn) {
     entry.lastUpdatedTurn = safeTurn;
   }
 
+  function maybeDecayGuardFineHeat() {
+    const totalRefusals = storyFlags.guardFineRefusals | 0;
+    if (totalRefusals <= 0) return;
+
+    const rawLastRefusalTurn = storyFlags.guardFineLastRefusalTurn;
+    if (typeof rawLastRefusalTurn !== "number") return;
+    let lastRefusalTurn = rawLastRefusalTurn | 0;
+    if (lastRefusalTurn < 0) lastRefusalTurn = 0;
+
+    const age = safeTurn - lastRefusalTurn;
+    if (age <= GUARD_FINE_HEAT_TURNS) return;
+
+    const decayedRefusalsRaw = storyFlags.guardFineRefusalsDecayed;
+    const decayedRefusals = decayedRefusalsRaw == null ? 0 : (decayedRefusalsRaw | 0);
+    let pendingRefusals = totalRefusals - decayedRefusals;
+    if (pendingRefusals <= 0) return;
+    if (pendingRefusals > totalRefusals) {
+      pendingRefusals = totalRefusals;
+    }
+
+    // Cool off hostility from old refusals by adding matching "good" samples.
+    bump(guard, 0, pendingRefusals);
+    bump(town, 0, pendingRefusals);
+
+    storyFlags.guardFineRefusalsDecayed = decayedRefusals + pendingRefusals;
+    storyFlags.guardFineHeatLastDecayTurn = safeTurn;
+  }
+
+  // Decay any long-expired guard fine heat before applying the new outcome.
+  maybeDecayGuardFineHeat();
+
   if (type === "gm.guardFine.pay") {
     bump(guard, 0, 1);
     bump(town, 0, 1);
@@ -1345,7 +1388,10 @@ function applyGuardFineOutcome(gm, type, turn) {
   } else if (type === "gm.guardFine.refuse") {
     bump(guard, 1, 0);
     bump(town, 1, 0);
-    storyFlags.guardHostilityLocked = true;
+
+    const prevRefusals = storyFlags.guardFineRefusals | 0;
+    storyFlags.guardFineRefusals = prevRefusals + 1;
+    storyFlags.guardFineLastRefusalTurn = safeTurn;
   }
 }
 
