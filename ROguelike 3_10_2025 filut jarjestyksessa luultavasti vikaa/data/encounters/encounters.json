@@ -106,6 +106,14 @@
       ]
     },
     {
+      "id": "gm_guard_fine",
+      "name": "GM: Guard Fine (Test)",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP", "TOWN"],
+      "map": { "generator": "arena", "w": 1, "h": 1 },
+      "groups": []
+    },
+    {
       "id": "gm_bandit_bounty",
       "name": "GM: Bandit Bounty Hunters",
       "baseWeight": 0.0,
