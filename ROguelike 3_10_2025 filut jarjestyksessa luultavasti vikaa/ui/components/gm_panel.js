@@ -496,6 +496,31 @@ function renderSnapshot(gm) {
     });
   }
 
+  // Guard Fine faction event slot status (read-only view from gm.storyFlags)
+  const sf = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : {};
+  const fe = sf.factionEvents && typeof sf.factionEvents === "object" ? sf.factionEvents : {};
+  const slot = fe.guardFine && typeof fe.guardFine === "object" ? fe.guardFine : null;
+
+  let guardFineLine = "Guard Fine: none";
+  if (slot) {
+    const status = typeof slot.status === "string" ? slot.status : "none";
+    const earliest = typeof slot.earliestTurn === "number" ? (slot.earliestTurn | 0) : null;
+    const latest = typeof slot.latestTurn === "number" ? (slot.latestTurn | 0) : null;
+
+    if (status === "scheduled") {
+      const t = earliest != null ? earliest : "?";
+      guardFineLine = "Guard Fine: scheduled @ T=" + t;
+    } else if (status === "consumed") {
+      const t = latest != null ? latest : "?";
+      guardFineLine = "Guard Fine: consumed @ T=" + t;
+    } else if (status !== "none") {
+      guardFineLine = "Guard Fine: " + status;
+    }
+  }
+
+  lines.push("");
+  lines.push(guardFineLine);
+
   _statsEl.textContent = lines.join("\n");
 
   if (_profileEl) {
