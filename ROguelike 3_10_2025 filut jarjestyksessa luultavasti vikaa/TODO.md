@@ -426,6 +426,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
   - [x] `region_map/region_map_runtime.js` has been split into smaller helpers (sampling/biomes, animals, persistence, input, RUINS):
     - `region_map_sampling.js`, `region_map_persistence.js`, `region_map_animals.js`, `region_map_actions.js`, `region_map_ruins.js`, with `region_map_runtime.js` now acting as a thin orchestrator.
+  - [ ] `core/gm/runtime.js` has grown large; consider splitting into focused modules (state shape, traits/factions, travel events, hints) and adding more targeted tests.
 - [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
   - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
   - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
