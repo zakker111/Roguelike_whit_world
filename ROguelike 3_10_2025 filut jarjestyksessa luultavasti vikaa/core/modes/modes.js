@@ -17,7 +17,7 @@ import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
 import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
-const NPC_RUMOR_COOLDOWN_TURNS = 200;
+const NPC_RUMOR_COOLDOWN_TURNS = 300;
 const NPC_TRAIT_MIN_SAMPLES = 3;
 const NPC_TRAIT_MIN_SCORE = 0.4;
 const NPC_TRAIT_FORGET_TURNS = 300;
@@ -314,6 +314,11 @@ function gmEvent(ctx, event) {
         const gm = GM.getState(ctx);
         if (!gm || gm.enabled === false) return;
 
+        // Ensure storyFlags exists so we can persist NPC rumor cooldown deterministically.
+        if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+          gm.storyFlags = {};
+        }
+
         // Cooldown to avoid spam: at least N turns between NPC rumors.
         let turn = 0;
         if (ctx.time && typeof ctx.time.turnCounter === "number") {
@@ -322,8 +327,28 @@ function gmEvent(ctx, event) {
           turn = gm.debug.lastTickTurn | 0;
         }
 
-        const lastTurn = typeof ctx._gmNpcLastRumorTurn === "number" ? (ctx._gmNpcLastRumorTurn | 0) : -1;
+        let lastTurn = -1;
+        if (typeof gm.storyFlags.lastNpcRumorTurn === "number") {
+          lastTurn = gm.storyFlags.lastNpcRumorTurn | 0;
+        } else if (typeof ctx._gmNpcLastRumorTurn === "number") {
+          lastTurn = ctx._gmNpcLastRumorTurn | 0;
+          // Backward-compat: migrate any existing ctx-local value into GM state.
+          gm.storyFlags.lastNpcRumorTurn = lastTurn;
+        }
+
         if (lastTurn >= 0 && (turn - lastTurn) < NPC_RUMOR_COOLDOWN_TURNS) return;
+
+        // Additional rarity gating: only surface an NPC rumor on the first entry,
+        // then at most once every few town/tavern entries.
+        try {
+          const stats = gm.stats && typeof gm.stats === "object" ? gm.stats : null;
+          const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
+          const entriesForScope = modeEntries && typeof modeEntries[scope] === "number" ? (modeEntries[scope] | 0) : 0;
+          if (entriesForScope > 1) {
+            const ENTRY_PERIOD = 3; // 1st, 4th, 7th, ... entries into town/tavern.
+            if ((entriesForScope - 1) % ENTRY_PERIOD !== 0) return;
+          }
+        } catch (_) {}
 
         const topic = pickNpcRumorTopic(gm, turn);
         if (!topic) return;
@@ -382,6 +407,12 @@ function gmEvent(ctx, event) {
         }
 
         if (text) {
+          // Persist cooldown turn in GM state so it survives ctx recreation.
+          if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+            gm.storyFlags = {};
+          }
+          gm.storyFlags.lastNpcRumorTurn = turn;
+          // Also keep ctx-local field for any legacy callers that might read it.
           ctx._gmNpcLastRumorTurn = turn;
           ctx.log(text, "flavor", { category: "gm-npc" });
         }

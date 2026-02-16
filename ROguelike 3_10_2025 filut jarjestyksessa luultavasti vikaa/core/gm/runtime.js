@@ -20,8 +20,8 @@ const SCHEMA_VERSION = 6;
 const MAX_DEBUG_EVENTS = 50;
 const MAX_INTENT_HISTORY = 20;
 const ACTION_COOLDOWN_TURNS = 80;
-// Entrance flavor can be a bit more frequent than mechanics hints.
-const ENTRANCE_INTENT_COOLDOWN_TURNS = 40;
+// Entrance flavor can be a bit more frequent than mechanics hints, but we still keep it rare.
+const ENTRANCE_INTENT_COOLDOWN_TURNS = 60;
 // Hints stay on the original, rarer cadence.
 const HINT_INTENT_COOLDOWN_TURNS = ACTION_COOLDOWN_TURNS;
 const MOOD_DECAY_PER_TURN = 0.98;
@@ -1425,6 +1425,21 @@ export function getEntranceIntent(ctx, mode) {
   const moodLabel = gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "neutral";
   const modeKey = typeof mode === "string" && mode ? mode : (ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown"));
   const boredomLevel = profile.boredomLevel;
+
+  // Additional rarity gating: do not fire entrance flavor on every town/tavern entry.
+  // Allow it on the first entry, then at most once every few entries per scope.
+  try {
+    const stats = ensureStats(gm);
+    const modeEntries = stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : {};
+    const entriesForMode = modeEntries[modeKey] != null ? (modeEntries[modeKey] | 0) : 0;
+
+    if ((modeKey === "town" || modeKey === "tavern") && entriesForMode > 1) {
+      const ENTRY_PERIOD = 4; // 1st, 5th, 9th, ... entries into town/tavern.
+      if ((entriesForMode - 1) % ENTRY_PERIOD !== 0) {
+        return { kind: "none" };
+      }
+    }
+  } catch (_) {}
 
   // Precompute a variety topic based on long-term mode usage if the run looks monotonous.
   let varietyTopic = null;
