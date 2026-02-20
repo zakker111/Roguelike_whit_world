@@ -364,7 +364,7 @@ function getMechanicKnowledge(m, currentTurn) {
     if (age < 0) age = 0;
   }
 
-  if (seen <= 0) {
+  if (seen <= 0 && tried <= 0) {
     return "unseen";
   }
 
@@ -1572,10 +1572,9 @@ export function getMechanicHint(ctx) {
     return { kind: "none" };
   }
 
-  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
-    ? gm.boredom.level
-    : 0;
-  if (boredomLevel <= 0.6) {
+  // Early game guard: don't start nudging mechanics immediately on the first few entries.
+  const stats = ensureStats(gm);
+  if ((stats.totalTurns | 0) < 30) {
     return { kind: "none" };
   }
 
@@ -1586,11 +1585,20 @@ export function getMechanicHint(ctx) {
     return { kind: "none" };
   }
 
+  const boredomLevelRaw = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
+    ? gm.boredom.level
+    : 0;
+  const boredomLevel = localClamp(boredomLevelRaw, 0, 1);
+
+  const modeKey = ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown");
+  const isTown = modeKey === "town";
+
   const mechanics = gm.mechanics && typeof gm.mechanics === "object" ? gm.mechanics : {};
   const keys = ["fishing", "lockpicking", "questBoard", "followers"];
 
   let bestKey = null;
   let bestScore = -1;
+  let bestTried = 1e9;
   let bestSeen = -1;
 
   for (let i = 0; i < keys.length; i++) {
@@ -1599,32 +1607,43 @@ export function getMechanicHint(ctx) {
     if (!m || typeof m !== "object") continue;
 
     const state = getMechanicKnowledge(m, turn);
-    if (state !== "seenNotTried" && state !== "triedLongAgo") continue;
+    if (state === "disinterested" || state === "triedRecently") continue;
+
+    // Only nudge mechanics the player has NOT used yet.
+    const tried = m.tried | 0;
+    if (tried !== 0) continue;
 
     const seen = m.seen | 0;
 
+    // Prefer mechanics the player has seen but not tried yet.
+    // In town, lightly prefer town mechanics to avoid fixed-order tie-breaking.
+    // Boredom does not hard-gate hints; it only increases priority deterministically.
     let score = 0;
-    if (state === "seenNotTried") {
-      score += 3;
-    } else if (state === "triedLongAgo") {
-      score += 1;
-    }
+    score += 5;
+    if (state === "seenNotTried") score += 3;
+
+    if (isTown && (key === "questBoard" || key === "followers")) score += 1;
 
     score += Math.round(boredomLevel * 2);
-    if (seen > 5) {
-      score += 1;
-    }
+    if (seen > 5) score += 1;
 
     if (score > bestScore) {
       bestScore = score;
+      bestTried = tried;
       bestSeen = seen;
       bestKey = key;
     } else if (score === bestScore && bestKey !== null) {
-      if (seen > bestSeen) {
+      if (tried < bestTried) {
+        bestTried = tried;
         bestSeen = seen;
         bestKey = key;
+      } else if (tried === bestTried) {
+        if (seen > bestSeen) {
+          bestSeen = seen;
+          bestKey = key;
+        }
+        // If score/tried/seen are equal we keep the earlier key, preserving fixed ordering.
       }
-      // If score and seen are equal we keep the earlier key, preserving fixed key ordering.
     }
   }
 

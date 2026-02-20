@@ -218,6 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/town_diagnostics.js',
         '/smoketest/scenarios/api.js',
         '/smoketest/scenarios/encounters.js',
+        '/smoketest/scenarios/gm_mechanic_hints.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

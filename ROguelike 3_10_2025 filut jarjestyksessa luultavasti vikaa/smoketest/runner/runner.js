@@ -1008,6 +1008,7 @@
         overlays: S.Overlays && S.Overlays.run,
         determinism: S.Determinism && S.Determinism.run,
         encounters: S.Encounters && S.Encounters.run,
+        gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
       };
       let pipeline = [];
       try {

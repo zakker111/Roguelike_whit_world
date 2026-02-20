@@ -12,6 +12,7 @@
     { "id": "determinism", "label": "Determinism" },
     { "id": "encounters", "label": "Encounters" },
     { "id": "api", "label": "API" },
-    { "id": "town_flows", "label": "Town Flows" }
+    { "id": "town_flows", "label": "Town Flows" },
+    { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" }
   ]
 }
