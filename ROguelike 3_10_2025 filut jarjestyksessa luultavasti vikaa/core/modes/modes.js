@@ -1375,5 +1375,7 @@ attachGlobal("Modes", {
   leaveTownNow,
   requestLeaveTown,
   saveCurrentDungeonState,
-  loadDungeonStateFor
+  loadDungeonStateFor,
+  // Private test hook: allows unit-style sims to exercise the same GM integration path as the real game.
+  __gmEvent: gmEvent
 });
