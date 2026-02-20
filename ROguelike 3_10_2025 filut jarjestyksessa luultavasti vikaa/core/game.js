@@ -484,8 +484,8 @@ import "./sandbox/runtime.js";
   }
 
   
-  function log(msg, type = "info") {
-    try { logFacade(getCtx(), msg, type); } catch (_) {
+  function log(msg, type = "info", details = null) {
+    try { logFacade(getCtx(), msg, type, details); } catch (_) {
       try { console.log(`[${type}] ${msg}`); } catch (_) {}
     }
   }

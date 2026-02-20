@@ -143,6 +143,51 @@
         restoreMechanics(gm.mechanics, snap.mechanics);
       } catch (_) {}
 
+      // Smoke: ensure ctx.log forwards details to Logger.log so category filters work.
+      try {
+        const LC = window.LogConfig;
+        const L = window.Logger;
+        if (!LC || !has(LC.setCategory) || !L || !has(L.getHistory) || !has(window.GameAPI.getCtx)) {
+          ctx.recordSkip && ctx.recordSkip("GM log category forwarding skipped (LogConfig/Logger/GameAPI missing)");
+        } else {
+          const savedCats = (() => {
+            try { return JSON.parse(JSON.stringify(LC._cats || {})); } catch (_) { return null; }
+          })();
+          const savedRaw = (() => {
+            try { return localStorage.getItem("LOG_CATEGORIES"); } catch (_) { return null; }
+          })();
+
+          try {
+            LC.setCategory("General", false);
+            LC.setCategory("gm", true);
+
+            const tag = "SMOKE: gm category forwarding " + Date.now();
+            const c2 = window.GameAPI.getCtx();
+            c2.log(tag, "flavor", { category: "gm" });
+
+            const hist = L.getHistory();
+            let found = null;
+            for (let i = hist.length - 1; i >= 0; i--) {
+              const e = hist[i];
+              if (e && e.msg === tag) { found = e; break; }
+            }
+
+            ctx.record(!!found, "GM log is emitted when General category disabled (category:gm)");
+            ctx.record(!!(found && found.category === "gm"), "GM log preserves category 'gm' (details forwarded through ctx.log)");
+          } finally {
+            if (savedCats) {
+              try { LC._cats = savedCats; } catch (_) {}
+              try {
+                if (savedRaw != null) localStorage.setItem("LOG_CATEGORIES", savedRaw);
+                else localStorage.removeItem("LOG_CATEGORIES");
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        ctx.record(false, "GM log category forwarding failed: " + (e && e.message ? e.message : String(e)));
+      }
+
       return true;
     } catch (e) {
       ctx.record(false, "GM mechanic hints scenario failed: " + (e && e.message ? e.message : String(e)));

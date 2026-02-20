@@ -25,7 +25,8 @@
  * - isShopOpenNow(shop), shopScheduleStr(shop)
  * - advanceTimeMinutes(mins), getWeatherSnapshot()
  * - returnToWorldIfAtExit(), returnToWorldFromTown(), initWorld()
- * - startEscortAutoTravel(), getClock(), log(msg,type)
+ * - startEscortAutoTravel(), getClock(), log(msg,type,details?)
+ * - enterSandboxRoom
  */
 export function buildGameAPIImpl(deps) {
   try {
@@ -207,7 +208,8 @@ export function buildGameAPIImpl(deps) {
       generateLoot: (source) => generateLoot(source),
       getClock: () => getClock(),
       getCtx: () => getCtx(),
-      log: (msg, type) => log(msg, type),
+      // Forward optional structured details so category filtering works.
+      log: (msg, type, details) => log(msg, type, details),
       enterSandboxRoom: () => enterSandboxRoom(),
     });
   } catch (_) {}
