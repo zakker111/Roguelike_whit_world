@@ -356,6 +356,17 @@ export function init(UI) {
     dlBtn.disabled = true;
   }
 
+  // GM emission sim
+  const gmRunBtn = byId("god-run-gm-emission-sim-btn");
+  gmRunBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodRunGmEmissionSim === "function") UI.handlers.onGodRunGmEmissionSim();
+  });
+
+  const gmCopyBtn = byId("god-copy-gm-emission-sim-btn");
+  gmCopyBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodCopyGmEmissionSim === "function") UI.handlers.onGodCopyGmEmissionSim();
+  });
+
   // FOV slider
   const fov = byId("god-fov");
   const fovVal = byId("god-fov-value");

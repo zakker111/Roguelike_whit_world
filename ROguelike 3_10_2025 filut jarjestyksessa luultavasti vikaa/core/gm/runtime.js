@@ -1853,5 +1853,18 @@ export function reset(ctx, opts = {}) {
   return init(ctx, nextOpts);
 }
 
+// Internal/test helpers: allow dev tools to preserve and restore the module-local GM state.
+export function __getRawState() {
+  return _state;
+}
+
+export function __setRawState(nextState, ctx) {
+  _state = nextState;
+  if (ctx) {
+    ctx.gm = _state;
+  }
+  return _state;
+}
+
 // Back-compat: attach to window via helper
-attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint, getFactionTravelEvent, forceFactionTravelEvent });
+attachGlobal("GMRuntime", { init, tick, onEvent, getState, reset, getEntranceIntent, getMechanicHint, getFactionTravelEvent, forceFactionTravelEvent, __getRawState, __setRawState });

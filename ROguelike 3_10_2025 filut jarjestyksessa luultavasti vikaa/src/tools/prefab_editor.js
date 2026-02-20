@@ -470,12 +470,44 @@ function bindUI() {
   // Export
   els.copyJSONBtn.addEventListener("click", async () => {
     const txt = buildPrefabJSONString();
-    try {
-      await navigator.clipboard.writeText(txt);
-      setStatus("Copied JSON to clipboard.");
-    } catch (_) {
-      setStatus("Copy failed. You can use Download instead.");
+
+    function fallbackCopy() {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = txt;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try {
+          ok = document.execCommand("copy");
+        } catch (_) {
+          ok = false;
+        }
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) {
+        return false;
+      }
     }
+
+    const hasClipboard = typeof navigator !== "undefined"
+      && navigator.clipboard
+      && typeof navigator.clipboard.writeText === "function";
+
+    if (hasClipboard) {
+      try {
+        await navigator.clipboard.writeText(txt);
+        setStatus("Copied JSON to clipboard.");
+        return;
+      } catch (_) {
+        // fall through to execCommand fallback
+      }
+    }
+
+    const ok = fallbackCopy();
+    setStatus(ok ? "Copied JSON to clipboard. (fallback)" : "Copy failed. You can use Download instead.");
   });
   els.downloadJSONBtn.addEventListener("click", () => {
     const txt = buildPrefabJSONString();

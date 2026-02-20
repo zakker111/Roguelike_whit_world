@@ -57,6 +57,9 @@ export const UI = {
     // Sandbox helpers
     onGodEnterSandbox: null,
     onToggleSandboxPanel: null,
+    // GM sim tools
+    onGodRunGmEmissionSim: null,
+    onGodCopyGmEmissionSim: null,
   },
 
   init() {
@@ -301,7 +304,7 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport, onGodEnterSandbox, onToggleSandboxPanel } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport, onGodEnterSandbox, onToggleSandboxPanel, onGodRunGmEmissionSim, onGodCopyGmEmissionSim } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -336,6 +339,8 @@ export const UI = {
     if (typeof onGodTownBandits === "function") this.handlers.onGodTownBandits = onGodTownBandits;
     if (typeof onGodTeleportToTower === "function") this.handlers.onGodTeleportToTower = onGodTeleportToTower;
     if (typeof onGodTeleport === "function") this.handlers.onGodTeleport = onGodTeleport;
+    if (typeof onGodRunGmEmissionSim === "function") this.handlers.onGodRunGmEmissionSim = onGodRunGmEmissionSim;
+    if (typeof onGodCopyGmEmissionSim === "function") this.handlers.onGodCopyGmEmissionSim = onGodCopyGmEmissionSim;
 
     // Extra handlers (added later) for applying status effects or sandbox actions via GOD panel.
     const extra = arguments[0] || {};
