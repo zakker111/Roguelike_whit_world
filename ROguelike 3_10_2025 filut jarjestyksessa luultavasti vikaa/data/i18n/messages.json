@@ -20,7 +20,7 @@
   "gm": {
     "entrance": {
       "familyRumor": "You hear rumors about recent troubles with {family}.",
-      "generalRumor": "You catch a stray rumor as you arrive.",
+      "generalRumor": "You overhear local gossip: someone swears trouble is brewing just beyond the town walls.",
       "variety": {
         "tryTown": "You get the sense the townsfolk have different work for you.",
         "tryDungeon": "You hear whispers that the dungeons have changed since your last delve.",
