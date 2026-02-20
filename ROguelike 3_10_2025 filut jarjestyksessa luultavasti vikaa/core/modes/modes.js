@@ -195,12 +195,15 @@ function gmEvent(ctx, event) {
     const ev = event || {};
     const isModeEnter = ev.type === "mode.enter";
     const scope = ev.scope || ctx.mode || "unknown";
+    const isTownEnter = isModeEnter && scope === "town";
+    let townEntryFlavorLogged = false;
 
     if (isModeEnter && typeof GM.getEntranceIntent === "function" && typeof ctx.log === "function") {
       if (scope === "world" || scope === "town" || scope === "dungeon" || scope === "tavern") {
         try {
           const intent = GM.getEntranceIntent(ctx, scope);
           if (intent && intent.kind === "flavor") {
+            if (isTownEnter) townEntryFlavorLogged = true;
             const topic = typeof intent.topic === "string" ? intent.topic : "";
             const M = ctx.Messages || getMod(ctx, "Messages");
             const hasMessages = !!(M && typeof M.get === "function" && typeof M.log === "function");
@@ -307,106 +310,109 @@ function gmEvent(ctx, event) {
     }
 
     // Secondary flavor channel: NPC trait/family rumors on town/tavern entry.
-    if (isModeEnter && (scope === "town" || scope === "tavern")) {
-      try {
-        if (typeof ctx.log !== "function") return;
-        if (typeof GM.getState !== "function") return;
-        const gm = GM.getState(ctx);
-        if (!gm || gm.enabled === false) return;
-
-        // Ensure storyFlags exists so we can persist NPC rumor cooldown deterministically.
-        if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
-          gm.storyFlags = {};
-        }
-
-        // Cooldown to avoid spam: at least N turns between NPC rumors.
-        let turn = 0;
-        if (ctx.time && typeof ctx.time.turnCounter === "number") {
-          turn = ctx.time.turnCounter | 0;
-        } else if (gm.debug && typeof gm.debug.lastTickTurn === "number") {
-          turn = gm.debug.lastTickTurn | 0;
-        }
-
-        let lastTurn = -1;
-        if (typeof gm.storyFlags.lastNpcRumorTurn === "number") {
-          lastTurn = gm.storyFlags.lastNpcRumorTurn | 0;
-        } else if (typeof ctx._gmNpcLastRumorTurn === "number") {
-          lastTurn = ctx._gmNpcLastRumorTurn | 0;
-          // Backward-compat: migrate any existing ctx-local value into GM state.
-          gm.storyFlags.lastNpcRumorTurn = lastTurn;
-        }
-
-        if (lastTurn >= 0 && (turn - lastTurn) < NPC_RUMOR_COOLDOWN_TURNS) return;
-
-        // Additional rarity gating: only surface an NPC rumor on the first entry,
-        // then at most once every few town/tavern entries.
+    const npcRumorLogged = (isModeEnter && (scope === "town" || scope === "tavern"))
+      ? (function () {
         try {
-          const stats = gm.stats && typeof gm.stats === "object" ? gm.stats : null;
-          const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
-          const entriesForScope = modeEntries && typeof modeEntries[scope] === "number" ? (modeEntries[scope] | 0) : 0;
-          if (entriesForScope > 1) {
-            const ENTRY_PERIOD = 3; // 1st, 4th, 7th, ... entries into town/tavern.
-            if ((entriesForScope - 1) % ENTRY_PERIOD !== 0) return;
+          if (scope === "town" && townEntryFlavorLogged) return false;
+          if (typeof ctx.log !== "function") return false;
+          if (typeof GM.getState !== "function") return false;
+          const gm = GM.getState(ctx);
+          if (!gm || gm.enabled === false) return false;
+
+          // Ensure storyFlags exists so we can persist NPC rumor cooldown deterministically.
+          if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+            gm.storyFlags = {};
           }
-        } catch (_) {}
 
-        const topic = pickNpcRumorTopic(gm, turn);
-        if (!topic) return;
-
-        const M = ctx.Messages || getMod(ctx, "Messages");
-        let text = null;
-
-        if (topic.kind === "trait") {
-          const key = `gm.npcRumors.${topic.id}`;
-          if (M && typeof M.get === "function") {
-            try {
-              text = M.get(key, null);
-            } catch (_) {}
+          // Cooldown to avoid spam: at least N turns between NPC rumors.
+          let turn = 0;
+          if (ctx.time && typeof ctx.time.turnCounter === "number") {
+            turn = ctx.time.turnCounter | 0;
+          } else if (gm.debug && typeof gm.debug.lastTickTurn === "number") {
+            turn = gm.debug.lastTickTurn | 0;
           }
-          if (!text) {
-            if (topic.id === "trollSlayer") {
-              text = "A local mutters: \"They say someone has a grudge against trolls around here...\"";
-            } else if (topic.id === "townProtector") {
-              text = "You overhear: \"The town sleeps easier thanks to a certain defender.\"";
-            } else if (topic.id === "caravanAlly") {
-              text = "Merchants whisper: \"Caravans seem to like that one.\"";
+
+          let lastTurn = -1;
+          if (typeof gm.storyFlags.lastNpcRumorTurn === "number") {
+            lastTurn = gm.storyFlags.lastNpcRumorTurn | 0;
+          } else if (typeof ctx._gmNpcLastRumorTurn === "number") {
+            lastTurn = ctx._gmNpcLastRumorTurn | 0;
+            // Backward-compat: migrate any existing ctx-local value into GM state.
+            gm.storyFlags.lastNpcRumorTurn = lastTurn;
+          }
+
+          if (lastTurn >= 0 && (turn - lastTurn) < NPC_RUMOR_COOLDOWN_TURNS) return false;
+
+          // Additional rarity gating: only surface an NPC rumor on the first entry,
+          // then at most once every few town/tavern entries.
+          try {
+            const stats = gm.stats && typeof gm.stats === "object" ? gm.stats : null;
+            const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
+            const entriesForScope = modeEntries && typeof modeEntries[scope] === "number" ? (modeEntries[scope] | 0) : 0;
+            if (entriesForScope > 1) {
+              const ENTRY_PERIOD = 3; // 1st, 4th, 7th, ... entries into town/tavern.
+              if ((entriesForScope - 1) % ENTRY_PERIOD !== 0) return false;
+            }
+          } catch (_) {}
+
+          const topic = pickNpcRumorTopic(gm, turn);
+          if (!topic) return false;
+
+          const M = ctx.Messages || getMod(ctx, "Messages");
+          let text = null;
+
+          if (topic.kind === "trait") {
+            const key = `gm.npcRumors.${topic.id}`;
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(key, null);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.id === "trollSlayer") {
+                text = "A local mutters: \"They say someone has a grudge against trolls around here...\"";
+              } else if (topic.id === "townProtector") {
+                text = "You overhear: \"The town sleeps easier thanks to a certain defender.\"";
+              } else if (topic.id === "caravanAlly") {
+                text = "Merchants whisper: \"Caravans seem to like that one.\"";
+              }
+            }
+          } else if (topic.kind === "family") {
+            const label = formatFamilyLabel(topic.key);
+            const vars = { family: label };
+            const msgKey = topic.polarity === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(msgKey, vars);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.polarity === "slayer") {
+                text = `Someone mentions trouble for the ${label} in recent days.`;
+              } else {
+                text = `An idle rumor suggests the ${label} have a friend in town.`;
+              }
+            }
+          } else if (topic.kind === "faction") {
+            const label = String(topic.label || formatFamilyLabel(topic.key));
+            const vars = { family: label };
+            const msgKey = topic.role === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(msgKey, vars);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.role === "slayer") {
+                text = `Someone mentions trouble for the ${label} in recent days.`;
+              } else {
+                text = `An idle rumor suggests the ${label} has a friend in town.`;
+              }
             }
           }
-        } else if (topic.kind === "family") {
-          const label = formatFamilyLabel(topic.key);
-          const vars = { family: label };
-          const msgKey = topic.polarity === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
-          if (M && typeof M.get === "function") {
-            try {
-              text = M.get(msgKey, vars);
-            } catch (_) {}
-          }
-          if (!text) {
-            if (topic.polarity === "slayer") {
-              text = `Someone mentions trouble for the ${label} in recent days.`;
-            } else {
-              text = `An idle rumor suggests the ${label} have a friend in town.`;
-            }
-          }
-        } else if (topic.kind === "faction") {
-          const label = String(topic.label || formatFamilyLabel(topic.key));
-          const vars = { family: label };
-          const msgKey = topic.role === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
-          if (M && typeof M.get === "function") {
-            try {
-              text = M.get(msgKey, vars);
-            } catch (_) {}
-          }
-          if (!text) {
-            if (topic.role === "slayer") {
-              text = `Someone mentions trouble for the ${label} in recent days.`;
-            } else {
-              text = `An idle rumor suggests the ${label} has a friend in town.`;
-            }
-          }
-        }
 
-        if (text) {
+          if (!text) return false;
+
           // Persist cooldown turn in GM state so it survives ctx recreation.
           if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
             gm.storyFlags = {};
@@ -415,6 +421,58 @@ function gmEvent(ctx, event) {
           // Also keep ctx-local field for any legacy callers that might read it.
           ctx._gmNpcLastRumorTurn = turn;
           ctx.log(text, "flavor", { category: "gm-npc" });
+          return true;
+        } catch (_) {}
+        return false;
+      })()
+      : false;
+
+    if (isTownEnter && npcRumorLogged) townEntryFlavorLogged = true;
+
+    // Mechanic rumor channel: only on town entry, and only if nothing else logged this entry.
+    if (isTownEnter && !townEntryFlavorLogged) {
+      try {
+        if (typeof GM.getMechanicHint === "function" && typeof ctx.log === "function") {
+          const intent = GM.getMechanicHint(ctx);
+          if (intent && intent.kind === "nudge" && typeof intent.target === "string" && intent.target.indexOf("mechanic:") === 0) {
+            const mechanic = intent.target.slice("mechanic:".length);
+            const OFFSETS = { fishing: 0, lockpicking: 1, questBoard: 2, followers: 0 };
+            const FALLBACK = {
+              fishing: "You overhear: \"Try casting a line in town—some ponds are more generous than they look.\"",
+              lockpicking: "A thief whispers: \"Most locks are easier than they seem—just take your time.\"",
+              questBoard: "Someone points you toward the quest board. \"If you want work, that's where it starts.\"",
+              followers: "You hear: \"A trusted companion can make the road much safer.\""
+            };
+            if (Object.prototype.hasOwnProperty.call(OFFSETS, mechanic)) {
+              let entries = 0;
+              try {
+                if (typeof GM.getState === "function") {
+                  const gm = GM.getState(ctx);
+                  const stats = gm && gm.stats && typeof gm.stats === "object" ? gm.stats : null;
+                  const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
+                  if (modeEntries && typeof modeEntries.town === "number") entries = modeEntries.town | 0;
+                }
+              } catch (_) {}
+
+              const base = Math.max(0, entries - 1);
+              const idx = (base + (OFFSETS[mechanic] | 0)) % 3;
+              const key = `gm.mechanic.${mechanic}Hint.${idx}`;
+
+              const M = ctx.Messages || getMod(ctx, "Messages");
+              let text = "";
+              if (M && typeof M.get === "function") {
+                try {
+                  text = M.get(key, null);
+                } catch (_) {}
+              }
+              if (!text) text = FALLBACK[mechanic] || "";
+
+              if (text) {
+                ctx.log(text, "flavor", { category: "gm" });
+                townEntryFlavorLogged = true;
+              }
+            }
+          }
         }
       } catch (_) {}
     }

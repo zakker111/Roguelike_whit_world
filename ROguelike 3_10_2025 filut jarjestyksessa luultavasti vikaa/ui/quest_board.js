@@ -302,67 +302,6 @@ export function open(ctx) {
     }
   } catch (_) {}
 
-  // GMRuntime: optional mechanic hint when quest board is opened
-  try {
-    const GA = (typeof window !== "undefined" ? window.GameAPI : null);
-    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
-    if (GM && typeof GM.getMechanicHint === "function") {
-      let ctxForGM = null;
-      if (GA && typeof GA.getCtx === "function") {
-        try {
-          ctxForGM = GA.getCtx();
-        } catch (_) {}
-      }
-      if (!ctxForGM) ctxForGM = ctx || null;
-      if (ctxForGM) {
-        const intent = GM.getMechanicHint(ctxForGM);
-        if (intent && intent.kind === "nudge" && typeof intent.target === "string" && intent.target.indexOf("mechanic:") === 0) {
-          const target = intent.target;
-          const Messages = (typeof window !== "undefined" && window.Messages) ? window.Messages : null;
-          let usedMessages = false;
-
-          if (Messages && typeof Messages.get === "function" && typeof Messages.log === "function") {
-            let key = "";
-            if (target === "mechanic:fishing") {
-              key = "gm.mechanic.fishingHint";
-            } else if (target === "mechanic:lockpicking") {
-              key = "gm.mechanic.lockpickingHint";
-            } else if (target === "mechanic:questBoard") {
-              key = "gm.mechanic.questBoardHint";
-            } else if (target === "mechanic:followers") {
-              key = "gm.mechanic.followersHint";
-            }
-            if (key) {
-              try {
-                const text = Messages.get(key, null);
-                if (text) {
-                  Messages.log(ctxForGM, key, null, "flavor");
-                  usedMessages = true;
-                }
-              } catch (_) {}
-            }
-          }
-
-          if (!usedMessages) {
-            let msg = "";
-            if (target === "mechanic:fishing") {
-              msg = "You overhear talk about strange fish being caught nearby.";
-            } else if (target === "mechanic:lockpicking") {
-              msg = "Someone brags that locked chests hold more than the obvious rewards.";
-            } else if (target === "mechanic:questBoard") {
-              msg = "Adventurers whisper that unusual jobs sometimes appear on this board.";
-            } else if (target === "mechanic:followers") {
-              msg = "You catch a comment that no one survives long in these lands alone.";
-            }
-            if (msg && typeof ctxForGM.log === "function") {
-              ctxForGM.log(msg, "flavor", { category: "gm" });
-            }
-          }
-        }
-      }
-    }
-  } catch (_) {}
-
   render(ctx);
 }
 

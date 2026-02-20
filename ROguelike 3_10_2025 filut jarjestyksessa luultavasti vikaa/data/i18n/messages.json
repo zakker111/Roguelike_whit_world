@@ -28,10 +28,26 @@
       }
     },
     "mechanic": {
-      "fishingHint": "You overhear talk about strange fish being caught nearby.",
-      "lockpickingHint": "Someone brags that locked chests hold more than the obvious rewards.",
-      "questBoardHint": "Adventurers whisper that unusual jobs sometimes appear on this board.",
-      "followersHint": "You catch a comment that no one survives long in these lands alone."
+      "fishingHint": {
+        "0": "Fishers swear the waters have been giving up strange catches lately.",
+        "1": "You hear talk of nets coming up heavy—then too quiet the next day.",
+        "2": "Someone mentions a catch that shouldn't exist this close to town."
+      },
+      "lockpickingHint": {
+        "0": "A trader mutters about stolen goods turning up behind locked lids.",
+        "1": "They say thieves have been testing every lock in town—just to see what gives.",
+        "2": "Whispers claim the best chests stay shut until you learn the trick of it."
+      },
+      "questBoardHint": {
+        "0": "Adventurers whisper that odd jobs appear on the board when no one is watching.",
+        "1": "Someone says the board has been posting work that doesn't fit any guild.",
+        "2": "You catch a rumor: the strangest contracts pay the quickest—if you dare."
+      },
+      "followersHint": {
+        "0": "You overhear: \"No one survives these roads alone for long.\"",
+        "1": "\"Hire help,\" someone advises. \"Steel and hands are cheaper than a grave.\"",
+        "2": "A weary traveler says, \"Two blades see more than one.\""
+      }
     },
     "npcRumors": {
       "trollSlayer": "A local mutters: \"They say someone has a grudge against trolls around here...\"",
