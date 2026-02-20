@@ -80,6 +80,26 @@ function formatArousalBar(val) {
   return `[${bar}]`;
 }
 
+function formatIntentDebugExtras(intent) {
+  if (!intent || typeof intent !== "object") return "";
+
+  const parts = [];
+
+  const channel = typeof intent.channel === "string" ? intent.channel.trim() : "";
+  if (channel) parts.push(`ch=${channel}`);
+
+  const reasonRaw = intent.reason;
+  const reason =
+    typeof reasonRaw === "string"
+      ? reasonRaw.trim()
+      : typeof reasonRaw === "number" || typeof reasonRaw === "boolean"
+      ? String(reasonRaw)
+      : "";
+  if (reason) parts.push(`why=${reason}`);
+
+  return parts.length ? " " + parts.join(" ") : "";
+}
+
 function getGMState() {
   try {
     if (typeof window === "undefined") return null;
@@ -441,7 +461,7 @@ function renderSnapshot(gm) {
       _moodEl.textContent = "mood: (no data)\nvalence:  [........]\narousal:  [----------]";
     }
     if (_mechEl) _mechEl.textContent = "";
-    if (_intentsEl) _intentsEl.textContent = "GM intents (latest first)\n  No GM intents yet.";
+    if (_intentsEl) _intentsEl.textContent = "GM intents (latest first; 'none' = decision)\n  No GM intents yet.";
     _eventsEl.textContent = "No GM events (GMRuntime not available).";
     if (_toggleBtn) {
       _toggleBtn.textContent = "GM N/A";
@@ -744,7 +764,7 @@ function renderSnapshot(gm) {
       if (lastIntent.target) label += `:${lastIntent.target}`;
       if (lastIntent.id) label += `:${lastIntent.id}`;
       const t = typeof lastIntent.turn === "number" ? (lastIntent.turn | 0) : "?";
-      linesMood.push(`last intent: [T ${t}] ${label}`);
+      linesMood.push(`last intent: [T ${t}] ${label}${formatIntentDebugExtras(lastIntent)}`);
     } else {
       linesMood.push("last intent: (none)");
     }
@@ -783,10 +803,10 @@ function renderSnapshot(gm) {
   if (_intentsEl) {
     const intentHistory = Array.isArray(debug.intentHistory) ? debug.intentHistory : null;
     if (!intentHistory || !intentHistory.length) {
-      _intentsEl.textContent = "GM intents (latest first)\n  No GM intents yet.";
+      _intentsEl.textContent = "GM intents (latest first; 'none' = decision)\n  No GM intents yet.";
     } else {
       const intentLines = [];
-      intentLines.push("GM intents (latest first)");
+      intentLines.push("GM intents (latest first; 'none' = decision)");
       const maxIntents = Math.min(intentHistory.length, 10);
       for (let i = 0; i < maxIntents; i++) {
         const it = intentHistory[i];
@@ -809,7 +829,10 @@ function renderSnapshot(gm) {
             : typeof gm.boredom === "object" && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
             ? gm.boredom.level.toFixed(2)
             : "?";
-        intentLines.push(`  [T ${turn}] ${kindPart}  mood=${moodLabel} boredom=${boredomValue}`);
+        let row = `  [T ${turn}] ${kindPart}`;
+        row += formatIntentDebugExtras(it);
+        row += `  mood=${moodLabel} boredom=${boredomValue}`;
+        intentLines.push(row);
       }
       _intentsEl.textContent = intentLines.join("\n");
     }

@@ -1009,6 +1009,7 @@
         determinism: S.Determinism && S.Determinism.run,
         encounters: S.Encounters && S.Encounters.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
+        gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
       };
       let pipeline = [];
       try {

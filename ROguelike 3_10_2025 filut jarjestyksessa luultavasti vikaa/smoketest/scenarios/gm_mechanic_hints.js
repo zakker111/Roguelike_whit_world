@@ -66,6 +66,7 @@
       // Snapshot mutable fields we will touch.
       const snap = {
         lastHintIntentTurn: gm.lastHintIntentTurn,
+        lastHintIntentTownEntry: gm.lastHintIntentTownEntry,
         lastActionTurn: gm.lastActionTurn,
         stats: gm.stats ? {
           totalTurns: gm.stats.totalTurns | 0,
@@ -134,6 +135,7 @@
       // Restore snapshot.
       try {
         gm.lastHintIntentTurn = snap.lastHintIntentTurn;
+        gm.lastHintIntentTownEntry = snap.lastHintIntentTownEntry;
         gm.lastActionTurn = snap.lastActionTurn;
         if (snap.stats && gm.stats) {
           gm.stats.totalTurns = snap.stats.totalTurns | 0;

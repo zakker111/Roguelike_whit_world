@@ -122,6 +122,7 @@ function createDefaultState() {
     // Separate cooldown tracking for entrance flavor vs mechanic hints.
     lastEntranceIntentTurn: -1,
     lastHintIntentTurn: -1,
+    lastHintIntentTownEntry: -1,
   };
 }
 
@@ -531,6 +532,8 @@ function pushIntentDebug(gm, intent, turn) {
     topic: src.topic != null ? src.topic : null,
     target: src.target != null ? src.target : null,
     id: src.id != null ? src.id : null,
+    channel: typeof src.channel === "string" ? src.channel : null,
+    reason: typeof src.reason === "string" ? src.reason : null,
     turn: normalizeTurn(turn),
     mood: gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "unknown",
     boredom: gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
@@ -1448,8 +1451,13 @@ export function getEntranceIntent(ctx, mode) {
   const gm = _ensureState(ctx);
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
-  if (gm.enabled === false) {
+  function returnNone(reason) {
+    pushIntentDebug(gm, { kind: "none", channel: "entrance", reason }, turn);
     return { kind: "none" };
+  }
+
+  if (gm.enabled === false) {
+    return returnNone("disabled");
   }
 
   if (!gm.debug || typeof gm.debug !== "object") {
@@ -1459,9 +1467,15 @@ export function getEntranceIntent(ctx, mode) {
     gm.config = {};
   }
 
+  const modeKey = typeof mode === "string" && mode
+    ? mode
+    : (ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown"));
+
   const lastEntranceTurn = typeof gm.lastEntranceIntentTurn === "number" ? (gm.lastEntranceIntentTurn | 0) : -1;
-  if (lastEntranceTurn >= 0 && (turn - lastEntranceTurn) < ENTRANCE_INTENT_COOLDOWN_TURNS) {
-    return { kind: "none" };
+  if (modeKey !== "town" && modeKey !== "tavern") {
+    if (lastEntranceTurn >= 0 && (turn - lastEntranceTurn) < ENTRANCE_INTENT_COOLDOWN_TURNS) {
+      return returnNone("cooldown.turn");
+    }
   }
 
   normalizeMood(gm);
@@ -1469,7 +1483,6 @@ export function getEntranceIntent(ctx, mode) {
 
   const profile = buildProfile(gm);
   const moodLabel = gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "neutral";
-  const modeKey = typeof mode === "string" && mode ? mode : (ctx && typeof ctx.mode === "string" && ctx.mode ? ctx.mode : (gm.lastMode || "unknown"));
   const boredomLevel = profile.boredomLevel;
 
   // Additional rarity gating: do not fire entrance flavor on every town/tavern entry.
@@ -1482,7 +1495,7 @@ export function getEntranceIntent(ctx, mode) {
     if ((modeKey === "town" || modeKey === "tavern") && entriesForMode > 1) {
       const ENTRY_PERIOD = 4; // 1st, 5th, 9th, ... entries into town/tavern.
       if ((entriesForMode - 1) % ENTRY_PERIOD !== 0) {
-        return { kind: "none" };
+        return returnNone("rarity.entryPeriod");
       }
     }
   } catch (_) {}
@@ -1523,6 +1536,19 @@ export function getEntranceIntent(ctx, mode) {
     }
   }
 
+  // Fallback: when we're bored/restless but have no family focus, still allow a generic/variety rumor.
+  if ((!intent || intent.kind === "none")
+    && (moodLabel === "stern" || moodLabel === "restless" || moodLabel === "bored")
+    && boredomLevel > 0.5) {
+    const topic = varietyTopic || "general_rumor";
+    intent = {
+      kind: "flavor",
+      topic,
+      strength: "low",
+      mode: modeKey,
+    };
+  }
+
   // Generic/variety flavor: slightly lower boredom gate and more moods.
   if ((!intent || intent.kind === "none")
     && (moodLabel === "curious" || moodLabel === "playful" || moodLabel === "neutral")
@@ -1555,12 +1581,12 @@ export function getEntranceIntent(ctx, mode) {
   }
 
   if (!intent || intent.kind === "none") {
-    return { kind: "none" };
+    return returnNone("no.intent");
   }
 
   gm.lastEntranceIntentTurn = turn;
   gm.lastActionTurn = turn;
-  pushIntentDebug(gm, intent, turn);
+  pushIntentDebug(gm, Object.assign({ channel: "entrance" }, intent), turn);
   return intent;
 }
 
@@ -1568,21 +1594,37 @@ export function getMechanicHint(ctx) {
   const gm = _ensureState(ctx);
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
-  if (gm.enabled === false) {
+  function returnNone(reason) {
+    pushIntentDebug(gm, { kind: "none", channel: "mechanicHint", reason }, turn);
     return { kind: "none" };
+  }
+
+  if (gm.enabled === false) {
+    return returnNone("disabled");
   }
 
   // Early game guard: don't start nudging mechanics immediately on the first few entries.
   const stats = ensureStats(gm);
-  if ((stats.totalTurns | 0) < 30) {
-    return { kind: "none" };
+  const modeEntries = stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : {};
+  const entriesTown = modeEntries.town != null ? (modeEntries.town | 0) : 0;
+  if ((stats.totalTurns | 0) < 30 && entriesTown < 2) {
+    return returnNone("earlyGame");
   }
 
   ensureTraitsAndMechanics(gm);
 
   const lastHintTurn = typeof gm.lastHintIntentTurn === "number" ? (gm.lastHintIntentTurn | 0) : -1;
-  if (lastHintTurn >= 0 && (turn - lastHintTurn) < HINT_INTENT_COOLDOWN_TURNS) {
-    return { kind: "none" };
+  if (lastHintTurn >= 0) {
+    if (turn === lastHintTurn) {
+      const lastEntry = typeof gm.lastHintIntentTownEntry === "number" ? (gm.lastHintIntentTownEntry | 0) : entriesTown;
+      // If the player is rapidly re-entering towns without consuming turns (turnCounter static),
+      // apply a conservative entry-based cooldown to avoid hint spam.
+      if ((entriesTown - lastEntry) < 4) {
+        return returnNone("cooldown.entry");
+      }
+    } else if ((turn - lastHintTurn) < HINT_INTENT_COOLDOWN_TURNS) {
+      return returnNone("cooldown.turn");
+    }
   }
 
   const boredomLevelRaw = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
@@ -1648,7 +1690,7 @@ export function getMechanicHint(ctx) {
   }
 
   if (!bestKey) {
-    return { kind: "none" };
+    return returnNone("no.mechanic");
   }
 
   const intent = {
@@ -1658,8 +1700,9 @@ export function getMechanicHint(ctx) {
   };
 
   gm.lastHintIntentTurn = turn;
+  gm.lastHintIntentTownEntry = entriesTown;
   gm.lastActionTurn = turn;
-  pushIntentDebug(gm, intent, turn);
+  pushIntentDebug(gm, Object.assign({ channel: "mechanicHint" }, intent), turn);
   return intent;
 }
 
