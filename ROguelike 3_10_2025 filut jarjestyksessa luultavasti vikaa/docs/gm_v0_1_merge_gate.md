@@ -67,8 +67,10 @@ Pass criteria:
 - [ ] No game-origin console errors during the run (ignore blocked trackers)
 
 Artifacts to attach to PR:
-- [ ] Download smoketest JSON from GOD panel (Download JSON)
-- [ ] Attach summary/checklist outputs if available
+- [ ] In the GOD panel smoketest output, use:
+  - **Download Report (JSON)**
+  - **Download Summary (TXT)**
+  - **Download Checklist (TXT)**
 
 ---
 
@@ -86,13 +88,17 @@ Artifacts to attach to PR:
   - intent history populated with reasons (`kind:none` entries included)
 
 ### 2.2 Log visibility sanity
-- [ ] In GOD panel logs/categories, confirm `gm` and `gm-npc` are visible.
+- [ ] After generating at least one GM log line (e.g. enter town/dungeon or run the GM sim), in GOD panel logs/categories confirm `gm` and `gm-npc` are visible.
 - [ ] Confirm GM lines are not hidden when “General” logs are disabled.
 
 ### 2.3 “No corruption after running sim” sanity
 - [ ] Start a run, accumulate some GM stats (move/enter town)
 - [ ] Run GM Emission Sim from GOD panel
 - [ ] Confirm GM panel still shows reasonable stats (no obvious reset/jump that looks like broken restore)
+
+### 2.4 Confirm modal sanity (GM/world event safety)
+This is important because some GM-driven world events can open confirms or start encounters.
+- [ ] Verify confirm modals (if any) can be dismissed cleanly (Esc cancels), and do not leave the game in a stuck input state.
 
 ---
 
