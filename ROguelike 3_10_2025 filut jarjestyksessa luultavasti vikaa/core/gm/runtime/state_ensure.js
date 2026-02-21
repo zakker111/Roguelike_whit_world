@@ -47,6 +47,7 @@ export function ensureStats(gm) {
   return stats;
 }
 
+// Ensure trait/mechanic/family/faction containers exist and have safe, normalized counters.
 export function ensureTraitsAndMechanics(gm) {
   if (!gm || typeof gm !== "object") return;
 

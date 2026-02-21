@@ -1,3 +1,10 @@
+/**
+ * GMRuntime state defaults.
+ *
+ * These helpers define the canonical shape for gm state bags created at runtime
+ * (and are also used as a source of truth when repairing malformed states).
+ */
+
 import { SCHEMA_VERSION } from "./constants.js";
 
 export function createDefaultStats() {

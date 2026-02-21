@@ -283,6 +283,7 @@ export function init(ctx, opts = {}) {
   return _ensureState(ctx);
 }
 
+// Advance GM runtime state for the current ctx turn (deterministic, no gameplay side effects).
 export function tick(ctx) {
   if (!ctx) return;
 
@@ -291,6 +292,13 @@ export function tick(ctx) {
   if (gm.enabled === false) {
     // GM is disabled: keep ctx.gm attached but do not advance any counters or log.
     return;
+  }
+
+  // Defensive: malformed states injected via __setRawState may omit gm.debug/counters.
+  if (!gm.debug || typeof gm.debug !== "object" || !gm.debug.counters || typeof gm.debug.counters !== "object") {
+    const def = createDefaultState().debug;
+    if (!gm.debug || typeof gm.debug !== "object") gm.debug = def;
+    if (!gm.debug.counters || typeof gm.debug.counters !== "object") gm.debug.counters = def.counters;
   }
 
   const utils = ctx.utils || null;
@@ -416,17 +424,25 @@ export function tick(ctx) {
   gm.debug.lastTickTurn = turn;
 }
 
+// Observe an in-game event and update deterministic GM bookkeeping.
 export function onEvent(ctx, event) {
   if (!ctx || !event) return;
 
   const gm = _ensureState(ctx);
 
-  const explicitTurn = event.turn;
-  const turn = explicitTurn != null
-    ? (explicitTurn | 0)
-    : (ctx.time && typeof ctx.time.turnCounter === "number")
-      ? (ctx.time.turnCounter | 0)
-      : gm.debug.lastTickTurn;
+  if (gm.enabled === false) {
+    // Match tick(): when disabled, do not mutate counters/boredom/mood/debug.
+    return;
+  }
+
+  // Defensive: malformed states injected via __setRawState may omit gm.debug/counters.
+  if (!gm.debug || typeof gm.debug !== "object" || !gm.debug.counters || typeof gm.debug.counters !== "object") {
+    const def = createDefaultState().debug;
+    if (!gm.debug || typeof gm.debug !== "object") gm.debug = def;
+    if (!gm.debug.counters || typeof gm.debug.counters !== "object") gm.debug.counters = def.counters;
+  }
+
+  const turn = normalizeTurn(event.turn != null ? event.turn : getCurrentTurn(ctx, gm));
 
   const type = String(event.type || "");
   const scope = event.scope || ctx.mode || "unknown";
@@ -1018,7 +1034,7 @@ export function getEntranceIntent(ctx, mode) {
   }
 
   if (gm.enabled === false) {
-    return returnNone("disabled");
+    return { kind: "none" };
   }
 
   if (!gm.debug || typeof gm.debug !== "object") {
@@ -1161,7 +1177,7 @@ export function getMechanicHint(ctx) {
   }
 
   if (gm.enabled === false) {
-    return returnNone("disabled");
+    return { kind: "none" };
   }
 
   // Early game guard: don't start nudging mechanics immediately on the first few entries.
@@ -1281,14 +1297,15 @@ export function getMechanicHint(ctx) {
  */
 export function getFactionTravelEvent(ctx) {
   const gm = _ensureState(ctx);
-  ensureTraitsAndMechanics(gm);
-  ensureFactionEvents(gm);
-
-  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
   if (gm.enabled === false) {
     return { kind: "none" };
   }
+
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
+
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
   const storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : null;
   const factionEvents = storyFlags && storyFlags.factionEvents && typeof storyFlags.factionEvents === "object"
@@ -1359,12 +1376,12 @@ export function forceFactionTravelEvent(ctx, id) {
   const gm = _ensureState(ctx);
   if (!ctx) return { kind: "none" };
 
-  ensureTraitsAndMechanics(gm);
-  ensureFactionEvents(gm);
-
   if (gm.enabled === false) {
     return { kind: "none" };
   }
+
+  ensureTraitsAndMechanics(gm);
+  ensureFactionEvents(gm);
 
   const key = String(id || "").toLowerCase();
   if (!key) return { kind: "none" };

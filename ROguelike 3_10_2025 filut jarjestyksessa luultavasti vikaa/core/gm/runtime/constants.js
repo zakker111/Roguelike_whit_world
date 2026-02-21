@@ -1,3 +1,10 @@
+/**
+ * GMRuntime: shared tuning constants.
+ *
+ * This module is intentionally "data only" (no runtime state). It exists so the
+ * GMRuntime behavior is easy to audit and tweak without touching logic.
+ */
+
 export const SCHEMA_VERSION = 6;
 export const MAX_DEBUG_EVENTS = 50;
 export const MAX_INTENT_HISTORY = 20;
