@@ -35,9 +35,10 @@ This is a **pre-merge, phase-based checklist** for shipping **GM v0.1** as an *o
 **Goal:** validate the deterministic emission gates and reason codes.
 
 Steps:
+- [ ] Start/continue any run (world/town/dungeon is fine).
 - [ ] Open GOD panel (`P`)
 - [ ] Scroll to **GM Emission Sim**
-- [ ] Click **Run GM Emission Sim**
+- [ ] Click **Run GM Emission Sim** (the in-game button; not the standalone `gm_emission_sim.html` page)
 
 Pass criteria:
 - [ ] Report shows `"ok": true`
@@ -53,19 +54,22 @@ Artifacts to attach to PR:
 
 Run (deployed or local):
 
-- Baseline:
-  - `index.html?smoketest=1&dev=1`
-- Multi-run quick stress:
-  - `index.html?smoketest=1&dev=1&smokecount=3&skipokafter=1`
+- You can either enter the URL directly, or click **Run Smoke Test** in the GOD panel (it reloads with `?smoketest=1`, preserving `&dev=1` when enabled).
 
-GM-focused subset:
+- Required (covers determinism + GM scenarios by default):
+  - `index.html?smoketest=1&dev=1&smokecount=3&skipokafter=1`
+  - Note: `skipokafter=1` means scenarios that PASS in run 1 will be skipped in runs 2..N (so this is primarily a quick flake check, not full 3× coverage).
+- Optional single-run baseline:
+  - `index.html?smoketest=1&dev=1`
+
+Optional GM-only rerun (faster iteration when debugging GM):
 - `index.html?smoketest=1&dev=1&scenarios=gm_mechanic_hints,gm_intent_decisions,determinism`
 
 Pass criteria (Policy A):
-- [ ] Determinism scenario PASS
-- [ ] GM scenarios PASS
-- [ ] No game-origin console errors during the run (ignore blocked trackers)
-- [ ] If other non-GM scenarios fail (town/dungeon/region/encounters), they are treated as **non-blocking** for GM v0.1, but should be noted in the PR as existing issues.
+- [ ] Determinism scenario PASS (verify in the report JSON under `scenarioResults` that `determinism.passed === true` at least once)
+- [ ] GM scenarios PASS (verify `gm_mechanic_hints.passed === true` and `gm_intent_decisions.passed === true`)
+- [ ] No GM-origin console errors during the run (ignore blocked trackers)
+- [ ] If other non-GM scenarios fail (town/dungeon/region/encounters/overlays), they are treated as **non-blocking** for GM v0.1, but should be noted in the PR as existing issues.
 
 Artifacts to attach to PR:
 - [ ] In the GOD panel smoketest output, use:
