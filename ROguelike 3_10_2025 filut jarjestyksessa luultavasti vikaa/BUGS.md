@@ -69,15 +69,22 @@
   - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
   - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
 
-- CRITICAL: Dungeon runs sometimes break ladder/stairs/loot interactions
-  - In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on stairs logs "there is no corpses here to loot".
-  - Likely indicates ctx state desync (map/corpses/seen/visible or mode transitions) or a persistence/load edge case where dungeon state is missing or corrupted.
-  - Needs immediate investigation with a minimal repro seed + steps; likely touchpoints: dungeon state load/save (DungeonState/DungeonRuntime), mode transitions, and loot path selection in dungeon mode.
+- VERIFY (POSSIBLY FIXED): Dungeon runs sometimes break ladder/stairs/loot interactions (was CRITICAL)
+  - Original report: In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on stairs logs "There is no corpse here to loot.".
+  - Current status (2026-02-21): user currently cannot reproduce via:
+    - Start game → dungeon (stairs/ladders + loot interactions OK)
+    - Start game → tower → dungeon (stairs/ladders + loot interactions OK)
+  - Mitigation added (may not cover every root cause):
+    - Prefer dungeon exit handling over loot when pressing G in non-tower dungeons, and avoid misrouting STAIRS handling into tower logic.
+    - Add defensive clearing of stale `ctx.towerRun` when entering a non-tower dungeon.
+    - Key touchpoints: `core/modes/actions.js`, `core/modes/exit.js`, `core/dungeon/runtime.js`.
+  - This may still be intermittent/stateful (seed/save-load/mode transitions). If it reappears, capture: seed, exact steps, and whether the run involved tower/town transitions before dungeon entry.
 
-- GM/Guard fine: fine encounter can trigger even when player cancels the "attack guard" prompt
-  - When attempting to attack a guard, if the player cancels the confirmation popup, the guard fine encounter can still trigger later (or immediately) even though the player did not attack.
+- VERIFY (POSSIBLY FIXED): GM/Guard fine: fine encounter can trigger even when player cancels the "attack guard" prompt
+  - Original report: When attempting to attack a guard, if the player cancels the confirmation popup, the guard fine encounter can still trigger later (or immediately) even though the player did not attack.
   - Expected: cancel should leave no hostile/guard-fine scheduling side effects.
-  - Likely a bug in the guard fine trigger bookkeeping (GM faction travel event scheduling/consumption) or in the UI flow that emits GM events despite cancellation.
+  - Current status (2026-02-21): user currently cannot reproduce; may be intermittent. If it reappears, capture the exact sequence (mode/location, which prompt was shown, and how many turns later the fine triggers).
+  - Likely cause still requires investigation: double-confirm/turn consumption, or guard/town reputation bookkeeping scheduling `guardFine` despite cancellation.
 - While the lockpicking mini-game is open, some keyboard movement keys still move the player:
   - Arrow keys and certain Numpad keys (1–7) may continue to move the player character even though the lockpicking overlay is active.
   - Expected: while the lockpicking modal is open, world/region/dungeon movement keys should be swallowed so the player cannot walk around during the puzzle.
