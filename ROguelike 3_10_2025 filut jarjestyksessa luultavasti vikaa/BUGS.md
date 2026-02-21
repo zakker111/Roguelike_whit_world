@@ -68,6 +68,16 @@
   - During the bandits-at-the-gate town event, pressing G while standing on some guard/bandit corpses near the gate reports nothing to loot or shows only flavor, with no items or gold granted.
   - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
   - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
+
+- CRITICAL: Dungeon runs sometimes break ladder/stairs/loot interactions
+  - In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on corpses/chests logs "there is no corpses here to loot".
+  - Likely indicates ctx state desync (map/corpses/seen/visible or mode transitions) or a persistence/load edge case where dungeon state is missing or corrupted.
+  - Needs immediate investigation with a minimal repro seed + steps; likely touchpoints: dungeon state load/save (DungeonState/DungeonRuntime), mode transitions, and loot path selection in dungeon mode.
+
+- GM/Guard fine: fine encounter can trigger even when player cancels the "attack guard" prompt
+  - When attempting to attack a guard, if the player cancels the confirmation popup, the guard fine encounter can still trigger later (or immediately) even though the player did not attack.
+  - Expected: cancel should leave no hostile/guard-fine scheduling side effects.
+  - Likely a bug in the guard fine trigger bookkeeping (GM faction travel event scheduling/consumption) or in the UI flow that emits GM events despite cancellation.
 - While the lockpicking mini-game is open, some keyboard movement keys still move the player:
   - Arrow keys and certain Numpad keys (1–7) may continue to move the player character even though the lockpicking overlay is active.
   - Expected: while the lockpicking modal is open, world/region/dungeon movement keys should be swallowed so the player cannot walk around during the puzzle.
