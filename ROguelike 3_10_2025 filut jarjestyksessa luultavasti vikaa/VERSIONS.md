@@ -1,3 +1,14 @@
+2026-02-21 — GM v0.1 merge gate first pass (Policy A): deterministic hints + observability
+
+- GM v0.1 automated gates:
+  - GM Emission Sim (GOD panel) passes (`ok: true`, scenarios S1..S6 ok) with deterministic reason codes (e.g. `rarity.entryPeriod`, `cooldown.turn`, `cooldown.entry`, `no.mechanic`).
+  - Smoketest multirun verified determinism + GM scenarios (determinism / gm_mechanic_hints / gm_intent_decisions passed across 3 runs).
+- Manual sanity checks (Phase 2) passed:
+  - GM panel (`O`) is non-modal (does not block movement), draggable/scrollable, and stable across world/town/dungeon.
+  - GM log categories `gm` / `gm-npc` visible in GOD logs and not suppressed when “General” is disabled.
+- Documentation:
+  - Added `docs/gm_v0_1_merge_gate.md` to standardize the Policy A pre-merge checklist and artifacts.
+
 2026-02-10 — Overworld infinite generator refinements, SHALLOW fords, and connectivity corridors
 
 - Infinite overworld generator (InfiniteGen) climate and terrain:
@@ -255,7 +266,7 @@ v1.71.0 — Overworld minimap toggle and map fog stability
   - Fixed a bug where the minimap could show all explored chunks after visiting towns, dungeons, ruins, or encounters and returning to the overworld.
   - The minimap now uses the same fog-of-war grid and Fog helpers as the main map and rebuilds its offscreen buffer per mode, so previously explored overworld chunks no longer leak when changing modes.
 
-v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)
+v1.70.1 — Sandbox enemy lab and non-persistent test room panel modularization and cleanup (internal)
 
 - SandboxPanel implementation refactor:
   - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
@@ -271,16 +282,6 @@ v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cl
   - This is an internal refactor only; sandbox mode behavior, spawn rules, overrides, and JSON export remain as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room
-remain as described in v1.70.0 below.
-
-v1.70.0 — Sandbox enemy lab and non-persistent test room</old_code><new_code>v1.70.0 — Sandbox enemy lab and non-persistent test room.1 — Sandbox panel modularization and cleanup (internal)
-
-- SandboxPanel implementation refactor:
-  - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
-  - New `ui/components/sandbox_panel_v2.js` owns the Sandbox controls overlay (F10) UI and event wiring.
-  - New helper modules split responsibilities:
-    - `ui/components/sandbox_model.js` – enemy/animal list, entity select population, form/loot sync, ctx helpers.
-    - `ui/components/sandbox_spawn.js` – classifyEntityId, currentEnemyId,room
 
 - Sandbox dungeon room mode:
   - Added `SandboxRuntime.enter(ctx, options)` under `core/sandbox/runtime.js` and wired it via `GameAPI.enterSandboxRoom()` and the GOD panel "Enter Sandbox (Dungeon Room)" button.

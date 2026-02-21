@@ -2,8 +2,16 @@
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls
 - some npc dont sleep in theid beds
-- some work needed for smoketestrunner
-- multirun in smoketest skips first multirun 
+- smoketestrunner: several scenarios failing in current build (non-GM, but impacts CI signal)
+  - NOTE: a report can still show `pass: N / fail: 0` even when `failingSteps` contains FAIL entries; verify runner/reporting aggregation.
+  - region: "Region open failed (mode stayed in world)"
+  - dungeon: "Dungeon entry failed (mode=world)" (actionsSummary.dungeonEnter.success=0)
+  - town: "Town entry not achieved" (actionsSummary.townEnter.success=0)
+  - encounters: "Encounter exit not achieved"
+  - overlays: occasional perf failure (e.g. grid draw ~275ms)
+  - inventory: "Hand chooser: both empty -> equip left" assertion
+- VERIFY: multirun in smoketest skips first multirun
+  - Recent smoke report (2026-02-21) completed `runs: 3` with `pass: 3`; if this bug is still reproducible, capture the report JSON and the exact URL params. 
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
 - [FIXED] Followers in Region Map and ruins would sometimes multiply or spawn far from the player:

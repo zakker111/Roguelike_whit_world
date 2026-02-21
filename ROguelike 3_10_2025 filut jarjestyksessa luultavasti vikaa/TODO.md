@@ -4,7 +4,12 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
-- [ ] Invisible GM system (Game Master) and admin panel (design phase)
+- [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
+  - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
+  - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.
+  - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
+
+- [ ] Invisible GM system (Game Master) and admin panel (design phase; v0.2+ orchestrating/event systems)
   - Phase 1: Core GM runtime
     - Implement a single invisible GM controller that runs alongside the main loop.
     - Track GM mood (passive/active/aggressive) and a boredom value that rises when nothing notable happens and drops when GM fires events.
@@ -45,8 +50,8 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - If the bottle or X is ignored for a long time, GM simply treats map quests as lower priority for that run (no punishment).
     - Leave design room to extend to key-based mini-dungeons and multi-step chains later.
 
-  - Phase 5: GM Admin Panel (F9) – live debug and testing UI
-    - F9 toggles a floating GM panel that stays visible while the player continues to play; panel is draggable so it can be moved out of the way.
+  - Phase 5: GM panel – live debug and testing UI
+    - `O` toggles a floating GM panel that stays visible while the player continues to play; panel is draggable so it can be moved out of the way.
     - GM State overview:
       - Show current mood (passive/active/aggressive) with color, boredom as a bar, and last major GM action.
     - Player profile:

@@ -1,133 +1,61 @@
 # GM v0.1 Merge Gate (Policy A)
 
-This is a **pre-merge, phase-based checklist** for shipping **GM v0.1** as an *observability + low-frequency hints* system.
+This document defines the minimal **pre-merge gate** for the GM v0.1 system.
 
-**Policy A (selected):** GM v0.1 may merge even if unrelated items in `BUGS.md` remain open, as long as GM is deterministic, non-crashing, and the test gates below are green.
+Policy A means: **do not merge** unless the automated checks pass and the manual sanity checks are green.
 
----
+## Required automated artifacts
 
-## Phase 0 — Freeze scope + confirm assumptions (5–10 min)
+### 1) GM Emission Sim report (GOD panel)
 
-**Goal:** prevent last-minute scope creep and clarify what counts as a blocker.
+Run the GM Emission Sim (via the GOD panel).
 
-- [ ] Confirm GM v0.1 is **non-orchestrating**:
-  - no changes to world/encounter selection
-  - no changes to rewards/AI/spawns
-  - no RNG consumption
-  - only `ctx.gm` mutations + logging + dev tooling
-- [ ] Confirm the only intended behavior change queued post-v0.1 is **partial boredom relief** (town/world entry, NPC talk, follower hire, shop buy/sell). (Implementation can be after merge if desired, but the *direction* should be in the PR description.)
-- [ ] Confirm `tavern` is a **future mode** (supported by GM code paths; not required to fire today).
-- [ ] Confirm shipping dev hooks is acceptable:
-  - `GMRuntime.__getRawState/__setRawState` remain in mainline as *internal/test helpers*.
+The report must end with:
 
-**Merge-blocker definition for v0.1**
-- Any runtime error originating from GM integration paths (GM runtime, gmEvent, GM panel, GM sim)
-- Any determinism regression (seeded runs diverge)
-- Any input/UX break where GM panel/GOD tools block gameplay unexpectedly
-- GM sim corrupts the live run’s GM state
+- `ok: true`
+- All scenarios pass (S1..S6)
+- `unknownReasons: []`
 
----
+Keep the full report JSON in the PR description (or attach it as a file) so it can be re-checked later.
 
-## Phase 1 — Automated gates (must be green)
+### 2) Smoketest multirun report
 
-### 1.1 GM Emission Sim (GOD panel)
+Run smoketest with multiple runs (recommended: 3) and include the GM scenarios.
 
-**Goal:** validate the deterministic emission gates and reason codes.
+Requirements:
 
-Steps:
-- [ ] Start/continue any run (world/town/dungeon is fine).
-- [ ] Open GOD panel (`P`)
-- [ ] Scroll to **GM Emission Sim**
-- [ ] Click **Run GM Emission Sim** (the in-game button; not the standalone `gm_emission_sim.html` page)
+- `runs >= 3`
+- Includes scenarios:
+  - `gm_mechanic_hints`
+  - `gm_intent_decisions`
+  - `determinism`
 
-Pass criteria:
-- [ ] Report shows `"ok": true`
-- [ ] All scenarios `S1..S6` show `ok: true`
-- [ ] Report is present at `window.__GM_EMISSION_SIM_RESULT__`
+Keep the full report JSON in the PR description (or attach it as a file).
 
-Artifacts to attach to PR:
-- [ ] Copy JSON from the output area (or click **Copy JSON**) and paste into PR description as a collapsible block.
+Notes:
 
-### 1.2 Smoke tests (built-in runner)
+- The runner can sometimes report `pass: N / fail: 0` even when `failingSteps` contains FAIL entries. Treat that as a runner/reporting bug; investigate and do not assume green.
 
-**Goal:** catch regressions outside GM (movement/combat/town/determinism) plus GM-specific scenarios.
+## Manual sanity checklist (Phase 2)
 
-Run (deployed or local):
+### GM panel UX
 
-- You can either enter the URL directly, or click **Run Smoke Test** in the GOD panel (it reloads with `?smoketest=1`, preserving `&dev=1` when enabled).
+- Toggle GM panel with `O`.
+- Verify it is **non-modal**: player movement and actions still work while the panel is open.
+- Verify panel is draggable and scrollable.
+- Verify the panel survives mode switches (world <-> town <-> dungeon) without errors.
 
-- Required (covers determinism + GM scenarios by default):
-  - `index.html?smoketest=1&dev=1&smokecount=3&skipokafter=1`
-  - Note: `skipokafter=1` means scenarios that PASS in run 1 will be skipped in runs 2..N (so this is primarily a quick flake check, not full 3× coverage).
-- Optional single-run baseline:
-  - `index.html?smoketest=1&dev=1`
+### Logging visibility
 
-Optional GM-only rerun (faster iteration when debugging GM):
-- `index.html?smoketest=1&dev=1&scenarios=gm_mechanic_hints,gm_intent_decisions,determinism`
+- In the GOD log category toggles, disable **General**.
+- Verify GM logs still appear under `gm` / `gm-npc` categories (they must not be suppressed by the General toggle).
 
-Pass criteria (Policy A):
-- [ ] Determinism scenario PASS (verify in the report JSON under `scenarioResults` that `determinism.passed === true` at least once)
-- [ ] GM scenarios PASS (verify `gm_mechanic_hints.passed === true` and `gm_intent_decisions.passed === true`)
-- [ ] No GM-origin console errors during the run (ignore blocked trackers)
-- [ ] If other non-GM scenarios fail (town/dungeon/region/encounters/overlays), they are treated as **non-blocking** for GM v0.1, but should be noted in the PR as existing issues.
+## When the gate fails
 
-Artifacts to attach to PR:
-- [ ] In the GOD panel smoketest output, use:
-  - **Download Report (JSON)**
-  - **Download Summary (TXT)**
-  - **Download Checklist (TXT)**
+Policy A: fix the failure before merging.
 
----
+Common outcomes:
 
-## Phase 2 — Manual sanity checks (10–15 min)
-
-**Goal:** validate UX / correctness in ways automation may miss.
-
-### 2.1 GM panel sanity
-- [ ] Toggle GM panel with `O` in **world**, **town**, **dungeon**.
-- [ ] Confirm panel is draggable and scrollable.
-- [ ] Confirm it does not break movement / does not behave like a modal.
-- [ ] Confirm it refreshes and shows:
-  - boredom level changing over time
-  - last event updates on transitions
-  - intent history populated with reasons (`kind:none` entries included)
-
-### 2.2 Log visibility sanity
-- [ ] After generating at least one GM log line (e.g. enter town/dungeon or run the GM sim), in GOD panel logs/categories confirm `gm` and `gm-npc` are visible.
-- [ ] Confirm GM lines are not hidden when “General” logs are disabled.
-
-### 2.3 “No corruption after running sim” sanity
-- [ ] Start a run, accumulate some GM stats (move/enter town)
-- [ ] Run GM Emission Sim from GOD panel
-- [ ] Confirm GM panel still shows reasonable stats (no obvious reset/jump that looks like broken restore)
-
-### 2.4 Confirm modal sanity (GM/world event safety)
-This is important because some GM-driven world events can open confirms or start encounters.
-- [ ] Verify confirm modals (if any) can be dismissed cleanly (Esc cancels), and do not leave the game in a stuck input state.
-
----
-
-## Phase 3 — PR packaging (what reviewers need)
-
-**Goal:** make the merge easy to review and defend.
-
-- [ ] PR title: `GM v0.1: Observability + low-frequency hints (deterministic)`
-- [ ] PR description includes:
-  - [ ] v0.1 scope statement: “no gameplay orchestration, no RNG usage, only ctx.gm state + logging”
-  - [ ] Known limitations: “GM is intentionally quiet; most town entries emit none; reason codes explain why”
-  - [ ] GM Emission Sim JSON (collapsed)
-  - [ ] Smoketest JSON link / attachment
-- [ ] Reviewer checklist (copy/paste):
-  - [ ] Run GM Emission Sim
-  - [ ] Run smoketest determinism + GM scenarios
-  - [ ] Confirm GM panel doesn’t block input
-
----
-
-## Phase 4 — Post-merge follow-up tracking (non-blocking)
-
-**Goal:** keep forward work visible without blocking the v0.1 merge.
-
-- [ ] Open a follow-up ticket: “Partial boredom relief for routine town/world + NPC/shop interactions”
-- [ ] Open a follow-up ticket: “Refactor `core/gm/runtime.js` into modules + add unit tests”
-- [ ] Keep `tavern` as future mode milestone (when actual mode exists, validate GM scope and gating)
+- **Unknown GM reason codes**: update `reasonCatalog` (or the canonical GM reason registry) and re-run Emission Sim.
+- **Non-deterministic hints**: fix RNG usage / ordering so GM decisions do not consume or depend on non-deterministic sources.
+- **Smoketest inconsistencies**: reproduce locally, attach failing report JSON, and fix runner/reporting or the underlying gameplay flow.
