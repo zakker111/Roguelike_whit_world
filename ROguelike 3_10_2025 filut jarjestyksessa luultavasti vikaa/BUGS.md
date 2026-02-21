@@ -1,62 +1,17 @@
 # BUGS
-
-## GM system (planned feature) – risk/bug checklist
-
-- CRITICAL: Non-deterministic GM behavior
-  - GM uses unseeded RNG or real-time inputs so the same seed + same early actions produce different GM moods/events.
-  - Makes smoketests, repro, and balancing very difficult; GM decisions must be tied into the existing deterministic RNG model.
-
-- CRITICAL: GM state not saved/loaded correctly
-  - Mood, boredom, traits, mechanic states, and active artefact quests not persisted or only partially persisted.
-  - On reload, GM may re-run big events (sieges, map quests) or forget past consequences.
-
-- CRITICAL: Artefact quest state corruption
-  - Bottle/Map/X/chest state gets out of sync (e.g., X exists but no chest, chest exists with no X, bottle exists but GM thinks quest is done).
-  - X marker placed on unreachable tiles (water/mountains) or overlapping important POIs; player cannot resolve the quest.
-  - Crime-scene chest can be looted multiple times due to bad persistence or re-spawn logic.
-
-- HIGH: Overactive or underactive GM
-  - Overactive: boredom thresholds too low or boredom never drops → GM constantly fires events, nudges, and artefact quests; game feels noisy and exhausting.
-  - Underactive: boredom growth too slow or mood gating too strict → GM almost never does anything visible; feature feels "dead".
-
-- HIGH: Unfair aggressive actions
-  - Aggressive mood triggers strong punishments (sieges, destroyed towns, lethal ambushes) from minimal or ambiguous player actions.
-  - No telegraphing via rumors or buildup; players experience events as random grief instead of consequence.
-
-- HIGH: Traits not matching player behavior
-  - Trait detection too sensitive or buggy (e.g., Troll Slayer, Town Protector) → NPCs and GM treat the player as something they do not feel they are.
-  - Can make the world feel wrong or arbitrary; needs careful thresholds and decay.
-
-- MEDIUM: Nudges that ignore disinterest
-  - Mechanic state not updated correctly (never reaching "disinterested") → GM keeps nudging fishing/lockpicking/quest board even after repeated ignores.
-  - Very easy to annoy players; disinterest detection must be reliable and final for a run.
-
-- MEDIUM: Mood/boredom oscillation and runaway loops
-  - Boredom and mood flip too frequently (passive ↔ active ↔ aggressive within a few turns), making GM feel chaotic.
-  - Some events may not reduce boredom enough, causing immediate follow-up events (event spam loops).
-
-- MEDIUM: GM Admin Panel interfering with play
-  - Panel steals mouse/keyboard focus incorrectly so clicks/keys outside the panel do not reach the game.
-  - Panel can be dragged off-screen with no way to recover, or position is not remembered and repeatedly covers important HUD areas.
-  - Live updates (logs/charts) may cause frame drops if not throttled.
-
-- MEDIUM: GM control toggles out of sync with actual logic
-  - [GM Enabled], Mode (Normal/Paused/Manual), and per-feature toggles say one thing while background code still runs parts of the GM.
-  - Very confusing when debugging; needs a single, authoritative source of truth for GM enable state.
-
-- LOW: Repetitive or noisy flavor
-  - Same NPC one-liner (e.g., "Are you the Troll Slayer?", inn board hints) fires too often or from too many NPCs.
-  - Artefact quest hints or rumor lines repeat long after the player has engaged with the system.
-
-- LOW: Poor visualization of GM actions
-  - GM panel or in-game signals do not clearly show when mood changes or why an event occurred.
-  - Hard to debug or tune GM behavior without good, filtered logs and simple visual indicators.
-
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls
 - some npc dont sleep in theid beds
-- some work needed for smoketestrunner
-- multirun in smoketest skips first multirun 
+- smoketestrunner: several scenarios failing in current build (non-GM, but impacts CI signal)
+  - NOTE: a report can still show `pass: N / fail: 0` even when `failingSteps` contains FAIL entries; verify runner/reporting aggregation.
+  - region: "Region open failed (mode stayed in world)"
+  - dungeon: "Dungeon entry failed (mode=world)" (actionsSummary.dungeonEnter.success=0)
+  - town: "Town entry not achieved" (actionsSummary.townEnter.success=0)
+  - encounters: "Encounter exit not achieved"
+  - overlays: occasional perf failure (e.g. grid draw ~275ms)
+  - inventory: "Hand chooser: both empty -> equip left" assertion
+- VERIFY: multirun in smoketest skips first multirun
+  - Recent smoke report (2026-02-21) completed `runs: 3` with `pass: 3`; if this bug is still reproducible, capture the report JSON and the exact URL params. 
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
 - creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
 - [FIXED] Followers in Region Map and ruins would sometimes multiply or spawn far from the player:
@@ -113,6 +68,23 @@
   - During the bandits-at-the-gate town event, pressing G while standing on some guard/bandit corpses near the gate reports nothing to loot or shows only flavor, with no items or gold granted.
   - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
   - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
+
+- VERIFY (POSSIBLY FIXED): Dungeon runs sometimes break ladder/stairs/loot interactions (was CRITICAL)
+  - Original report: In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on stairs logs "There is no corpse here to loot.".
+  - Current status (2026-02-21): user currently cannot reproduce via:
+    - Start game → dungeon (stairs/ladders + loot interactions OK)
+    - Start game → tower → dungeon (stairs/ladders + loot interactions OK)
+  - Mitigation added (may not cover every root cause):
+    - Prefer dungeon exit handling over loot when pressing G in non-tower dungeons, and avoid misrouting STAIRS handling into tower logic.
+    - Add defensive clearing of stale `ctx.towerRun` when entering a non-tower dungeon.
+    - Key touchpoints: `core/modes/actions.js`, `core/modes/exit.js`, `core/dungeon/runtime.js`.
+  - This may still be intermittent/stateful (seed/save-load/mode transitions). If it reappears, capture: seed, exact steps, and whether the run involved tower/town transitions before dungeon entry.
+
+- VERIFY (POSSIBLY FIXED): GM/Guard fine: fine encounter can trigger even when player cancels the "attack guard" prompt
+  - Original report: When attempting to attack a guard, if the player cancels the confirmation popup, the guard fine encounter can still trigger later (or immediately) even though the player did not attack.
+  - Expected: cancel should leave no hostile/guard-fine scheduling side effects.
+  - Current status (2026-02-21): user currently cannot reproduce; may be intermittent. If it reappears, capture the exact sequence (mode/location, which prompt was shown, and how many turns later the fine triggers).
+  - Likely cause still requires investigation: double-confirm/turn consumption, or guard/town reputation bookkeeping scheduling `guardFine` despite cancellation.
 - While the lockpicking mini-game is open, some keyboard movement keys still move the player:
   - Arrow keys and certain Numpad keys (1–7) may continue to move the player character even though the lockpicking overlay is active.
   - Expected: while the lockpicking modal is open, world/region/dungeon movement keys should be swallowed so the player cannot walk around during the puzzle.
@@ -124,8 +96,8 @@
 - Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
   - Likely due to floating-point arithmetic and stringification in follower health UI.
   - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
-- Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
+- [FIXED] Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
   - In one run, when the overworld map loaded after extensive exploration (many chunks/tiles revealed), all tiles outside towns/dungeons/ruins were effectively blacked out or heavily darkened, even though movement and mode transitions still worked.
   - Towns, dungeons, and ruins views were unaffected and rendered normally, suggesting an overworld-only rendering/state issue (fog-of-war, tints, or palette overlays misapplied) that may surface when the visible/seen grids or tile caches grow large.
-  - Likely related to the infinite overworld getting "too big" in memory or computation for a single redraw; we may need a more incremental/streamed map update system so expanding the explored area does not trigger heavy, one-shot calculations that can break tint/fog state.
-  - Needs focused repro with logs on overworld fog, tint application, palette overlays, and world expansion timing to determine whether FOV, weather, or GOD/debug overlays can accidentally force a full-screen black tint under heavy world-load conditions.
+  - The immediate failure mode (entire overworld appearing black) is now prevented by a defensive guard in `ui/render/overworld_fog.js` that skips drawing the fog overlay when the fog grids look invalid or out of sync with the current overworld window. The world may appear more revealed than intended in that edge case, but it will no longer be fully blacked out.
+  - Performance and long-run infinite-world behavior are still tracked separately under world/infinite_gen + world_runtime performance work.

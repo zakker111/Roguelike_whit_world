@@ -403,10 +403,29 @@ export function show(ctx = null, view = null) {
     }
   } catch (_) {}
   panel.style.display = "block";
+
+  // GMRuntime: followers inspect mechanic
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const scope = ctx && ctx.mode ? ctx.mode : "town";
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "seen", detail: "inspect" });
+    }
+  } catch (_) {}
 }
 
 export function hide() {
   if (_panel) _panel.style.display = "none";
+
+  // GMRuntime: followers inspect dismissed
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const ctx = _ctxForCommands;
+      const scope = ctx && ctx.mode ? ctx.mode : "town";
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "dismiss", detail: "close" });
+    }
+  } catch (_) {}
 }
 
 export function isOpen() {

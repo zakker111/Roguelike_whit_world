@@ -276,6 +276,23 @@ export function setupInputBridge(opts) {
         if (typeof adjustFov === "function") adjustFov(delta);
       } catch (_) {}
     },
+    toggleGMPanel: () => {
+      try {
+        const UIH = modHandle("UI");
+        if (UIH && UIH.GMPanel && typeof UIH.GMPanel.isOpen === "function") {
+          const open = UIH.GMPanel.isOpen();
+          if (open && typeof UIH.GMPanel.hide === "function") UIH.GMPanel.hide();
+          else if (!open && typeof UIH.GMPanel.show === "function") UIH.GMPanel.show();
+          return;
+        }
+        const GP = (typeof window !== "undefined" ? window.GMPanel : null);
+        if (GP && typeof GP.isOpen === "function") {
+          const open = GP.isOpen();
+          if (open && typeof GP.hide === "function") GP.hide();
+          else if (!open && typeof GP.show === "function") GP.show();
+        }
+      } catch (_) {}
+    },
     toggleSandboxPanel: () => {
       try {
         const ctx = getCtx && getCtx();

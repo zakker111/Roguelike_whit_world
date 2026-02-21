@@ -218,4 +218,45 @@ export function killEnemy(ctx, enemy) {
 
   // Persist dungeon state so corpses remain on revisit
   try { save(ctx, false); } catch (_) {}
+
+  // GMRuntime: observational combat kill event
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const tags = [];
+      try {
+        const faction = enemy.faction ? String(enemy.faction).toLowerCase() : "";
+        if (faction) tags.push(`faction:${faction}`);
+      } catch (_) {}
+      try {
+        const kind = enemy.kind ? String(enemy.kind).toLowerCase() : "";
+        if (kind) tags.push(`kind:${kind}`);
+      } catch (_) {}
+      try {
+        const race = enemy.race ? String(enemy.race).toLowerCase() : "";
+        if (race) tags.push(`race:${race}`);
+      } catch (_) {}
+      // NEW: ensure we always have a kind:* family tag when possible
+      try {
+        const hasKind = tags.some((t) => t && String(t).toLowerCase().startsWith("kind:"));
+        if (!hasKind) {
+          const typeStr = enemy.type ? String(enemy.type).toLowerCase() : "";
+          if (typeStr) tags.push(`kind:${typeStr}`);
+        }
+      } catch (_) {}
+      try {
+        const ctxMode = ctx && ctx.mode ? String(ctx.mode).toLowerCase() : "";
+        if (ctxMode === "town") tags.push("context:town");
+        else if (ctxMode === "castle") tags.push("context:castle");
+        else if (ctxMode === "dungeon") tags.push("context:dungeon");
+      } catch (_) {}
+      GM.onEvent(ctx, {
+        type: "combat.kill",
+        scope: ctx && ctx.mode ? ctx.mode : "dungeon",
+        enemyId: String(enemy.type || enemy.id || "unknown"),
+        tags,
+        isBoss: !!enemy.isBoss,
+      });
+    }
+  } catch (_) {}
 }

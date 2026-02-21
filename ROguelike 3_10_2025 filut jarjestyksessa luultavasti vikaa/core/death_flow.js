@@ -60,6 +60,12 @@ export function hide(ctx) {
 export function restart(ctx) {
   hide(ctx);
   try {
+    const GM = mod("GMRuntime");
+    if (GM && typeof GM.reset === "function") {
+      GM.reset(ctx, { reason: "death_restart" });
+    }
+  } catch (_) {}
+  try {
     // Reset player to defaults when possible
     const P = mod("Player");
     if (P && typeof P.resetFromDefaults === "function") {

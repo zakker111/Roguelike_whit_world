@@ -1164,8 +1164,8 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
 }
 
 function handleTowerStairsOrExit(ctx) {
-  // Only handle towers here; presence of ctx.towerRun is our signal.
-  if (!ctx || !ctx.towerRun) {
+  // Only handle towers here.
+  if (!ctx || !ctx.towerRun || ctx.towerRun.kind !== "tower") {
     return false;
   }
   const tr = ctx.towerRun;
@@ -1218,7 +1218,7 @@ function handleTowerStairsOrExit(ctx) {
 
 export function returnToWorldIfAtExit(ctx) {
   try {
-    if (ctx && ctx.towerRun) {
+    if (ctx && ctx.towerRun && ctx.towerRun.kind === "tower") {
       // For towers, rely solely on our custom handler; never fall back to
       // legacy behavior from here or internal stairs will incorrectly exit
       // to the overworld.
@@ -1272,6 +1272,14 @@ export function enter(ctx, info) {
     if (!tr) return false;
     return gotoTowerFloor(ctx, 1, "fromWorld");
   }
+
+  // Defensive: stale towerRun can leak across dungeon entries and cause stairs
+  // actions to be misrouted into tower logic (breaking exit/loot interactions).
+  try {
+    if (ctx && ctx.towerRun && ctx.towerRun.kind === "tower") {
+      ctx.towerRun = null;
+    }
+  } catch (_) {}
 
   const ok = enterExt(ctx, info);
   if (ok && ctx && ctx.mode === "dungeon") {

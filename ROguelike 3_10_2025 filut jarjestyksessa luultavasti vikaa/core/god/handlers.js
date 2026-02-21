@@ -8,6 +8,9 @@
  * Exports (ESM + window.GodHandlers):
  * - install(getCtx): returns true if handlers were installed
  */
+
+import { runGmEmissionSim } from "../gm/emission_sim.js";
+
 export function install(getCtx) {
   const ctx = getCtx();
   const UIH = (ctx && ctx.UI) || (typeof window !== "undefined" ? window.UI : null);
@@ -182,8 +185,29 @@ export function install(getCtx) {
     // Encounter debug helpers
     onGodStartEncounterNow: (encId) => {
       try {
-        const id = String(encId || "").toLowerCase();
+        const rawId = String(encId || "");
+        const id = rawId.toLowerCase();
         const c = getCtx();
+
+        if (id === "gm_guard_fine") {
+          if (c.mode !== "world") {
+            c.log("GOD: Guard Fine test works in overworld only. Enter world mode first.", "warn");
+            return;
+          }
+          const GM = c.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (!GM || typeof GM.forceFactionTravelEvent !== "function") {
+            c.log("GOD: GMRuntime.forceFactionTravelEvent not available (cannot test guard fine).", "warn");
+            return;
+          }
+          const intent = GM.forceFactionTravelEvent(c, "guard_fine") || { kind: "none" };
+          if (!intent || intent.kind === "none") {
+            c.log("GOD: Failed to arm GM guard fine event.", "warn");
+            return;
+          }
+          c.log("[GOD] Guard fine GM event armed; move one tile on the overworld to trigger it.", "notice");
+          return;
+        }
+
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
         const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
@@ -220,11 +244,32 @@ export function install(getCtx) {
     },
     onGodArmEncounterNextMove: (encId) => {
       try {
-        const id = String(encId || "");
+        const rawId = String(encId || "");
+        const id = rawId.toLowerCase();
         const c = getCtx();
-        if (!id) { c.log("GOD: Select an encounter first.", "warn"); return; }
-        window.DEBUG_ENCOUNTER_ARM = id;
-        c.log(`GOD: Armed '${id}' — will trigger on next overworld move.`, "notice");
+        if (!rawId) { c.log("GOD: Select an encounter first.", "warn"); return; }
+
+        if (id === "gm_guard_fine") {
+          if (c.mode !== "world") {
+            c.log("GOD: Guard Fine test works in overworld only. Enter world mode first.", "warn");
+            return;
+          }
+          const GM = c.GMRuntime || (typeof window !== "undefined" ? window.GMRuntime : null);
+          if (!GM || typeof GM.forceFactionTravelEvent !== "function") {
+            c.log("GOD: GMRuntime.forceFactionTravelEvent not available (cannot test guard fine).", "warn");
+            return;
+          }
+          const intent = GM.forceFactionTravelEvent(c, "guard_fine") || { kind: "none" };
+          if (!intent || intent.kind === "none") {
+            c.log("GOD: Failed to arm GM guard fine event.", "warn");
+            return;
+          }
+          c.log("[GOD] Guard fine GM event armed; move one tile on the overworld to trigger it.", "notice");
+          return;
+        }
+
+        window.DEBUG_ENCOUNTER_ARM = rawId;
+        c.log(`GOD: Armed '${rawId}' — will trigger on next overworld move.`, "notice");
       } catch (_) {}
     },
     // Status effects
@@ -325,6 +370,8 @@ export function install(getCtx) {
         } catch (_) {}
       }
     },
+
+    
 
     // Town diagnostics
     onGodCheckHomes: () => {
@@ -780,6 +827,105 @@ export function install(getCtx) {
         }
       } catch (_) {}
     },
+
+    onGodRunGmEmissionSim: () => {
+      const c = getCtx();
+      try {
+        const rep = runGmEmissionSim({ preserveCtx: c });
+        try { window.__GM_EMISSION_SIM_RESULT__ = rep; } catch (_) {}
+
+        // Pretty JSON into the GOD panel output textarea
+        try {
+          const el = document.getElementById("god-gm-emission-sim-output");
+          if (el) {
+            const txt = JSON.stringify(rep, null, 2);
+            if (Object.prototype.hasOwnProperty.call(el, "value")) el.value = txt;
+            else el.textContent = txt;
+          }
+        } catch (_) {}
+
+        // Log one-line summaries
+        try {
+          const status = rep.ok ? "PASS" : (rep.warning ? "WARN" : "FAIL");
+          c.log(`[GM SIM] ${status} — ${rep.scenarios.length} scenario(s).`, rep.ok ? "good" : "warn");
+          if (rep.warning) c.log(`[GM SIM] ${rep.warning}`, "warn");
+          rep.scenarios.forEach((s) => {
+            const ms = typeof s.ms === "number" ? ` (${s.ms}ms)` : "";
+            c.log(`[GM SIM] ${s.ok ? "PASS" : "FAIL"} [${s.id}] ${s.label}${ms}`, s.ok ? "info" : "warn");
+          });
+        } catch (_) {}
+      } catch (e) {
+        try {
+          c.log("GOD: GM emission sim failed; see console for details.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
+
+    onGodCopyGmEmissionSim: () => {
+      const c = getCtx();
+      try {
+        const rep = (typeof window !== "undefined") ? window.__GM_EMISSION_SIM_RESULT__ : null;
+        if (!rep) {
+          c.log("GOD: No GM emission sim report to copy (run it first).", "warn");
+          return;
+        }
+        const json = JSON.stringify(rep, null, 2);
+
+        function fallbackCopy() {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = json;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try {
+              ok = document.execCommand("copy");
+            } catch (_) {
+              ok = false;
+            }
+            document.body.removeChild(ta);
+            return ok;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        let usedAsync = false;
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            usedAsync = true;
+            navigator.clipboard.writeText(json).then(() => {
+              try { c.log("GOD: Copied GM emission sim report JSON to clipboard.", "notice"); } catch (_) {}
+            }).catch(() => {
+              const ok = fallbackCopy();
+              c.log(
+                ok ? "GOD: Copied GM emission sim report JSON to clipboard. (fallback)" : "GOD: Failed to copy GM emission sim report JSON.",
+                ok ? "notice" : "warn"
+              );
+            });
+          }
+        } catch (_) {
+          usedAsync = false;
+        }
+
+        if (!usedAsync) {
+          const ok = fallbackCopy();
+          c.log(
+            ok ? "GOD: Copied GM emission sim report JSON to clipboard. (fallback)" : "GOD: Failed to copy GM emission sim report JSON.",
+            ok ? "notice" : "warn"
+          );
+        }
+      } catch (e) {
+        try {
+          c.log("GOD: Copy GM emission sim report failed; see console.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
+
     onGodRunSmokeTest: () => {
       try {
         const url = new URL(window.location.href);

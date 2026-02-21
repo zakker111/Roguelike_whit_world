@@ -180,6 +180,33 @@
         } catch (_) {}
       }
 
+      // GM mechanic hint message variants (warn only; gameplay uses hardcoded fallbacks)
+      try {
+        const mech = (GD.messages && GD.messages.gm && GD.messages.gm.mechanic && typeof GD.messages.gm.mechanic === "object")
+          ? GD.messages.gm.mechanic
+          : null;
+        const hints = ["fishingHint", "lockpickingHint", "questBoardHint", "followersHint"];
+        const variants = ["0", "1", "2"];
+        if (!mech) {
+          V.notices.push("Messages: GD.messages.gm.mechanic missing; GM mechanic hints will use hardcoded fallbacks.");
+          Log("Messages: GD.messages.gm.mechanic missing; GM mechanic hints will use hardcoded fallbacks.", "notice");
+        } else {
+          for (const h of hints) {
+            const node = mech[h];
+            const missing = [];
+            for (const k of variants) {
+              const v = (node && typeof node === "object") ? node[k] : null;
+              if (typeof v !== "string" || v.trim().length === 0) missing.push(k);
+            }
+            if (missing.length) {
+              const msg = `Messages: gm.mechanic.${h} missing/invalid variants: ${missing.join(", ")}.`;
+              V.warnings.push(msg);
+              Log(msg);
+            }
+          }
+        }
+      } catch (_) {}
+
       // Props
       if (!GD.props || !GD.props.props || !Array.isArray(GD.props.props)) {
         V.notices.push("Props registry missing; decor glyphs may use fallbacks.");

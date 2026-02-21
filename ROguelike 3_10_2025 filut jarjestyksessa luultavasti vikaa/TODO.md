@@ -4,72 +4,86 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
-- [ ] Invisible GM system (Game Master) and admin panel (design phase)
-  - Phase 1: Core GM runtime
-    - Implement a single invisible GM controller that runs alongside the main loop.
-    - Track GM mood (passive/active/aggressive) and a boredom value that rises when nothing notable happens and drops when GM fires events.
-    - Define basic mood rules:
-      - Passive: mostly observing; allowed to do only small, low-impact flavor/reward actions.
-      - Active: boredom high; allowed to schedule and run small/medium events and artefact quests.
-      - Aggressive: only when player behavior is strongly provoking (e.g., heavy troll-killing); allowed to run rare, high-impact events.
-    - Wire GM ticks to game turns so mood/boredom can react every time the player acts.
+- [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
+  - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
+  - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.
+  - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
 
-  - Phase 2: Human-like memory and traits (lightweight)
-    - Track soft, fading traits that describe player behavior instead of raw counters:
-      - Examples: Troll Slayer, Town Protector, Caravan Ally/Threat, Dungeon Delver, Angler, Forager, Follower Friend.
-    - Each trait has a simple strength that increases with matching actions and decays over time if behavior stops.
-    - GM uses only a small set of "top" active traits at a time when choosing events or flavor.
-    - Hook traits into NPC flavor lines and rumors (rare one-liners like "Are you the Troll Slayer?" or "Thanks for freeing my friend from bandits.").
+- [ ] GM v0.2: Orchestrating GM (feature-rich skeleton; expandable)
+  - Frozen scope (agreed)
+    - GM uses its own **persisted RNG stream** (separate from `ctx.rng` / global RNG).
+      - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
+    - GM is **per new game** (no meta-progression): GM state resets on **death restart**, **Start New Game**, and **seed reroll**.
+    - v0.2 delivery modes (agreed):
+      - `travel.banditBounty`: **auto** (special encounter)
+      - `travel.guardFine`: **confirm** (pay/refuse)
+      - `quest.bottleMap`: **marker** (player travels and presses `G`)
 
-  - Phase 3: Mechanic awareness and polite nudging
-    - For key mechanics (Fishing, Foraging, Lockpicking, Quest Board, Followers, etc.) track a coarse knowledge state per run:
-      - unseen → seen-not-tried → tried-recently → tried-long-ago → disinterested.
-    - Nudge rules (conceptual):
-      - unseen: rare, simple introductions when context is good.
-      - seen-not-tried: a few stronger nudges; if repeatedly ignored, mark as disinterested.
-      - tried-recently: no nudges.
-      - tried-long-ago: occasional reminder; if ignored again, mark as disinterested.
-      - disinterested: no further hints for this mechanic in this run.
-    - Integrate nudges via NPC rumors/one-liners ("Ship landed at harbor", "New quest on inn board", "Two clans fighting near town"), not intrusive popups.
+  - Foundation (must ship in v0.2)
+    - [ ] General GM **Action Scheduler**
+      - Deterministic arbitration: `priority desc → earliestTurn asc → createdTurn asc → id asc` (no RNG calls during arbitration)
+      - Action lifecycle statuses: planned/scheduled/ready/consumed/expired/cancelled
+      - Global safety rails:
+        - [ ] max actions per N turns
+        - [ ] min spacing between **auto** events
+        - [ ] max active quest threads (start with 1)
+        - [ ] "one GM action per turn" unless explicitly allowed
+    - [ ] GM→Game execution via a narrow **GMBridge**
+      - grant item, place/remove marker, start special encounter, show confirm, log narrative
+      - GM runtime should not directly mutate unrelated systems
+    - [ ] Persisted GM RNG stream
+      - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
+      - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
+    - [ ] Persistence (mid-run continuity only)
+      - LocalStorage: [ ] add `GM_STATE_V1`
+      - Persist: scheduler queue + active quest threads + GM RNG state
+      - Clear `GM_STATE_V1` on:
+        - [ ] death restart
+        - [ ] Start New Game
+        - [ ] seed reroll
+        - [ ] deploy version change (APP_VERSION)
 
-  - Phase 4: GM-driven Artefact Quests v1 (simple, one-step quests)
-    - General concept:
-      - GM creates physical items (maps, keys) as one-shot quests that are entirely optional and single-resolution in v1.
-      - Artefacts are tied to how the player already plays (e.g., fishing players get map bottles, dungeon delvers get key quests).
-    - Bottle Map quest (first implementation):
-      - While fishing, with a small chance and no other map quest active, player fishes up a "Bottle with a Map" instead of a fish.
-      - On first click in inventory, GM picks an overworld tile near the town/region where the bottle was fished and marks it internally as a crime-scene target.
-      - GM shows an X marker on the overworld and a short description ("A faint map marks an X near [Town Name].").
-      - When the player steps on the X tile, GM spawns a small crime-scene event (minimal corpse flavor + chest) and rewards special loot from the chest.
-      - After looting, the quest is marked complete and the X marker is cleared.
-      - If the bottle or X is ignored for a long time, GM simply treats map quests as lower priority for that run (no punishment).
-    - Leave design room to extend to key-based mini-dungeons and multi-step chains later.
+  - v0.2 shipping action catalog (minimum content)
+    - [ ] `travel.guardFine` (confirm)
+      - Use confirm UI (pay/refuse)
+      - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
+      - Encounter template already exists: `gm_guard_fine` (data)
+    - [ ] `travel.banditBounty` (auto)
+      - Auto-start a **special** encounter (not the normal EncounterService roll)
+      - Must obey safety rails + cooldowns
+      - Encounter template already exists: `gm_bandit_bounty` (data)
+    - [ ] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
+      - Acquisition: on fishing success, sometimes grant a "Bottle with a Map" (only if no active quest thread)
+      - Activation: on first use/inspect, bind a target overworld tile via GM RNG + placement constraints
+      - Marker: place an X marker; show a short clue (near town/region)
+      - Resolution: at the X tile, pressing `G` starts a small crime-scene encounter (corpse + chest)
+      - Cleanup: after loot, quest completes and marker is removed
+      - Hard placement constraints (no softlocks):
+        - [ ] target must be walkable
+        - [ ] deterministic retry loop with capped attempts
+        - [ ] graceful expiry if placement fails (log reason)
 
-  - Phase 5: GM Admin Panel (F9) – live debug and testing UI
-    - F9 toggles a floating GM panel that stays visible while the player continues to play; panel is draggable so it can be moved out of the way.
-    - GM State overview:
-      - Show current mood (passive/active/aggressive) with color, boredom as a bar, and last major GM action.
-    - Player profile:
-      - List active traits with simple strength bars and last-update timestamps.
-      - Optional simple charts (e.g., time spent per mode, kills by faction) to help explain why traits are set.
-    - Mechanic awareness:
-      - Table of tracked mechanics with current knowledge state (unseen/seen-not-tried/tried-recently/tried-long-ago/disinterested), last-used times, and per-mechanic nudge toggle.
-    - Artefact quests:
-      - List active and recent artefact quests (type, target, status: planned/active/completed/ignored) with basic details.
-    - GM decision log:
-      - Scrollable view of key GM decisions (trait updates, mood/boredom changes, quest creation/completion, nudges fired).
+  - v0.2 testing/merge gates (must-have)
+    - [ ] Determinism: GM RNG persistence gate (save → reload → next N draws identical)
+    - [ ] Determinism: scheduler arbitration gate (winner selection consumes zero RNG)
+    - [ ] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers
+    - [ ] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters)
+    - [ ] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
 
-  - Phase 6: GM control and injection tools (for development)
-    - Master switches in the panel:
-      - [GM Enabled] to hard-toggle all automatic GM behavior.
-      - Mode selector: Normal (full behavior), Paused (no new decisions), Manual/Sandbox (no auto events, manual injections only).
-    - Feature toggles:
-      - Enable/disable nudges, small events, artefact quests, and big events independently to test one slice at a time.
-    - Injection helpers:
-      - Buttons to spawn test Bottle Map/Key quests immediately (near player or a selected town) without waiting for conditions.
-      - Trait adjustment controls (boost/clear specific traits) for testing how GM and NPC flavor respond.
-      - Mechanic state adjustment (force unseen/seen/tried/disinterested) to exercise nudge logic.
-    - Ensure all of this works while the panel is open and the game is running so behavior can be inspected in real time.
+  - GM panel (v0.2: beautify + orchestrator visibility)
+    - Visual style + UX
+      - [ ] Diegetic "GM ledger / parchment" theme (still readable/debuggable)
+      - [ ] Dashboard ordering (narrative-first): Mood+Boredom → Next action/cooldowns → Active quest
+      - [ ] Collapsible sections remember open/closed state per session (localStorage, e.g. `GM_PANEL_PREFS_V1`)
+      - [ ] Move most inline styles to CSS classes (`ui/style.css`) for easier iteration
+    - v0.2 data surfaced
+      - [ ] Show GM RNG stream status (algo + state hex + call count)
+      - [ ] Show active actions (top 5) with status + delivery mode (auto/confirm/marker) + eligibility
+      - [ ] Show active Bottle Map quest summary (status + target + attempts + failure reason)
+    - Debug affordances
+      - [ ] Timeline-style intents/events list (newest-first) with channel + reason visible
+      - [ ] Raw GM JSON section (collapsed by default; stringify only when expanded)
+      - [ ] "Show all" toggles for traits/mechanics vs only-active filtering
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
@@ -426,6 +440,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
   - [x] `region_map/region_map_runtime.js` has been split into smaller helpers (sampling/biomes, animals, persistence, input, RUINS):
     - `region_map_sampling.js`, `region_map_persistence.js`, `region_map_animals.js`, `region_map_actions.js`, `region_map_ruins.js`, with `region_map_runtime.js` now acting as a thin orchestrator.
+  - [ ] `core/gm/runtime.js` has grown large; consider splitting into focused modules (state shape, traits/factions, travel events, hints) and adding more targeted tests.
 - [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
   - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
   - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
@@ -439,9 +454,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Review overworld road/path generation and pruning so that roads only remain when they connect meaningful POIs (towns, castles, dungeons, ruins) and stray/isolated road segments in wilderness are removed as part of a final cleanup pass.
 - [ ] Region Map / overworld integration:
   - Shallow water tiles (SHALLOW) should not be treated as valid entrances into Region Map views; only proper land or intended coast tiles should generate Region Map entry points.
-- [ ] Bridges vs shallows cleanup:
-  - Bridges currently use SHALLOW tiles underneath as walkable crossings.
-  - Decide on a final design:
-    - Either remove remaining explicit bridge functionality and rely purely on SHALLOW fords generated at crossings, or
-    - Keep bridge overlays but generate SHALLOW tiles first and treat bridges purely as a visual layer over those fords.
-  - Update world generation and runtime helpers so there is a single, consistent source of SHALLOW crossings and no duplicate or conflicting bridge logic.
+- [x] Bridges vs shallows cleanup:
+  - Explicit overworld bridge overlays have been removed; crossings now rely purely on SHALLOW fords generated by InfiniteGen and world helpers.
+  - WORLD_BRIDGES feature/config is disabled by default so no additional runtime bridge overlays are created.
+  - `ctx.world.bridges` is no longer used by the main game; SHALLOW tiles are the single, consistent source of walkable river crossings.

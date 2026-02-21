@@ -121,6 +121,13 @@ function ensureOverlay() {
     }
     try { e.preventDefault(); } catch (_) {}
     if (e.key === "Escape" || e.key === "Esc") {
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = _gameCtx && _gameCtx.mode ? _gameCtx.mode : "town";
+          GM.onEvent(_gameCtx, { type: "mechanic", scope, mechanic: "lockpicking", action: "dismiss" });
+        }
+      } catch (_) {}
       hide();
       return;
     }
@@ -188,6 +195,13 @@ function ensureOverlay() {
   // Clicking dim background closes the modal
   ov.addEventListener("click", (e) => {
     if (e.target === ov) {
+      try {
+        const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+        if (GM && typeof GM.onEvent === "function") {
+          const scope = _gameCtx && _gameCtx.mode ? _gameCtx.mode : "town";
+          GM.onEvent(_gameCtx, { type: "mechanic", scope, mechanic: "lockpicking", action: "dismiss" });
+        }
+      } catch (_) {}
       hide();
       e.stopPropagation();
     }
@@ -514,6 +528,15 @@ function finish(success) {
       } catch (_) {}
     }
 
+    // GMRuntime: lockpicking mechanic outcome
+    try {
+      const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+      if (GM && typeof GM.onEvent === "function") {
+        const scope = _gameCtx && _gameCtx.mode ? _gameCtx.mode : "town";
+        GM.onEvent(_gameCtx, { type: "mechanic", scope, mechanic: "lockpicking", action: success ? "success" : "failure" });
+      }
+    } catch (_) {}
+
     try {
       if (typeof ctx.updateUI === "function") ctx.updateUI();
     } catch (_) {}
@@ -593,6 +616,17 @@ export function show(ctx, opts = {}) {
   }
 
   setupPuzzle(ctx, opts);
+
+  // GMRuntime: lockpicking mechanic seen/tried
+  try {
+    const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
+    if (GM && typeof GM.onEvent === "function") {
+      const scope = ctx && ctx.mode ? ctx.mode : "town";
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "lockpicking", action: "seen" });
+      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "lockpicking", action: "tried" });
+    }
+  } catch (_) {}
+
   _running = true;
   _overlay.style.display = "block";
   draw();

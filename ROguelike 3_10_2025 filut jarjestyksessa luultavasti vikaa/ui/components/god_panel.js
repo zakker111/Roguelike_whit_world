@@ -17,6 +17,8 @@ function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
 }
 
+
+
 function populateEncounterSelect() {
   try {
     const el = byId("god-enc-select");
@@ -354,6 +356,17 @@ export function init(UI) {
     dlBtn.disabled = true;
   }
 
+  // GM emission sim
+  const gmRunBtn = byId("god-run-gm-emission-sim-btn");
+  gmRunBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodRunGmEmissionSim === "function") UI.handlers.onGodRunGmEmissionSim();
+  });
+
+  const gmCopyBtn = byId("god-copy-gm-emission-sim-btn");
+  gmCopyBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodCopyGmEmissionSim === "function") UI.handlers.onGodCopyGmEmissionSim();
+  });
+
   // FOV slider
   const fov = byId("god-fov");
   const fovVal = byId("god-fov-value");
@@ -412,6 +425,8 @@ export function init(UI) {
       if (typeof UI.handlers.onGodArmEncounterNextMove === "function") UI.handlers.onGodArmEncounterNextMove(sel);
     });
   }
+
+  
 
   // Side Log toggle
   const mirrorBtn = byId("god-toggle-mirror-btn");

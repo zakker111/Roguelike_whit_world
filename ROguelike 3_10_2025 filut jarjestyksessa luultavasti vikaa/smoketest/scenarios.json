@@ -6,12 +6,15 @@
     { "id": "dungeon", "label": "Dungeon" },
     { "id": "combat", "label": "Combat" },
     { "id": "dungeon_persistence", "label": "Dungeon Persistence" },
+    { "id": "dungeon_stairs_transitions", "label": "Dungeon Stairs Transitions" },
     { "id": "town", "label": "Town" },
     { "id": "town_diagnostics", "label": "Town Diagnostics" },
     { "id": "overlays", "label": "Overlays" },
     { "id": "determinism", "label": "Determinism" },
     { "id": "encounters", "label": "Encounters" },
     { "id": "api", "label": "API" },
-    { "id": "town_flows", "label": "Town Flows" }
+    { "id": "town_flows", "label": "Town Flows" },
+    { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },
+    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" }
   ]
 }

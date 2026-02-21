@@ -353,6 +353,22 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
+    // Defensive: stale towerRun can leak across dungeon entries and cause stairs
+    // handling to be misrouted into tower logic (breaking exit/loot interactions).
+    try {
+      if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+        const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
+        const kind = (dinfo && typeof dinfo.kind === "string") ? String(dinfo.kind).toLowerCase() : "";
+        if (kind !== "tower") {
+          const ent = ctx.towerRun.entrance || null;
+          const ex = (dinfo && typeof dinfo.x === "number") ? (dinfo.x | 0) : null;
+          const ey = (dinfo && typeof dinfo.y === "number") ? (dinfo.y | 0) : null;
+          const sameEntrance = !!(ent && typeof ent.x === "number" && typeof ent.y === "number" && ex != null && ey != null && (ent.x | 0) === ex && (ent.y | 0) === ey);
+          if (!sameEntrance) ctx.towerRun = null;
+        }
+      }
+    } catch (_) {}
+
     const isTowerDungeon =
       !!(ctx.towerRun && ctx.towerRun.kind === "tower") ||
       !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
@@ -527,6 +543,22 @@ export function loot(ctx) {
   }
 
   if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
+    // Defensive: stale towerRun can leak across dungeon entries and cause stairs
+    // handling to be misrouted into tower logic (breaking exit/loot interactions).
+    try {
+      if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+        const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
+        const kind = (dinfo && typeof dinfo.kind === "string") ? String(dinfo.kind).toLowerCase() : "";
+        if (kind !== "tower") {
+          const ent = ctx.towerRun.entrance || null;
+          const ex = (dinfo && typeof dinfo.x === "number") ? (dinfo.x | 0) : null;
+          const ey = (dinfo && typeof dinfo.y === "number") ? (dinfo.y | 0) : null;
+          const sameEntrance = !!(ent && typeof ent.x === "number" && typeof ent.y === "number" && ex != null && ey != null && (ent.x | 0) === ex && (ent.y | 0) === ey);
+          if (!sameEntrance) ctx.towerRun = null;
+        }
+      }
+    } catch (_) {}
+
     // Prefer centralized return flow
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {

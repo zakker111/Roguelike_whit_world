@@ -17,6 +17,468 @@ import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
 import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
+const NPC_RUMOR_COOLDOWN_TURNS = 300;
+const NPC_TRAIT_MIN_SAMPLES = 3;
+const NPC_TRAIT_MIN_SCORE = 0.4;
+const NPC_TRAIT_FORGET_TURNS = 300;
+
+function formatFamilyLabel(key) {
+  const base = String(key || "").trim();
+  if (!base) return "your family";
+  const cleaned = base.replace(/_/g, " ");
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function pickFactionIdentity(gm, currentTurn) {
+  if (!gm || typeof gm !== "object") return null;
+  const factions = gm.factions && typeof gm.factions === "object" ? gm.factions : null;
+  if (!factions) return null;
+
+  let bestKey = null;
+  let bestSeen = -1;
+  let bestAbsScore = 0;
+  let bestScore = 0;
+  const curTurn = typeof currentTurn === "number" && Number.isFinite(currentTurn) ? (currentTurn | 0) : null;
+
+  for (const key in factions) {
+    if (!Object.prototype.hasOwnProperty.call(factions, key)) continue;
+    const entry = factions[key];
+    if (!entry || typeof entry !== "object") continue;
+
+    const seen = entry.seen | 0;
+    if (seen < NPC_TRAIT_MIN_SAMPLES) continue;
+
+    const pos = entry.positive | 0;
+    const neg = entry.negative | 0;
+    const samples = pos + neg;
+    if (samples <= 0) continue;
+
+    const score = (pos - neg) / samples;
+    const absScore = Math.abs(score);
+    if (absScore < NPC_TRAIT_MIN_SCORE) continue;
+
+    let lastTurn = null;
+    const rawLast = entry.lastUpdatedTurn;
+    if (typeof rawLast === "number" && Number.isFinite(rawLast)) {
+      lastTurn = rawLast | 0;
+    }
+
+    if (curTurn != null && lastTurn != null) {
+      const delta = curTurn - lastTurn;
+      if (delta > NPC_TRAIT_FORGET_TURNS) continue;
+    }
+
+    if (
+      seen > bestSeen ||
+      (seen === bestSeen && absScore > bestAbsScore) ||
+      (seen === bestSeen && absScore === bestAbsScore && (bestKey == null || key < bestKey))
+    ) {
+      bestKey = key;
+      bestSeen = seen;
+      bestAbsScore = absScore;
+      bestScore = score;
+    }
+  }
+
+  if (!bestKey) return null;
+
+  let role = null;
+  if (bestScore >= NPC_TRAIT_MIN_SCORE) {
+    role = "slayer";
+  } else if (bestScore <= -NPC_TRAIT_MIN_SCORE) {
+    role = "ally";
+  } else {
+    return null;
+  }
+
+  const baseLabel = formatFamilyLabel(bestKey);
+  const label = role === "slayer" ? `${baseLabel} Slayer` : `${baseLabel} Ally`;
+
+  return {
+    kind: "faction",
+    key: bestKey,
+    role,
+    label,
+    score: bestScore,
+    seen: bestSeen
+  };
+}
+
+function pickNpcRumorTopic(gm, currentTurn) {
+  if (!gm || typeof gm !== "object") return null;
+
+  // 1) Named traits (priority order)
+  const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : null;
+  if (traits) {
+    const order = ["trollSlayer", "townProtector", "caravanAlly"];
+    for (let i = 0; i < order.length; i++) {
+      const key = order[i];
+      const tr = traits[key];
+      if (!tr || typeof tr !== "object") continue;
+      const seen = tr.seen | 0;
+      if (seen < NPC_TRAIT_MIN_SAMPLES) continue;
+      const pos = tr.positive | 0;
+      const neg = tr.negative | 0;
+      const samples = pos + neg;
+      if (samples <= 0) continue;
+      const score = (pos - neg) / samples;
+      if (Math.abs(score) < NPC_TRAIT_MIN_SCORE) continue;
+      const lastTurn = tr.lastUpdatedTurn == null ? null : (tr.lastUpdatedTurn | 0);
+      if (currentTurn != null && lastTurn != null) {
+        const delta = currentTurn - lastTurn;
+        if (delta > NPC_TRAIT_FORGET_TURNS) continue;
+      }
+      return { kind: "trait", id: key };
+    }
+  }
+
+  // 2) Factions: prefer faction identity before families when available.
+  const faction = pickFactionIdentity(gm, currentTurn);
+  if (faction) {
+    return {
+      kind: "faction",
+      key: faction.key,
+      role: faction.role,
+      label: faction.label
+    };
+  }
+
+  // 3) Families: top by seen (>=3), then lexicographically, with score gate.
+  const families = gm.families && typeof gm.families === "object" ? gm.families : null;
+  if (!families) return null;
+
+  let bestKey = null;
+  let bestSeen = -1;
+  for (const key in families) {
+    if (!Object.prototype.hasOwnProperty.call(families, key)) continue;
+    const fam = families[key];
+    if (!fam || typeof fam !== "object") continue;
+    const seen = fam.seen | 0;
+    if (seen < 3) continue;
+    if (seen > bestSeen || (seen === bestSeen && bestKey != null && key < bestKey)) {
+      bestSeen = seen;
+      bestKey = key;
+    } else if (seen === bestSeen && bestKey == null) {
+      bestSeen = seen;
+      bestKey = key;
+    }
+  }
+
+  if (!bestKey) return null;
+  const fam = families[bestKey];
+  const pos = fam.positive | 0;
+  const neg = fam.negative | 0;
+  const samples = pos + neg;
+  if (samples <= 0) return null;
+  const score = (pos - neg) / samples;
+  const THRESHOLD = 0.4;
+  if (score >= THRESHOLD) {
+    return { kind: "family", polarity: "slayer", key: bestKey };
+  }
+  if (score <= -THRESHOLD) {
+    return { kind: "family", polarity: "ally", key: bestKey };
+  }
+  return null;
+}
+
+function gmEvent(ctx, event) {
+  try {
+    if (!ctx) return;
+    const GM = ctx.GMRuntime || getMod(ctx, "GMRuntime");
+    if (!GM) return;
+
+    if (typeof GM.onEvent === "function") {
+      GM.onEvent(ctx, event || {});
+    }
+
+    // Phase 0–1 GM integration: lightweight flavor intent on mode enter.
+    const ev = event || {};
+    const isModeEnter = ev.type === "mode.enter";
+    const scope = ev.scope || ctx.mode || "unknown";
+    const isTownEnter = isModeEnter && scope === "town";
+    let townEntryFlavorLogged = false;
+
+    if (isModeEnter && typeof GM.getEntranceIntent === "function" && typeof ctx.log === "function") {
+      if (scope === "world" || scope === "town" || scope === "dungeon" || scope === "tavern") {
+        try {
+          const intent = GM.getEntranceIntent(ctx, scope);
+          if (intent && intent.kind === "flavor") {
+            if (isTownEnter) townEntryFlavorLogged = true;
+            const topic = typeof intent.topic === "string" ? intent.topic : "";
+            const M = ctx.Messages || getMod(ctx, "Messages");
+            const hasMessages = !!(M && typeof M.get === "function" && typeof M.log === "function");
+
+            if (topic.startsWith("family:")) {
+              const famKey = topic.slice("family:".length) || "unknown";
+              const label = formatFamilyLabel(famKey);
+
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.familyRumor";
+                  const vars = { family: label };
+                  const text = M.get(key, vars);
+                  if (text) {
+                    M.log(ctx, key, vars, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log(`You hear rumors about recent troubles with ${label}.`, "flavor", { category: "gm" });
+              }
+            } else if (topic === "general_rumor") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.generalRumor";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You catch a stray rumor as you arrive.", "flavor", { category: "gm" });
+              }
+            } else if (topic === "variety:try_town") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryTown";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You get the sense the townsfolk have different work for you.", "flavor", { category: "gm" });
+              }
+            } else if (topic === "variety:try_dungeon") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryDungeon";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You hear whispers that the dungeons have changed since your last delve.", "flavor", { category: "gm" });
+              }
+            } else if (topic === "variety:try_world") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.variety.tryWorld";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("Rumors speak of new routes and encounters out on the overworld.", "flavor", { category: "gm" });
+              }
+            } else {
+              // Generic fallback rumor
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.generalRumor";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("You catch a stray rumor as you arrive.", "flavor", { category: "gm" });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Secondary flavor channel: NPC trait/family rumors on town/tavern entry.
+    const npcRumorLogged = (isModeEnter && (scope === "town" || scope === "tavern"))
+      ? (function () {
+        try {
+          if (scope === "town" && townEntryFlavorLogged) return false;
+          if (typeof ctx.log !== "function") return false;
+          if (typeof GM.getState !== "function") return false;
+          const gm = GM.getState(ctx);
+          if (!gm || gm.enabled === false) return false;
+
+          // Ensure storyFlags exists so we can persist NPC rumor cooldown deterministically.
+          if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+            gm.storyFlags = {};
+          }
+
+          // Cooldown to avoid spam: at least N turns between NPC rumors.
+          let turn = 0;
+          if (ctx.time && typeof ctx.time.turnCounter === "number") {
+            turn = ctx.time.turnCounter | 0;
+          } else if (gm.debug && typeof gm.debug.lastTickTurn === "number") {
+            turn = gm.debug.lastTickTurn | 0;
+          }
+
+          let lastTurn = -1;
+          if (typeof gm.storyFlags.lastNpcRumorTurn === "number") {
+            lastTurn = gm.storyFlags.lastNpcRumorTurn | 0;
+          } else if (typeof ctx._gmNpcLastRumorTurn === "number") {
+            lastTurn = ctx._gmNpcLastRumorTurn | 0;
+            // Backward-compat: migrate any existing ctx-local value into GM state.
+            gm.storyFlags.lastNpcRumorTurn = lastTurn;
+          }
+
+          if (lastTurn >= 0 && (turn - lastTurn) < NPC_RUMOR_COOLDOWN_TURNS) return false;
+
+          // Additional rarity gating: only surface an NPC rumor on the first entry,
+          // then at most once every few town/tavern entries.
+          try {
+            const stats = gm.stats && typeof gm.stats === "object" ? gm.stats : null;
+            const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
+            const entriesForScope = modeEntries && typeof modeEntries[scope] === "number" ? (modeEntries[scope] | 0) : 0;
+            if (entriesForScope > 1) {
+              const ENTRY_PERIOD = 3; // 1st, 4th, 7th, ... entries into town/tavern.
+              if ((entriesForScope - 1) % ENTRY_PERIOD !== 0) return false;
+            }
+          } catch (_) {}
+
+          const topic = pickNpcRumorTopic(gm, turn);
+          if (!topic) return false;
+
+          const M = ctx.Messages || getMod(ctx, "Messages");
+          let text = null;
+
+          if (topic.kind === "trait") {
+            const key = `gm.npcRumors.${topic.id}`;
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(key, null);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.id === "trollSlayer") {
+                text = "A local mutters: \"They say someone has a grudge against trolls around here...\"";
+              } else if (topic.id === "townProtector") {
+                text = "You overhear: \"The town sleeps easier thanks to a certain defender.\"";
+              } else if (topic.id === "caravanAlly") {
+                text = "Merchants whisper: \"Caravans seem to like that one.\"";
+              }
+            }
+          } else if (topic.kind === "family") {
+            const label = formatFamilyLabel(topic.key);
+            const vars = { family: label };
+            const msgKey = topic.polarity === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(msgKey, vars);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.polarity === "slayer") {
+                text = `Someone mentions trouble for the ${label} in recent days.`;
+              } else {
+                text = `An idle rumor suggests the ${label} have a friend in town.`;
+              }
+            }
+          } else if (topic.kind === "faction") {
+            const label = String(topic.label || formatFamilyLabel(topic.key));
+            const vars = { family: label };
+            const msgKey = topic.role === "slayer" ? "gm.npcRumors.familySlayer" : "gm.npcRumors.familyAlly";
+            if (M && typeof M.get === "function") {
+              try {
+                text = M.get(msgKey, vars);
+              } catch (_) {}
+            }
+            if (!text) {
+              if (topic.role === "slayer") {
+                text = `Someone mentions trouble for the ${label} in recent days.`;
+              } else {
+                text = `An idle rumor suggests the ${label} has a friend in town.`;
+              }
+            }
+          }
+
+          if (!text) return false;
+
+          // Persist cooldown turn in GM state so it survives ctx recreation.
+          if (!gm.storyFlags || typeof gm.storyFlags !== "object") {
+            gm.storyFlags = {};
+          }
+          gm.storyFlags.lastNpcRumorTurn = turn;
+          // Also keep ctx-local field for any legacy callers that might read it.
+          ctx._gmNpcLastRumorTurn = turn;
+          ctx.log(text, "flavor", { category: "gm-npc" });
+          return true;
+        } catch (_) {}
+        return false;
+      })()
+      : false;
+
+    if (isTownEnter && npcRumorLogged) townEntryFlavorLogged = true;
+
+    // Mechanic rumor channel: only on town entry, and only if nothing else logged this entry.
+    if (isTownEnter && !townEntryFlavorLogged) {
+      try {
+        if (typeof GM.getMechanicHint === "function" && typeof ctx.log === "function") {
+          const intent = GM.getMechanicHint(ctx);
+          if (intent && intent.kind === "nudge" && typeof intent.target === "string" && intent.target.indexOf("mechanic:") === 0) {
+            const mechanic = intent.target.slice("mechanic:".length);
+            const OFFSETS = { fishing: 0, lockpicking: 1, questBoard: 2, followers: 0 };
+            const FALLBACK = {
+              fishing: "You overhear: \"Try casting a line in town—some ponds are more generous than they look.\"",
+              lockpicking: "A thief whispers: \"Most locks are easier than they seem—just take your time.\"",
+              questBoard: "Someone points you toward the quest board. \"If you want work, that's where it starts.\"",
+              followers: "You hear: \"A trusted companion can make the road much safer.\""
+            };
+            if (Object.prototype.hasOwnProperty.call(OFFSETS, mechanic)) {
+              let entries = 0;
+              try {
+                if (typeof GM.getState === "function") {
+                  const gm = GM.getState(ctx);
+                  const stats = gm && gm.stats && typeof gm.stats === "object" ? gm.stats : null;
+                  const modeEntries = stats && stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : null;
+                  if (modeEntries && typeof modeEntries.town === "number") entries = modeEntries.town | 0;
+                }
+              } catch (_) {}
+
+              const base = Math.max(0, entries - 1);
+              const idx = (base + (OFFSETS[mechanic] | 0)) % 3;
+              const key = `gm.mechanic.${mechanic}Hint.${idx}`;
+
+              const M = ctx.Messages || getMod(ctx, "Messages");
+              let text = "";
+              if (M && typeof M.get === "function") {
+                try {
+                  text = M.get(key, null);
+                } catch (_) {}
+              }
+              if (!text) text = FALLBACK[mechanic] || "";
+
+              if (text) {
+                ctx.log(text, "flavor", { category: "gm" });
+                townEntryFlavorLogged = true;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 // Helpers
 function inBounds(ctx, x, y) {
   try {
@@ -141,18 +603,6 @@ function detectHarborContext(ctx, wx, wy, WT) {
 
     
 
-function debugPortHarborsEnabled() {
-  try {
-    if (typeof window === "undefined") return false;
-    const v = localStorage.getItem("DEBUG_PORT_TOWNS");
-    if (typeof v === "string") {
-      const s = v.toLowerCase();
-      return s === "1" || s === "true" || s === "yes" || s === "on";
-    }
-  } catch (_) {}
-  return false;
-}
-
 // Ensure player stands on the town gate interior tile on entry
 function movePlayerToTownGateInterior(ctx) {
   try {
@@ -198,6 +648,7 @@ function movePlayerToTownGateInterior(ctx) {
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
+  const prevMode = ctx.mode;
 
   // Town exit must go through the heuristic gate logic so there is a single
   // source of truth for leaving towns.
@@ -244,6 +695,19 @@ export function leaveTownNow(ctx) {
   }
   if (ctx.log) ctx.log("You return to the overworld.", "info");
   syncAfterMutation(ctx);
+
+  if (prevMode && prevMode !== "world") {
+    gmEvent(ctx, {
+      type: "mode.leave",
+      scope: prevMode,
+      interesting: true,
+    });
+  }
+  gmEvent(ctx, {
+    type: "mode.enter",
+    scope: "world",
+    interesting: true,
+  });
 }
 
 export function requestLeaveTown(ctx) {
@@ -278,7 +742,9 @@ export function enterTownIfOnTile(ctx) {
   let approachedDir = "";
   const onTownTile = !!(WT && (t === WT.TOWN || (WT.CASTLE != null && t === WT.CASTLE)));
 
-  // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
+  // Record approach direction (used by Town generation to pick gate side). With
+  // strict on-tile entry this is always the empty string, which layout_core
+  // treats as "no preferred side".
   if (onTownTile) {
     ctx.enterFromDir = approachedDir || "";
   }
@@ -394,6 +860,15 @@ export function enterTownIfOnTile(ctx) {
                 : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
+            gmEvent(ctx, {
+              type: "mode.enter",
+              scope: "town",
+              interesting: true,
+              payload: {
+                name: ctx.townName || null,
+                size: ctx.townSize || null,
+              },
+            });
             syncAfterMutation(ctx);
             return true;
           }
@@ -420,6 +895,15 @@ export function enterTownIfOnTile(ctx) {
                 : (isHarborTown ? "harbor town" : "town");
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
+            gmEvent(ctx, {
+              type: "mode.enter",
+              scope: "town",
+              interesting: true,
+              payload: {
+                name: ctx.townName || null,
+                size: ctx.townSize || null,
+              },
+            });
             syncAfterMutation(ctx);
             return true;
           }
@@ -519,7 +1003,18 @@ export function enterDungeonIfOnEntrance(ctx) {
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.enter === "function") {
         const ok = ctx.DungeonRuntime.enter(ctx, info);
-        if (ok) { syncAfterMutation(ctx); return true; }
+        if (ok) {
+          gmEvent(ctx, {
+            type: "mode.enter",
+            scope: "dungeon",
+            interesting: true,
+            payload: {
+              level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
+            },
+          });
+          syncAfterMutation(ctx);
+          return true;
+        }
       }
     } catch (_) {}
 
@@ -551,6 +1046,14 @@ export function enterDungeonIfOnEntrance(ctx) {
     try { spawnInDungeon(ctx); } catch (_) {}
     
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info");
+    gmEvent(ctx, {
+      type: "mode.enter",
+      scope: "dungeon",
+      interesting: true,
+      payload: {
+        level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
+      },
+    });
     syncAfterMutation(ctx);
     return true;
   }
@@ -574,6 +1077,11 @@ export function enterRuinsIfOnTile(ctx) {
         const ok = !!RMR.open(ctx);
         if (ok) {
           if (ctx.log) ctx.log("You enter the ancient ruins.", "info");
+          gmEvent(ctx, {
+            type: "mode.enter",
+            scope: "ruins",
+            interesting: true,
+          });
           syncAfterMutation(ctx);
           return true;
         }
@@ -602,6 +1110,14 @@ export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAnd
     } catch (_) {}
     const ok = !!ER.enter(ctx, { template, biome, difficulty: diff });
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.enter",
+      scope: "encounter",
+      interesting: true,
+      payload: {
+        templateId: (template && template.id) || null,
+      },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -619,6 +1135,16 @@ export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
     if (RMR && typeof RMR.open === "function") {
       const ok = !!RMR.open(ctx);
       if (!ok) return false;
+      gmEvent(ctx, {
+        type: "mode.leave",
+        scope: "world",
+        interesting: true,
+      });
+      gmEvent(ctx, {
+        type: "mode.enter",
+        scope: "region",
+        interesting: true,
+      });
       if (typeof applyCtxSyncAndRefresh === "function") {
         try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
       } else {
@@ -644,6 +1170,14 @@ export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefres
     } catch (_) {}
     const ok = !!ER.enterRegion(ctx, { template, biome, difficulty: diff });
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.enter",
+      scope: "encounter",
+      interesting: true,
+      payload: {
+        templateId: (template && template.id) || null,
+      },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -661,6 +1195,12 @@ export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers)
     if (!ER || typeof ER.complete !== "function") return false;
     const ok = !!ER.complete(ctx, outcome || "victory");
     if (!ok) return false;
+    gmEvent(ctx, {
+      type: "encounter.exit",
+      scope: "encounter",
+      interesting: true,
+      payload: { outcome: outcome || null },
+    });
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
     } else {
@@ -723,6 +1263,16 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
       const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
+        gmEvent(ctx, {
+          type: "mode.leave",
+          scope: "town",
+          interesting: true,
+        });
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
         if (typeof applyCtxSyncAndRefresh === "function") {
           try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
         } else {
@@ -745,11 +1295,26 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
 }
 
 export function returnToWorldIfAtExit(ctx) {
+  const prevMode = ctx && ctx.mode;
   // Prefer DungeonRuntime centralization first
   try {
     if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
       const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
+      if (ok) {
+        syncAfterMutation(ctx);
+        if (prevMode && prevMode !== "world") {
+          gmEvent(ctx, {
+            type: "mode.leave",
+            scope: prevMode,
+            interesting: true,
+          });
+        }
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
+      }
       return ok;
     }
   } catch (_) {}
@@ -759,7 +1324,21 @@ export function returnToWorldIfAtExit(ctx) {
     const DS = ctx.DungeonState || (typeof window !== "undefined" ? window.DungeonState : null);
     if (DS && typeof DS.returnToWorldIfAtExit === "function") {
       const ok = DS.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
+      if (ok) {
+        syncAfterMutation(ctx);
+        if (prevMode && prevMode !== "world") {
+          gmEvent(ctx, {
+            type: "mode.leave",
+            scope: prevMode,
+            interesting: true,
+          });
+        }
+        gmEvent(ctx, {
+          type: "mode.enter",
+          scope: "world",
+          interesting: true,
+        });
+      }
       return ok;
     }
   } catch (_) {}
@@ -796,5 +1375,7 @@ attachGlobal("Modes", {
   leaveTownNow,
   requestLeaveTown,
   saveCurrentDungeonState,
-  loadDungeonStateFor
+  loadDungeonStateFor,
+  // Private test hook: allows unit-style sims to exercise the same GM integration path as the real game.
+  __gmEvent: gmEvent
 });

@@ -56,6 +56,10 @@ This file should describe the **current state**, not the future; update it whene
   - While GOD is open:
     - `Esc` — closes GOD panel.
     - Other keys are consumed and do not affect gameplay.
+- GM panel overlay **(EXPERIMENTAL)**:
+  - `O` — toggle the GM panel (floating, non-modal debug overlay).
+  - Shows GM state (mood/boredom/traits/mechanics) and recent GM intent history.
+  - Includes a toggle to enable/disable `gm.enabled` for the current session.
 - FOV adjust:
   - Decrease FOV:
     - `[`, `-`, `NumpadSubtract` (depending on keyboard layout).
@@ -432,6 +436,7 @@ These are primarily for debugging and development, not normal gameplay.
   - Combat & Status (apply status, always crit, etc.).
   - Logs & Tracing (log categories, download logs, fallback logs).
   - RNG & Theme (seed control, palette selection).
+  - GM tools (GM emission sim report).
   - Tools & Analysis (run analyses/validators).
   - Smoke Tests (run smoketest scenarios).
 
@@ -705,6 +710,34 @@ These exist partially in code or design but are **known unstable** or not yet im
 - Attribute points:
   - Level-ups grant a small number of attribute points; the Character Sheet includes `+/-` buttons as a **developer-facing cheat UI** to spend/refund points during testing.
   - Long-term progression rules (how many points per level, caps, and respec rules) are still in flux and may change.
+
+### 12.7 Game Master (GM) system (EXPERIMENTAL)
+
+- What it is:
+  - A deterministic “Game Master” runtime that tracks your run context (turns/mode entries, boredom, mood, mechanic usage, and simple reputation signals) and occasionally surfaces low-frequency flavor/hints.
+  - It is primarily an **observability + nudge** layer, not a director.
+
+- Determinism and scope:
+  - GM decisions are deterministic and do **not** consume RNG.
+  - GM does **not** change encounter selection, loot, spawns, AI, or worldgen; it only updates `ctx.gm` and emits flavor/log lines.
+
+- What GM tracks (via `ctx.gm`):
+  - Stats: total turns, turns/entries per mode, encounter starts/completions.
+  - Mood + boredom: a smoothed boredom level, “turns since interesting event”, and a mood profile (valence/arousal + primary label).
+  - Mechanics: per-mechanic seen/tried/success/failure/dismiss counters for `fishing`, `lockpicking`, `questBoard`, `followers`.
+  - Reputation signals (very early/passive): named traits (`trollSlayer`, `townProtector`, `caravanAlly`) plus family/faction impressions from events.
+
+- What GM can emit (rare, low-frequency):
+  - On town/tavern/dungeon/world entry:
+    - Entrance flavor lines (category `gm`).
+    - NPC rumor lines about traits/family/faction (category `gm-npc`).
+    - Town mechanic hints that only nudge mechanics you have not used yet (category `gm`).
+  - On overworld travel:
+    - GM “faction travel events” that can start a special encounter or a guard fine modal, and may suppress the normal encounter roll for that step.
+
+- GM UI/tools:
+  - `O` toggles the GM panel overlay (non-modal): shows GM state and recent intent history; includes a toggle for `gm.enabled`.
+  - GOD panel includes a **GM Emission Sim** tool to validate deterministic gating.
 
 ---
 

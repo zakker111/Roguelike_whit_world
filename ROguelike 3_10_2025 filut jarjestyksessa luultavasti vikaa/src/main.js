@@ -104,6 +104,7 @@ import '/core/bridge/ui_bridge.js';
 import '/region_map/region_map_runtime.js';
 import '/core/facades/occupancy.js';
 import '/core/world_runtime.js';
+import '/core/gm/runtime.js';
 import '/core/state/game_state.js';
 import '/core/engine/turn_loop.js';
 import '/core/engine/game_fov.js';
@@ -214,9 +215,12 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
         '/smoketest/scenarios/dungeon_persistence.js',
+        '/smoketest/scenarios/dungeon_stairs_transitions.js',
         '/smoketest/scenarios/town_diagnostics.js',
         '/smoketest/scenarios/api.js',
         '/smoketest/scenarios/encounters.js',
+        '/smoketest/scenarios/gm_mechanic_hints.js',
+        '/smoketest/scenarios/gm_intent_decisions.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

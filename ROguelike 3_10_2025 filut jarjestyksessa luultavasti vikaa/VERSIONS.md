@@ -1,3 +1,13 @@
+2026-02-21 — GM v0.1 merge gate first pass (Policy A): deterministic hints + observability
+
+- GM v0.1 automated gates:
+  - GM Emission Sim (GOD panel) passes (`ok: true`, scenarios S1..S6 ok) with deterministic reason codes (e.g. `rarity.entryPeriod`, `cooldown.turn`, `cooldown.entry`, `no.mechanic`).
+  - Smoketest multirun verified determinism + GM scenarios (determinism / gm_mechanic_hints / gm_intent_decisions passed across 3 runs).
+- Manual sanity checks (Phase 2) passed:
+  - GM panel (`O`) is non-modal (does not block movement), draggable/scrollable, and stable across world/town/dungeon.
+  - GM log categories `gm` / `gm-npc` visible in GOD logs and not suppressed when “General” is disabled.
+
+
 2026-02-10 — Overworld infinite generator refinements, SHALLOW fords, and connectivity corridors
 
 - Infinite overworld generator (InfiniteGen) climate and terrain:
@@ -43,6 +53,7 @@
     - Ensure SHALLOW tiles are **not** used as Region Map entry points; only proper land/coast tiles should open Region Map views.
     - Clean up remaining bridge-vs-SHALLOW logic so crossings are driven by SHALLOW fords first and bridge overlays are purely a visual layer, or alternatively retire explicit bridges entirely in favor of SHALLOW.
   - Recorded a critical overworld rendering bug in BUGS.md where, after heavy exploration and many chunks loaded, the entire overworld (outside towns/dungeons/ruins) appeared black-tinted while other modes rendered correctly; likely tied to fog/tint/palette overlays under high world-load and earmarked for incremental/streamed overworld updates.
+- Added Phase 0–1 GM runtime scaffolding: `core/gm/runtime.js`, `ctx.gm` state bag, and a per-turn GM tick hook (no gameplay effects yet; GM is currently observability-only).
 
 2026-02-09 — Player attribute system, Character Sheet, and early STR/DEX/INT/CHA/LCK integration
 
@@ -254,7 +265,7 @@ v1.71.0 — Overworld minimap toggle and map fog stability
   - Fixed a bug where the minimap could show all explored chunks after visiting towns, dungeons, ruins, or encounters and returning to the overworld.
   - The minimap now uses the same fog-of-war grid and Fog helpers as the main map and rebuilds its offscreen buffer per mode, so previously explored overworld chunks no longer leak when changing modes.
 
-v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cleanup (internal)
+v1.70.1 — Sandbox enemy lab and non-persistent test room panel modularization and cleanup (internal)
 
 - SandboxPanel implementation refactor:
   - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
@@ -270,16 +281,6 @@ v1.70.0 — Sandbox enemy lab and non-persistent test room modularization and cl
   - This is an internal refactor only; sandbox mode behavior, spawn rules, overrides, and JSON export remain as described in v1.70.0 below.
 
 v1.70.0 — Sandbox enemy lab and non-persistent test room
-remain as described in v1.70.0 below.
-
-v1.70.0 — Sandbox enemy lab and non-persistent test room</old_code><new_code>v1.70.0 — Sandbox enemy lab and non-persistent test room.1 — Sandbox panel modularization and cleanup (internal)
-
-- SandboxPanel implementation refactor:
-  - Replaced the original monolithic `ui/components/sandbox_panel.js` with a modular v2 implementation.
-  - New `ui/components/sandbox_panel_v2.js` owns the Sandbox controls overlay (F10) UI and event wiring.
-  - New helper modules split responsibilities:
-    - `ui/components/sandbox_model.js` – enemy/animal list, entity select population, form/loot sync, ctx helpers.
-    - `ui/components/sandbox_spawn.js` – classifyEntityId, currentEnemyId,room
 
 - Sandbox dungeon room mode:
   - Added `SandboxRuntime.enter(ctx, options)` under `core/sandbox/runtime.js` and wired it via `GameAPI.enterSandboxRoom()` and the GOD panel "Enter Sandbox (Dungeon Room)" button.
