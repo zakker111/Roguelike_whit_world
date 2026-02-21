@@ -70,7 +70,7 @@
   - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
 
 - CRITICAL: Dungeon runs sometimes break ladder/stairs/loot interactions
-  - In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on corpses/chests logs "there is no corpses here to loot".
+  - In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on stairs logs "there is no corpses here to loot".
   - Likely indicates ctx state desync (map/corpses/seen/visible or mode transitions) or a persistence/load edge case where dungeon state is missing or corrupted.
   - Needs immediate investigation with a minimal repro seed + steps; likely touchpoints: dungeon state load/save (DungeonState/DungeonRuntime), mode transitions, and loot path selection in dungeon mode.
 
