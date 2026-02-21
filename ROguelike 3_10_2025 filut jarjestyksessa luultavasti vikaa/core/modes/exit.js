@@ -106,7 +106,7 @@ export function isAtDungeonExit(ctx) {
     // dungeon exit. All other STAIRS tiles are internal tower stairs
     // and should not trigger a return to the overworld via this helper.
     try {
-      if (ctx.towerRun && ctx.towerRun.floors) {
+      if (ctx.towerRun && ctx.towerRun.kind === "tower" && ctx.towerRun.floors) {
         const tr = ctx.towerRun;
         const f = tr.currentFloor || 1;
         const meta = tr.floors && tr.floors[f];

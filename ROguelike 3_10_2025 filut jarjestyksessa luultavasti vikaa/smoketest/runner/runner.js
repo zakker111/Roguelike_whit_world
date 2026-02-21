@@ -14,7 +14,7 @@
       const p = (name, def) => u.searchParams.get(name) || def;
       // Support both legacy "smoke" and new "scenarios" params
       const legacySel = (p("smoke", "") || "").trim();
-      const sel = legacySel ? legacySel : p("scenarios", "world,region,encounters,dungeon,inventory,combat,town,overlays,determinism");
+      const sel = legacySel ? legacySel : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
       return {
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
@@ -1003,6 +1003,7 @@
         inventory: S.Inventory && S.Inventory.run,
         combat: S.Combat && S.Combat.run,
         dungeon_persistence: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run,
+        dungeon_stairs_transitions: S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run,
         town: S.Town && S.Town.run,
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
@@ -1029,6 +1030,7 @@
           { name: "inventory", fn: avail.inventory },
           { name: "combat", fn: avail.combat },
           { name: "dungeon_persistence", fn: avail.dungeon_persistence },
+          { name: "dungeon_stairs_transitions", fn: avail.dungeon_stairs_transitions },
           { name: "town", fn: avail.town },
           { name: "town_diagnostics", fn: avail.town_diagnostics },
           { name: "overlays", fn: avail.overlays },

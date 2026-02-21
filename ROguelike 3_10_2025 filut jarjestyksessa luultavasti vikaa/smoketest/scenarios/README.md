@@ -6,6 +6,7 @@ Files
 - world.js — routing to dungeon/town, world tile scans.
 - dungeon.js — enter dungeon from overworld; basic verification.
 - dungeon_persistence.js — chest loot, exit/re‑enter persistence, non‑stair guard.
+- dungeon_stairs_transitions.js — tower→dungeon transition regression checks (stairs/exit state).
 - town.js — town entry and basic interactions from overworld.
 - town_flows.js — NPC bump, home routes, props, late‑night checks.
 - town_diagnostics.js — shops, schedules, bump‑buy, gold operations, shop UI.

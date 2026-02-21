@@ -6,6 +6,7 @@
     { "id": "dungeon", "label": "Dungeon" },
     { "id": "combat", "label": "Combat" },
     { "id": "dungeon_persistence", "label": "Dungeon Persistence" },
+    { "id": "dungeon_stairs_transitions", "label": "Dungeon Stairs Transitions" },
     { "id": "town", "label": "Town" },
     { "id": "town_diagnostics", "label": "Town Diagnostics" },
     { "id": "overlays", "label": "Overlays" },

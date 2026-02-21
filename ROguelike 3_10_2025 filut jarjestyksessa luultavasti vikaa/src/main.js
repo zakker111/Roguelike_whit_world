@@ -215,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
         '/smoketest/scenarios/dungeon_persistence.js',
+        '/smoketest/scenarios/dungeon_stairs_transitions.js',
         '/smoketest/scenarios/town_diagnostics.js',
         '/smoketest/scenarios/api.js',
         '/smoketest/scenarios/encounters.js',
