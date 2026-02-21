@@ -70,10 +70,20 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - [ ] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters)
     - [ ] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
 
-  - GM panel (v0.2 minimal additions)
-    - [ ] Show GM RNG state + call count
-    - [ ] Show active actions (top 5) with status and next eligibility
-    - [ ] Show active quest thread summary (Bottle Map) and last executed action
+  - GM panel (v0.2: beautify + orchestrator visibility)
+    - Visual style + UX
+      - [ ] Diegetic "GM ledger / parchment" theme (still readable/debuggable)
+      - [ ] Dashboard ordering (narrative-first): Mood+Boredom → Next action/cooldowns → Active quest
+      - [ ] Collapsible sections remember open/closed state per session (localStorage, e.g. `GM_PANEL_PREFS_V1`)
+      - [ ] Move most inline styles to CSS classes (`ui/style.css`) for easier iteration
+    - v0.2 data surfaced
+      - [ ] Show GM RNG stream status (algo + state hex + call count)
+      - [ ] Show active actions (top 5) with status + delivery mode (auto/confirm/marker) + eligibility
+      - [ ] Show active Bottle Map quest summary (status + target + attempts + failure reason)
+    - Debug affordances
+      - [ ] Timeline-style intents/events list (newest-first) with channel + reason visible
+      - [ ] Raw GM JSON section (collapsed by default; stringify only when expanded)
+      - [ ] "Show all" toggles for traits/mechanics vs only-active filtering
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
