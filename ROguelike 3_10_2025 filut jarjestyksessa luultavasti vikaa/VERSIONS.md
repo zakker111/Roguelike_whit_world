@@ -6,8 +6,7 @@
 - Manual sanity checks (Phase 2) passed:
   - GM panel (`O`) is non-modal (does not block movement), draggable/scrollable, and stable across world/town/dungeon.
   - GM log categories `gm` / `gm-npc` visible in GOD logs and not suppressed when “General” is disabled.
-- Documentation:
-  - Added `docs/gm_v0_1_merge_gate.md` to standardize the Policy A pre-merge checklist and artifacts.
+
 
 2026-02-10 — Overworld infinite generator refinements, SHALLOW fords, and connectivity corridors
 
