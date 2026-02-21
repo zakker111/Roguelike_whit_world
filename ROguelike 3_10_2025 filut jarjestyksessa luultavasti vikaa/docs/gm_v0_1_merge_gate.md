@@ -61,10 +61,11 @@ Run (deployed or local):
 GM-focused subset:
 - `index.html?smoketest=1&dev=1&scenarios=gm_mechanic_hints,gm_intent_decisions,determinism`
 
-Pass criteria:
+Pass criteria (Policy A):
 - [ ] Determinism scenario PASS
 - [ ] GM scenarios PASS
 - [ ] No game-origin console errors during the run (ignore blocked trackers)
+- [ ] If other non-GM scenarios fail (town/dungeon/region/encounters), they are treated as **non-blocking** for GM v0.1, but should be noted in the PR as existing issues.
 
 Artifacts to attach to PR:
 - [ ] In the GOD panel smoketest output, use:
