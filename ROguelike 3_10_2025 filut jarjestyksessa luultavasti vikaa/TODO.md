@@ -9,72 +9,71 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.
   - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
 
-- [ ] Invisible GM system (Game Master) and admin panel (design phase; v0.2+ orchestrating/event systems)
-  - Phase 1: Core GM runtime
-    - Implement a single invisible GM controller that runs alongside the main loop.
-    - Track GM mood (passive/active/aggressive) and a boredom value that rises when nothing notable happens and drops when GM fires events.
-    - Define basic mood rules:
-      - Passive: mostly observing; allowed to do only small, low-impact flavor/reward actions.
-      - Active: boredom high; allowed to schedule and run small/medium events and artefact quests.
-      - Aggressive: only when player behavior is strongly provoking (e.g., heavy troll-killing); allowed to run rare, high-impact events.
-    - Wire GM ticks to game turns so mood/boredom can react every time the player acts.
+- [ ] GM v0.2: Orchestrating GM (feature-rich skeleton; expandable)
+  - Frozen scope (agreed)
+    - GM uses its own **persisted RNG stream** (separate from `ctx.rng` / global RNG).
+      - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
+    - GM is **per new game** (no meta-progression): GM state resets on **death restart**, **Start New Game**, and **seed reroll**.
+    - v0.2 delivery modes (agreed):
+      - `travel.banditBounty`: **auto** (special encounter)
+      - `travel.guardFine`: **confirm** (pay/refuse)
+      - `quest.bottleMap`: **marker** (player travels and presses `G`)
 
-  - Phase 2: Human-like memory and traits (lightweight)
-    - Track soft, fading traits that describe player behavior instead of raw counters:
-      - Examples: Troll Slayer, Town Protector, Caravan Ally/Threat, Dungeon Delver, Angler, Forager, Follower Friend.
-    - Each trait has a simple strength that increases with matching actions and decays over time if behavior stops.
-    - GM uses only a small set of "top" active traits at a time when choosing events or flavor.
-    - Hook traits into NPC flavor lines and rumors (rare one-liners like "Are you the Troll Slayer?" or "Thanks for freeing my friend from bandits.").
+  - Foundation (must ship in v0.2)
+    - [ ] General GM **Action Scheduler**
+      - Deterministic arbitration: `priority desc → earliestTurn asc → createdTurn asc → id asc` (no RNG calls during arbitration)
+      - Action lifecycle statuses: planned/scheduled/ready/consumed/expired/cancelled
+      - Global safety rails:
+        - [ ] max actions per N turns
+        - [ ] min spacing between **auto** events
+        - [ ] max active quest threads (start with 1)
+        - [ ] "one GM action per turn" unless explicitly allowed
+    - [ ] GM→Game execution via a narrow **GMBridge**
+      - grant item, place/remove marker, start special encounter, show confirm, log narrative
+      - GM runtime should not directly mutate unrelated systems
+    - [ ] Persisted GM RNG stream
+      - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
+      - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
+    - [ ] Persistence (mid-run continuity only)
+      - LocalStorage: [ ] add `GM_STATE_V1`
+      - Persist: scheduler queue + active quest threads + GM RNG state
+      - Clear `GM_STATE_V1` on:
+        - [ ] death restart
+        - [ ] Start New Game
+        - [ ] seed reroll
+        - [ ] deploy version change (APP_VERSION)
 
-  - Phase 3: Mechanic awareness and polite nudging
-    - For key mechanics (Fishing, Foraging, Lockpicking, Quest Board, Followers, etc.) track a coarse knowledge state per run:
-      - unseen → seen-not-tried → tried-recently → tried-long-ago → disinterested.
-    - Nudge rules (conceptual):
-      - unseen: rare, simple introductions when context is good.
-      - seen-not-tried: a few stronger nudges; if repeatedly ignored, mark as disinterested.
-      - tried-recently: no nudges.
-      - tried-long-ago: occasional reminder; if ignored again, mark as disinterested.
-      - disinterested: no further hints for this mechanic in this run.
-    - Integrate nudges via NPC rumors/one-liners ("Ship landed at harbor", "New quest on inn board", "Two clans fighting near town"), not intrusive popups.
+  - v0.2 shipping action catalog (minimum content)
+    - [ ] `travel.guardFine` (confirm)
+      - Use confirm UI (pay/refuse)
+      - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
+      - Encounter template already exists: `gm_guard_fine` (data)
+    - [ ] `travel.banditBounty` (auto)
+      - Auto-start a **special** encounter (not the normal EncounterService roll)
+      - Must obey safety rails + cooldowns
+      - Encounter template already exists: `gm_bandit_bounty` (data)
+    - [ ] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
+      - Acquisition: on fishing success, sometimes grant a "Bottle with a Map" (only if no active quest thread)
+      - Activation: on first use/inspect, bind a target overworld tile via GM RNG + placement constraints
+      - Marker: place an X marker; show a short clue (near town/region)
+      - Resolution: at the X tile, pressing `G` starts a small crime-scene encounter (corpse + chest)
+      - Cleanup: after loot, quest completes and marker is removed
+      - Hard placement constraints (no softlocks):
+        - [ ] target must be walkable
+        - [ ] deterministic retry loop with capped attempts
+        - [ ] graceful expiry if placement fails (log reason)
 
-  - Phase 4: GM-driven Artefact Quests v1 (simple, one-step quests)
-    - General concept:
-      - GM creates physical items (maps, keys) as one-shot quests that are entirely optional and single-resolution in v1.
-      - Artefacts are tied to how the player already plays (e.g., fishing players get map bottles, dungeon delvers get key quests).
-    - Bottle Map quest (first implementation):
-      - While fishing, with a small chance and no other map quest active, player fishes up a "Bottle with a Map" instead of a fish.
-      - On first click in inventory, GM picks an overworld tile near the town/region where the bottle was fished and marks it internally as a crime-scene target.
-      - GM shows an X marker on the overworld and a short description ("A faint map marks an X near [Town Name].").
-      - When the player steps on the X tile, GM spawns a small crime-scene event (minimal corpse flavor + chest) and rewards special loot from the chest.
-      - After looting, the quest is marked complete and the X marker is cleared.
-      - If the bottle or X is ignored for a long time, GM simply treats map quests as lower priority for that run (no punishment).
-    - Leave design room to extend to key-based mini-dungeons and multi-step chains later.
+  - v0.2 testing/merge gates (must-have)
+    - [ ] Determinism: GM RNG persistence gate (save → reload → next N draws identical)
+    - [ ] Determinism: scheduler arbitration gate (winner selection consumes zero RNG)
+    - [ ] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers
+    - [ ] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters)
+    - [ ] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
 
-  - Phase 5: GM panel – live debug and testing UI
-    - `O` toggles a floating GM panel that stays visible while the player continues to play; panel is draggable so it can be moved out of the way.
-    - GM State overview:
-      - Show current mood (passive/active/aggressive) with color, boredom as a bar, and last major GM action.
-    - Player profile:
-      - List active traits with simple strength bars and last-update timestamps.
-      - Optional simple charts (e.g., time spent per mode, kills by faction) to help explain why traits are set.
-    - Mechanic awareness:
-      - Table of tracked mechanics with current knowledge state (unseen/seen-not-tried/tried-recently/tried-long-ago/disinterested), last-used times, and per-mechanic nudge toggle.
-    - Artefact quests:
-      - List active and recent artefact quests (type, target, status: planned/active/completed/ignored) with basic details.
-    - GM decision log:
-      - Scrollable view of key GM decisions (trait updates, mood/boredom changes, quest creation/completion, nudges fired).
-
-  - Phase 6: GM control and injection tools (for development)
-    - Master switches in the panel:
-      - [GM Enabled] to hard-toggle all automatic GM behavior.
-      - Mode selector: Normal (full behavior), Paused (no new decisions), Manual/Sandbox (no auto events, manual injections only).
-    - Feature toggles:
-      - Enable/disable nudges, small events, artefact quests, and big events independently to test one slice at a time.
-    - Injection helpers:
-      - Buttons to spawn test Bottle Map/Key quests immediately (near player or a selected town) without waiting for conditions.
-      - Trait adjustment controls (boost/clear specific traits) for testing how GM and NPC flavor respond.
-      - Mechanic state adjustment (force unseen/seen/tried/disinterested) to exercise nudge logic.
-    - Ensure all of this works while the panel is open and the game is running so behavior can be inspected in real time.
+  - GM panel (v0.2 minimal additions)
+    - [ ] Show GM RNG state + call count
+    - [ ] Show active actions (top 5) with status and next eligibility
+    - [ ] Show active quest thread summary (Bottle Map) and last executed action
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
