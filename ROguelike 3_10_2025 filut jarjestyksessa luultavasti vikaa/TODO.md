@@ -476,7 +476,7 @@ Overall top (repo-wide, top 30 by lines)
 … (I can paste the full top-30 list again if you want)
 Core top 30 (by lines)
 
-1871 core/gm/runtime.js<---This is handelt
+503 core/gm/runtime.js (refactored into smaller modules under core/gm/runtime/*)  <--- handled
 1381 core/modes/modes.js
 1310 core/game.js
 1310 core/dungeon/runtime.js
