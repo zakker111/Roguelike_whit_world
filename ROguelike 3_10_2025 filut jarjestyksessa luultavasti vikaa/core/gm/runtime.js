@@ -84,6 +84,8 @@ function isLocalStorageDisabled(ctx) {
   return false;
 }
 
+
+
 function bootLog(msg, level = "info", meta) {
   const m = meta && typeof meta === "object" ? meta : {};
   const line = msg == null ? "" : String(msg);
@@ -227,6 +229,9 @@ export function init(ctx, opts = {}) {
   const reset = !!(opts && opts.reset === true);
   const forceReload = !!(opts && opts.forceReload === true);
 
+  // Persistence is best-effort and should never block boot.
+  const persistenceAllowed = !isLocalStorageDisabled(ctx);
+
   const runSeed = deriveRunSeed();
 
   if (reset) {
@@ -234,15 +239,18 @@ export function init(ctx, opts = {}) {
     _state.runSeed = runSeed >>> 0;
     _state = upgradeAndNormalizeState(ctx, _state);
 
-    clearPersistedState(ctx);
+    if (persistenceAllowed) clearPersistedState(ctx);
     _loadedOnce = true;
 
-    bootLog(`[GMRuntime] init: reset (seed=${_state.runSeed})`, "info", { category: "gm" });
+    const enabled = _state && _state.enabled === false ? "off" : "on";
+    bootLog(`[GMRuntime] init: reset (enabled=${enabled}, persist=${persistenceAllowed ? "on" : "off"})`, "info", { category: "gm" });
+
     return _state;
   }
 
   if (!_loadedOnce || !_state || forceReload) {
-    const loaded = readPersistedState(ctx);
+    let status = "defaults";
+    const loaded = persistenceAllowed ? readPersistedState(ctx) : null;
 
     if (loaded && typeof loaded === "object") {
       const loadedSeed = (typeof loaded.runSeed === "number" && Number.isFinite(loaded.runSeed)) ? (loaded.runSeed >>> 0) : null;
@@ -250,22 +258,20 @@ export function init(ctx, opts = {}) {
 
       if (loadedSeed != null && loadedSeed === (runSeed >>> 0) && loadedVer <= SCHEMA_VERSION) {
         _state = loaded;
-        bootLog(`[GMRuntime] init: restored GM_STATE_V1 (seed=${runSeed}, schema=${loadedVer})`, "info", { category: "gm" });
+        status = "restored";
       } else {
         _state = createDefaultState();
         _state.runSeed = runSeed >>> 0;
-        const reason = (loadedSeed != null && loadedSeed !== (runSeed >>> 0))
-          ? `seedMismatch(saved=${loadedSeed}, run=${runSeed})`
-          : (loadedVer > SCHEMA_VERSION ? `futureSchema(saved=${loadedVer})` : "invalidSavedState");
-        bootLog(`[GMRuntime] init: starting fresh (${reason})`, "warn", { category: "gm" });
       }
     } else {
       _state = createDefaultState();
       _state.runSeed = runSeed >>> 0;
-      bootLog(`[GMRuntime] init: no saved GM_STATE_V1; starting fresh (seed=${runSeed})`, "info", { category: "gm" });
     }
 
     _loadedOnce = true;
+
+    const enabled = _state && _state.enabled === false ? "off" : "on";
+    bootLog(`[GMRuntime] init: ${status} (enabled=${enabled}, persist=${persistenceAllowed ? "on" : "off"})`, "info", { category: "gm" });
   }
 
   return _ensureState(ctx);
