@@ -40,31 +40,8 @@ function evaluateModules(ctx) {
     if (Array.isArray(list)) specs.push(...list);
   } catch (_) {}
 
-  // Robust fallback injection: always report GMRuntime even if it failed to
-  // register via Capabilities (some boot paths may bypass preload registrars).
-  try {
-    const already = specs.some(s => s && s.id === "GMRuntime");
-    if (!already) {
-      specs.push({
-        id: "GMRuntime",
-        label: "GMRuntime (experimental)",
-        modName: "GMRuntime",
-        required: false,
-        requiredFns: [
-          "init",
-          "tick",
-          "onEvent",
-          "getState",
-          "reset",
-          "getEntranceIntent",
-          "getMechanicHint",
-          "getFactionTravelEvent",
-          "forceFactionTravelEvent",
-        ],
-        notes: "Ctx-first GM runtime scaffolding: observability and intent helpers; optional.",
-      });
-    }
-  } catch (_) {}
+  // Module health specs should be registered via core/capabilities.js and/or by
+  // modules at load time (no GM-specific fallbacks here).
 
   const problems = [];
   for (const spec of specs) {

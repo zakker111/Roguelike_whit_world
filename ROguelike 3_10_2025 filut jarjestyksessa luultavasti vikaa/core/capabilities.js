@@ -261,13 +261,15 @@ try {
     requiredFns: ["spawnInTown", "spawnInDungeon"],
     notes: "Followers/party spawning and synchronization across modes; optional but used by follower features.",
   });
+  // GMRuntime is required so HealthCheck reports missing GM wiring as an error
+  // (no GM-specific fallbacks; treat it like normal required module checks).
   registerModuleHealth({
     id: "GMRuntime",
     label: "GMRuntime (experimental)",
     modName: "GMRuntime",
-    required: false,
+    required: true,
     requiredFns: ["init", "tick", "onEvent", "getState", "reset", "getEntranceIntent", "getMechanicHint", "getFactionTravelEvent", "forceFactionTravelEvent"],
-    notes: "Ctx-first GM runtime scaffolding: observability and intent helpers; optional.",
+    notes: "Ctx-first GM runtime scaffolding: observability and intent helpers.",
   });
 } catch (_) {}
 

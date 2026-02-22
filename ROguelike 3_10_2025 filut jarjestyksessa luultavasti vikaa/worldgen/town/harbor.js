@@ -2,6 +2,7 @@ import { getGameData } from "../../utils/access.js";
 import { prepareHarborZone } from "./harbor_zone.js";
 import { placeDockPropsForHarbor, placeHarborWarehousesForHarbor } from "./harbor_props.js";
 import { carveHarborWaterAndPiersForPort } from "./harbor_piers.js";
+import { attachGlobal } from "../../utils/global.js";
 
 // Re-export prepareHarborZone so callers can continue to import it from this module.
 export { prepareHarborZone };
@@ -146,6 +147,10 @@ export function placeHarborPrefabs(ctx, buildings, W, H, gate, plaza, rng, stamp
       ctx.townHarborBuildings = harborBuildings;
     } catch (_) {}
 }
+
+// HealthCheck expects an optional Harbor module (window.Harbor / ctx.Harbor)
+// with these functions when harbor generation is available.
+attachGlobal("Harbor", { prepareHarborZone, placeHarborPrefabs });
 
 
 
