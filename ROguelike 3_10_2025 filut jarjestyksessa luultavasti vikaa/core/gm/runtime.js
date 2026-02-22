@@ -23,7 +23,7 @@ import { attachGlobal } from "../../utils/global.js";
 import {
   SCHEMA_VERSION,
   MAX_DEBUG_EVENTS,
-  MAX_INTENT_HISTORY,
+  ENTRANCE_INTENT_CO,
   ENTRANCE_INTENT_COOLDOWN_TURNS,
   HINT_INTENT_COOLDOWN_TURNS,
   BOREDOM_SMOOTHING_ALPHA,
@@ -50,6 +50,8 @@ import {
 } from "./runtime/state_ensure.js";
 
 import { localClamp, normalizeTurn, getCurrentTurn } from "./runtime/turn_utils.js";
+import { buildProfile } from "./runtime/profile.js";
+import { addMoodImpulse, pushIntentDebug } from "./runtime/debug.js";
 
 // ------------------------
 // Module-local state
@@ -370,101 +372,9 @@ function schedulerConsume(gm, action, turn) {
 // Intents + debug bookkeeping
 // ------------------------
 
-function addMoodImpulse(gm, baseValence, baseArousal) {
-  if (!gm || typeof gm !== "object") return;
 
-  let mood = gm.mood;
-  if (!mood || typeof mood !== "object") {
-    mood = createDefaultMood();
-    gm.mood = mood;
-  }
 
-  const boredomLevel = gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)
-    ? gm.boredom.level
-    : 0;
-  const b = boredomLevel < 0 ? 0 : (boredomLevel > 1 ? 1 : boredomLevel);
 
-  let scale = 1.0;
-  if (baseValence < 0) {
-    scale = 0.5 + b;
-  } else if (baseValence > 0) {
-    scale = 1.0 - 0.5 * b;
-  }
-
-  const dv = baseValence * scale;
-  const da = baseArousal * scale;
-
-  const prevTv = typeof mood.transientValence === "number" && Number.isFinite(mood.transientValence)
-    ? mood.transientValence
-    : 0;
-  const prevTa = typeof mood.transientArousal === "number" && Number.isFinite(mood.transientArousal)
-    ? mood.transientArousal
-    : 0;
-
-  mood.transientValence = prevTv + dv;
-  mood.transientArousal = prevTa + da;
-}
-
-function pushIntentDebug(gm, intent, turn) {
-  if (!gm || typeof gm !== "object") return;
-
-  if (!gm.debug || typeof gm.debug !== "object") gm.debug = createDefaultState().debug;
-  if (!Array.isArray(gm.debug.intentHistory)) gm.debug.intentHistory = [];
-
-  const entry = Object.assign({}, intent || {});
-  entry.turn = normalizeTurn(turn);
-
-  gm.debug.lastIntent = entry;
-  gm.debug.intentHistory.unshift(entry);
-  if (gm.debug.intentHistory.length > MAX_INTENT_HISTORY) gm.debug.intentHistory.length = MAX_INTENT_HISTORY;
-
-  markDirty(gm);
-}
-
-function buildProfile(gm) {
-  const stats = ensureStats(gm);
-
-  const profile = {
-    totalTurns: stats.totalTurns | 0,
-    boredomLevel: (gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)) ? localClamp(gm.boredom.level, 0, 1) : 0,
-    topModes: [],
-    topFamilies: [],
-  };
-
-  const mt = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
-  const topModes = [];
-  for (const key in mt) {
-    if (!Object.prototype.hasOwnProperty.call(mt, key)) continue;
-    topModes.push({ mode: key, turns: mt[key] | 0 });
-  }
-  topModes.sort((a, b) => {
-    if ((b.turns | 0) !== (a.turns | 0)) return (b.turns | 0) - (a.turns | 0);
-    if (a.mode < b.mode) return -1;
-    if (a.mode > b.mode) return 1;
-    return 0;
-  });
-  profile.topModes = topModes;
-
-  const families = gm.families && typeof gm.families === "object" ? gm.families : {};
-  const topFamilies = [];
-  for (const key in families) {
-    if (!Object.prototype.hasOwnProperty.call(families, key)) continue;
-    const f = families[key];
-    if (!f || typeof f !== "object") continue;
-    const seen = f.seen | 0;
-    if (seen <= 0) continue;
-    topFamilies.push({ key, seen });
-  }
-  topFamilies.sort((a, b) => {
-    if ((b.seen | 0) !== (a.seen | 0)) return (b.seen | 0) - (a.seen | 0);
-    if (a.key < b.key) return -1;
-    if (a.key > b.key) return 1;
-    return 0;
-  });
-  profile.topFamilies = topFamilies;
-
-  return profile;
-}
 
 // ------------------------
 // State normalization
@@ -783,7 +693,7 @@ export function getEntranceIntent(ctx, mode) {
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
   function returnNone(reason) {
-    pushIntentDebug(gm, { kind: "none", channel: "entrance", reason }, turn);
+    if (pushIntentDebug(gm, { kind: "none", channel: "entrance", reason }, turn)) markDirty(gm);
     return { kind: "none" };
   }
 
@@ -895,7 +805,7 @@ export function getEntranceIntent(ctx, mode) {
 
   gm.lastEntranceIntentTurn = turn;
   gm.lastActionTurn = turn;
-  pushIntentDebug(gm, Object.assign({ channel: "entrance" }, intent), turn);
+  if (pushIntentDebug(gm, Object.assign({ channel: "entrance" }, intent), turn)) markDirty(gm);
   writePersistedState(ctx, gm);
   return intent;
 }
@@ -905,7 +815,7 @@ export function getMechanicHint(ctx) {
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
   function returnNone(reason) {
-    pushIntentDebug(gm, { kind: "none", channel: "mechanicHint", reason }, turn);
+    if (pushIntentDebug(gm, { kind: "none", channel: "mechanicHint", reason }, turn)) markDirty(gm);
     return { kind: "none" };
   }
 
@@ -984,7 +894,7 @@ export function getMechanicHint(ctx) {
   gm.lastHintIntentTownEntry = entriesTown;
   gm.lastActionTurn = turn;
 
-  pushIntentDebug(gm, Object.assign({ channel: "mechanicHint" }, intent), turn);
+  if (pushIntentDebug(gm, Object.assign({ channel: "mechanicHint" }, intent), turn)) markDirty(gm);
   writePersistedState(ctx, gm);
 
   return intent;
@@ -1233,7 +1143,7 @@ export function getFactionTravelEvent(ctx) {
     }
   } catch (_) {}
 
-  pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn);
+  if (pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn)) markDirty(gm);
   writePersistedState(ctx, gm, { force: true });
 
   return intent;
@@ -1317,7 +1227,7 @@ export function forceFactionTravelEvent(ctx, id) {
   }
 
   gm.lastActionTurn = turn;
-  pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn);
+  if (pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn)) markDirty(gm);
   writePersistedState(ctx, gm, { force: true });
   return intent;
 }
