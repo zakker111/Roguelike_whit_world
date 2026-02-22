@@ -11,6 +11,9 @@ import {
   MECH_RECENT_TURNS,
   MECH_DISINTEREST_DISMISS,
   MECH_DISINTEREST_AGE,
+  GM_RNG_ALGO,
+  GM_SCHED_MAX_ACTIONS_PER_WINDOW,
+  GM_SCHED_WINDOW_TURNS,
 } from "./constants.js";
 
 import {
@@ -227,6 +230,120 @@ export function ensureFactionEvents(gm) {
   ensureSlot("banditBounty");
   ensureSlot("guardFine");
   ensureSlot("trollHunt");
+}
+
+// v0.2 foundations: ensure persisted GM RNG stream shape.
+export function ensureRng(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  let rng = gm.rng;
+  if (!rng || typeof rng !== "object") {
+    rng = {};
+    gm.rng = rng;
+  }
+
+  const algo = (typeof rng.algo === "string" && rng.algo) ? rng.algo : GM_RNG_ALGO;
+  rng.algo = algo === GM_RNG_ALGO ? algo : GM_RNG_ALGO;
+
+  const rawState = rng.state;
+  const state = (typeof rawState === "number" && Number.isFinite(rawState)) ? (rawState >>> 0) : 0;
+  rng.state = state;
+
+  let calls = (typeof rng.calls === "number" && Number.isFinite(rng.calls)) ? (rng.calls | 0) : 0;
+  if (calls < 0) calls = 0;
+  rng.calls = calls;
+
+  return rng;
+}
+
+// v0.2 foundations: ensure scheduler container and normalize actions.
+export function ensureScheduler(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  let s = gm.scheduler;
+  if (!s || typeof s !== "object") {
+    s = {};
+    gm.scheduler = s;
+  }
+
+  s.nextId = (s.nextId | 0);
+  if (s.nextId < 1) s.nextId = 1;
+
+  if (!s.actions || typeof s.actions !== "object" || Array.isArray(s.actions)) {
+    s.actions = {};
+  }
+  if (!Array.isArray(s.queue)) s.queue = [];
+  if (!Array.isArray(s.history)) s.history = [];
+
+  s.lastAutoTurn = (typeof s.lastAutoTurn === "number" && Number.isFinite(s.lastAutoTurn)) ? (s.lastAutoTurn | 0) : -9999;
+
+  // Normalize action records.
+  const actions = s.actions;
+  const allowedStatus = new Set(["planned", "scheduled", "ready", "consumed", "expired", "cancelled", "none"]);
+  const allowedDelivery = new Set(["auto", "confirm", "marker"]);
+
+  for (const id in actions) {
+    if (!Object.prototype.hasOwnProperty.call(actions, id)) continue;
+    const a = actions[id];
+    if (!a || typeof a !== "object") {
+      delete actions[id];
+      continue;
+    }
+
+    a.id = typeof a.id === "string" && a.id ? a.id : String(id);
+    a.kind = typeof a.kind === "string" ? a.kind : "";
+
+    const st = typeof a.status === "string" ? a.status : "scheduled";
+    a.status = allowedStatus.has(st) ? st : "scheduled";
+
+    a.priority = (a.priority | 0);
+    a.createdTurn = (a.createdTurn | 0);
+    if (a.createdTurn < 0) a.createdTurn = 0;
+    a.earliestTurn = (a.earliestTurn | 0);
+    if (a.earliestTurn < 0) a.earliestTurn = 0;
+
+    const rawLatest = a.latestTurn;
+    let latest = (typeof rawLatest === "number" && Number.isFinite(rawLatest)) ? (rawLatest | 0) : 0;
+    if (latest < 0) latest = 0;
+    if (latest !== 0 && latest < a.earliestTurn) latest = a.earliestTurn;
+    a.latestTurn = latest;
+
+    const del = typeof a.delivery === "string" ? a.delivery : "auto";
+    a.delivery = allowedDelivery.has(del) ? del : "auto";
+
+    a.allowMultiplePerTurn = !!a.allowMultiplePerTurn;
+
+    if (!a.payload || typeof a.payload !== "object") a.payload = {};
+  }
+
+  // Normalize queue: keep only ids that exist and preserve order.
+  const q = s.queue;
+  const seen = new Set();
+  for (let i = q.length - 1; i >= 0; i--) {
+    const id = q[i];
+    const key = typeof id === "string" ? id : String(id);
+    if (!key || !Object.prototype.hasOwnProperty.call(actions, key) || seen.has(key)) {
+      q.splice(i, 1);
+      continue;
+    }
+    q[i] = key;
+    seen.add(key);
+  }
+  // Ensure every action id is present at least once.
+  for (const id in actions) {
+    if (!Object.prototype.hasOwnProperty.call(actions, id)) continue;
+    if (!seen.has(id)) q.push(id);
+  }
+
+  // Bound history to a small size so persisted state stays cheap.
+  const maxHist = Math.max(16, GM_SCHED_WINDOW_TURNS);
+  if (s.history.length > maxHist) s.history.length = maxHist;
+
+  // Track recent action count (derived) for debugging.
+  // (This is intentionally not used as a rail here; the rail is enforced in runtime.)
+  s.recentCountCap = GM_SCHED_MAX_ACTIONS_PER_WINDOW;
+
+  return s;
 }
 
 // Returns one of: "unseen", "seenNotTried", "triedRecently", "triedLongAgo", "disinterested".

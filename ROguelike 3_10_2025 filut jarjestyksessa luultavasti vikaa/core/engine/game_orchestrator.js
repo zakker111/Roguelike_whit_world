@@ -13,6 +13,18 @@ export function start() {
   // without blocking world generation or the main loop.
   try { scheduleHealthCheck(() => getCtx()); } catch (_) {}
   try { initWorld(); } catch (_) {}
+  // Initialize optional GM runtime early so ctx.gm is available for callers.
+  try {
+    const GM = (typeof window !== "undefined") ? window.GMRuntime : null;
+    if (GM && typeof GM.init === "function") {
+      GM.init(getCtx());
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[BOOT] GMRuntime initialized.", "notice", { category: "gm" });
+      } else if (typeof console !== "undefined" && typeof console.log === "function") {
+        console.log("[BOOT] GMRuntime initialized.");
+      }
+    }
+  } catch (_) {}
   try { setupInput(); } catch (_) {}
   try { initMouseSupport(); } catch (_) {}
   try { startLoop(); } catch (_) {}

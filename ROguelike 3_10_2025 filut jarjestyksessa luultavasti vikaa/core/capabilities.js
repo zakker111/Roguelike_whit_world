@@ -261,6 +261,14 @@ try {
     requiredFns: ["spawnInTown", "spawnInDungeon"],
     notes: "Followers/party spawning and synchronization across modes; optional but used by follower features.",
   });
+  registerModuleHealth({
+    id: "GMRuntime",
+    label: "GMRuntime (experimental)",
+    modName: "GMRuntime",
+    required: false,
+    requiredFns: ["init", "tick", "onEvent", "getState", "reset", "getEntranceIntent", "getMechanicHint", "getFactionTravelEvent", "forceFactionTravelEvent"],
+    notes: "Ctx-first GM runtime scaffolding: observability and intent helpers; optional.",
+  });
 } catch (_) {}
 
 // Pre-register core GameData domains. New data domains can be added here or via

@@ -10,6 +10,7 @@ export function clearPersistentGameStorage(ctx) {
       localStorage.removeItem("REGION_ANIMALS_V1");
       localStorage.removeItem("REGION_ANIMALS_V2");
       localStorage.removeItem("REGION_STATE_V1");
+      localStorage.removeItem("GM_STATE_V1");
     }
   } catch (_) {}
   try {

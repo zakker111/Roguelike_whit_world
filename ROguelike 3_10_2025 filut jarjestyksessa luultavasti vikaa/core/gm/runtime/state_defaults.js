@@ -5,7 +5,7 @@
  * (and are also used as a source of truth when repairing malformed states).
  */
 
-import { SCHEMA_VERSION } from "./constants.js";
+import { SCHEMA_VERSION, GM_RNG_ALGO } from "./constants.js";
 
 export function createDefaultStats() {
   return {
@@ -54,6 +54,31 @@ export function createDefaultState() {
   return {
     schemaVersion: SCHEMA_VERSION,
     enabled: true,
+
+    // Captured run seed used to detect when a new run has started.
+    // GM_STATE_V1 is treated as per-run; if the runSeed doesn't match, we reset.
+    runSeed: 0,
+
+    // v0.2 foundations: dedicated GM RNG stream. This is separate from ctx.rng so
+    // GM decisions can be deterministic and persisted without consuming run RNG.
+    rng: {
+      algo: GM_RNG_ALGO,
+      state: 0,
+      calls: 0,
+    },
+
+    // v0.2 foundations: general deterministic scheduler. Currently used to
+    // back the faction travel events (guard fine / bandit bounty / troll hunt).
+    scheduler: {
+      nextId: 1,
+      actions: {},
+      queue: [],
+      // last turn we delivered an auto action (used for min spacing rail)
+      lastAutoTurn: -9999,
+      // recent deliveries for rate limiting (bounded by ensure helpers)
+      history: [],
+    },
+
     mood: createDefaultMood(),
     boredom: {
       level: 0.0,
@@ -61,6 +86,8 @@ export function createDefaultState() {
       lastInterestingEvent: null,
     },
     storyFlags: {
+      // Back-compat: the old "factionEvents" slots are still kept around as a
+      // stable, easy-to-inspect view for the GM panel and for migration.
       factionEvents: {},
     },
     debug: {
