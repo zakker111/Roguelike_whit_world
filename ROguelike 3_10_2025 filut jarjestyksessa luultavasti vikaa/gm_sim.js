@@ -271,6 +271,44 @@ checks.push(
   })
 );
 
+checks.push(
+  check("7) gm.enabled=false gates tick/onEvent and intent logging", () => {
+    const ctx = createCtx();
+    const gm = resetAndPrime(ctx, { turn: 5, mode: "town" });
+
+    const beforeTicks = gm.debug && gm.debug.counters ? (gm.debug.counters.ticks | 0) : 0;
+    const beforeEvents = gm.debug && gm.debug.counters ? (gm.debug.counters.events | 0) : 0;
+    const beforeLastTickTurn = gm.debug ? (gm.debug.lastTickTurn | 0) : null;
+    const beforeBoredom = gm.boredom ? gm.boredom.level : null;
+    const beforeHistoryLen = gm.debug && Array.isArray(gm.debug.intentHistory) ? gm.debug.intentHistory.length : 0;
+
+    gm.enabled = false;
+
+    ctx.time.turnCounter = 6;
+    GMRuntime.tick(ctx);
+
+    assert(Object.is(ctx.gm, gm), "ctx.gm should still mirror the GM state when disabled");
+    assertEq(gm.debug.counters.ticks | 0, beforeTicks, "tick counter should not advance when gm.enabled=false");
+    assertEq(gm.debug.counters.events | 0, beforeEvents, "event counter should not advance when gm.enabled=false");
+    assertEq(gm.debug.lastTickTurn | 0, beforeLastTickTurn, "lastTickTurn should not update when gm.enabled=false");
+    assertEq(gm.boredom.level, beforeBoredom, "boredom level should not change when gm.enabled=false");
+
+    GMRuntime.onEvent(ctx, { type: "mode.enter", scope: "town", turn: 6, interesting: true });
+    assertEq(gm.debug.counters.events | 0, beforeEvents, "onEvent should be a no-op when gm.enabled=false");
+
+    const entrance = GMRuntime.getEntranceIntent(ctx, "town");
+    assertEq(entrance.kind, "none", "getEntranceIntent should return none when gm.enabled=false");
+
+    const hint = GMRuntime.getMechanicHint(ctx);
+    assertEq(hint.kind, "none", "getMechanicHint should return none when gm.enabled=false");
+
+    const afterHistoryLen = gm.debug && Array.isArray(gm.debug.intentHistory) ? gm.debug.intentHistory.length : 0;
+    assertEq(afterHistoryLen, beforeHistoryLen, "intentHistory should not change when gm.enabled=false");
+
+    return { beforeTicks, beforeEvents, beforeHistoryLen };
+  })
+);
+
 const report = {
   ok: checks.every((c) => c.ok),
   createdAt: new Date().toISOString(),

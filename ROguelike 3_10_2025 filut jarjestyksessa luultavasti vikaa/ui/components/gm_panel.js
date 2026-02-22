@@ -15,6 +15,7 @@
  */
 
 import { attachGlobal } from "/utils/global.js";
+import { getMechanicKnowledge } from "/core/gm/runtime/state_ensure.js";
 
 let _panelEl = null;
 let _summaryEl = null;
@@ -494,6 +495,19 @@ function renderSnapshot(gm) {
   const encounterCompletions = typeof stats.encounterCompletions === "number" ? stats.encounterCompletions : 0;
   lines.push(`Encounters: starts=${encounterStarts} | completions=${encounterCompletions}`);
 
+  // Mechanics (high-level summary): show outcome-attempt counts (success+failure).
+  const mech = gm.mechanics && typeof gm.mechanics === "object" ? gm.mechanics : {};
+  const mechAttempts = (key) => {
+    const m = mech[key];
+    if (!m || typeof m !== "object") return 0;
+    const s = m.success | 0;
+    const f = m.failure | 0;
+    return (s + f) | 0;
+  };
+  lines.push(
+    `Mechanics attempts: fish=${mechAttempts("fishing")} lock=${mechAttempts("lockpicking")} quest=${mechAttempts("questBoard")} foll=${mechAttempts("followers")}`
+  );
+
   const modeTurns = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
   const mtEntries = Object.keys(modeTurns).map((k) => [k, modeTurns[k] | 0]);
   if (mtEntries.length) {
@@ -775,6 +789,16 @@ function renderSnapshot(gm) {
   if (_mechEl) {
     const m = gm.mechanics || {};
     const linesM = [];
+
+    const currentTurn = typeof debug.lastTickTurn === "number" ? (debug.lastTickTurn | 0) : 0;
+
+    function turnStr(v) {
+      if (typeof v !== "number" || !Number.isFinite(v)) return "-";
+      const t = v | 0;
+      if (t < 0) return "-";
+      return String(t);
+    }
+
     function pushMech(key, label) {
       const mc = m[key];
       if (!mc) {
@@ -782,16 +806,25 @@ function renderSnapshot(gm) {
         return;
       }
       const seen = mc.seen | 0;
-      const tried = mc.tried | 0;
+      const interactions = mc.tried | 0;
       const success = mc.success | 0;
       const failure = mc.failure | 0;
       const dismiss = mc.dismiss | 0;
-      let status = "unseen";
-      if (seen > 0 && tried === 0) status = "seen";
-      else if (tried > 0) status = "tried";
-      const succRate = success + failure > 0 ? success / (success + failure) : 0;
+      const attempts = (success + failure) | 0;
+
+      let knowledge = "unknown";
+      try {
+        knowledge = getMechanicKnowledge(mc, currentTurn);
+      } catch (_) {
+        knowledge = "unknown";
+      }
+
+      const succRate = attempts > 0 ? success / attempts : 0;
       const succStr = succRate.toFixed(2);
-      linesM.push(`${label}: status=${status} seen=${seen} tried=${tried} suc=${success} fail=${failure} dis=${dismiss} rate=${succStr}`);
+
+      linesM.push(
+        `${label}: knowledge=${knowledge} seen=${seen} inter=${interactions} att=${attempts} suc=${success} fail=${failure} dis=${dismiss} rate=${succStr} first=${turnStr(mc.firstSeenTurn)} last=${turnStr(mc.lastUsedTurn)}`
+      );
     }
     pushMech("fishing", "Fishing");
     pushMech("lockpicking", "Lockpicking");
