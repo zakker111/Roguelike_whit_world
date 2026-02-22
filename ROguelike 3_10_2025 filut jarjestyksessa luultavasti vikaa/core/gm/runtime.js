@@ -19,6 +19,7 @@
  */
 
 import { attachGlobal } from "../../utils/global.js";
+import * as Capabilities from "../capabilities.js";
 
 import { SCHEMA_VERSION, MAX_DEBUG_EVENTS } from "./runtime/constants.js";
 
@@ -57,6 +58,31 @@ import {
   updateMechanicsUsage,
   applyGuardFineOutcome,
 } from "./runtime/events/updates.js";
+
+// Best-effort: register GMRuntime in HealthCheck even if the core capabilities
+// preload list isn't executed for some boot paths.
+try {
+  if (Capabilities && typeof Capabilities.registerModuleHealth === "function") {
+    Capabilities.registerModuleHealth({
+      id: "GMRuntime",
+      label: "GMRuntime (experimental)",
+      modName: "GMRuntime",
+      required: false,
+      requiredFns: [
+        "init",
+        "tick",
+        "onEvent",
+        "getState",
+        "reset",
+        "getEntranceIntent",
+        "getMechanicHint",
+        "getFactionTravelEvent",
+        "forceFactionTravelEvent",
+      ],
+      notes: "Ctx-first GM runtime scaffolding: observability and intent helpers; optional.",
+    });
+  }
+} catch (_) {}
 
 // ------------------------
 // Module-local state
