@@ -185,6 +185,15 @@ export function runHealthCheck(getCtxFn, opts) {
     ctx = null;
   }
 
+  // Always log build identity as a health line, so users can confirm they are
+  // reading the health output from the expected deployment origin.
+  try {
+    const meta = (typeof document !== "undefined") ? document.querySelector('meta[name="app-version"]') : null;
+    const ver = meta ? String(meta.getAttribute("content") || "") : "";
+    const origin = (typeof location !== "undefined" && location && location.origin) ? String(location.origin) : "";
+    logLine("info", `Health: Build -> version=${ver || "dev"} origin=${origin || "(unknown)"}`, { code: "build" });
+  } catch (_) {}
+
   const includeValidation = !!(opts && opts.includeValidation);
 
   const problems = [];
