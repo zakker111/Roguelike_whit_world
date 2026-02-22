@@ -82,12 +82,24 @@
         }
       }
 
-      // Open Region Map by pressing 'g'
-      await keypress("g", 260);
-      // Small fallback: try again once if mode did not change
-      if (getMode() !== "region") {
-        await keypress("g", 300);
+      // Open Region Map
+      let opened = false;
+      try {
+        if (typeof G.openRegionMap === "function") {
+          opened = !!G.openRegionMap();
+          await sleep(220);
+        }
+      } catch (_) {}
+
+      if (!opened && getMode() !== "region") {
+        // Fallback: press 'g'
+        await keypress("g", 260);
+        // Small fallback: try again once if mode did not change
+        if (getMode() !== "region") {
+          await keypress("g", 300);
+        }
       }
+
       if (getMode() !== "region") {
         record(false, "Region open failed (mode stayed in world)");
         return false;

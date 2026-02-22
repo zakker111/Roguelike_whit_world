@@ -95,15 +95,24 @@ export function create(ctx) {
         return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
       } catch (_) { return false; }
     },
+    // Nearest POIs are returned in *local window coordinates* (ctx.player/world.map space).
+    // In infinite worlds, world.towns/world.dungeons store absolute world coords; convert via originX/Y.
     nearestDungeon: () => {
       try {
         const w = ctx.getWorld();
         if (!w || !Array.isArray(w.dungeons) || w.dungeons.length === 0) return null;
         const p = ctx.getPlayer();
+        const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+        const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
+        const ww = (typeof w.width === "number") ? (w.width | 0) : 0;
+        const wh = (typeof w.height === "number") ? (w.height | 0) : 0;
         let best = null, bestD = Infinity;
         for (const d of w.dungeons) {
-          const dd = Math.abs(d.x - p.x) + Math.abs(d.y - p.y);
-          if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+          const lx = (d.x | 0) - ox;
+          const ly = (d.y | 0) - oy;
+          if (ww && wh && (lx < 0 || ly < 0 || lx >= ww || ly >= wh)) continue;
+          const dd = Math.abs(lx - p.x) + Math.abs(ly - p.y);
+          if (dd < bestD) { bestD = dd; best = { x: lx, y: ly }; }
         }
         return best;
       } catch (_) { return null; }
@@ -113,10 +122,17 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !Array.isArray(w.towns) || w.towns.length === 0) return null;
         const p = ctx.getPlayer();
+        const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+        const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
+        const ww = (typeof w.width === "number") ? (w.width | 0) : 0;
+        const wh = (typeof w.height === "number") ? (w.height | 0) : 0;
         let best = null, bestD = Infinity;
         for (const t of w.towns) {
-          const dd = Math.abs(t.x - p.x) + Math.abs(t.y - p.y);
-          if (dd < bestD) { bestD = dd; best = { x: t.x, y: t.y }; }
+          const lx = (t.x | 0) - ox;
+          const ly = (t.y | 0) - oy;
+          if (ww && wh && (lx < 0 || ly < 0 || lx >= ww || ly >= wh)) continue;
+          const dd = Math.abs(lx - p.x) + Math.abs(ly - p.y);
+          if (dd < bestD) { bestD = dd; best = { x: lx, y: ly }; }
         }
         return best;
       } catch (_) { return null; }
@@ -287,10 +303,14 @@ export function create(ctx) {
         }
 
         // Find nearest town and route using shared helper (includes adjacency fallback)
+        const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+        const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
         let best = null, bestD = Infinity;
         for (const t of w.towns) {
-          const d = Math.abs(t.x - start.x) + Math.abs(t.y - start.y);
-          if (d < bestD) { bestD = d; best = { x: t.x, y: t.y }; }
+          const lx = (t.x | 0) - ox;
+          const ly = (t.y | 0) - oy;
+          const d = Math.abs(lx - start.x) + Math.abs(ly - start.y);
+          if (d < bestD) { bestD = d; best = { x: lx, y: ly }; }
         }
         if (!best) return false;
 
@@ -338,10 +358,14 @@ export function create(ctx) {
         }
 
         // Find nearest dungeon and route using shared helper (includes adjacency fallback)
+        const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+        const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
         let best = null, bestD = Infinity;
         for (const d of w.dungeons) {
-          const dist = Math.abs(d.x - start.x) + Math.abs(d.y - start.y);
-          if (dist < bestD) { bestD = dist; best = { x: d.x, y: d.y }; }
+          const lx = (d.x | 0) - ox;
+          const ly = (d.y | 0) - oy;
+          const dist = Math.abs(lx - start.x) + Math.abs(ly - start.y);
+          if (dist < bestD) { bestD = dist; best = { x: lx, y: ly }; }
         }
         if (!best) return false;
 
@@ -755,7 +779,7 @@ export function create(ctx) {
         const canWorld = () => {
           if (!world || !world.map) return false;
           const t = world.map[y] && world.map[y][x];
-          return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+          return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
         };
         const canLocal = () => {
           if (!ctx.inBounds(x, y)) return false;
