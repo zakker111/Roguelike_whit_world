@@ -154,6 +154,15 @@ document.addEventListener('DOMContentLoaded', function () {
       window.Logger.init(undefined, 80);
     }
   } catch (e) {}
+  // Log build + origin so players can confirm they’re on the expected deployment.
+  try {
+    const meta = document.querySelector('meta[name="app-version"]');
+    const ver = meta ? String(meta.getAttribute('content') || '') : '';
+    if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+      window.Logger.log(`[Build] version=${ver || 'dev'} origin=${location.origin}`, 'notice');
+    }
+  } catch (_) {}
+
   // Log active palette after Logger is ready (covers URL-param load that happened before Logger)
   try {
     const GD = (typeof window !== 'undefined' ? window.GameData : null);
