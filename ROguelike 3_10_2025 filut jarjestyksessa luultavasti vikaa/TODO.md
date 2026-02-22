@@ -445,9 +445,25 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
   - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
   - Clean up duplicated Seppo-specific logic in player and follower code to route through the shared data-driven system.
-- [ ] Smoketest runner:
-  - Remove positional “nudge” for dungeon entry, town entry, dungeon exit, and town exit.
-  - Make smoketest positions exact in tiles; only use nudge around NPC interaction or enemy interaction.
+- [ ] Smoketest runner (robustness + future-proofing):
+  - [x] Remove reliance on “adjacent” POI entry; ensure strict on-tile town/dungeon/tower entry works in tests.
+    - GameAPI helpers (`gotoNearestTown`, `gotoNearestDungeon`, `enterTownIfOnTile`, `enterDungeonIfOnEntrance`) now force-land on the POI tile when needed.
+  - [x] Region Map smoke test: exit via `ctx.region.exitTiles` (orange exits), not just any edge tile.
+  - [x] Encounter smoke test: prefer `GameAPI.completeEncounter("withdraw")` for deterministic exits.
+  - [x] Inventory smoke test: avoid index-shift flakiness by re-finding items after equip/unequip.
+  - [ ] Add explicit smoke coverage for:
+    - [ ] Harbor towns: validate harbor detection (`harborDir`), port layout generation, and enter/exit stability.
+    - [ ] Towers: validate world → tower entry, internal stairs up/down, tower exit, then normal dungeon entry/exit (transition hygiene).
+  - [ ] Future-proof runner against mode/transition semantics changes:
+    - Prefer GameAPI programmatic transitions (`enter*/returnToWorld*/completeEncounter`) before keypress fallbacks.
+    - Avoid assumptions about walkability of POI tiles; allow ensureWalkable=false when landing on POIs.
+    - Add a small “mode settle” wait helper after transitions (world/town/dungeon/region/encounter) to reduce timing flakes.
+  - [ ] Needs more testing to confirm it’s in good shape:
+    - Run ≥ 10 smoketest iterations in CI-like conditions and track failure rate per scenario.
+    - Add a short report summary (per-scenario pass %, top failure reasons) in the smoketest output.
+  - [ ] Add/extend teleport helpers for tests when needed:
+    - Teleport to nearest tower / town / dungeon / ruins / castle (and other POIs as they’re added).
+    - Ensure teleport helpers support infinite worlds (absolute coords → local window coords via originX/Y).
 - [ ] Dungeon NPC spawn hygiene:
   - Ensure town-only NPC archetypes (e.g., Seppo and caravan blacksmiths) cannot spawn as “wild” NPCs in dungeon contexts unless explicitly intended, and that any such NPCs have correct movement and interaction handlers when they do appear.
 - [ ] Overworld road cleanup:
