@@ -243,6 +243,11 @@ export function create(ctx) {
             try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
           }
         }
+
+        // Ensure we can actually enter: dungeon/tower entry requires standing on the POI tile.
+        // Many tiles.json configs mark dungeon/tower as non-walkable, so we must allow landing on them.
+        try { window.GameAPI.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+
         return true;
       } catch (_) { return false; }
     },
@@ -268,11 +273,15 @@ export function create(ctx) {
             try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
           }
         }
+
+        // Town entry requires standing on the town/castle tile; allow landing on non-walkable POI.
+        try { window.GameAPI.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+
         return true;
       } catch (_) { return false; }
     },
 
-    // Context actions (robust): if not already on/adjacent, auto-route to nearest POI first
+    // Context actions (robust): if not already on, auto-route and then force-land on POI tiles.
     enterTownIfOnTile: () => {
       try {
         // Ensure modals are closed to avoid movement gating
@@ -286,23 +295,29 @@ export function create(ctx) {
         const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
         const start = ctx.getPlayer();
 
-        // If already on town or adjacent (including diagonals), retry enter
-        if (WT) {
-          const tHere = w.map[start.y] && w.map[start.y][start.x];
-          const adjDirs = [
-            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+        const findAdjacentTownTile = () => {
+          if (!WT) return null;
+          const dirs = [
+            {dx:0,dy:0},{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
             {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
           ];
-          const onOrAdjTown = (tHere === WT.TOWN) || adjDirs.some(d => {
-            const nx = start.x + d.dx, ny = start.y + d.dy;
-            return w.map[ny] && w.map[ny][nx] === WT.TOWN;
-          });
-          if (onOrAdjTown) {
-            try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
+          for (let i = 0; i < dirs.length; i++) {
+            const nx = start.x + dirs[i].dx;
+            const ny = start.y + dirs[i].dy;
+            const t = w.map[ny] && w.map[ny][nx];
+            if (t === WT.TOWN || (WT.CASTLE != null && t === WT.CASTLE)) return { x: nx, y: ny };
           }
+          return null;
+        };
+
+        // If already on/adjacent to a town tile, land on the town tile and retry.
+        const adjTown = findAdjacentTownTile();
+        if (adjTown) {
+          try { window.GameAPI.teleportTo(adjTown.x, adjTown.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+          try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
         }
 
-        // Find nearest town and route using shared helper (includes adjacency fallback)
+        // Find nearest town and route
         const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
         const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
         let best = null, bestD = Infinity;
@@ -324,7 +339,9 @@ export function create(ctx) {
           const dy = Math.sign(step.y - p.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
         }
-        // Attempt entry now
+
+        // Force-land on the POI tile and attempt entry.
+        try { window.GameAPI.teleportTo(best.x, best.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
         try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
       } catch (_) { return false; }
     },
@@ -341,23 +358,29 @@ export function create(ctx) {
         const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
         const start = ctx.getPlayer();
 
-        // If already on dungeon or adjacent (including diagonals), retry enter
-        if (WT) {
-          const tHere = w.map[start.y] && w.map[start.y][start.x];
-          const adjDirs = [
-            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+        const findAdjacentDungeonTile = () => {
+          if (!WT) return null;
+          const dirs = [
+            {dx:0,dy:0},{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
             {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
           ];
-          const onOrAdjDungeon = (tHere === WT.DUNGEON) || adjDirs.some(d => {
-            const nx = start.x + d.dx, ny = start.y + d.dy;
-            return w.map[ny] && w.map[ny][nx] === WT.DUNGEON;
-          });
-          if (onOrAdjDungeon) {
-            try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
+          for (let i = 0; i < dirs.length; i++) {
+            const nx = start.x + dirs[i].dx;
+            const ny = start.y + dirs[i].dy;
+            const t = w.map[ny] && w.map[ny][nx];
+            if (t === WT.DUNGEON || (WT.TOWER != null && t === WT.TOWER)) return { x: nx, y: ny };
           }
+          return null;
+        };
+
+        // If already on/adjacent to a dungeon/tower tile, land on it and retry.
+        const adjDun = findAdjacentDungeonTile();
+        if (adjDun) {
+          try { window.GameAPI.teleportTo(adjDun.x, adjDun.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+          try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
         }
 
-        // Find nearest dungeon and route using shared helper (includes adjacency fallback)
+        // Find nearest dungeon and route
         const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
         const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
         let best = null, bestD = Infinity;
@@ -379,7 +402,9 @@ export function create(ctx) {
           const dy = Math.sign(step.y - p.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
         }
-        // Attempt entry now
+
+        // Force-land on the POI tile and attempt entry.
+        try { window.GameAPI.teleportTo(best.x, best.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
         try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
       } catch (_) { return false; }
     },

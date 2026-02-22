@@ -106,32 +106,40 @@
       }
       record(true, "Region open: OK");
 
-      // Move to nearest edge inside Region Map, then press 'g' to close
+      // Move to a valid exit tile inside Region Map (orange edge exit), then press 'g' to close
       try {
         const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
-        const width = (ctxG && ctxG.region && typeof ctxG.region.width === "number") ? (ctxG.region.width | 0) : 0;
-        const height = (ctxG && ctxG.region && typeof ctxG.region.height === "number") ? (ctxG.region.height | 0) : 0;
+        const region = (ctxG && ctxG.region) ? ctxG.region : null;
+        const width = (region && typeof region.width === "number") ? (region.width | 0) : 0;
+        const height = (region && typeof region.height === "number") ? (region.height | 0) : 0;
 
-        // Determine target edge from current position (min distance to any edge)
-        const pos = getPlayer(); // region coords
-        const distLeft = pos.x;
-        const distRight = width ? ((width - 1) - pos.x) : 0;
-        const distTop = pos.y;
-        const distBottom = height ? ((height - 1) - pos.y) : 0;
+        // RegionMapRuntime exposes explicit exit tiles; use them.
+        let exits = (region && Array.isArray(region.exitTiles)) ? region.exitTiles : null;
+        if (!exits || !exits.length) {
+          // Fallback to the 4 canonical exits described in RegionMapRuntime docs.
+          exits = [
+            { x: (width / 2) | 0, y: 0 },
+            { x: (width / 2) | 0, y: Math.max(0, height - 1) },
+            { x: 0, y: (height / 2) | 0 },
+            { x: Math.max(0, width - 1), y: (height / 2) | 0 },
+          ];
+        }
 
-        // Choose the closest edge; priority by order: left, top, right, bottom
-        let target = null;
-        const best = Math.min(distLeft, distTop, distRight, distBottom);
-        if (best === distLeft) target = { edge: "W", x: 0, y: pos.y };
-        else if (best === distTop) target = { edge: "N", x: pos.x, y: 0 };
-        else if (best === distRight) target = { edge: "E", x: Math.max(0, width - 1), y: pos.y };
-        else target = { edge: "S", x: pos.x, y: Math.max(0, height - 1) };
+        const cur0 = getPlayer();
+        // Choose nearest exit by manhattan distance.
+        let target = exits[0];
+        let bestD = Infinity;
+        for (let i = 0; i < exits.length; i++) {
+          const ex = exits[i];
+          const d = Math.abs((ex.x | 0) - (cur0.x | 0)) + Math.abs((ex.y | 0) - (cur0.y | 0));
+          if (d < bestD) { bestD = d; target = ex; }
+        }
 
-        const maxSteps = 200;
+        const maxSteps = 240;
         let steps = 0;
         while (getMode() === "region" && steps < maxSteps) {
           const cur = getPlayer();
-          if (cur.x === target.x && cur.y === target.y) break;
+          if ((cur.x | 0) === (target.x | 0) && (cur.y | 0) === (target.y | 0)) break;
           let pressed = false;
           if (cur.x > target.x) { await keypress("ArrowLeft", 60); pressed = true; }
           else if (cur.x < target.x) { await keypress("ArrowRight", 60); pressed = true; }
@@ -141,13 +149,13 @@
           steps++;
         }
 
-        // Press 'g' on edge to close
+        // Press 'g' on the designated exit tile to close.
         await keypress("g", 260);
-        // Confirm world mode
         if (getMode() !== "world") {
-          // Try once more
+          // Some browsers need a second key event.
           await keypress("g", 320);
         }
+
         const okExit = (getMode() === "world");
         record(okExit, okExit ? "Region exit: OK" : "Region exit failed (mode not world)");
       } catch (e) {
