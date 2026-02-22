@@ -460,8 +460,8 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - `ctx.world.bridges` is no longer used by the main game; SHALLOW tiles are the single, consistent source of walkable river crossings.
 
 
-  Biggest files needs to modulize/make less big list:
-  Overall top (repo-wide, top 30 by lines)
+Biggest files needs to modulize/make less big list:
+Overall top (repo-wide, top 30 by lines)
 
 1466 — ai/town_ai_legacy.js
 1227 — ai/town_runtime.js
