@@ -87,6 +87,14 @@ export function eatFoodByIndex(ctx, idx) {
   }
 }
 
+export function useItemByIndex(ctx, idx) {
+  const IF = getMod(ctx, "InventoryFlow");
+  if (IF && typeof IF.useItemByIndex === "function") {
+    return !!IF.useItemByIndex(ctx, idx);
+  }
+  return false;
+}
+
 // Back-compat
 if (typeof window !== "undefined") {
   window.InventoryFacade = {
@@ -98,6 +106,7 @@ if (typeof window !== "undefined") {
     unequipSlot,
     addPotionToInventory,
     drinkPotionByIndex,
-    eatFoodByIndex
+    eatFoodByIndex,
+    useItemByIndex
   };
 }

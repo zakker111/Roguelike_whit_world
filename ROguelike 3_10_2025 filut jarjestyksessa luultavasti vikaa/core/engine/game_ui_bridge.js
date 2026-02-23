@@ -324,7 +324,7 @@ export function setupInputBridge(opts) {
  * - modHandle(name): resolve modules
  * - getCtx(): current ctx
  * - equipItemByIndex(idx), equipItemByIndexHand(idx, hand), unequipSlot(slot)
- * - drinkPotionByIndex(idx), eatFoodByIndex(idx)
+ * - drinkPotionByIndex(idx), eatFoodByIndex(idx), useItemByIndex(idx)
  * - restartGame(), turn()
  * - getFovRadius(): current FOV radius (for GOD panel integration)
  */
@@ -339,6 +339,7 @@ export function initUIHandlersBridge(opts) {
     unequipSlot,
     drinkPotionByIndex,
     eatFoodByIndex,
+    useItemByIndex,
     restartGame,
     turn,
     getFovRadius,
@@ -382,6 +383,13 @@ export function initUIHandlersBridge(opts) {
         try {
           if (typeof eatFoodByIndex === "function") {
             eatFoodByIndex(idx);
+          }
+        } catch (_) {}
+      },
+      onUse: (idx) => {
+        try {
+          if (typeof useItemByIndex === "function") {
+            useItemByIndex(idx);
           }
         } catch (_) {}
       },

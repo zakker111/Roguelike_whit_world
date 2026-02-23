@@ -4,10 +4,13 @@
  * Exports (ESM + window.GMBridge):
  * - maybeHandleWorldStep(ctx): boolean
  * - handleMarkerAction(ctx): boolean
+ * - useInventoryItem(ctx, item, idx): boolean
+ * - onEncounterComplete(ctx, { encounterId, outcome }): void
  */
 
 import { getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
+import { gmRngFloat } from "../gm/runtime/rng.js";
 
 export function maybeHandleWorldStep(ctx) {
   if (!ctx) return false;
@@ -55,7 +58,13 @@ export function handleMarkerAction(ctx) {
     const gmMarker = markers.find((m) => m && typeof m.kind === "string" && m.kind.startsWith("gm.")) || null;
     if (!gmMarker) return false;
 
-    // Stub for now: consume the input so Region Map doesn't open when standing on a GM marker.
+    const kind = String(gmMarker.kind || "");
+
+    if (kind === "gm.bottleMap") {
+      return handleBottleMapMarker(ctx, gmMarker);
+    }
+
+    // Unknown gm.* markers are consumed for forward compatibility.
     try {
       if (typeof ctx.log === "function") {
         const k = String(gmMarker.kind || "gm.?");
@@ -67,6 +76,327 @@ export function handleMarkerAction(ctx) {
   } catch (_) {
     return false;
   }
+}
+
+function handleBottleMapMarker(ctx, marker) {
+  try {
+    const GM = getMod(ctx, "GMRuntime");
+    const MS = getMod(ctx, "MarkerService");
+    if (!GM || !MS) return true;
+
+    const gm = GM.getState(ctx);
+    const thread = ensureBottleMapThread(gm);
+    if (!thread || thread.active !== true) {
+      try { if (typeof ctx.log === "function") ctx.log("The map's ink has faded.", "warn"); } catch (_) {}
+      // Clean up orphaned marker.
+      try {
+        const inst = marker && marker.instanceId != null ? String(marker.instanceId) : "";
+        if (inst) MS.remove(ctx, { instanceId: inst });
+      } catch (_) {}
+      return true;
+    }
+
+    // Only start encounter if this marker matches the active thread target.
+    const inst = marker && marker.instanceId != null ? String(marker.instanceId) : "";
+    if (thread.instanceId && inst && String(thread.instanceId) !== inst) {
+      return true;
+    }
+
+    if (thread.status === "claimed") {
+      try { if (typeof ctx.log === "function") ctx.log("You've already claimed what's buried here.", "info"); } catch (_) {}
+      return true;
+    }
+
+    if (thread.status !== "inEncounter") {
+      thread.status = "inEncounter";
+      thread.attempts = (thread.attempts | 0) + 1;
+      try {
+        GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: thread.instanceId } });
+      } catch (_) {}
+    }
+
+    // Start the dedicated Bottle Map encounter.
+    return startGmBottleMapEncounter(ctx);
+  } catch (_) {
+    return true;
+  }
+}
+
+function startGmBottleMapEncounter(ctx) {
+  // Reuse startGmFactionEncounter to enter the encounter template.
+  return startGmFactionEncounter(ctx, "gm_bottle_map_scene");
+}
+
+function ensureBottleMapThread(gm) {
+  if (!gm || typeof gm !== "object") return null;
+  if (!gm.threads || typeof gm.threads !== "object") gm.threads = {};
+  if (!gm.threads.bottleMap || typeof gm.threads.bottleMap !== "object") gm.threads.bottleMap = { active: false };
+  return gm.threads.bottleMap;
+}
+
+function isBottleMapItem(it) {
+  try {
+    if (!it) return false;
+    if (it.usable !== true) return false;
+    const k = String(it.kind || "").toLowerCase();
+    if (k !== "tool" && k !== "item" && k !== "use") {
+      // Allow custom kinds, but keep it narrow.
+    }
+    const id = String(it.type || it.id || it.key || it.name || "").toLowerCase();
+    return id === "bottle_map" || id === "bottle map" || id.includes("bottle map") || id.includes("bottle_map");
+  } catch (_) {
+    return false;
+  }
+}
+
+function pickBottleMapTarget(ctx, gm) {
+  const w = (ctx && ctx.world) ? ctx.world : null;
+  const map = w && Array.isArray(w.map) ? w.map : null;
+  if (!map || !map.length || !map[0]) return null;
+
+  const H = map.length | 0;
+  const W = map[0].length | 0;
+
+  const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+  const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
+
+  const px = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
+  const py = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
+  const pAbsX = ox + px;
+  const pAbsY = oy + py;
+
+  const T = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+
+  const tries = 60;
+  for (let n = 0; n < tries; n++) {
+    // Distance 12..32, biased a bit farther.
+    const r = 12 + Math.floor(Math.pow(gmRngFloat(gm), 0.65) * 20);
+    const ang = gmRngFloat(gm) * Math.PI * 2;
+    const dx = Math.round(Math.cos(ang) * r);
+    const dy = Math.round(Math.sin(ang) * r);
+
+    const absX = (pAbsX + dx) | 0;
+    const absY = (pAbsY + dy) | 0;
+
+    const lx = absX - ox;
+    const ly = absY - oy;
+    if (lx < 0 || ly < 0 || lx >= W || ly >= H) continue;
+
+    const tile = map[ly] ? map[ly][lx] : null;
+    if (tile == null) continue;
+
+    // Avoid towns/dungeons.
+    try {
+      if (T && (tile === T.TOWN || tile === T.DUNGEON)) continue;
+    } catch (_) {}
+
+    // Prefer engine walkability if available.
+    try {
+      if (typeof ctx.isWalkable === "function" && !ctx.isWalkable(lx, ly)) continue;
+    } catch (_) {
+      // Fallback: if World.isWalkable exists.
+      try {
+        if (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") {
+          if (!window.World.isWalkable(tile)) continue;
+        }
+      } catch (_) {}
+    }
+
+    return { absX, absY };
+  }
+
+  return { absX: pAbsX, absY: pAbsY };
+}
+
+function rollBottleMapReward(ctx, gm) {
+  const level = (ctx && ctx.player && typeof ctx.player.level === "number") ? (ctx.player.level | 0) : 1;
+  const baseGold = 35 + Math.floor(gmRngFloat(gm) * 55) + (level * 6);
+  const grants = [{ kind: "gold", amount: baseGold }];
+
+  // 60% chance of a random piece of equipment.
+  if (gmRngFloat(gm) < 0.60) {
+    const Items = (typeof window !== "undefined" ? window.Items : null) || (ctx && ctx.Items ? ctx.Items : null);
+    if (Items && typeof Items.createEquipment === "function") {
+      try {
+        const tier = Math.max(1, Math.min(3, 1 + Math.floor(gmRngFloat(gm) * 3)));
+        const it = Items.createEquipment(tier, () => gmRngFloat(gm));
+        if (it) grants.push({ kind: "item", item: it });
+      } catch (_) {}
+    }
+  }
+
+  // 25% chance of a unique skeleton key.
+  if (gmRngFloat(gm) < 0.25) {
+    grants.push({ kind: "tool", tool: { kind: "tool", type: "skeleton_key", name: "skeleton key", decay: 0, usable: false } });
+  }
+
+  return { grants };
+}
+
+function grantBottleMapRewards(ctx, reward) {
+  if (!ctx || !ctx.player || !reward) return;
+  const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+
+  for (const g of (reward.grants || [])) {
+    if (!g) continue;
+    if (g.kind === "gold") {
+      const amount = (typeof g.amount === "number" ? (g.amount | 0) : 0);
+      if (amount <= 0) continue;
+      let goldObj = inv.find(it => it && String(it.kind || it.type || "").toLowerCase() === "gold");
+      if (!goldObj) {
+        goldObj = { kind: "gold", amount: 0, name: "gold" };
+        inv.push(goldObj);
+      }
+      goldObj.amount = (typeof goldObj.amount === "number" ? goldObj.amount : 0) + amount;
+      continue;
+    }
+    if (g.kind === "item" && g.item) {
+      inv.push(g.item);
+      continue;
+    }
+    if (g.kind === "tool" && g.tool) {
+      inv.push(g.tool);
+      continue;
+    }
+  }
+
+  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+}
+
+/**
+ * GMBridge hook: called by encounter completion flow.
+ */
+export function onEncounterComplete(ctx, info) {
+  try {
+    const id = info && info.encounterId != null ? String(info.encounterId) : "";
+    if (!id) return;
+
+    if (id !== "gm_bottle_map_scene") return;
+
+    const GM = getMod(ctx, "GMRuntime");
+    const MS = getMod(ctx, "MarkerService");
+    if (!GM || !MS) return;
+
+    const gm = GM.getState(ctx);
+    const thread = ensureBottleMapThread(gm);
+    if (!thread || thread.active !== true) return;
+
+    const outcome = info && info.outcome ? String(info.outcome) : "";
+    if (outcome !== "victory") {
+      thread.status = "active";
+      try { GM.onEvent(ctx, { type: "gm.bottleMap.encounterExit", interesting: false, payload: { outcome } }); } catch (_) {}
+      return;
+    }
+
+    // Victory: pay out and clear marker.
+    const reward = thread.reward || null;
+    try { grantBottleMapRewards(ctx, reward); } catch (_) {}
+
+    try {
+      if (thread.instanceId != null) {
+        MS.remove(ctx, { instanceId: String(thread.instanceId) });
+      }
+    } catch (_) {}
+
+    thread.status = "claimed";
+    thread.active = false;
+    thread.claimedTurn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+
+    try {
+      if (typeof ctx.log === "function") ctx.log("You unearth a hidden cache from the Bottle Map.", "good");
+    } catch (_) {}
+
+    try {
+      GM.onEvent(ctx, { type: "gm.bottleMap.claimed", interesting: true, payload: { instanceId: thread.instanceId } });
+    } catch (_) {}
+
+    // Ensure UI refresh after granting rewards.
+    try {
+      const UIO = getMod(ctx, "UIOrchestration");
+      if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
+    } catch (_) {}
+  } catch (_) {}
+}
+
+/**
+ * Inventory "use" hook: called from InventoryFlow.useItemByIndex.
+ */
+export function useInventoryItem(ctx, item, idx) {
+  if (!ctx || !item) return false;
+  if (!isBottleMapItem(item)) return false;
+
+  if (ctx.mode !== "world") {
+    try { if (typeof ctx.log === "function") ctx.log("The map can only be used in the overworld.", "warn"); } catch (_) {}
+    return true;
+  }
+
+  const GM = getMod(ctx, "GMRuntime");
+  const MS = getMod(ctx, "MarkerService");
+  if (!GM || !MS) {
+    try { if (typeof ctx.log === "function") ctx.log("Nothing happens.", "warn"); } catch (_) {}
+    return true;
+  }
+
+  const gm = GM.getState(ctx);
+  const thread = ensureBottleMapThread(gm);
+
+  // Disallow stacking multiple active Bottle Maps.
+  if (thread.active === true && thread.status !== "claimed") {
+    try { if (typeof ctx.log === "function") ctx.log("The Bottle Map already points to a location.", "info"); } catch (_) {}
+    return true;
+  }
+
+  // Consume the item.
+  try {
+    const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+    const i = (idx | 0);
+    if (i >= 0 && i < inv.length) inv.splice(i, 1);
+  } catch (_) {}
+
+  // Roll deterministic target + reward using GM RNG.
+  const target = pickBottleMapTarget(ctx, gm);
+  const reward = rollBottleMapReward(ctx, gm);
+
+  const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+  const id = `bottleMap:${turn}:${(gm && gm.rng ? (gm.rng.calls | 0) : 0)}`;
+
+  thread.active = true;
+  thread.instanceId = id;
+  thread.createdTurn = turn;
+  thread.status = "active";
+  thread.attempts = 0;
+  thread.target = target;
+  thread.reward = reward;
+
+  if (target && typeof target.absX === "number" && typeof target.absY === "number") {
+    try {
+      MS.add(ctx, {
+        x: target.absX,
+        y: target.absY,
+        kind: "gm.bottleMap",
+        glyph: "X",
+        paletteKey: "gmMarker",
+        instanceId: id,
+        createdTurn: turn,
+      });
+    } catch (_) {}
+  }
+
+  try {
+    GM.onEvent(ctx, { type: "gm.bottleMap.activated", interesting: true, payload: { instanceId: id } });
+  } catch (_) {}
+
+  try {
+    if (typeof ctx.log === "function") {
+      ctx.log("You study the Bottle Map. An X appears on your world map.", "notice");
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof ctx.updateUI === "function") ctx.updateUI();
+  } catch (_) {}
+
+  return true;
 }
 
 function handleGuardFineTravelEvent(ctx, GM) {
@@ -259,4 +589,9 @@ function startGmFactionEncounter(ctx, encounterId) {
   return true;
 }
 
-attachGlobal("GMBridge", { maybeHandleWorldStep, handleMarkerAction });
+attachGlobal("GMBridge", {
+  maybeHandleWorldStep,
+  handleMarkerAction,
+  onEncounterComplete,
+  useInventoryItem,
+});

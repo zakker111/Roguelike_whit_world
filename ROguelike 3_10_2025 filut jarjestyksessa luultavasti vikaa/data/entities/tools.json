@@ -31,6 +31,23 @@
       "tags": ["tool", "utility"],
       "decay": { "start": 0, "perUse": 1 },
       "price": { "base": 220, "shops": { "seppo": 180 } }
+    },
+    {
+      "id": "bottle_map",
+      "name": "bottle map",
+      "stackLimit": 1,
+      "tags": ["tool", "gm", "map"],
+      "usable": true,
+      "decay": { "start": 0, "perUse": 0 },
+      "price": { "base": 500, "shops": {} }
+    },
+    {
+      "id": "skeleton_key",
+      "name": "skeleton key",
+      "stackLimit": 1,
+      "tags": ["tool", "utility", "unique"],
+      "decay": { "start": 0, "perUse": 0 },
+      "price": { "base": 1200, "shops": {} }
     }
   ]
 }

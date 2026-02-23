@@ -40,6 +40,8 @@ export const UI = {
     onEquipHand: null,
     onUnequip: null,
     onDrink: null,
+    onEat: null,
+    onUse: null,
     onRestart: null,
     onWait: null,
     onGodHeal: null,
@@ -304,12 +306,13 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport, onGodEnterSandbox, onToggleSandboxPanel, onGodRunGmEmissionSim, onGodCopyGmEmissionSim } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onUse, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodHireFollower, onGodSetAlwaysCrit, onGodSetCritPart, onGodToggleInvincible, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodTownBandits, onGodTeleportToTower, onGodTeleport, onGodEnterSandbox, onToggleSandboxPanel, onGodRunGmEmissionSim, onGodCopyGmEmissionSim } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
     if (typeof onDrink === "function") this.handlers.onDrink = onDrink;
     if (typeof onEat === "function") this.handlers.onEat = onEat;
+    if (typeof onUse === "function") this.handlers.onUse = onUse;
     if (typeof onRestart === "function") this.handlers.onRestart = onRestart;
     if (typeof onWait === "function") this.handlers.onWait = onWait;
     if (typeof onGodHeal === "function") this.handlers.onGodHeal = onGodHeal;

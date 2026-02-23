@@ -240,6 +240,7 @@ function _materializeItem(ctx, entry) {
     const id = String(entry.id || entry.type || "tool");
     let name = id.replace(/_/g, " ");
     let startDecay = 0;
+    let usable = false;
     try {
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
@@ -248,6 +249,7 @@ function _materializeItem(ctx, entry) {
         if (def) {
           if (def.name) name = String(def.name);
           if (def.decay && typeof def.decay.start === "number") startDecay = Math.max(0, Math.min(100, def.decay.start | 0));
+          if (def.usable === true) usable = true;
         }
       }
     } catch (_) {}
@@ -277,7 +279,7 @@ function _materializeItem(ctx, entry) {
       }
     } catch (_) {}
 
-    return { kind: "tool", type: id, name, decay: startDecay };
+    return { kind: "tool", type: id, name, decay: startDecay, usable: usable === true };
   }
   if (kind === "material") {
     return { kind: "material", material: entry.material || "wood", name: entry.id || "material", amount: 1 };

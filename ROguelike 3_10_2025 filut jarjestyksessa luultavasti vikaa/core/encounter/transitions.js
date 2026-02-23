@@ -153,6 +153,15 @@ export function complete(ctx, outcome = "victory") {
       QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining });
     }
   } catch (_) {}
+
+  // GM bridge hook: allow GM-driven encounters (e.g. Bottle Map) to pay out rewards.
+  try {
+    const GMB = getMod(ctx, "GMBridge");
+    if (GMB && typeof GMB.onEncounterComplete === "function") {
+      GMB.onEncounterComplete(ctx, { encounterId, outcome });
+    }
+  } catch (_) {}
+
   try { ctx._questInstanceId = null; } catch (_) {}
   try {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");

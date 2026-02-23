@@ -9,6 +9,7 @@
  * - isOpen()
  */
 import { describeItemBuffs } from "/entities/item_buffs.js";
+import { attachGlobal } from "/utils/global.js";
 
 let _UI = null;
 let _equipState = { leftEmpty: true, rightEmpty: true };
@@ -57,7 +58,7 @@ export function init(UI) {
     }
   });
 
-  // Inventory list: equip/equip-hand/drink/eat
+  // Inventory list: equip/equip-hand/drink/eat/use
   const panel = invPanel();
   panel?.addEventListener("click", (ev) => {
     const li = ev.target.closest("li");
@@ -104,6 +105,9 @@ export function init(UI) {
     } else if (kind === "food") {
       ev.preventDefault();
       if (_UI && typeof _UI.handlers.onEat === "function") _UI.handlers.onEat(idx);
+    } else if (kind === "use") {
+      ev.preventDefault();
+      if (_UI && typeof _UI.handlers.onUse === "function") _UI.handlers.onUse(idx);
     }
   });
 }
@@ -176,9 +180,11 @@ export function render(player, describeItem) {
           (typeof it.def === "number" ? it.def : ""),
           (typeof it.decay === "number" ? it.decay : ""),
           (typeof it.count === "number" ? it.count : ""),
-          (typeof it.amount === "number" ? it.amount : "")
+          (typeof it.amount === "number" ? it.amount : ""),
+          (it && it.usable === true ? "use" : "")
         ].join("|")).join(";;")
       : "";
+
     if (key !== render._lastInvListKey) {
       listEl.innerHTML = "";
       (player.inventory || []).forEach((it, idx) => {
@@ -197,11 +203,14 @@ export function render(player, describeItem) {
         }
 
         // Determine if this material is edible via data (materials.json edible.heal)
-        const nm = String(it && (it.type || it.name) || "").toLowerCase();
         const foodHeal = (it && it.kind === "material") ? edibleHealFromData(it) : 0;
         const isFood = foodHeal > 0;
 
-        li.dataset.kind = isFood ? "food" : (it.kind || "misc");
+        const isPotion = !!(it && (it.kind === "potion" || it.kind === "drink"));
+        const isEquip = !!(it && it.kind === "equip");
+        const isUse = !!(it && it.usable === true) && !isFood && !isPotion && !isEquip;
+
+        li.dataset.kind = isFood ? "food" : (isUse ? "use" : (it.kind || "misc"));
 
         // Base label
         const baseLabel = (typeof describeItem === "function")
@@ -228,6 +237,10 @@ export function render(player, describeItem) {
           label = `${baseLabel}${suffix}`;
         }
 
+        if (isUse) {
+          label = `${label} [Use]`;
+        }
+
         if (it.kind === "equip" && it.slot === "hand") {
           li.dataset.slot = "hand";
           const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
@@ -248,7 +261,7 @@ export function render(player, describeItem) {
           const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
           li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
           li.style.cursor = "pointer";
-        } else if (it.kind === "tool") {
+        } else if (it.kind === "tool" && !isUse) {
           // Show decay for tools (e.g., fishing pole). Normalize from durability if present.
           const nmTool = String((it && (it.type || it.name)) || "").toLowerCase();
           let dec = (typeof it.decay === "number") ? it.decay : null;
@@ -266,6 +279,9 @@ export function render(player, describeItem) {
         } else if (isFood) {
           li.style.cursor = "pointer";
           li.title = `Click to eat (+${foodHeal} HP)`;
+        } else if (isUse) {
+          li.style.cursor = "pointer";
+          li.title = "Click to use";
         } else {
           li.style.opacity = "0.7";
           li.style.cursor = "default";
@@ -296,14 +312,15 @@ export function show() {
     p.hidden = false;
   }
 }
+
 export function hide() {
   const p = invPanel();
   if (p) p.hidden = true;
 }
+
 export function isOpen() {
   const p = invPanel();
   return !!(p && !p.hidden);
 }
 
-import { attachGlobal } from "/utils/global.js";
 attachGlobal("InventoryPanel", { init, render, show, hide, isOpen });
