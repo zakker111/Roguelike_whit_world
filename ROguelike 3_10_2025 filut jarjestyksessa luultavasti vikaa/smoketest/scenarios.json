@@ -15,6 +15,7 @@
     { "id": "api", "label": "API" },
     { "id": "town_flows", "label": "Town Flows" },
     { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },
-    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" }
+    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" },
+    { "id": "gm_bridge_markers", "label": "GMBridge + Markers" }
   ]
 }

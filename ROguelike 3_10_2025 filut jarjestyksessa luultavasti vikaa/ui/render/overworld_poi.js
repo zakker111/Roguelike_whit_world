@@ -158,9 +158,10 @@ export function drawPOIs(ctx, view) {
     const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
     if (qms.length) {
       let questColor = "#fbbf24";
+      let questPal = null;
       try {
-        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+        questPal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (questPal && questPal.questMarker) questColor = questPal.questMarker || questColor;
       } catch (_) {}
       for (const m of qms) {
         if (!m) continue;
@@ -169,7 +170,15 @@ export function drawPOIs(ctx, view) {
         if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
         const sx = (lx - startX) * TILE - tileOffsetX;
         const sy = (ly - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, sx, sy, "E", questColor, TILE);
+        const glyph = m.glyph || "E";
+        let color = questColor;
+        try {
+          const key = m.paletteKey;
+          if (key && questPal && Object.prototype.hasOwnProperty.call(questPal, key)) {
+            color = questPal[key] || color;
+          }
+        } catch (_) {}
+        RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
       }
     }
   } catch (_) {}

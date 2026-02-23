@@ -271,6 +271,14 @@ try {
     requiredFns: ["init", "tick", "onEvent", "getState", "reset", "getEntranceIntent", "getMechanicHint", "getFactionTravelEvent", "forceFactionTravelEvent"],
     notes: "Ctx-first GM runtime scaffolding: observability and intent helpers.",
   });
+  registerModuleHealth({
+    id: "GMBridge",
+    label: "GMBridge (experimental)",
+    modName: "GMBridge",
+    required: false,
+    requiredFns: ["maybeHandleWorldStep", "handleMarkerAction"],
+    notes: "Central wrapper for GMRuntime-driven side effects (travel events, gm.* markers).",
+  });
 } catch (_) {}
 
 // Pre-register core GameData domains. New data domains can be added here or via

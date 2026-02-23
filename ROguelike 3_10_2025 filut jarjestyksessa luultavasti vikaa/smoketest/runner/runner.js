@@ -1011,6 +1011,7 @@
         encounters: S.Encounters && S.Encounters.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
+        gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
       };
       let pipeline = [];
       try {

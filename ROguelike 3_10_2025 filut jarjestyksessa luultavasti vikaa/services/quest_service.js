@@ -14,6 +14,7 @@
  * - onEncounterComplete(ctx, payload) -> void  // marks encounter status and enables turn-in
  */
 import { getMod } from "../utils/access.js";
+import { MarkerService } from "./marker_service.js";
 (function initQuestService() {
   function _gd() {
     try { return (typeof window !== "undefined" ? window.GameData : null); } catch (_) { return null; }
@@ -96,7 +97,7 @@ import { getMod } from "../utils/access.js";
       if (typeof qi.expiresAtTurn === "number" && now >= qi.expiresAtTurn) {
         qi.status = "failed";
         // Remove marker if any
-        try { if (qi.marker) _removeMarker(ctx, qi.marker.x, qi.marker.y, qi.instanceId); } catch (_) {}
+        try { if (qi.marker) _removeQuestMarker(ctx, qi.instanceId); } catch (_) {}
         townQ.completed.push({ ...qi, completedAtTurn: now, finalStatus: "failed" });
         continue;
       }
@@ -380,29 +381,31 @@ import { getMod } from "../utils/access.js";
     // Seeding of starter quests is handled separately in _seedStartTownAllThree (once only)
     townQ.lastRerollTurn = now;
   }
-  function _ensureWorldMarkers(ctx) {
-    ctx.world.questMarkers = Array.isArray(ctx.world.questMarkers) ? ctx.world.questMarkers : [];
-    ctx.world._questMarkerSet = ctx.world._questMarkerSet || new Set();
+  function _addQuestEncounterMarker(ctx, x, y, instanceId) {
+    try {
+      MarkerService.add(ctx, {
+        x: x | 0,
+        y: y | 0,
+        kind: "quest.encounter",
+        glyph: "E",
+        paletteKey: "questMarker",
+        instanceId
+      });
+    } catch (_) {}
   }
-  function _markerKey(x, y, instanceId) { return `${x | 0},${y | 0}:${instanceId || ""}`; }
-  function _addMarker(ctx, x, y, instanceId) {
-    _ensureWorldMarkers(ctx);
-    const key = _markerKey(x, y, instanceId);
-    if (ctx.world._questMarkerSet.has(key)) return;
-    ctx.world.questMarkers.push({ x: x | 0, y: y | 0, instanceId });
-    ctx.world._questMarkerSet.add(key);
-  }
-  function _removeMarker(ctx, x, y, instanceId) {
-    _ensureWorldMarkers(ctx);
-    const key = _markerKey(x, y, instanceId);
-    if (ctx.world._questMarkerSet.has(key)) ctx.world._questMarkerSet.delete(key);
-    const arr = ctx.world.questMarkers;
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const m = arr[i];
-      if (m && (m.x | 0) === (x | 0) && (m.y | 0) === (y | 0) && (!instanceId || m.instanceId === instanceId)) {
-        arr.splice(i, 1);
-      }
-    }
+
+  function _removeQuestMarker(ctx, instanceId) {
+    const id = instanceId != null ? String(instanceId) : "";
+    if (!id) return;
+    try {
+      MarkerService.remove(ctx, (m) => {
+        if (!m) return false;
+        if (String(m.kind || "").startsWith("gm.")) return false;
+        if (String(m.instanceId || "") !== id) return false;
+        const k = String(m.kind || "");
+        return !k || k.startsWith("quest");
+      });
+    } catch (_) {}
   }
   function _randInt(rng, a, b) {
     const lo = Math.min(a | 0, b | 0), hi = Math.max(a | 0, b | 0);
@@ -571,7 +574,7 @@ import { getMod } from "../utils/access.js";
     } else if (inst.kind === "encounter") {
       const marker = _placeEncounterMarkerNearTown(ctx, town, tmpl);
       inst.marker = marker;
-      _addMarker(ctx, marker.x, marker.y, inst.instanceId);
+      _addQuestEncounterMarker(ctx, marker.x, marker.y, inst.instanceId);
     }
 
     // Claim ownership for this town (on acceptance)
@@ -751,7 +754,7 @@ import { getMod } from "../utils/access.js";
     g.amount = (g.amount | 0) + Math.max(1, pay);
 
     // Move to completed and remove marker if any
-    try { if (found.marker) _removeMarker(ctx, found.marker.x, found.marker.y, found.instanceId); } catch (_) {}
+    try { if (found.marker) _removeQuestMarker(ctx, found.instanceId); } catch (_) {}
     try {
       const qs = townRef.quests;
       qs.active.splice(idx, 1);
@@ -872,9 +875,23 @@ import { getMod } from "../utils/access.js";
   function triggerAtMarkerIfHere(ctx) {
     if (!ctx || ctx.mode !== "world" || !ctx.world) return false;
     const pos = _absPlayerPos(ctx);
-    const markers = Array.isArray(ctx.world.questMarkers) ? ctx.world.questMarkers : [];
-    const here = markers.find(m => m && (m.x | 0) === (pos.x | 0) && (m.y | 0) === (pos.y | 0));
+
+    let here = null;
+    try {
+      const at = MarkerService.findAt(ctx, pos.x, pos.y);
+      here = (at || []).find(m => {
+        if (!m) return false;
+        const kind = String(m.kind || "");
+        if (kind.startsWith("gm.")) return false;
+        if (kind === "quest.encounter") return true;
+        const id = m.instanceId != null ? String(m.instanceId) : "";
+        return !!id && id.startsWith("q_");
+      }) || null;
+    } catch (_) {}
     if (!here) return false;
+
+    const hereId = here.instanceId != null ? String(here.instanceId) : "";
+    if (!hereId) return false;
 
     // Resolve quest instance for this marker
     let quest = null;
@@ -884,12 +901,12 @@ import { getMod } from "../utils/access.js";
       for (const t of towns) {
         const qs = t && t.quests ? t.quests : null;
         if (!qs) continue;
-        const q = (qs.active || []).find(a => a && a.instanceId === here.instanceId);
+        const q = (qs.active || []).find(a => a && String(a.instanceId || "") === hereId);
         if (q) { quest = q; townRef = t; break; }
       }
     } catch (_) {}
-    if (!quest || !townRef) { _removeMarker(ctx, pos.x, pos.y, here.instanceId); return false; }
-    if (quest.kind !== "encounter") { _removeMarker(ctx, pos.x, pos.y, here.instanceId); return false; }
+    if (!quest || !townRef) { _removeQuestMarker(ctx, hereId); return false; }
+    if (quest.kind !== "encounter") { _removeQuestMarker(ctx, hereId); return false; }
 
     // Start the special encounter; pass questInstanceId through
     const GD = _gd();
@@ -926,7 +943,7 @@ import { getMod } from "../utils/access.js";
           questInstanceId: quest.instanceId
         });
         // One-time marker removal upon entering
-        _removeMarker(ctx, pos.x, pos.y, quest.instanceId);
+        _removeQuestMarker(ctx, quest.instanceId);
         return true;
       }
     } catch (_) {}

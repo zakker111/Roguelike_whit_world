@@ -198,10 +198,12 @@ export function drawMinimap(ctx, view) {
       }
       if (qms && qms.length) {
         let questColor = "#fbbf24";
+        let questPal = null;
         try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+          questPal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (questPal && questPal.questMarker) questColor = questPal.questMarker || questColor;
         } catch (_) {}
+        let lastFill = questColor;
         ctx2d.fillStyle = questColor;
         for (const m of qms) {
           const wx = (m.x | 0) - oxWorld;
@@ -209,6 +211,17 @@ export function drawMinimap(ctx, view) {
           const lx = wx - startX;
           const ly = wy - startY;
           if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
+          let fill = questColor;
+          try {
+            const key = m.paletteKey;
+            if (key && questPal && Object.prototype.hasOwnProperty.call(questPal, key)) {
+              fill = questPal[key] || fill;
+            }
+          } catch (_) {}
+          if (fill !== lastFill) {
+            ctx2d.fillStyle = fill;
+            lastFill = fill;
+          }
           ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
         }
       }
