@@ -1008,10 +1008,14 @@
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
         determinism: S.Determinism && S.Determinism.run,
-        encounters: S.Encounters && S.Encounters.run,
+        encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
+        api: S.API && S.API.run,
+        town_flows: S.Town && S.Town.Flows && S.Town.Flows.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
         gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
+        gm_bridge_faction_travel: S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run,
+        gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,
       };
       let pipeline = [];
       try {
