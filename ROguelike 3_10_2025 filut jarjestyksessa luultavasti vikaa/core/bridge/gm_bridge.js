@@ -208,27 +208,72 @@ function pickBottleMapTarget(ctx, gm) {
   return { absX: pAbsX, absY: pAbsY };
 }
 
-function rollBottleMapReward(ctx, gm) {
-  const level = (ctx && ctx.player && typeof ctx.player.level === "number") ? (ctx.player.level | 0) : 1;
-  const baseGold = 35 + Math.floor(gmRngFloat(gm) * 55) + (level * 6);
-  const grants = [{ kind: "gold", amount: baseGold }];
+function ensureUniqueGranted(gm) {
+  if (!gm || typeof gm !== "object") return null;
 
-  // 60% chance of a random piece of equipment.
-  if (gmRngFloat(gm) < 0.60) {
+  const runSeed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0;
+
+  if (!gm.uniqueGranted || typeof gm.uniqueGranted !== "object" || gm.uniqueGrantedRunSeed !== runSeed) {
+    gm.uniqueGranted = {};
+    gm.uniqueGrantedRunSeed = runSeed;
+  }
+
+  return gm.uniqueGranted;
+}
+
+function rollBottleMapReward(ctx, gm) {
+  // NOTE: This roll should be deterministic and stable across retries.
+  // It is computed once at Bottle Map activation and stored on the thread.
+
+  // Gold: uniform 60..80 inclusive.
+  const gold = 60 + Math.floor(gmRngFloat(gm) * 21);
+  const grants = [{ kind: "gold", amount: gold }];
+
+  // Always grant exactly 1 tier-2 equipment item.
+  try {
     const Items = (typeof window !== "undefined" ? window.Items : null) || (ctx && ctx.Items ? ctx.Items : null);
     if (Items && typeof Items.createEquipment === "function") {
-      try {
-        const tier = Math.max(1, Math.min(3, 1 + Math.floor(gmRngFloat(gm) * 3)));
-        const it = Items.createEquipment(tier, () => gmRngFloat(gm));
-        if (it) grants.push({ kind: "item", item: it });
-      } catch (_) {}
+      const it = Items.createEquipment(2, () => gmRngFloat(gm));
+      if (it) grants.push({ kind: "item", item: it });
+    } else {
+      // Fallback: create a minimal equip-shaped item so inventory/equip code can handle it.
+      grants.push({ kind: "item", item: { kind: "equip", slot: "hand", name: "iron gear", tier: 2, atk: 0, def: 0, decay: 0 } });
     }
+  } catch (_) {
+    grants.push({ kind: "item", item: { kind: "equip", slot: "hand", name: "iron gear", tier: 2, atk: 0, def: 0, decay: 0 } });
   }
 
-  // 25% chance of a unique skeleton key.
-  if (gmRngFloat(gm) < 0.25) {
-    grants.push({ kind: "tool", tool: { kind: "tool", type: "skeleton_key", name: "skeleton key", decay: 0, usable: false } });
-  }
+  // Unique drop: 2–3% per Bottle Map resolution. Enforced unique per-run via gm.uniqueGranted.
+  try {
+    const uniqueChance = 0.02 + (gmRngFloat(gm) * 0.01);
+    const roll = gmRngFloat(gm);
+    if (roll < uniqueChance) {
+      const granted = ensureUniqueGranted(gm) || {};
+      const pool = ["skeleton_key"]; // Expandable.
+      const available = pool.filter((id) => !granted[String(id)]);
+
+      if (available.length) {
+        const pick = available[Math.floor(gmRngFloat(gm) * available.length)] || available[0];
+        granted[String(pick)] = true;
+
+        if (pick === "skeleton_key") {
+          grants.push({
+            kind: "tool",
+            tool: {
+              kind: "tool",
+              type: "skeleton_key",
+              id: "skeleton_key",
+              name: "skeleton key",
+              uses: 1,
+              unique: true,
+              decay: 0,
+              usable: false,
+            },
+          });
+        }
+      }
+    }
+  } catch (_) {}
 
   return { grants };
 }

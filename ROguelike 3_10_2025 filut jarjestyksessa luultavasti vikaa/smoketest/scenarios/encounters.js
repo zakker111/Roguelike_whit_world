@@ -160,5 +160,5 @@
     }
   }
 
-  window.SmokeTest.Scenarios.Encounters = { run };
+  window.SmokeTest.Scenarios.encounters = { run };
 })();
