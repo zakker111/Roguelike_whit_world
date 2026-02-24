@@ -1011,6 +1011,7 @@
         encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
         api: S.API && S.API.run,
         town_flows: S.Town && S.Town.Flows && S.Town.Flows.run,
+        skeleton_key_chest: S.skeleton_key_chest && S.skeleton_key_chest.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
         gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
