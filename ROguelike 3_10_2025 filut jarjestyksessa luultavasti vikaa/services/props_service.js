@@ -8,6 +8,7 @@
  * - Supported effects: restUntil, restTurn, grantMaterial, signSchedule, sleepModal, questBoard.
  */
 import { getGameData, getUIOrchestration, getMod } from "../utils/access.js";
+import { awardTownChestLoot } from "./town_chest_loot.js";
 
 function _propsMap(ctx) {
   try {
@@ -445,8 +446,65 @@ export function interact(ctx, prop) {
         _log(ctx, "The chest stands open. It is empty.", "info");
         return true;
       }
-      // If UI wiring is unavailable, fall back to the plain log message.
+
       const UIO = getUIOrchestration(ctx);
+
+      // Skeleton Key integration: when present, offer a one-click bypass that consumes one use.
+      // (Missing `uses` is treated as 1.)
+      try {
+        const inv = ctx.player.inventory || (ctx.player.inventory = []);
+        let skIdx = -1;
+        for (let i = 0; i < inv.length; i++) {
+          const it = inv[i];
+          if (!it) continue;
+          const kind = String(it.kind || "").toLowerCase();
+          const type = String(it.type || "").toLowerCase();
+          if (kind !== "tool" || type !== "skeleton_key") continue;
+          const uses = (typeof it.uses === "number") ? (it.uses | 0) : 1;
+          if (uses > 0) { skIdx = i; break; }
+        }
+
+        if (skIdx !== -1) {
+          const prompt = "Use skeleton key to open the chest? (Consumes the key)";
+          const onOk = () => {
+            try {
+              const it = inv[skIdx];
+              const uses0 = it ? ((typeof it.uses === "number") ? (it.uses | 0) : 1) : 0;
+              const uses1 = uses0 - 1;
+              if (it) {
+                if (uses1 <= 0) inv.splice(skIdx, 1);
+                else it.uses = uses1;
+              }
+            } catch (_) {}
+
+            const loot = awardTownChestLoot(ctx);
+            try { prop.opened = true; } catch (_) {}
+
+            try {
+              const parts = [];
+              if (loot && loot.gold > 0) parts.push(`${loot.gold} gold`);
+              if (loot && loot.items && loot.items.length) parts.push(loot.items.join(", "));
+              const detail = parts.length ? ` Inside you find ${parts.join(" and ")}.` : " It was mostly empty.";
+              _log(ctx, "You use the skeleton key to open the chest." + detail, "good");
+            } catch (_) {}
+
+            // awardTownChestLoot already updates UI/inventory; this ensures the opened prop is redrawn.
+            try {
+              if (typeof ctx.updateUI === "function") ctx.updateUI();
+              if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+            } catch (_) {}
+          };
+          const onCancel = () => {
+            _log(ctx, "You decide not to use the skeleton key.", "info");
+          };
+
+          if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+          else onOk();
+          return true;
+        }
+      } catch (_) {}
+
+      // If UI wiring is unavailable, fall back to the plain log message.
       const wasOpen = UIO && typeof UIO.isLockpickOpen === "function" ? !!UIO.isLockpickOpen(ctx) : false;
       _log(ctx, variant.message || "The chest is locked.", variant.style || "warn");
       if (UIO && typeof UIO.showLockpick === "function") {

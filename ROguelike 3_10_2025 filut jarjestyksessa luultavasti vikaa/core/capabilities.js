@@ -261,6 +261,24 @@ try {
     requiredFns: ["spawnInTown", "spawnInDungeon"],
     notes: "Followers/party spawning and synchronization across modes; optional but used by follower features.",
   });
+  // GMRuntime is required so HealthCheck reports missing GM wiring as an error
+  // (no GM-specific fallbacks; treat it like normal required module checks).
+  registerModuleHealth({
+    id: "GMRuntime",
+    label: "GMRuntime (experimental)",
+    modName: "GMRuntime",
+    required: true,
+    requiredFns: ["init", "tick", "onEvent", "getState", "reset", "getEntranceIntent", "getMechanicHint", "getFactionTravelEvent", "forceFactionTravelEvent"],
+    notes: "Ctx-first GM runtime scaffolding: observability and intent helpers.",
+  });
+  registerModuleHealth({
+    id: "GMBridge",
+    label: "GMBridge (experimental)",
+    modName: "GMBridge",
+    required: false,
+    requiredFns: ["maybeHandleWorldStep", "handleMarkerAction"],
+    notes: "Central wrapper for GMRuntime-driven side effects (travel events, gm.* markers).",
+  });
 } catch (_) {}
 
 // Pre-register core GameData domains. New data domains can be added here or via

@@ -14,7 +14,11 @@
     { "id": "encounters", "label": "Encounters" },
     { "id": "api", "label": "API" },
     { "id": "town_flows", "label": "Town Flows" },
+    { "id": "skeleton_key_chest", "label": "Skeleton Key + Locked Chest" },
     { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },
-    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" }
+    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" },
+    { "id": "gm_bridge_markers", "label": "GMBridge + Markers" },
+    { "id": "gm_bridge_faction_travel", "label": "GMBridge: Faction travel (guard fine confirm)" },
+    { "id": "gm_bottle_map", "label": "GM: Bottle Map" }
   ]
 }

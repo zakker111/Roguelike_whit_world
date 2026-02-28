@@ -11,6 +11,7 @@
  * - drinkPotionByIndex(ctx, idx)
  * - addPotionToInventory(ctx, heal, name)
  * - eatByIndex(ctx, idx)
+ * - useItemByIndex(ctx, idx) (generic "use" action for GM items like Bottle Map)
  */
 
 function mod(name) {
@@ -211,6 +212,43 @@ export function addPotionToInventory(ctx, heal = 3, name = `potion (+${heal} HP)
   }
 }
 
+/**
+ * Generic "use" action for inventory items.
+ *
+ * This is intentionally turn-free: the action should not advance time.
+ * The GMBridge may still emit GM events for persistence/telemetry.
+ */
+export function useItemByIndex(ctx, idx) {
+  const IC = mod("InventoryController");
+  if (IC && typeof IC.useByIndex === "function") {
+    IC.useByIndex(ctx, idx);
+    return true;
+  }
+
+  if (!ctx || !ctx.player) return false;
+  const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+  const i = (idx | 0);
+  if (i < 0 || i >= inv.length) return false;
+
+  const it = inv[i];
+  if (!it || it.usable !== true) return false;
+
+  const GMB = mod("GMBridge");
+  if (GMB && typeof GMB.useInventoryItem === "function") {
+    const handled = !!GMB.useInventoryItem(ctx, it, i);
+    if (handled) {
+      try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+      try { render(ctx); } catch (_) {}
+      requestDraw(ctx);
+    }
+    return handled;
+  }
+
+  // No handler available.
+  try { if (typeof ctx.log === "function") ctx.log("Nothing happens.", "warn"); } catch (_) {}
+  return false;
+}
+
 // Eat edible materials: berries (+1 HP) and cooked meat (+2 HP).
 export function eatByIndex(ctx, idx) {
   const inv = ctx.player.inventory || [];
@@ -261,5 +299,6 @@ attachGlobal("InventoryFlow", {
   unequipSlot,
   drinkPotionByIndex,
   addPotionToInventory,
-  eatByIndex
+  eatByIndex,
+  useItemByIndex
 });

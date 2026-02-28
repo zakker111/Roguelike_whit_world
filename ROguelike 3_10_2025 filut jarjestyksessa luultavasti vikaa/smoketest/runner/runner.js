@@ -1008,9 +1008,15 @@
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
         determinism: S.Determinism && S.Determinism.run,
-        encounters: S.Encounters && S.Encounters.run,
+        encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
+        api: S.API && S.API.run,
+        town_flows: S.Town && S.Town.Flows && S.Town.Flows.run,
+        skeleton_key_chest: S.skeleton_key_chest && S.skeleton_key_chest.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
+        gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
+        gm_bridge_faction_travel: S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run,
+        gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,
       };
       let pipeline = [];
       try {
@@ -1303,8 +1309,16 @@
       } catch (_) {}
 
       // Build report via reporting renderer
-      // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
-      const ok = steps.some(s => s.ok && !s.skipped);
+      // Run-level OK:
+      // - If selected scenarios all passed, the run is OK even if steps were skipped due to prior OK de-dup.
+      // - Otherwise, require at least one non-skipped OK step and no hard failures.
+      const hasHardFail = steps.some(s => !s.ok && !s.skipped);
+      const hasRealOk = steps.some(s => s.ok && !s.skipped);
+      const hasPriorOkSkip = steps.some(s => s.ok && s.skipped && s.skippedReason === "prior_ok");
+      const scenariosAllPassed = (scenarioResults && scenarioResults.length)
+        ? scenarioResults.every(sr => !!(sr && sr.passed))
+        : false;
+      const ok = !hasHardFail && (scenariosAllPassed || hasRealOk || hasPriorOkSkip);
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;

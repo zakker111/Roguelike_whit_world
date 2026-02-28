@@ -134,6 +134,17 @@
         { "type": "troll", "count": { "min": 2, "max": 4 } },
         { "type": "troll", "count": { "min": 1, "max": 2 } }
       ]
+    },
+    {
+      "id": "gm_bottle_map_scene",
+      "name": "GM: Bottle Map Cache",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+      "map": { "generator": "ruins", "w": 26, "h": 18 },
+      "objective": { "type": "clearAll" },
+      "groups": [
+        { "type": "bandit", "count": { "min": 3, "max": 5 }, "faction": "bandit" }
+      ]
     }
   ]
 }

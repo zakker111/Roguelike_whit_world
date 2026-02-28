@@ -198,18 +198,59 @@ export function drawMinimap(ctx, view) {
       }
       if (qms && qms.length) {
         let questColor = "#fbbf24";
+        let questPal = null;
         try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+          questPal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (questPal && questPal.questMarker) questColor = questPal.questMarker || questColor;
         } catch (_) {}
+
+        // Pixel markers (always): color can be overridden per-marker via paletteKey.
+        let lastFill = questColor;
         ctx2d.fillStyle = questColor;
         for (const m of qms) {
+          if (!m) continue;
           const wx = (m.x | 0) - oxWorld;
           const wy = (m.y | 0) - oyWorld;
           const lx = wx - startX;
           const ly = wy - startY;
           if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
+
+          let fill = questColor;
+          try {
+            const key = m.paletteKey;
+            if (key && questPal && Object.prototype.hasOwnProperty.call(questPal, key)) {
+              fill = questPal[key] || fill;
+            }
+          } catch (_) {}
+
+          if (fill !== lastFill) {
+            ctx2d.fillStyle = fill;
+            lastFill = fill;
+          }
           ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
+        }
+
+        // Optional glyph overlay when minimap cells are large enough.
+        if (scale >= 6) {
+          ctx2d.save();
+          try {
+            ctx2d.font = `bold ${Math.max(8, Math.floor(scale * 1.15))}px JetBrains Mono, monospace`;
+            ctx2d.textAlign = "center";
+            ctx2d.textBaseline = "middle";
+
+            for (const m of qms) {
+              if (!m || !m.glyph) continue;
+              const wx = (m.x | 0) - oxWorld;
+              const wy = (m.y | 0) - oyWorld;
+              const lx = wx - startX;
+              const ly = wy - startY;
+              if (lx < 0 || ly < 0 || lx >= tilesW || ly >= tilesH) continue;
+
+              // Draw glyph in a contrasting color over the colored pixel.
+              RenderCore.drawGlyph(ctx2d, bx + lx * scale, by + ly * scale, m.glyph, "rgba(11,12,16,0.95)", scale);
+            }
+          } catch (_) {}
+          ctx2d.restore();
         }
       }
       ctx2d.restore();

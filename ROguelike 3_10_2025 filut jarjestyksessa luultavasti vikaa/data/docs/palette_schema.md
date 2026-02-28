@@ -42,6 +42,7 @@ POIs:
 - poiDungeonMed: dungeon marker color for medium (level = 3)
 - poiDungeonHard: dungeon marker color for hard (level ≥ 4)
 - questMarker: active quest markers (overworld + minimap)
+- gmMarker: GM-only markers
 
 Player/NPC and region extras:
 - sleepingZ: animated Z above sleeping NPCs
@@ -99,6 +100,7 @@ Notes:
     "poiDungeonMed": "#f4bf75",
     "poiDungeonHard": "#f7768e",
     "questMarker": "#fbbf24",
+    "gmMarker": "#ff4fd8",
 
     "sleepingZ": "#a3be8c",
     "playerBackdropFill": "rgba(255,255,255,0.16)",

@@ -13,6 +13,15 @@ export function start() {
   // without blocking world generation or the main loop.
   try { scheduleHealthCheck(() => getCtx()); } catch (_) {}
   try { initWorld(); } catch (_) {}
+  // Initialize optional GM runtime early so ctx.gm is available for callers.
+  // This is optional and must never break boot.
+  try {
+    const ctx = getCtx();
+    const GM = (ctx && ctx.GMRuntime) ? ctx.GMRuntime : ((typeof window !== "undefined") ? window.GMRuntime : null);
+    if (GM && typeof GM.init === "function") {
+      GM.init(ctx);
+    }
+  } catch (_) {}
   try { setupInput(); } catch (_) {}
   try { initMouseSupport(); } catch (_) {}
   try { startLoop(); } catch (_) {}

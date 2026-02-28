@@ -48,6 +48,7 @@
     "poiDungeonHard": "#f7768e",
     "poiDungeonMountain": "#38bdf8",
     "questMarker": "#fbbf24",
+    "gmMarker": "#ff4fd8",
 
     "sleepingZ": "#a3be8c",
     "playerBackdropFill": "rgba(255,255,255,0.16)",

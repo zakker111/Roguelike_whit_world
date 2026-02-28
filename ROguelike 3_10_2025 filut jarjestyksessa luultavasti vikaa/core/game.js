@@ -85,7 +85,8 @@ import {
   unequipSlot as unequipSlotFacade,
   addPotionToInventory as addPotionToInventoryFacade,
   drinkPotionByIndex as drinkPotionByIndexFacade,
-  eatFoodByIndex as eatFoodByIndexFacade
+  eatFoodByIndex as eatFoodByIndexFacade,
+  useItemByIndex as useItemByIndexFacade
 } from "./facades/inventory.js";
 import {
   initialDecay as invInitialDecay,
@@ -1084,6 +1085,10 @@ import "./sandbox/runtime.js";
     unequipSlotFacade(getCtx(), slot);
   }
 
+  function useItemByIndex(idx) {
+    useItemByIndexFacade(getCtx(), idx);
+  }
+
   
 
   function showGameOver() {
@@ -1176,6 +1181,7 @@ import "./sandbox/runtime.js";
       unequipSlot,
       drinkPotionByIndex,
       eatFoodByIndex,
+      useItemByIndex,
       restartGame,
       turn,
       getFovRadius: () => fovRadius,

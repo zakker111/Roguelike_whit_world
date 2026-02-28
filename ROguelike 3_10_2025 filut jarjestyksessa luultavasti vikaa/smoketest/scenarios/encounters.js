@@ -73,53 +73,62 @@
         record(false, "Encounter actions failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Exit the encounter: teleport to nearest exit (>) and press G
+      // Exit the encounter. Prefer the stable programmatic API if available.
       let exitOk = false;
       try {
-        const tiles = (typeof G.getTiles === "function") ? G.getTiles() : { STAIRS: 3 };
-        const findExit = () => {
-          try {
-            const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
-            const map = (ctxG && typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG ? ctxG.map : null);
-            const H = Array.isArray(map) ? map.length : 0;
-            const W = (H && map[0]) ? map[0].length : 0;
-            if (!H || !W) return null;
-            for (let y = 0; y < H; y++) {
-              for (let x = 0; x < W; x++) {
-                if (map[y][x] === tiles.STAIRS) return { x, y };
-              }
-            }
-          } catch (_) {}
-          return null;
-        };
-        const exitTile = findExit();
-        if (exitTile && typeof G.teleportTo === "function") {
-          // Land on or near the exit
-          await (async () => {
-            const ok1 = !!G.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: true, fallbackScanRadius: 4 });
-            if (!ok1) {
-              G.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: false, fallbackScanRadius: 0 });
-              await sleep(80);
-            }
-          })();
-          await sleep(140);
-          // If adjacent, nudge onto the exit
-          try {
-            const p = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: exitTile.x, y: exitTile.y };
-            if (!(p.x === exitTile.x && p.y === exitTile.y)) {
-              const dx = Math.sign(exitTile.x - p.x);
-              const dy = Math.sign(exitTile.y - p.y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(140);
-            }
-          } catch (_) {}
+        if (typeof G.completeEncounter === "function") {
+          // "withdraw" is non-destructive and should always be allowed.
+          exitOk = !!G.completeEncounter("withdraw");
+          await sleep(240);
+          await waitUntilMode("world", 3000);
+          exitOk = (typeof G.getMode === "function" && G.getMode() === "world");
         }
-        // Press G to withdraw (EncounterRuntime.complete triggers via action on stairs)
-        key("g");
-        await sleep(240);
-        // Wait until mode flips back to world
-        await waitUntilMode("world", 3000);
-        exitOk = (typeof G.getMode === "function" && G.getMode() === "world");
+
+        // Fallback: teleport to a known exit marker and press G.
+        if (!exitOk) {
+          const tiles = (typeof G.getTiles === "function") ? G.getTiles() : { STAIRS: 3 };
+          const findExit = () => {
+            try {
+              const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+              const map = (ctxG && typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG ? ctxG.map : null);
+              const H = Array.isArray(map) ? map.length : 0;
+              const W = (H && map[0]) ? map[0].length : 0;
+              if (!H || !W) return null;
+              for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                  if (map[y][x] === tiles.STAIRS) return { x, y };
+                }
+              }
+            } catch (_) {}
+            return null;
+          };
+          const exitTile = findExit();
+          if (exitTile && typeof G.teleportTo === "function") {
+            // Land on or near the exit
+            await (async () => {
+              const ok1 = !!G.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+              if (!ok1) {
+                G.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+                await sleep(80);
+              }
+            })();
+            await sleep(140);
+            // If adjacent, nudge onto the exit
+            try {
+              const p = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: exitTile.x, y: exitTile.y };
+              if (!(p.x === exitTile.x && p.y === exitTile.y)) {
+                const dx = Math.sign(exitTile.x - p.x);
+                const dy = Math.sign(exitTile.y - p.y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+              }
+            } catch (_) {}
+          }
+          key("g");
+          await sleep(240);
+          await waitUntilMode("world", 3000);
+          exitOk = (typeof G.getMode === "function" && G.getMode() === "world");
+        }
       } catch (e) {
         record(false, "Encounter exit failed: " + (e && e.message ? e.message : String(e)));
         exitOk = false;
@@ -151,5 +160,5 @@
     }
   }
 
-  window.SmokeTest.Scenarios.Encounters = { run };
+  window.SmokeTest.Scenarios.encounters = { run };
 })();

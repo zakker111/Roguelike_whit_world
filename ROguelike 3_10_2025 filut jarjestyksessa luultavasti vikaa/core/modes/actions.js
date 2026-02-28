@@ -19,6 +19,7 @@
 
 import { getMod } from "../../utils/access.js";
 import { exitToWorld } from "./exit.js";
+import * as GMBridge from "../bridge/gm_bridge.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -193,6 +194,12 @@ export function doAction(ctx) {
         const started = !!QS.triggerAtMarkerIfHere(ctx);
         if (started) return true;
       }
+    } catch (_) {}
+
+    // GM marker action hook (gm.* markers)
+    try {
+      const handled = !!GMBridge.handleMarkerAction(ctx);
+      if (handled) return true;
     } catch (_) {}
 
     // Open Region map when pressing G on a walkable overworld tile (no overlay panel)

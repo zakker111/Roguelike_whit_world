@@ -141,6 +141,7 @@
               "panelBg", "panelBorder", "panelShadow",
               "poiTown", "poiDungeonEasy", "poiDungeonMed", "poiDungeonHard",
               "questMarker",
+              "gmMarker",
               "sleepingZ", "playerBackdropFill", "playerBackdropStroke",
               "regionAnimal", "shopkeeper",
               "regionAnimalsCleared", "regionAnimalsKnown",

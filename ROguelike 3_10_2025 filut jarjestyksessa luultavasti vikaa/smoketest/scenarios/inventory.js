@@ -164,12 +164,25 @@
       }
 
       // Hand chooser branch coverage
+      // Important: unequipping can push items back into inventory, shifting indices.
+      // Always re-find the target item by scanning the current inventory after unequip.
       var inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+      var findHandItemIndex = function () {
+        var cur = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+        return cur.findIndex(function (it) { return it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded; });
+      };
       var idxHand = inv3.findIndex(function (it) { return it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded; });
       if (idxHand !== -1) {
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
         await sleep(120);
+
+        idxHand = findHandItemIndex();
+        if (idxHand === -1) {
+          recordSkip("Skipped hand chooser test (no 1-hand item after unequip)");
+          return true;
+        }
+
         var okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "left") : (!!window.GameAPI.equipItemAtIndex(idxHand));
         await sleep(140);
         var eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};

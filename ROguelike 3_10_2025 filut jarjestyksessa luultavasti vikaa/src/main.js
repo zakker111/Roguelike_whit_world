@@ -8,6 +8,13 @@ import '/core/rng_service.js';
 import '/core/state/state_sync.js';
 import '/core/engine/boot_monitor.js';
 
+// Core fallbacks: HealthCheck expects window.Fallbacks to exist (fallback combat/stat formulas).
+import '/core/fallbacks.js';
+
+// Optional: Harbor generation (experimental). Imported early so HealthCheck can
+// detect window.Harbor when the harbor worldgen modules are present.
+import '/core/facades/harbor_generation.js';
+
 // Utilities
 import '/utils/utils.js';
 import '/utils/bounds.js';
@@ -154,6 +161,15 @@ document.addEventListener('DOMContentLoaded', function () {
       window.Logger.init(undefined, 80);
     }
   } catch (e) {}
+  // Log build + origin so players can confirm they’re on the expected deployment.
+  try {
+    const meta = document.querySelector('meta[name="app-version"]');
+    const ver = meta ? String(meta.getAttribute('content') || '') : '';
+    if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+      window.Logger.log(`[Build] version=${ver || 'dev'} origin=${location.origin}`, 'notice');
+    }
+  } catch (_) {}
+
   // Log active palette after Logger is ready (covers URL-param load that happened before Logger)
   try {
     const GD = (typeof window !== 'undefined' ? window.GameData : null);
@@ -214,6 +230,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
+        '/smoketest/scenarios/skeleton_key_chest.js',
         '/smoketest/scenarios/dungeon_persistence.js',
         '/smoketest/scenarios/dungeon_stairs_transitions.js',
         '/smoketest/scenarios/town_diagnostics.js',
@@ -221,6 +238,9 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/encounters.js',
         '/smoketest/scenarios/gm_mechanic_hints.js',
         '/smoketest/scenarios/gm_intent_decisions.js',
+        '/smoketest/scenarios/gm_bridge_markers.js',
+        '/smoketest/scenarios/gm_bridge_faction_travel.js',
+        '/smoketest/scenarios/gm_bottle_map.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

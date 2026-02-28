@@ -366,22 +366,54 @@ export function show(ctx, opts = {}) {
       try {
         const inv = ctx.player.inventory || (ctx.player.inventory = []);
         if (isSpecial) {
-          // Prefer a real equipment item if Items registry is available; fallback to a trinket
-          let awarded = null;
-          try {
-            if (typeof window !== 'undefined' && window.Items && typeof window.Items.createEquipment === 'function') {
-              // Mostly tier 1; tiny chance to bump to tier 2
-              const tier = (rngFn() < 0.12) ? 2 : 1;
-              awarded = window.Items.createEquipment(tier, rngFn) || null;
+          let awarded = null, isBottleMap = false;
+
+          const bottleMapChance = (opts && typeof opts.bottleMapChance === 'number') ? Math.max(0, Math.min(1, opts.bottleMapChance)) : 0.10;
+          if (rngFn() < bottleMapChance) {
+            const hasBottleMap = inv.some(it => {
+              if (!it) return false;
+              if (String(it.kind || '').toLowerCase() !== 'tool') return false;
+              const id = String(it.type || it.id || it.key || it.name || '').toLowerCase();
+              return id === 'bottle_map' || id === 'bottle map' || id.includes('bottle map') || id.includes('bottle_map');
+            });
+
+            const GM = (typeof window !== 'undefined' ? window.GMRuntime : null);
+            const gm = (GM && typeof GM.getState === 'function') ? GM.getState(ctx) : null;
+            const thread = (gm && gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === 'object') ? gm.threads.bottleMap : null;
+
+            // Gate: only block when a Bottle Map is currently active (or player already has one).
+            // NOTE: We intentionally do NOT block on 'claimed' so fishing can award a new map later.
+            const blocked = !gm || hasBottleMap || !!(thread && thread.active === true);
+
+            if (!blocked) {
+              awarded = { kind: 'tool', type: 'bottle_map', id: 'bottle_map', name: 'bottle map', decay: 0, usable: true };
+              isBottleMap = true;
             }
-          } catch (_) {}
-          if (!awarded) {
-            awarded = { kind: 'material', type: 'old_boot', name: 'old boot', amount: 1 };
           }
+
+          if (!awarded) {
+            // Prefer a real equipment item if Items registry is available; fallback to a trinket
+            try {
+              if (typeof window !== 'undefined' && window.Items && typeof window.Items.createEquipment === 'function') {
+                // Mostly tier 1; tiny chance to bump to tier 2
+                const tier = (rngFn() < 0.12) ? 2 : 1;
+                awarded = window.Items.createEquipment(tier, rngFn) || null;
+              }
+            } catch (_) {}
+            if (!awarded) {
+              awarded = { kind: 'material', type: 'old_boot', name: 'old boot', amount: 1 };
+            }
+          }
+
           inv.push(awarded);
           try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
           try { if (ctx.rerenderInventoryIfOpen) ctx.rerenderInventoryIfOpen(); } catch (_) {}
-          try { if (ctx.log) ctx.log(`You fished up ${awarded.name || 'something curious'}!`, 'good'); } catch (_) {}
+          try {
+            if (ctx.log) {
+              if (isBottleMap) ctx.log('You fished up a bottle map in a sealed bottle!', 'good');
+              else ctx.log(`You fished up ${awarded.name || 'something curious'}!`, 'good');
+            }
+          } catch (_) {}
         } else {
           // Regular fish
           const existing = inv.find(it => it && it.kind === 'material' && String(it.type || it.name || '').toLowerCase() === 'fish');

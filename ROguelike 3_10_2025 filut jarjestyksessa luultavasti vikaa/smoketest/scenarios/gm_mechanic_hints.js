@@ -65,6 +65,7 @@
 
       // Snapshot mutable fields we will touch.
       const snap = {
+        enabled: Object.prototype.hasOwnProperty.call(gm, "enabled") ? gm.enabled : undefined,
         lastHintIntentTurn: gm.lastHintIntentTurn,
         lastHintIntentTownEntry: gm.lastHintIntentTownEntry,
         lastActionTurn: gm.lastActionTurn,
@@ -74,6 +75,9 @@
         } : null,
         mechanics: snapshotMechanics(gm.mechanics)
       };
+
+      // Ensure the scenario is stable even if the GM panel has been toggled off.
+      gm.enabled = true;
 
       try {
         gm.stats = gm.stats && typeof gm.stats === "object" ? gm.stats : {};
@@ -142,6 +146,15 @@
           gm.stats.modeEntries = gm.stats.modeEntries && typeof gm.stats.modeEntries === "object" ? gm.stats.modeEntries : {};
           gm.stats.modeEntries.town = snap.stats.modeEntriesTown | 0;
         }
+        // Restore gm.enabled if we changed it for scenario stability.
+        if (Object.prototype.hasOwnProperty.call(snap, "enabled")) {
+          if (snap.enabled === undefined) {
+            try { delete gm.enabled; } catch (_) { gm.enabled = undefined; }
+          } else {
+            gm.enabled = snap.enabled;
+          }
+        }
+
         restoreMechanics(gm.mechanics, snap.mechanics);
       } catch (_) {}
 
