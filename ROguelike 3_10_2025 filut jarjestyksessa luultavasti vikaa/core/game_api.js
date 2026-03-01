@@ -901,10 +901,40 @@ export function create(ctx) {
         return false;
       }
     },
-    // Force-overworld: immediately set mode to world by regenerating it.
-    // Draw is scheduled by core/game.js after sync; avoid redundant requestDraw here.
+    // Force-overworld: hard fallback intended for smoketests / recovery.
+    // Note: worldReturnPos is stored in *absolute* coords; do not assign it directly
+    // to player.x/y here (player.x/y are local-to-world-window coords).
     forceWorld: () => {
-      try { ctx.initWorld(); return true; } catch (_) { return false; }
+      try {
+        // Ensure modals are closed to avoid input gating in subsequent steps.
+        try { closeAnyModal(); } catch (_) {}
+
+        // Prefer regenerating a fresh overworld; this ensures map/world state is consistent.
+        try {
+          if (typeof ctx.initWorld === "function") {
+            ctx.initWorld();
+          }
+        } catch (_) {}
+
+        // Ensure mode is synchronized to world and region overlay cleared.
+        try {
+          if (typeof ctx.getCtx === "function" && typeof ctx.applyCtxSyncAndRefresh === "function") {
+            const c = ctx.getCtx();
+            if (c) {
+              c.mode = "world";
+              try { c.region = null; } catch (_) {}
+              ctx.applyCtxSyncAndRefresh(c);
+            }
+          }
+        } catch (_) {}
+
+        try { return (typeof ctx.getMode === "function") ? (ctx.getMode() === "world") : true; } catch (_) { return true; }
+      } catch (e) {
+        try {
+          fallbackLog("gameApi.forceWorld", "forceWorld failed", { error: (e && e.message) ? e.message : String(e) });
+        } catch (_) {}
+        return false;
+      }
     },
   };
   return api;

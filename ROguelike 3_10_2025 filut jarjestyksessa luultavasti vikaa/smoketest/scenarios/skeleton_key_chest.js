@@ -45,6 +45,15 @@
     async function ensureTownMode() {
       try { if (ctx && has(ctx.ensureAllModalsClosed)) await ctx.ensureAllModalsClosed(8); } catch (_) {}
 
+      // Prefer the orchestrator helper first; it contains the most robust routing/
+      // teleport/'g' fallbacks and avoids duplicate entry toggles across scenarios.
+      try {
+        if (ctx && has(ctx.ensureTownOnce)) {
+          const ok = await ctx.ensureTownOnce();
+          if (ok) return true;
+        }
+      } catch (_) {}
+
       let mode0 = "";
       try { mode0 = has(G.getMode) ? G.getMode() : ""; } catch (_) { mode0 = ""; }
       if (mode0 === "town") return true;
@@ -59,6 +68,7 @@
 
         await waitUntilMode("world", 2500);
 
+        // Hard fallback: forceWorld must also sync mode (core/game_api.js).
         if (has(G.getMode) && G.getMode() !== "world" && has(G.forceWorld)) {
           try { G.forceWorld(); } catch (_) {}
           await waitUntilMode("world", 2500);
@@ -67,19 +77,22 @@
 
       // Prefer direct transition helper (auto-routes + force-lands on POI tile).
       try { if (has(G.enterTownIfOnTile)) G.enterTownIfOnTile(); } catch (_) {}
-      await waitUntilMode("town", 3000);
+      await waitUntilMode("town", 2500);
 
-      // If we still didn't enter, try explicit travel + enter.
+      // If we still didn't enter, try explicit travel + enter + 'g' (action key).
       if (has(G.getMode) && G.getMode() !== "town") {
         try { if (has(G.gotoNearestTown)) await G.gotoNearestTown(); } catch (_) {}
+        try { if (ctx && has(ctx.key)) ctx.key("g"); } catch (_) {}
         try { if (has(G.enterTownIfOnTile)) G.enterTownIfOnTile(); } catch (_) {}
-        await waitUntilMode("town", 3000);
-      }
-
-      // Final fallback: orchestrator helper (may be lock-gated in some runs).
-      if (has(G.getMode) && G.getMode() !== "town") {
-        try { if (ctx && has(ctx.ensureTownOnce)) await ctx.ensureTownOnce(); } catch (_) {}
-        await waitUntilMode("town", 3000);
+        // Some builds only expose Modes.enterTownIfOnTile.
+        if (has(G.getMode) && G.getMode() !== "town") {
+          try {
+            const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+            const ctxG = has(G.getCtx) ? G.getCtx() : null;
+            if (Modes && has(Modes.enterTownIfOnTile) && ctxG) Modes.enterTownIfOnTile(ctxG);
+          } catch (_) {}
+        }
+        await waitUntilMode("town", 2500);
       }
 
       try { return has(G.getMode) && G.getMode() === "town"; } catch (_) { return false; }
@@ -87,7 +100,9 @@
 
     const inTown = await ensureTownMode();
     if (!inTown) {
-      recordSkip("Skeleton key chest skipped (not in town mode)");
+      let m = "";
+      try { m = has(G.getMode) ? G.getMode() : ""; } catch (_) { m = ""; }
+      recordSkip("Skeleton key chest skipped (not in town mode; mode=" + (m || "?") + ")");
       return true;
     }
 
