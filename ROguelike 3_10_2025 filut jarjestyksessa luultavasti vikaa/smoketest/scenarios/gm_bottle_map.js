@@ -25,6 +25,29 @@
       return true;
     }
 
+    // This scenario requires overworld mode; try to recover if we're currently in another mode
+    // (e.g. if a prior scenario left the game in town/dungeon/encounter/region).
+    try {
+      const mode0 = has(G.getMode) ? String(G.getMode() || "") : "";
+      if (mode0 && mode0 !== "world") {
+        try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
+        try {
+          if (mode0 === "encounter" && has(G.completeEncounter)) G.completeEncounter("withdraw");
+          else if (mode0 === "dungeon" && has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit();
+          else if (mode0 === "town") {
+            if (has(G.returnToWorldFromTown)) G.returnToWorldFromTown();
+            else if (has(G.leaveTownNow)) G.leaveTownNow();
+            else if (has(G.requestLeaveTown)) G.requestLeaveTown();
+          }
+        } catch (_) {}
+        // Hard fallback: force a fresh overworld (acceptable for smoketests)
+        if (has(G.forceWorld)) {
+          try { G.forceWorld(); } catch (_) {}
+          await sleep(240);
+        }
+      }
+    } catch (_) {}
+
     const gctx = G.getCtx();
     if (!gctx || gctx.mode !== "world") {
       recordSkip("Bottle Map skipped (not in world mode)");
@@ -45,6 +68,21 @@
       recordSkip("Bottle Map skipped (MarkerService/InventoryFlow missing required functions)");
       return true;
     }
+
+    // Clean any stale Bottle Map state from a prior attempt (keeps this scenario deterministic).
+    try { MS.remove(gctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
+    try {
+      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
+      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
+      const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
+      if (bm) {
+        bm.active = false;
+        bm.status = "claimed";
+        bm.instanceId = null;
+        bm.target = null;
+        bm.reward = null;
+      }
+    } catch (_) {}
 
     const worldRef = gctx.world || null;
 
@@ -99,6 +137,37 @@
 
     const waitUntilMode = (mode, timeoutMs) => waitUntil(() => has(G.getMode) && G.getMode() === mode, timeoutMs, 80);
 
+    // Encounter template must be present for GMBridge to start the encounter.
+    let encReady = true;
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      if (GD && GD.ready && typeof GD.ready.then === "function") {
+        let settled = false;
+        try {
+          GD.ready.then(() => { settled = true; }, () => { settled = true; });
+        } catch (_) {
+          settled = true;
+        }
+        await waitUntil(() => settled, 10000, 80);
+      }
+      encReady = await waitUntil(() => {
+        try {
+          const GD2 = (typeof window !== "undefined" ? window.GameData : null);
+          const reg = GD2 && GD2.encounters && Array.isArray(GD2.encounters.templates) ? GD2.encounters.templates : [];
+          return !!reg.find(t => t && String(t.id || "").toLowerCase() === "gm_bottle_map_scene");
+        } catch (_) {
+          return false;
+        }
+      }, 2500, 80);
+    } catch (_) {
+      encReady = false;
+    }
+    record(encReady, "Encounter template 'gm_bottle_map_scene' loaded");
+    if (!encReady) {
+      recordSkip("Bottle Map skipped (encounter templates not loaded)");
+      return true;
+    }
+
     const teleportToMarker = async (m) => {
       let ok = false;
       let lx = 0;
@@ -112,17 +181,44 @@
         if (has(G.teleportTo)) ok = !!G.teleportTo(lx, ly, { ensureWalkable: true, fallbackScanRadius: 4 });
       } catch (_) { ok = false; }
 
-      if (ok && has(G.getPlayer)) {
-        await waitUntil(() => {
-          const p = G.getPlayer();
-          const d = Math.abs((p.x | 0) - lx) + Math.abs((p.y | 0) - ly);
-          return d <= 6;
-        }, 1200, 80);
-      } else {
+      if (!ok) {
         await sleep(120);
+        return false;
       }
 
-      return ok;
+      // Ensure we are standing *exactly* on the marker tile before pressing 'g'.
+      let onTile = false;
+      try {
+        onTile = await waitUntil(() => {
+          const p = has(G.getPlayer) ? G.getPlayer() : null;
+          return !!(p && (p.x | 0) === (lx | 0) && (p.y | 0) === (ly | 0));
+        }, 900, 80);
+      } catch (_) { onTile = false; }
+
+      if (!onTile) {
+        // Force-land even if the tile is considered non-walkable (marker interactions only need us on the coords).
+        try {
+          if (has(G.teleportTo)) ok = !!G.teleportTo(lx, ly, { ensureWalkable: false, fallbackScanRadius: 0 });
+        } catch (_) { ok = false; }
+        try {
+          onTile = await waitUntil(() => {
+            const p = has(G.getPlayer) ? G.getPlayer() : null;
+            return !!(p && (p.x | 0) === (lx | 0) && (p.y | 0) === (ly | 0));
+          }, 900, 80);
+        } catch (_) { onTile = false; }
+      }
+
+      let onMarker = false;
+      try {
+        const want = String((m && m.instanceId) || "");
+        onMarker = await waitUntil(() => {
+          const at = MS.findAtPlayer(gctx);
+          const markers = Array.isArray(at) ? at : (at ? [at] : []);
+          return !!markers.find(mm => mm && String(mm.instanceId || "") === want);
+        }, 900, 80);
+      } catch (_) { onMarker = false; }
+
+      return !!(ok && onTile && onMarker);
     };
 
     // Add a bottle map item to inventory.
@@ -140,6 +236,15 @@
     let used = false;
     try { used = !!IF.useItemByIndex(gctx, idx); } catch (_) { used = false; }
     record(used, "InventoryFlow.useItemByIndex consumes bottle map");
+
+    // If use failed, remove the injected item so we don't leak state into later scenarios.
+    if (!used && idx >= 0) {
+      try {
+        const inv = (gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : [];
+        if (idx >= 0 && idx < inv.length) inv.splice(idx, 1);
+        if (typeof gctx.updateUI === "function") gctx.updateUI();
+      } catch (_) {}
+    }
 
     // Find marker (allow marker placement to settle).
     await waitUntil(() => !!findBottleMarker(null), 1200, 80);

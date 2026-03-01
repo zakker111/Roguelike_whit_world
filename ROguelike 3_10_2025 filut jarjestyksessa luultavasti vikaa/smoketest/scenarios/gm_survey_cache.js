@@ -24,6 +24,62 @@
       return true;
     }
 
+    const waitUntil = async (pred, timeoutMs, intervalMs) => {
+      const deadline = Date.now() + Math.max(0, (timeoutMs | 0) || 0);
+      const step = Math.max(20, (intervalMs | 0) || 80);
+      while (Date.now() < deadline) {
+        let ok = false;
+        try { ok = !!pred(); } catch (_) { ok = false; }
+        if (ok) return true;
+        await sleep(step);
+      }
+      try { return !!pred(); } catch (_) { return false; }
+    };
+
+    const waitUntilMode = (mode, timeoutMs) => waitUntil(() => has(G.getMode) && G.getMode() === mode, timeoutMs, 80);
+
+    async function ensureWorldMode() {
+      try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
+
+      let mode0 = "";
+      try { mode0 = has(G.getMode) ? G.getMode() : ""; } catch (_) { mode0 = ""; }
+      if (mode0 === "world") return true;
+
+      // Best-effort graceful exit depending on current mode.
+      try {
+        if (mode0 === "encounter" && has(G.completeEncounter)) {
+          G.completeEncounter("withdraw");
+        } else if (mode0 === "dungeon" && has(G.returnToWorldIfAtExit)) {
+          G.returnToWorldIfAtExit();
+        } else if (mode0 === "town") {
+          if (has(G.returnToWorldFromTown)) G.returnToWorldFromTown();
+          else if (has(G.leaveTownNow)) G.leaveTownNow();
+          else if (has(G.requestLeaveTown)) G.requestLeaveTown();
+        } else if (mode0 === "region") {
+          // Region map exit is positional; fall back to forceWorld below.
+          try { key("Escape"); } catch (_) {}
+        }
+      } catch (_) {}
+
+      await waitUntilMode("world", 2500);
+      try { mode0 = has(G.getMode) ? G.getMode() : ""; } catch (_) { mode0 = ""; }
+      if (mode0 === "world") return true;
+
+      // Hard fallback: re-init the overworld. This is acceptable for marker tests.
+      if (has(G.forceWorld)) {
+        try { G.forceWorld(); } catch (_) {}
+        await waitUntilMode("world", 2500);
+      }
+
+      try { return has(G.getMode) && G.getMode() === "world"; } catch (_) { return false; }
+    }
+
+    const okWorld = await ensureWorldMode();
+    if (!okWorld) {
+      recordSkip("Survey Cache skipped (not in world mode)");
+      return true;
+    }
+
     const gctx = G.getCtx();
     if (!gctx || gctx.mode !== "world") {
       recordSkip("Survey Cache skipped (not in world mode)");
@@ -57,26 +113,33 @@
       }
     };
 
-    const waitUntil = async (pred, timeoutMs, intervalMs) => {
-      const deadline = Date.now() + Math.max(0, (timeoutMs | 0) || 0);
-      const step = Math.max(20, (intervalMs | 0) || 80);
-      while (Date.now() < deadline) {
-        let ok = false;
-        try { ok = !!pred(); } catch (_) { ok = false; }
-        if (ok) return true;
-        await sleep(step);
-      }
-      try { return !!pred(); } catch (_) { return false; }
-    };
-
-    const waitUntilMode = (mode, timeoutMs) => waitUntil(() => has(G.getMode) && G.getMode() === mode, timeoutMs, 80);
-
     // Encounter templates are required for GMBridge to start the encounter.
-    const encReady = await waitUntil(() => {
+    let encReady = true;
+    try {
       const GD = (typeof window !== "undefined" ? window.GameData : null);
-      return !!(GD && GD.encounters && Array.isArray(GD.encounters.templates) && GD.encounters.templates.length > 0);
-    }, 4500, 80);
-    record(encReady, "GameData.encounters.templates loaded");
+      if (GD && GD.ready && typeof GD.ready.then === "function") {
+        let settled = false;
+        try {
+          GD.ready.then(() => { settled = true; }, () => { settled = true; });
+        } catch (_) {
+          settled = true;
+        }
+        await waitUntil(() => settled, 10000, 80);
+      }
+
+      encReady = await waitUntil(() => {
+        const GD2 = (typeof window !== "undefined" ? window.GameData : null);
+        const reg = GD2 && GD2.encounters && Array.isArray(GD2.encounters.templates) ? GD2.encounters.templates : [];
+        return !!reg.find(t => t && String(t.id || "").toLowerCase() === "gm_survey_cache_scene");
+      }, 2500, 80);
+    } catch (_) {
+      encReady = false;
+    }
+    record(encReady, "Encounter template 'gm_survey_cache_scene' loaded");
+    if (!encReady) {
+      recordSkip("Survey Cache skipped (encounter templates not loaded)");
+      return true;
+    }
 
     const w = gctx.world || null;
     const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
@@ -89,6 +152,20 @@
 
     // Ensure we start clean (avoid leaking from prior runs / scenarios).
     try { MS.remove(gctx, (m) => m && String(m.instanceId || "") === instanceId); } catch (_) {}
+    try {
+      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
+      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
+      const sc = (threads && threads.surveyCache && typeof threads.surveyCache === "object") ? threads.surveyCache : null;
+      if (sc) {
+        if (sc.active && sc.active.instanceId && String(sc.active.instanceId) === String(instanceId)) sc.active = null;
+        if (sc.claimed && typeof sc.claimed === "object") {
+          try { delete sc.claimed[String(instanceId)]; } catch (_) {}
+        }
+        if (Array.isArray(sc.claimedOrder)) {
+          sc.claimedOrder = sc.claimedOrder.filter((id) => String(id || "") !== String(instanceId));
+        }
+      }
+    } catch (_) {}
 
     const m = MS.add(gctx, {
       x: absX,

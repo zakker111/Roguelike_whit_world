@@ -28,15 +28,65 @@
       return true;
     }
 
-    // Enter town mode.
-    try { if (ctx && has(ctx.ensureAllModalsClosed)) await ctx.ensureAllModalsClosed(8); } catch (_) {}
-    try {
-      if (ctx && has(ctx.ensureTownOnce)) {
-        await ctx.ensureTownOnce();
+    const waitUntil = async (pred, timeoutMs, intervalMs) => {
+      const deadline = Date.now() + Math.max(0, (timeoutMs | 0) || 0);
+      const step = Math.max(20, (intervalMs | 0) || 80);
+      while (Date.now() < deadline) {
+        let ok = false;
+        try { ok = !!pred(); } catch (_) { ok = false; }
+        if (ok) return true;
+        await sleep(step);
       }
-    } catch (_) {}
+      try { return !!pred(); } catch (_) { return false; }
+    };
 
-    if (G.getMode() !== "town") {
+    const waitUntilMode = (mode, timeoutMs) => waitUntil(() => has(G.getMode) && G.getMode() === mode, timeoutMs, 80);
+
+    async function ensureTownMode() {
+      try { if (ctx && has(ctx.ensureAllModalsClosed)) await ctx.ensureAllModalsClosed(8); } catch (_) {}
+
+      let mode0 = "";
+      try { mode0 = has(G.getMode) ? G.getMode() : ""; } catch (_) { mode0 = ""; }
+      if (mode0 === "town") return true;
+
+      // If we are not in the overworld, try to get back there first.
+      if (mode0 !== "world") {
+        try {
+          if (mode0 === "encounter" && has(G.completeEncounter)) G.completeEncounter("withdraw");
+          else if (mode0 === "dungeon" && has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit();
+          else if (mode0 === "town" && has(G.returnToWorldFromTown)) G.returnToWorldFromTown();
+        } catch (_) {}
+
+        await waitUntilMode("world", 2500);
+
+        if (has(G.getMode) && G.getMode() !== "world" && has(G.forceWorld)) {
+          try { G.forceWorld(); } catch (_) {}
+          await waitUntilMode("world", 2500);
+        }
+      }
+
+      // Prefer direct transition helper (auto-routes + force-lands on POI tile).
+      try { if (has(G.enterTownIfOnTile)) G.enterTownIfOnTile(); } catch (_) {}
+      await waitUntilMode("town", 3000);
+
+      // If we still didn't enter, try explicit travel + enter.
+      if (has(G.getMode) && G.getMode() !== "town") {
+        try { if (has(G.gotoNearestTown)) await G.gotoNearestTown(); } catch (_) {}
+        try { if (has(G.enterTownIfOnTile)) G.enterTownIfOnTile(); } catch (_) {}
+        await waitUntilMode("town", 3000);
+      }
+
+      // Final fallback: orchestrator helper (may be lock-gated in some runs).
+      if (has(G.getMode) && G.getMode() !== "town") {
+        try { if (ctx && has(ctx.ensureTownOnce)) await ctx.ensureTownOnce(); } catch (_) {}
+        await waitUntilMode("town", 3000);
+      }
+
+      try { return has(G.getMode) && G.getMode() === "town"; } catch (_) { return false; }
+    }
+
+    const inTown = await ensureTownMode();
+    if (!inTown) {
       recordSkip("Skeleton key chest skipped (not in town mode)");
       return true;
     }

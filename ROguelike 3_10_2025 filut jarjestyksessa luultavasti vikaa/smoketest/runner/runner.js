@@ -241,6 +241,29 @@
     return await waitUntilTrue(() => isRunnerReady(), to, 80);
   }
 
+  // Runner-level data readiness: wait for GameData.ready to settle (when present)
+  async function waitUntilGameDataReady(timeoutMs) {
+    try {
+      const GD = (typeof window !== "undefined") ? window.GameData : null;
+      if (!GD || !GD.ready || typeof GD.ready.then !== "function") return true;
+
+      let settled = false;
+      try {
+        GD.ready.then(
+          () => { settled = true; },
+          () => { settled = true; }
+        );
+      } catch (_) {
+        settled = true;
+      }
+
+      const ok = await waitUntilTrue(() => settled, Math.max(250, timeoutMs | 0), 80);
+      return !!ok;
+    } catch (_) {
+      return true;
+    }
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -251,6 +274,8 @@
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
       await waitUntilRunnerReady(6000);
+      // Ensure JSON registries (notably encounters) have finished loading before any scenario runs.
+      await waitUntilGameDataReady(15000);
 
       // Validation summary (non-fatal): record warnings/notices up front
       let __valWarnings = 0, __valNotices = 0;
@@ -507,7 +532,8 @@
             window.SmokeTest.Runner = window.SmokeTest.Runner || {};
           } catch (_) {}
           if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.DUNGEON_LOCK) {
-            return getMode() === "dungeon";
+            if (getMode() === "dungeon") return true;
+            try { window.SmokeTest.Runner.DUNGEON_LOCK = false; } catch (_) {}
           }
           // If already in dungeon, set lock and return
           if (modeNow === "dungeon") {
@@ -766,7 +792,8 @@
             window.SmokeTest.Runner = window.SmokeTest.Runner || {};
           } catch (_) {}
           if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.TOWN_LOCK) {
-            return getMode() === "town";
+            if (getMode() === "town") return true;
+            try { window.SmokeTest.Runner.TOWN_LOCK = false; } catch (_) {}
           }
           // If already in town, set lock and return
           if (modeNow === "town") {
@@ -1472,6 +1499,8 @@
 
   async function runSeries(count) {
     const params = parseParams();
+    // Ensure data registries are loaded before we start clicking "New Game" (more deterministic).
+    await waitUntilGameDataReady(15000);
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
     const all = [];
     let pass = 0, fail = 0;
