@@ -11,7 +11,7 @@
  * - ensureGuaranteedSurveyCache(ctx): void          // hybrid guarantee spawn
  */
 
-import { getMod } from "../../utils/access.js";
+import { getGameData, getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
 import { gmRngFloat, hash32 } from "../gm/runtime/rng.js";
 
@@ -29,6 +29,33 @@ const SURVEY_SALT_ANCHOR_Y = 0x53_59_02;
 const SURVEY_SALT_ROLL = 0x53_52_03;
 const SURVEY_SALT_REWARD = 0x53_52_04;
 const SURVEY_SALT_GUARANTEE = 0x53_47_05;
+
+// Minimal fallback encounter templates used when JSON registries haven't loaded.
+// These should match data/encounters/encounters.json so gameplay stays consistent.
+const FALLBACK_GM_ENCOUNTER_TEMPLATES = {
+  gm_bottle_map_scene: {
+    id: "gm_bottle_map_scene",
+    name: "GM: Bottle Map Cache",
+    baseWeight: 0.0,
+    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+    map: { generator: "ruins", w: 26, h: 18 },
+    objective: { type: "clearAll" },
+    groups: [
+      { type: "bandit", count: { min: 3, max: 5 }, faction: "bandit" }
+    ]
+  },
+  gm_survey_cache_scene: {
+    id: "gm_survey_cache_scene",
+    name: "GM: Surveyor's Cache",
+    baseWeight: 0.0,
+    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+    map: { generator: "ruins", w: 26, h: 18 },
+    objective: { type: "clearAll" },
+    groups: [
+      { type: "bandit", count: { min: 3, max: 6 }, faction: "bandit" }
+    ]
+  },
+};
 
 function mulberry32(seed) {
   let a = (seed >>> 0);
@@ -339,30 +366,56 @@ export function maybeHandleWorldStep(ctx) {
   }
 }
 
+function findGmMarkerAtPlayer(ctx) {
+  if (!ctx || !ctx.world || !ctx.player) return null;
+
+  const ox = (ctx.world && typeof ctx.world.originX === "number") ? (ctx.world.originX | 0) : 0;
+  const oy = (ctx.world && typeof ctx.world.originY === "number") ? (ctx.world.originY | 0) : 0;
+  const absX = (ox + (ctx.player.x | 0)) | 0;
+  const absY = (oy + (ctx.player.y | 0)) | 0;
+
+  let markers = [];
+
+  // Prefer MarkerService (dedup + canonical behavior), but tolerate missing/late modules.
+  try {
+    const MS = getMod(ctx, "MarkerService");
+    if (MS && typeof MS.findAt === "function") {
+      const at = MS.findAt(ctx, absX, absY);
+      markers = Array.isArray(at) ? at : (at ? [at] : []);
+    }
+  } catch (_) {}
+
+  if (!markers.length) {
+    try {
+      const arr = Array.isArray(ctx.world.questMarkers) ? ctx.world.questMarkers : [];
+      markers = arr.filter(m => m && (m.x | 0) === absX && (m.y | 0) === absY);
+    } catch (_) {
+      markers = [];
+    }
+  }
+
+  return markers.find((m) => m && typeof m.kind === "string" && m.kind.startsWith("gm.")) || null;
+}
+
 export function handleMarkerAction(ctx) {
   if (!ctx) return false;
 
-  // If GM is disabled, ignore gm.* markers (they'll fall through to normal input behavior).
-  if (!isGmEnabled(ctx)) return false;
+  const gmMarker = findGmMarkerAtPlayer(ctx);
+  if (!gmMarker) return false;
+
+  // Even when GM is disabled, consume input on gm.* markers so we don't fall
+  // through to other world actions like opening the Region Map.
+  if (!isGmEnabled(ctx)) {
+    try {
+      if (typeof ctx.log === "function") {
+        ctx.log("[GM] GM is disabled; this marker cannot be used.", "warn");
+      }
+    } catch (_) {}
+    return true;
+  }
 
   try {
-    const MS = getMod(ctx, "MarkerService");
-    if (!MS || typeof MS.findAtPlayer !== "function") return false;
-
-    const at = MS.findAtPlayer(ctx);
-    const markers = Array.isArray(at) ? at : (at ? [at] : []);
-
-    // We only handle gm.* markers here. Quest markers are handled by QuestService.
-    const gmMarker = markers.find((m) => m && typeof m.kind === "string" && m.kind.startsWith("gm.")) || null;
-    if (!gmMarker) return false;
-
     const kind = String(gmMarker.kind || "");
-
-    // IMPORTANT:
-    // gm.* markers must *always* consume the action input (G) so we don't
-    // fall through to other world actions like opening the Region Map.
-    // Individual marker handlers can return false to indicate "could not start"
-    // (e.g. encounter templates not loaded), but input should still be consumed.
 
     let ok = true;
 
@@ -391,7 +444,8 @@ export function handleMarkerAction(ctx) {
 
     return true;
   } catch (_) {
-    return false;
+    // Even if the handler crashes, consume the input so we don't open Region Map.
+    return true;
   }
 }
 
@@ -479,7 +533,13 @@ function handleBottleMapMarker(ctx, marker) {
     }
 
     // Start the dedicated Bottle Map encounter.
-    return startGmBottleMapEncounter(ctx);
+    const started = !!startGmBottleMapEncounter(ctx);
+    if (!started) {
+      // If we couldn't enter the encounter (e.g., template missing/late load), revert so the player can retry.
+      if (thread.status === "inEncounter") thread.status = "active";
+      return false;
+    }
+    return true;
   } catch (_) {
     return true;
   }
@@ -959,16 +1019,41 @@ function startGmFactionEncounter(ctx, encounterId) {
   const id = idRaw.trim();
   if (!id) return false;
 
+  const key = id.toLowerCase();
+
+  const GD = getGameData(ctx);
+  const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
+
   let tmpl = null;
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-    const key = id.toLowerCase();
-    tmpl = reg.find(t => t && String(t.id || "").toLowerCase() === key) || null;
-  } catch (_) {}
+    if (reg && reg.length) {
+      tmpl = reg.find(t => t && String(t.id || "").toLowerCase() === key) || null;
+    }
+  } catch (_) {
+    tmpl = null;
+  }
+
+  // If encounter registries haven't loaded yet (or failed to load), use a minimal fallback
+  // for known GM encounters so marker interactions remain functional.
+  if (!tmpl && (!reg || !reg.length)) {
+    tmpl = FALLBACK_GM_ENCOUNTER_TEMPLATES[key] || null;
+    if (tmpl) {
+      try {
+        if (ctx && typeof ctx.log === "function") {
+          ctx.log(`[GM] Encounter templates not available yet; using fallback for '${id}'.`, "notice");
+        }
+      } catch (_) {}
+    }
+  }
 
   if (!tmpl) {
-    try { if (ctx && typeof ctx.log === "function") ctx.log(`[GM] Faction encounter template '${id}' not found.`, "warn"); } catch (_) {}
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        const loaded = !!(reg && reg.length);
+        const count = loaded ? reg.length : 0;
+        ctx.log(`[GM] Faction encounter template '${id}' not found (templatesLoaded=${loaded}, count=${count}).`, "warn");
+      }
+    } catch (_) {}
     return false;
   }
 
