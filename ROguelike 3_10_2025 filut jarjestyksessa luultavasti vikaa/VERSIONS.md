@@ -5,6 +5,8 @@
   - Rewards are location-seeded (order-independent) and include gold + tier-2 equipment.
 - Added `GMBridge.onWorldScanRect(...)` so scan-time GM marker spawns can be integrated efficiently without per-tile GM calls.
 - Added smoketest scenario `gm_survey_cache`.
+- Fixed a critical mode/position desync when pressing `G` on GM overworld markers (`?` Surveyor's Cache, `X` Bottle Map): GM marker encounters now enter via ctx-first transitions (no `GameAPI` ctx reacquire), preventing the "? marker teleport" bug.
+- Input: ignore key-repeat for `G` to reduce accidental double-triggering during transitions.
 
 2026-02-21 — GM v0.1 merge gate first pass (Policy A): deterministic hints + observability
 

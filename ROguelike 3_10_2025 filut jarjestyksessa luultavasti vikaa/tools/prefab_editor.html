@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <title>Prefab Editor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <base href="/" />
+  <!-- Use a relative base so this tool works both at site root and under a subpath deployment. -->
+  <base href="../" />
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self' data: blob:;
     img-src 'self' data: https://fav.farm;
@@ -15,7 +16,7 @@
   ">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/ui/style.css">
+  <link rel="stylesheet" href="ui/style.css">
   <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
   <style>
     /* Scoped additions for editor layout */
@@ -158,6 +159,6 @@
     </div>
   </div>
 
-  <script type="module" src="/src/tools/prefab_editor.js"></script>
+  <script type="module" src="src/tools/prefab_editor.js"></script>
 </body>
 </html>
