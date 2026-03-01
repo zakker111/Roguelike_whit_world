@@ -248,6 +248,41 @@ Use subagents frequently to keep work small, parallel, and reviewable.
   - If a subagent’s result is incorrect/too broad/uncertain, reduce scope (smaller diff, fewer files, narrower goal) and retry.
   - If file discovery is failing, run a “locator” subagent first (find entry points), then a second subagent to implement the change.
 
+### 8.2. Prompting Discipline: Subagent Tasks, Evidence, and Questions
+
+This repo benefits from small, deterministic patches. Prompt subagents in a way that produces **reviewable diffs** and **verifiable claims**.
+
+**Subagent task template (copy/paste):**
+- Goal (1 sentence):
+- Repo context (paths / symbols to start from):
+- Constraints (max files, no new deps, performance/hot-path notes):
+- Deliverables:
+  - Exact file list to change (1–3):
+  - Acceptance criteria (observable behavior):
+  - Tests to run (commands + in-game path):
+- Out of scope (what NOT to touch):
+
+**Reporting changes (required):**
+- Files changed: `pathA`, `pathB`
+- What changed (bullet list, concrete):
+- Why (design intent / tradeoffs, 1–3 bullets):
+- How tested:
+  - Commands run + results
+  - Manual test path + expected/observed behavior
+- Follow-ups / risks (only if real):
+
+**Anti-hallucination rules:**
+- Don’t claim a function/module/JSON field exists unless you can point to it by **file path + identifier**.
+- If you didn’t run tests/build, say so explicitly and provide the exact commands to run.
+- When unsure about an API or call site: **search first**, then quote the minimal relevant snippet.
+- Prefer “I observed X in `file:line`” over “the code does X”.
+- Never invent stack traces, test output, or game behaviors—reproduce or label as hypothesis.
+
+**Asking for missing info (when ambiguity affects implementation):**
+- Ask up to 3 targeted questions, each tied to a concrete decision (data schema, UI behavior, balance numbers).
+- Offer 1–2 safe defaults (clearly labeled) so work can proceed if the user agrees.
+- Explicitly list assumptions you’re making; if the user disagrees, revise before broad edits.
+
 ---
 
 ## 9. Performance in Hot Paths
