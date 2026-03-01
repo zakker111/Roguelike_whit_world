@@ -4,8 +4,35 @@
  * Keeps behavior identical but moves side-effects out of game.js.
  */
 
-import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI, getCtx } from "/core/game.js?v=1.45.2";
 import { scheduleHealthCheck } from "./health_check.js";
+
+function getAppVersion() {
+  try {
+    if (typeof window !== "undefined" && window.APP_VERSION) {
+      return String(window.APP_VERSION || "");
+    }
+  } catch (_) {}
+  try {
+    const meta = (typeof document !== "undefined") ? document.querySelector('meta[name="app-version"]') : null;
+    const ver = meta ? String(meta.getAttribute("content") || "") : "";
+    return ver;
+  } catch (_) {}
+  return "";
+}
+
+const APP_VERSION = getAppVersion();
+const CORE_GAME_URL = `/core/game.js${APP_VERSION ? `?v=${encodeURIComponent(APP_VERSION)}` : ""}`;
+
+// Ensure core/game.js is imported with a cache-busting version that matches the single app-version.
+const {
+  initWorld,
+  setupInput,
+  initMouseSupport,
+  startLoop,
+  scheduleAssetsReadyDraw,
+  buildGameAPI,
+  getCtx,
+} = await import(CORE_GAME_URL);
 
 export function start() {
   try { buildGameAPI(); } catch (_) {}
