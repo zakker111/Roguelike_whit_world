@@ -16,6 +16,7 @@
     const recordSkip = (ctx && ctx.recordSkip) || function () {};
     const sleep = (ctx && ctx.sleep) || (ms => new Promise(r => setTimeout(r, ms | 0)));
     const key = (ctx && ctx.key) || (k => { try { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k, bubbles: true })); } catch (_) {} });
+    const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) || null;
 
     const G = window.GameAPI || null;
     if (!G || !has(G.getCtx) || !has(G.getMode)) {
@@ -28,6 +29,9 @@
       recordSkip("Survey Cache skipped (not in world mode)");
       return true;
     }
+
+    // Ensure no modal UI (GOD/smoke/inventory/etc) is intercepting key input.
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
 
     const MS = window.MarkerService || null;
     record(!!MS, "MarkerService is available");
@@ -67,6 +71,13 @@
 
     const waitUntilMode = (mode, timeoutMs) => waitUntil(() => has(G.getMode) && G.getMode() === mode, timeoutMs, 80);
 
+    // Encounter templates are required for GMBridge to start the encounter.
+    const encReady = await waitUntil(() => {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      return !!(GD && GD.encounters && Array.isArray(GD.encounters.templates) && GD.encounters.templates.length > 0);
+    }, 4500, 80);
+    record(encReady, "GameData.encounters.templates loaded");
+
     const w = gctx.world || null;
     const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
     const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
@@ -91,7 +102,14 @@
     record(!!m, "MarkerService.add placed gm.surveyCache marker underfoot");
     if (!m) return true;
 
+    await waitUntil(() => {
+      const at = MS.findAtPlayer(gctx);
+      const markers = Array.isArray(at) ? at : (at ? [at] : []);
+      return !!markers.find(mm => mm && String(mm.instanceId || "") === instanceId);
+    }, 1200, 80);
+
     // Attempt 1: enter and withdraw; marker remains.
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
     const entered1 = await waitUntilMode("encounter", 3500);
     const modeAfter1 = has(G.getMode) ? G.getMode() : "";
@@ -123,6 +141,7 @@
     // Attempt 2: re-enter and win; marker removed and gold delta in 40..70.
     const goldBefore = getGoldAmount();
 
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
     const entered2 = await waitUntilMode("encounter", 3500);
     const modeAfter2 = has(G.getMode) ? G.getMode() : "";

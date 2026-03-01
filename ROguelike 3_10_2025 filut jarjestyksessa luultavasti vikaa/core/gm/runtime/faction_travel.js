@@ -349,35 +349,38 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       status: "scheduled",
       priority: 300,
       delivery: "confirm",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
       payload: { kind: "guard_fine" },
     }, markDirty);
     intent = { kind: "guard_fine" };
-  } else if (key === "bandit_bounty" || key === "bandit" || key === "bounty") {
+  } else if (key === "bandit_bounty" || key === "gm_bandit_bounty" || key === "bandit" || key === "bounty") {
     ensureSlot("banditBounty");
     schedulerUpsertAction(gm, FE_ACTION_ID_BANDIT, {
       kind: "travel.banditBounty",
       status: "scheduled",
       priority: 200,
       delivery: "auto",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
       payload: { encounterId: "gm_bandit_bounty" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
-  } else if (key === "troll_hunt" || key === "troll" || key === "trolls") {
+  } else if (key === "troll_hunt" || key === "gm_troll_hunt" || key === "troll" || key === "trolls") {
     ensureSlot("trollHunt");
     schedulerUpsertAction(gm, FE_ACTION_ID_TROLL, {
       kind: "travel.trollHunt",
       status: "scheduled",
       priority: 100,
       delivery: "auto",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,

@@ -358,21 +358,36 @@ export function handleMarkerAction(ctx) {
 
     const kind = String(gmMarker.kind || "");
 
+    // IMPORTANT:
+    // gm.* markers must *always* consume the action input (G) so we don't
+    // fall through to other world actions like opening the Region Map.
+    // Individual marker handlers can return false to indicate "could not start"
+    // (e.g. encounter templates not loaded), but input should still be consumed.
+
+    let ok = true;
+
     if (kind === "gm.bottleMap") {
-      return handleBottleMapMarker(ctx, gmMarker);
+      ok = !!handleBottleMapMarker(ctx, gmMarker);
+    } else if (kind === "gm.surveyCache") {
+      ok = !!handleSurveyCacheMarker(ctx, gmMarker);
+    } else {
+      // Unknown gm.* markers are consumed for forward compatibility.
+      try {
+        if (typeof ctx.log === "function") {
+          const k = String(gmMarker.kind || "gm.?");
+          ctx.log(`[GM] Marker '${k}' action not implemented yet.`, "notice");
+        }
+      } catch (_) {}
+      ok = true;
     }
 
-    if (kind === "gm.surveyCache") {
-      return handleSurveyCacheMarker(ctx, gmMarker);
+    if (!ok) {
+      try {
+        if (typeof ctx.log === "function") {
+          ctx.log(`[GM] Failed to start marker action for '${kind}'.`, "warn");
+        }
+      } catch (_) {}
     }
-
-    // Unknown gm.* markers are consumed for forward compatibility.
-    try {
-      if (typeof ctx.log === "function") {
-        const k = String(gmMarker.kind || "gm.?");
-        ctx.log(`[GM] Marker '${k}' action not implemented yet.`, "notice");
-      }
-    } catch (_) {}
 
     return true;
   } catch (_) {
@@ -408,11 +423,17 @@ function handleSurveyCacheMarker(ctx, marker) {
     if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
     sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
 
+    const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene");
+    if (!started) {
+      sc.active = null;
+      return false;
+    }
+
     try {
       GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
     } catch (_) {}
 
-    return startGmFactionEncounter(ctx, "gm_survey_cache_scene");
+    return true;
   } catch (_) {
     return true;
   }

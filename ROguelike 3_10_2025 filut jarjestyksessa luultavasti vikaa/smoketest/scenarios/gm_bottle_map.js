@@ -17,6 +17,7 @@
     const recordSkip = (ctx && ctx.recordSkip) || function () {};
     const sleep = (ctx && ctx.sleep) || (ms => new Promise(r => setTimeout(r, ms | 0)));
     const key = (ctx && ctx.key) || (k => { try { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k, bubbles: true })); } catch (_) {} });
+    const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) || null;
 
     const G = window.GameAPI || null;
     if (!G || !has(G.getCtx) || !has(G.getMode)) {
@@ -29,6 +30,9 @@
       recordSkip("Bottle Map skipped (not in world mode)");
       return true;
     }
+
+    // Ensure no modal UI (GOD/smoke/inventory/etc) is intercepting key input.
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
 
     const MS = window.MarkerService || null;
     const IF = window.InventoryFlow || null;
@@ -148,6 +152,7 @@
     const tpOk1 = await teleportToMarker(marker);
     record(tpOk1, "Teleport to bottle map marker");
 
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
     const entered1 = await waitUntilMode("encounter", 3500);
     const modeAfter1 = has(G.getMode) ? G.getMode() : "";
@@ -182,6 +187,7 @@
     const tpOk2 = await teleportToMarker(marker2);
     record(tpOk2, "Teleport back to bottle map marker");
 
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
     const entered2 = await waitUntilMode("encounter", 3500);
     const modeAfter2 = has(G.getMode) ? G.getMode() : "";
