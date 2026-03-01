@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <title>Tiny Roguelike</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Anchor all relative URLs to site root to avoid 404s when preview opens /index.html/index.html -->
-  <base href="/" />
+  <!-- Anchor relative URLs to the current directory so the app works both at site root and under a subpath. -->
+  <base href="./" />
   <!-- Strict Content Security Policy to prevent third-party analytics/scripts from loading -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self' data: blob:;
