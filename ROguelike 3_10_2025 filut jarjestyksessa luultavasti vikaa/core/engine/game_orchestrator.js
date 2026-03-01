@@ -12,7 +12,7 @@ export function start() {
   // Schedule a startup health check once GameData is ready so we get a boot report
   // without blocking world generation or the main loop.
   try { scheduleHealthCheck(() => getCtx()); } catch (_) {}
-  try { initWorld(); } catch (_) {}
+
   // Initialize optional GM runtime early so ctx.gm is available for callers.
   // This is optional and must never break boot.
   try {
@@ -22,6 +22,8 @@ export function start() {
       GM.init(ctx);
     }
   } catch (_) {}
+
+  try { initWorld(); } catch (_) {}
   try { setupInput(); } catch (_) {}
   try { initMouseSupport(); } catch (_) {}
   try { startLoop(); } catch (_) {}

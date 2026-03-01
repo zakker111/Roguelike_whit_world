@@ -183,6 +183,68 @@ export function ensureTraitsAndMechanics(gm) {
   }
 }
 
+export function ensureThreads(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  if (!gm.threads || typeof gm.threads !== "object") {
+    gm.threads = {};
+  }
+
+  // Bottle Map: single active thread at a time.
+  if (!gm.threads.bottleMap || typeof gm.threads.bottleMap !== "object") {
+    gm.threads.bottleMap = { active: false };
+  }
+  if (typeof gm.threads.bottleMap.active !== "boolean") {
+    gm.threads.bottleMap.active = !!gm.threads.bottleMap.active;
+  }
+
+  // Survey Cache: potentially many markers; persist only claimed ids (bounded).
+  if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
+    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null };
+  }
+  const sc = gm.threads.surveyCache;
+  if (!sc.claimed || typeof sc.claimed !== "object" || Array.isArray(sc.claimed)) sc.claimed = {};
+  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
+  if (!sc.attempts || typeof sc.attempts !== "object" || Array.isArray(sc.attempts)) sc.attempts = {};
+
+  // Active marker reference used during encounter resolution.
+  if (sc.active != null && typeof sc.active !== "object") sc.active = null;
+
+  // Prune claimed map to a bounded size.
+  const MAX_CLAIMS = 256;
+  if (sc.claimedOrder.length > MAX_CLAIMS) sc.claimedOrder.length = MAX_CLAIMS;
+  for (let i = sc.claimedOrder.length - 1; i >= 0; i--) {
+    const id = sc.claimedOrder[i];
+    const key = typeof id === "string" ? id : String(id);
+    if (!key || !Object.prototype.hasOwnProperty.call(sc.claimed, key)) {
+      sc.claimedOrder.splice(i, 1);
+    } else {
+      sc.claimedOrder[i] = key;
+    }
+  }
+  // If claimed map is larger than the order list, prune arbitrarily (stable-ish by key).
+  try {
+    const keys = Object.keys(sc.claimed);
+    if (keys.length > MAX_CLAIMS) {
+      const keep = new Set(sc.claimedOrder);
+      for (const k of keys) {
+        if (keep.has(k)) continue;
+        delete sc.claimed[k];
+      }
+    }
+  } catch (_) {}
+
+  // Unique grant bookkeeping: ensure container + runSeed guard exist.
+  if (!gm.uniqueGranted || typeof gm.uniqueGranted !== "object" || Array.isArray(gm.uniqueGranted)) {
+    gm.uniqueGranted = {};
+  }
+  gm.uniqueGrantedRunSeed = (typeof gm.uniqueGrantedRunSeed === "number" && Number.isFinite(gm.uniqueGrantedRunSeed))
+    ? (gm.uniqueGrantedRunSeed >>> 0)
+    : 0;
+
+  return gm.threads;
+}
+
 export function ensureFactionEvents(gm) {
   if (!gm || typeof gm !== "object") return;
 

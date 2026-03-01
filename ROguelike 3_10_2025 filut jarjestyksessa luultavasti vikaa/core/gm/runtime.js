@@ -29,6 +29,7 @@ import { createDefaultMood, createDefaultState } from "./runtime/state_defaults.
 import {
   ensureStats,
   ensureTraitsAndMechanics,
+  ensureThreads,
   ensureFactionEvents,
   ensureRng,
   ensureScheduler,
@@ -192,6 +193,7 @@ function upgradeAndNormalizeState(ctx, gm) {
   // Ensure core containers exist.
   ensureStats(gm);
   ensureTraitsAndMechanics(gm);
+  ensureThreads(gm);
   ensureFactionEvents(gm);
   ensureRng(gm);
   ensureScheduler(gm);

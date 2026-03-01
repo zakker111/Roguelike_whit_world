@@ -90,6 +90,17 @@ export function createDefaultState() {
       // stable, easy-to-inspect view for the GM panel and for migration.
       factionEvents: {},
     },
+
+    // Lightweight, persisted per-run GM-driven "threads".
+    // These are meant to be extended over time; keep the container stable.
+    threads: {
+      bottleMap: { active: false },
+      surveyCache: { claimed: {}, claimedOrder: [], attempts: {}, active: null },
+    },
+
+    // Per-run unique reward gating.
+    uniqueGranted: {},
+    uniqueGrantedRunSeed: 0,
     debug: {
       enabled: false,
       logTicks: false,

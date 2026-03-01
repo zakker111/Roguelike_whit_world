@@ -4,6 +4,7 @@
  */
 import { addTown, addCastle, addDungeon, addRuins } from "./poi.js";
 import { ensureExtraBridges } from "./roads_bridges.js";
+import * as GMBridge from "../bridge/gm_bridge.js";
 
 // Config helpers (duplicated from world_runtime for now; will be centralized later)
 function _getConfig() {
@@ -135,6 +136,13 @@ export function scanPOIs(ctx, x0, y0, w, h) {
       }
     }
   }
+  // GM marker spawns (procedural): allow GMBridge to place gm.* markers as new world tiles are scanned.
+  try {
+    if (GMBridge && typeof GMBridge.onWorldScanRect === "function") {
+      GMBridge.onWorldScanRect(ctx, { x0, y0, w, h });
+    }
+  } catch (_) {}
+
   // Ensure there are usable river crossings independent of roads (feature-gated).
   try {
     if (featureEnabled("WORLD_BRIDGES", false)) {

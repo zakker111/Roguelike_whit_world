@@ -1,3 +1,11 @@
+2026-03-01 — GM thread: Surveyor's Cache (hybrid spawn) + scan-time marker hook
+
+- Added a new Bottle-Map-style GM thread triggered by a `gm.*` overworld marker: **Surveyor's Cache** (`gm.surveyCache`).
+  - Hybrid spawn: guarantees at least one marker per run on world boot, and also spawns rare procedural markers as you explore.
+  - Rewards are location-seeded (order-independent) and include gold + tier-2 equipment.
+- Added `GMBridge.onWorldScanRect(...)` so scan-time GM marker spawns can be integrated efficiently without per-tile GM calls.
+- Added smoketest scenario `gm_survey_cache`.
+
 2026-02-21 — GM v0.1 merge gate first pass (Policy A): deterministic hints + observability
 
 - GM v0.1 automated gates:
