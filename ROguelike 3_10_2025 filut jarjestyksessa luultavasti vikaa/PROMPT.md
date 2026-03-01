@@ -217,6 +217,37 @@ Before and during coding:
    - Why that design was chosen.
    - How to test it (steps and what to look for).
 
+### 8.1. Subagent Workflow (Prefer Delegation)
+
+Use subagents frequently to keep work small, parallel, and reviewable.
+
+- **Delegate to a subagent when:**
+  - You need to locate the right files / entry points across the repo.
+  - A change can be isolated to a small surface area (typically 1–3 files).
+  - You want a focused patch for a single behavior, bug, or data tweak.
+  - You can parallelize independent tasks (e.g. UI tweak + data update + smoketest path).
+
+- **Do it directly (no subagent) when:**
+  - The change is trivial and clearly localized (single function / single JSON edit).
+  - You are already in the correct file and the fix is obvious.
+  - You must coordinate multiple edits tightly (shared state, refactor spanning many files).
+
+- **How to scope a subagent task (required):**
+  - State the goal in one sentence.
+  - Limit the edit set: touch at most **1–3 files** (list expected files if known).
+  - Provide **acceptance criteria** as bullet points (observable behaviors).
+  - Provide **test steps** (commands + in-game/manual path) that validate the change.
+
+- **Iterative QA loop (default):**
+  1. Subagent produces a small diff + testing notes.
+  2. Orchestrator reviews the diff for style/architecture and correctness.
+  3. Orchestrator runs targeted tests/smoketests (minimum needed).
+  4. Deploy/apply the change, then re-check the specific scenario to confirm.
+
+- **Failure handling:**
+  - If a subagent’s result is incorrect/too broad/uncertain, reduce scope (smaller diff, fewer files, narrower goal) and retry.
+  - If file discovery is failing, run a “locator” subagent first (find entry points), then a second subagent to implement the change.
+
 ---
 
 ## 9. Performance in Hot Paths
