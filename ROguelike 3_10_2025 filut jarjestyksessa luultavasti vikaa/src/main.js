@@ -241,6 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_bridge_markers.js',
         '/smoketest/scenarios/gm_bridge_faction_travel.js',
         '/smoketest/scenarios/gm_bottle_map.js',
+        '/smoketest/scenarios/gm_survey_cache.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

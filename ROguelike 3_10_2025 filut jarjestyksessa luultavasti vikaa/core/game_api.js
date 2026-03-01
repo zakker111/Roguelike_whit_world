@@ -795,72 +795,99 @@ export function create(ctx) {
         const fallbackR = (opts && opts.fallbackScanRadius != null) ? (opts.fallbackScanRadius | 0) : 6;
         const mode = window.GameAPI.getMode();
         const world = ctx.getWorld();
-        const map = ctx.getMap();
         const p = ctx.getPlayer();
         const npcs = ctx.getNPCs();
         const enemies = ctx.getEnemies();
         const occ = ctx.getOccupancy();
 
-        const canWorld = () => {
+        // Decide final destination without mutating the player until we know the final coords.
+        let destX = x;
+        let destY = y;
+
+        const canWorldAt = (wx, wy) => {
           if (!world || !world.map) return false;
-          const t = world.map[y] && world.map[y][x];
-          return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
+          const row = world.map[wy];
+          const t = row ? row[wx] : null;
+          if (t == null) return false;
+          return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
+            ? window.World.isWalkable(t)
+            : true;
         };
-        const canLocal = () => {
-          if (!ctx.inBounds(x, y)) return false;
+
+        const canLocalAt = (lx, ly) => {
+          if (!ctx.inBounds(lx, ly)) return false;
           if (!ensureWalkable) return true;
-          if (!ctx.isWalkable(x, y)) return false;
-          if (mode === "dungeon" && enemies.some(e => e.x === x && e.y === y)) return false;
+          if (!ctx.isWalkable(lx, ly)) return false;
+          if (mode === "dungeon" && enemies.some(e => e.x === lx && e.y === ly)) return false;
           if (mode === "town") {
-            const npcBlocked = (occ && typeof occ.hasNPC === "function") ? occ.hasNPC(x, y) : (Array.isArray(npcs) && npcs.some(n => n.x === x && n.y === y));
+            const npcBlocked = (occ && typeof occ.hasNPC === "function")
+              ? occ.hasNPC(lx, ly)
+              : (Array.isArray(npcs) && npcs.some(n => n.x === lx && n.y === ly));
             if (npcBlocked) return false;
           }
           return true;
         };
 
         let ok = false;
-        if (mode === "world") ok = canWorld(); else ok = canLocal();
+        if (mode === "world") {
+          ok = ensureWalkable ? canWorldAt(x, y) : true;
+        } else {
+          ok = canLocalAt(x, y);
+        }
 
+        // If not ok and we require walkability, find the nearest walkable tile within radius.
         if (!ok && ensureWalkable) {
           const r = Math.max(1, fallbackR | 0);
-          let best = null, bestD = Infinity;
+          let best = null;
+          let bestD = Infinity;
+
           for (let dy = -r; dy <= r; dy++) {
             for (let dx = -r; dx <= r; dx++) {
-              const nx = x + dx, ny = y + dy;
+              const nx = x + dx;
+              const ny = y + dy;
               const md = Math.abs(dx) + Math.abs(dy);
               if (md > r) continue;
+
               if (mode === "world") {
-                if (!world || !world.map) continue;
-                const t = world.map[ny] && world.map[ny][nx];
-                const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
-                if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+                if (canWorldAt(nx, ny) && md < bestD) {
+                  best = { x: nx, y: ny };
+                  bestD = md;
+                }
               } else {
                 if (!ctx.inBounds(nx, ny)) continue;
                 if (mode === "dungeon" && enemies.some(e => e.x === nx && e.y === ny)) continue;
                 if (mode === "town") {
-                  const npcBlocked = (occ && typeof occ.hasNPC === "function") ? occ.hasNPC(nx, ny) : (Array.isArray(npcs) && npcs.some(n => n.x === nx && n.y === ny));
+                  const npcBlocked = (occ && typeof occ.hasNPC === "function")
+                    ? occ.hasNPC(nx, ny)
+                    : (Array.isArray(npcs) && npcs.some(n => n.x === nx && n.y === ny));
                   if (npcBlocked) continue;
                 }
-                if (ctx.isWalkable(nx, ny) && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+                if (ctx.isWalkable(nx, ny) && md < bestD) {
+                  best = { x: nx, y: ny };
+                  bestD = md;
+                }
               }
             }
           }
-          if (best) { p.x = best.x; p.y = best.y; ok = true; }
-        }
 
-        if (!ok) {
-          if (!ensureWalkable) { p.x = x; p.y = y; ok = true; }
-        } else {
-          if (mode !== "world") { p.x = (p.x | 0); p.y = (p.y | 0); }
-          if (mode === "world") { p.x = x; p.y = y; }
-          if (mode !== "world" && !(p.x === x && p.y === y)) {
-            // used fallback
-          } else {
-            p.x = x; p.y = y;
+          if (best) {
+            destX = best.x;
+            destY = best.y;
+            ok = true;
           }
         }
 
+        // If we don't require walkability, allow force-teleport even if target is blocked.
+        if (!ok && !ensureWalkable) {
+          destX = x;
+          destY = y;
+          ok = true;
+        }
+
         if (ok) {
+          p.x = destX | 0;
+          p.y = destY | 0;
+
           try {
             const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
@@ -868,8 +895,11 @@ export function create(ctx) {
             }
           } catch (_) {}
         }
+
         return !!ok;
-      } catch (_) { return false; }
+      } catch (_) {
+        return false;
+      }
     },
     // Force-overworld: immediately set mode to world by regenerating it.
     // Draw is scheduled by core/game.js after sync; avoid redundant requestDraw here.

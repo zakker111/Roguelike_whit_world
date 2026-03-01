@@ -507,9 +507,38 @@ function pickBottleMapTarget(ctx, gm) {
   const pAbsX = ox + px;
   const pAbsY = oy + py;
 
-  const T = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+  const WorldMod = (typeof window !== "undefined" ? window.World : null) || (ctx && ctx.World ? ctx.World : null);
+  const T = WorldMod && WorldMod.TILES ? WorldMod.TILES : null;
 
-  const tries = 60;
+  // IMPORTANT:
+  // Bottle Map targets must be walkable in the overworld.
+  // Do NOT use ctx.isWalkable here: that is defined in core/game.js and is primarily for
+  // town/dungeon tile ids (via Utils.isWalkableTile). Instead, validate using overworld tile rules.
+  const isWalkableOverworldTile = (tile) => {
+    try {
+      const gen = w && w.gen;
+      if (gen && typeof gen.isWalkable === "function") return !!gen.isWalkable(tile);
+    } catch (_) {}
+    try {
+      if (WorldMod && typeof WorldMod.isWalkable === "function") return !!WorldMod.isWalkable(tile);
+    } catch (_) {}
+    // Conservative fallback: treat unknown as not walkable.
+    return false;
+  };
+
+  const isDisallowed = (tile) => {
+    if (!T) return false;
+    return tile === T.WATER
+      || tile === T.RIVER
+      || tile === T.MOUNTAIN
+      || tile === T.RUINS
+      || tile === T.TOWN
+      || tile === T.DUNGEON
+      || (T.CASTLE != null && tile === T.CASTLE)
+      || (T.TOWER != null && tile === T.TOWER);
+  };
+
+  const tries = 80;
   for (let n = 0; n < tries; n++) {
     // Distance 12..32, biased a bit farther.
     const r = 12 + Math.floor(Math.pow(gmRngFloat(gm), 0.65) * 20);
@@ -527,26 +556,13 @@ function pickBottleMapTarget(ctx, gm) {
     const tile = map[ly] ? map[ly][lx] : null;
     if (tile == null) continue;
 
-    // Avoid towns/dungeons.
-    try {
-      if (T && (tile === T.TOWN || tile === T.DUNGEON)) continue;
-    } catch (_) {}
-
-    // Prefer engine walkability if available.
-    try {
-      if (typeof ctx.isWalkable === "function" && !ctx.isWalkable(lx, ly)) continue;
-    } catch (_) {
-      // Fallback: if World.isWalkable exists.
-      try {
-        if (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") {
-          if (!window.World.isWalkable(tile)) continue;
-        }
-      } catch (_) {}
-    }
+    if (T && isDisallowed(tile)) continue;
+    if (!isWalkableOverworldTile(tile)) continue;
 
     return { absX, absY };
   }
 
+  // Fallback: current player tile (as absolute coords)
   return { absX: pAbsX, absY: pAbsY };
 }
 

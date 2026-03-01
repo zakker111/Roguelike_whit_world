@@ -388,7 +388,11 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
     return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
   }
 
-  gm.lastActionTurn = turn;
+  // NOTE: Do NOT update gm.lastActionTurn here.
+  // `gm.lastActionTurn` is used by scheduler arbitration (via schedulerCanDeliver) to prevent
+  // multiple deliveries in the same turn. If we set it here, then calling
+  // GMBridge.maybeHandleWorldStep() in the same turn would refuse to deliver the forced action.
+  // The correct place to update lastActionTurn is when the action is actually consumed.
   if (pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn)) markDirty(gm);
 
   return { intent, shouldWrite: true, writeOptions: { force: true } };
