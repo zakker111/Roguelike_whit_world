@@ -251,6 +251,8 @@ export function init(handlers) {
 
     // Action / interact (G)
     if (e.key && e.key.toLowerCase() === "g") {
+      // Avoid accidental double-triggering due to key repeat (can cause mode transition races).
+      if (e.repeat) return;
       e.preventDefault();
       _handlers.onLoot && _handlers.onLoot();
       return;
