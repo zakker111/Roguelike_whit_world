@@ -101,7 +101,15 @@ export function createDefaultState() {
     // Lightweight, persisted per-run GM-driven "threads".
     // These are meant to be extended over time; keep the container stable.
     threads: {
-      bottleMap: { active: false },
+      bottleMap: {
+        active: false,
+        fishing: {
+          eligibleSuccesses: 0,
+          totalSuccesses: 0,
+          lastAwardTurn: -9999,
+          awardCount: 0,
+        },
+      },
       surveyCache: { claimed: {}, claimedOrder: [], attempts: {}, active: null },
     },
 

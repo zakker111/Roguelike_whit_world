@@ -11,7 +11,7 @@
  * - ensureGuaranteedSurveyCache(ctx): void          // hybrid guarantee spawn
  */
 
-import { getGameData, getMod } from "../../utils/access.js";
+import { getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
 import { gmRngFloat, hash32 } from "../gm/runtime/rng.js";
 
@@ -679,6 +679,148 @@ function isBottleMapItem(it) {
   }
 }
 
+function getBottleMapFishingConfig(ctx) {
+  const DEFAULTS = { S0: 60, Smax: 180, boredomMin: 0.2, boredomMultMax: 3.0, cooldownTurns: 400 };
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config)
+      ? window.GameData.config
+      : null;
+
+    const f = cfg && cfg.gm && cfg.gm.bottleMap && cfg.gm.bottleMap.fishing && typeof cfg.gm.bottleMap.fishing === "object"
+      ? cfg.gm.bottleMap.fishing
+      : null;
+
+    let S0 = f && typeof f.S0 === "number" && Number.isFinite(f.S0) ? (f.S0 | 0) : DEFAULTS.S0;
+    let Smax = f && typeof f.Smax === "number" && Number.isFinite(f.Smax) ? (f.Smax | 0) : DEFAULTS.Smax;
+    let boredomMin = f && typeof f.boredomMin === "number" && Number.isFinite(f.boredomMin) ? f.boredomMin : DEFAULTS.boredomMin;
+    let boredomMultMax = f && typeof f.boredomMultMax === "number" && Number.isFinite(f.boredomMultMax) ? f.boredomMultMax : DEFAULTS.boredomMultMax;
+    let cooldownTurns = f && typeof f.cooldownTurns === "number" && Number.isFinite(f.cooldownTurns) ? (f.cooldownTurns | 0) : DEFAULTS.cooldownTurns;
+
+    if (S0 < 0) S0 = 0;
+    if (Smax < S0) Smax = S0;
+    if (boredomMin < 0) boredomMin = 0;
+    if (boredomMin > 1) boredomMin = 1;
+    if (boredomMultMax < 1) boredomMultMax = 1;
+    if (cooldownTurns < 0) cooldownTurns = 0;
+
+    return { S0, Smax, boredomMin, boredomMultMax, cooldownTurns };
+  } catch (_) {
+    return Object.assign({}, DEFAULTS);
+  }
+}
+
+function hasBottleMapInInventory(ctx) {
+  try {
+    const inv = (ctx && ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : [];
+    return inv.some((it) => {
+      if (!it) return false;
+      const k = String(it.kind || "").toLowerCase();
+      if (k !== "tool") return false;
+      const id = String(it.type || it.id || it.key || it.name || "").toLowerCase();
+      return id === "bottle_map" || id === "bottle map" || id.includes("bottle map") || id.includes("bottle_map");
+    });
+  } catch (_) {
+    return false;
+  }
+}
+
+export function maybeAwardBottleMapFromFishing(ctx) {
+  if (!ctx || !isGmEnabled(ctx)) return false;
+
+  const GM = getMod(ctx, "GMRuntime");
+  if (!GM || typeof GM.getState !== "function") return false;
+
+  const gm = GM.getState(ctx);
+  if (!gm || gm.enabled === false) return false;
+
+  // Only one active Bottle Map thread at a time, and don't award if the player already has one.
+  try {
+    const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+    if (!thread) return false;
+    if (thread.active === true) return false;
+    if (hasBottleMapInInventory(ctx)) return false;
+
+    const cfg = getBottleMapFishingConfig(ctx);
+
+    const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+
+    // Cooldown after a map award.
+    const lastAwardTurn = thread.fishing && typeof thread.fishing.lastAwardTurn === "number" ? (thread.fishing.lastAwardTurn | 0) : -9999;
+    if ((turn - lastAwardTurn) < (cfg.cooldownTurns | 0)) {
+      if (thread.fishing) thread.fishing.totalSuccesses = (thread.fishing.totalSuccesses | 0) + 1;
+      try { if (typeof GM.onEvent === "function") GM.onEvent(ctx, { type: "gm.bottleMap.fishing.success", interesting: false, payload: { awarded: false, reason: "cooldown" } }); } catch (_) {}
+      return false;
+    }
+
+    // Update counters
+    if (!thread.fishing || typeof thread.fishing !== "object") {
+      thread.fishing = { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 };
+    }
+
+    thread.fishing.totalSuccesses = (thread.fishing.totalSuccesses | 0) + 1;
+
+    let boredom = 0;
+    try {
+      boredom = (gm && gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)) ? gm.boredom.level : 0;
+    } catch (_) { boredom = 0; }
+    if (boredom < 0) boredom = 0;
+    if (boredom > 1) boredom = 1;
+
+    const eligible = boredom >= cfg.boredomMin;
+    if (eligible) thread.fishing.eligibleSuccesses = (thread.fishing.eligibleSuccesses | 0) + 1;
+
+    const s = thread.fishing.eligibleSuccesses | 0;
+    if (!eligible || s < (cfg.S0 | 0)) {
+      try { if (typeof GM.onEvent === "function") GM.onEvent(ctx, { type: "gm.bottleMap.fishing.success", interesting: false, payload: { awarded: false, eligible, s } }); } catch (_) {}
+      return false;
+    }
+
+    // Probability ramp: start very low at S0 and reach near-guaranteed by Smax.
+    // Multiply by boredom factor (up to boredomMultMax at boredom=1).
+    const denom = Math.max(1, (cfg.Smax | 0) - (cfg.S0 | 0));
+    const t = Math.max(0, Math.min(1, (s - (cfg.S0 | 0)) / denom));
+
+    const baseChance = 0.002; // 0.2% at ramp start
+    const maxChance = 0.10;   // up to 10%
+    let chance = baseChance + t * (maxChance - baseChance);
+
+    const boredomMult = 1 + boredom * (cfg.boredomMultMax - 1);
+    chance *= boredomMult;
+
+    // Hard guarantee at Smax.
+    const force = s >= (cfg.Smax | 0);
+    const roll = gmRngFloat(gm, null);
+    const win = force || roll < chance;
+
+    if (!win) {
+      try { if (typeof GM.onEvent === "function") GM.onEvent(ctx, { type: "gm.bottleMap.fishing.success", interesting: false, payload: { awarded: false, eligible, s, chance, roll } }); } catch (_) {}
+      return false;
+    }
+
+    // Award the bottle map item.
+    try {
+      const inv = (ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : (ctx.player.inventory = []);
+      inv.push({ kind: "tool", type: "bottle_map", id: "bottle_map", name: "bottle map", decay: 0, usable: true });
+    } catch (_) {
+      return false;
+    }
+
+    thread.fishing.lastAwardTurn = turn;
+    thread.fishing.awardCount = (thread.fishing.awardCount | 0) + 1;
+    thread.fishing.eligibleSuccesses = 0;
+
+    try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+    try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
+    try { if (typeof ctx.log === "function") ctx.log("You fished up a bottle map in a sealed bottle!", "good"); } catch (_) {}
+
+    try { if (typeof GM.onEvent === "function") GM.onEvent(ctx, { type: "gm.bottleMap.fishing.awarded", interesting: true, payload: { turn, awardCount: thread.fishing.awardCount } }); } catch (_) {}
+
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function pickBottleMapTarget(ctx, gm) {
   const w = (ctx && ctx.world) ? ctx.world : null;
   const map = w && Array.isArray(w.map) ? w.map : null;
@@ -1273,6 +1415,7 @@ attachGlobal("GMBridge", {
   handleMarkerAction,
   onEncounterComplete,
   useInventoryItem,
+  maybeAwardBottleMapFromFishing,
   onWorldScanRect,
   onWorldScanTile,
   ensureGuaranteedSurveyCache,

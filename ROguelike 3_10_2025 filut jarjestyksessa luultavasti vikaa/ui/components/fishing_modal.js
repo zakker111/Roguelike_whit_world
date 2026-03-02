@@ -388,31 +388,22 @@ export function show(ctx, opts = {}) {
           let awarded = null;
           let isBottleMap = false;
 
-          const bottleMapChance = (opts && typeof opts.bottleMapChance === "number") ? clamp(opts.bottleMapChance, 0, 1) : 0.10;
-
-          if (rngFn() < bottleMapChance) {
-            const hasBottleMap = inv.some((it) => {
-              if (!it) return false;
-              if (String(it.kind || "").toLowerCase() !== "tool") return false;
-              const id = String(it.type || it.id || it.key || it.name || "").toLowerCase();
-              return id === "bottle_map" || id === "bottle map" || id.includes("bottle map") || id.includes("bottle_map");
-            });
-
-            const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
-            const gm = (GM && typeof GM.getState === "function") ? GM.getState(ctx) : null;
-            const thread = (gm && gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object") ? gm.threads.bottleMap : null;
-
-            // Gate: only block when a Bottle Map is currently active (or player already has one).
-            // NOTE: We intentionally do NOT block on 'claimed' so fishing can award a new map later.
-            const blocked = !gm || hasBottleMap || !!(thread && thread.active === true);
-
-            if (!blocked) {
-              awarded = { kind: "tool", type: "bottle_map", id: "bottle_map", name: "bottle map", decay: 0, usable: true };
-              isBottleMap = true;
+          // GM-driven Bottle Map award logic (pity timer + boredom gating).
+          try {
+            const GMB = (typeof window !== "undefined" ? window.GMBridge : null);
+            if (GMB && typeof GMB.maybeAwardBottleMapFromFishing === "function") {
+              isBottleMap = !!GMB.maybeAwardBottleMapFromFishing(ctx);
             }
+          } catch (_) {
+            isBottleMap = false;
           }
 
-          if (!awarded) {
+          if (isBottleMap) {
+            // GMBridge already inserted the item.
+            awarded = null;
+          }
+
+          if (!isBottleMap) {
             // Prefer a real equipment item if Items registry is available; fallback to a trinket
             try {
               if (typeof window !== "undefined" && window.Items && typeof window.Items.createEquipment === "function") {
@@ -425,13 +416,12 @@ export function show(ctx, opts = {}) {
             }
           }
 
-          inv.push(awarded);
+          if (awarded) inv.push(awarded);
           try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
           try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
           try {
             if (ctx.log) {
-              if (isBottleMap) ctx.log("You fished up a bottle map in a sealed bottle!", "good");
-              else ctx.log(`You fished up ${awarded.name || "something curious"}!`, "good");
+              if (!isBottleMap) ctx.log(`You fished up ${awarded.name || "something curious"}!`, "good");
             }
           } catch (_) {}
         } else {

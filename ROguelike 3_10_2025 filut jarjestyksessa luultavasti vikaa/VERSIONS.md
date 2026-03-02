@@ -1,3 +1,13 @@
+v1.50.22 — GM Phase 7 start: Bottle Map fishing pity timer
+
+- Bottle Map fishing drop is now GM-driven (boredom-gated pity timer) via `GMBridge.maybeAwardBottleMapFromFishing(ctx)`.
+- Added config knobs: `config.gm.bottleMap.fishing` (S0/Smax/boredomMin/boredomMultMax/cooldownTurns).
+- GM state now tracks Bottle Map fishing counters under `gm.threads.bottleMap.fishing`.
+
+v1.50.21 — Hotfix: ConfirmModal parse error
+
+- Fixed a corrupted `ui/components/confirm_modal.js` deploy causing `Unexpected identifier 'ensurePanel'` at runtime.
+
 v1.50.20 — GM Phase 6: debug/ops ergonomics
 
 - GMRuntime: added `exportState(ctx)` (stable JSON snapshot) and `clearPersisted(ctx)`.

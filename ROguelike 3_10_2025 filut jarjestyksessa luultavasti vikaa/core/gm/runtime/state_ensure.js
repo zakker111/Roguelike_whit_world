@@ -192,11 +192,19 @@ export function ensureThreads(gm) {
 
   // Bottle Map: single active thread at a time.
   if (!gm.threads.bottleMap || typeof gm.threads.bottleMap !== "object") {
-    gm.threads.bottleMap = { active: false };
+    gm.threads.bottleMap = { active: false, fishing: { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 } };
   }
   if (typeof gm.threads.bottleMap.active !== "boolean") {
     gm.threads.bottleMap.active = !!gm.threads.bottleMap.active;
   }
+  if (!gm.threads.bottleMap.fishing || typeof gm.threads.bottleMap.fishing !== "object") {
+    gm.threads.bottleMap.fishing = { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 };
+  }
+  const bf = gm.threads.bottleMap.fishing;
+  bf.eligibleSuccesses = bf.eligibleSuccesses | 0;
+  bf.totalSuccesses = bf.totalSuccesses | 0;
+  bf.lastAwardTurn = (typeof bf.lastAwardTurn === "number" && Number.isFinite(bf.lastAwardTurn)) ? (bf.lastAwardTurn | 0) : -9999;
+  bf.awardCount = bf.awardCount | 0;
 
   // Survey Cache: potentially many markers; persist only claimed ids (bounded).
   if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
