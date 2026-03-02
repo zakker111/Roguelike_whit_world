@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GM Seed Reset Check</title>
+    <style>
+      body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; padding: 16px; }
+      .ok { color: #16a34a; }
+      .bad { color: #dc2626; }
+      pre { background: #0b1020; color: #e5e7eb; padding: 12px; border-radius: 8px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>GM Seed Reset Check</h1>
+    <div id="status">running…</div>
+    <pre id="out"></pre>
+
+    <script type="module">
+      import { reset, getState } from "../core/gm/runtime.js";
+      import { applySeed } from "../data/god.js";
+
+      function const lsSeed = (() => {
+        try { return (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null; } catch (_) { return null; }
+      })();
+
+      write({
+        newSeed,
+        env: {
+          hasLocalStorage: (typeof localStorage !== "undefined"),
+          storedSeed: lsSeed,
+          hasWindowGMRuntime: !!window.GMRuntime,
+          hasCtxGMRuntime: !!ctx.GMRuntime,
+        },
+        gm0: { runSeed: gm0.runSeed >>> 0, intentHistoryLen: gm0.debug.intentHistory.length },
+        gm1: { runSeed: gm1.runSeed >>> 0, intentHistoryLen: hist.length, hasProbe },
+        okRunSeed,
+        okCleared
+      });
+      const gm0 = getState(ctx);
+      gm0.debug = gm0.debug || {};
+      gm0.debug.intentHistory = gm0.debug.intentHistory || [];
+      gm0.debug.intentHistory.push({ kind: "probe", reason: "seed_reset_probe" });
+
+      // Ensure getMod(ctx, "GMRuntime") can resolve.
+      ctx.GMRuntime = window.GMRuntime;
+
+      const newSeed = 12345;
+      applySeed(ctx, newSeed);
+
+      const gm1 = getState(ctx);
+      const hist = (gm1 && gm1.debug && Array.isArray(gm1.debug.intentHistory)) ? gm1.debug.intentHistory : [];
+      const hasProbe = !!hist.find(x => x && x.reason === "seed_reset_probe");
+
+      const okRunSeed = (gm1 && (gm1.runSeed >>> 0) === (newSeed >>> 0));
+      const okCleared = !hasProbe;
+
+      const lsSeed = (() => {
+        try { return (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null; } catch (_) { return null;runSeed >>> 0, intentHistoryLen: hist.length, hasProbe },
+        okRunSeed,
+        okCleared
+      });
+
+      setStatus(okRunSeed && okCleared, okRunSeed && okCleared ? "GM resets on applySeed" : "GM did NOT reset on applySeed");
+    </script>
+  </body>
+</html>

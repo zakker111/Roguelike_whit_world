@@ -15,6 +15,11 @@ Any time the AI edits code here, it should follow these rules.
   - Split big files into focused modules when it makes sense.
   - Extract reusable helpers; avoid copy-paste logic.
 
+- **It’s OK to create new folders/files/modules when necessary.**
+  - Keep additions small and consistent with the existing architecture and naming.
+  - Avoid large refactors or moving existing files/paths unless explicitly requested.
+  - If you add new modules, update imports/exports and any wiring/registration so existing paths remain stable.
+
 - **Be explicit, deterministic, and data-driven.**
   - Use `ctx.rng` or RNG utilities from `utils/access.js` — never `Math.random` in core gameplay.
   - Prefer JSON-driven data for content (NPC types, enemies, items, encounters, town config, etc.) so it’s easy to edit by hand in one place.
