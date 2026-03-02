@@ -1,3 +1,9 @@
+v1.50.17 — GM Phase 5: choice-first interventions (confirm before starting encounters)
+
+- Faction travel encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now prompt a confirm modal before entering the encounter.
+- GM markers (`gm.bottleMap`, `gm.surveyCache`) now prompt a confirm modal before entering their encounter scenes.
+- Showing these confirm prompts records a pacing intervention via `GMRuntime.recordIntervention(...)`.
+
 v1.50.16 — Smoketest fixes: Region Map reachable exits + GameAPI rest endpoints
 
 - Region Map: exit tiles are now always chosen as reachable (walkable) edge tiles, preventing the Region smoketest from getting stuck unable to step onto the designated exit.

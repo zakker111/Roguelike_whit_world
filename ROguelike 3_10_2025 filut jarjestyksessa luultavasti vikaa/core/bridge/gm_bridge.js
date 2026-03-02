@@ -376,7 +376,44 @@ export function maybeHandleWorldStep(ctx) {
     if (intent.kind === "encounter") {
       const encId = intent.encounterId || intent.id || null;
       if (!encId) return false;
-      return startGmFactionEncounter(ctx, encId);
+
+      const UIO = getMod(ctx, "UIOrchestration");
+      if (!UIO || typeof UIO.showConfirm !== "function") {
+        // Phase 5 direction: choices only. If we can't present a confirm UI, do not force-start.
+        try { if (typeof ctx.log === "function") ctx.log("[GM] Travel encounter requires confirm UI; skipping.", "warn"); } catch (_) {}
+        return false;
+      }
+
+      const MZ = ctx.Messages || getMod(ctx, "Messages");
+      let prompt = "";
+      try {
+        if (MZ && typeof MZ.get === "function") {
+          const k = encId === "gm_bandit_bounty" ? "gm.travel.banditBounty.prompt" : encId === "gm_troll_hunt" ? "gm.travel.trollHunt.prompt" : "";
+          if (k) prompt = MZ.get(k, null) || "";
+        }
+      } catch (_) {}
+      if (!prompt) {
+        if (encId === "gm_bandit_bounty") prompt = "You spot signs of bandits nearby. Investigate?";
+        else if (encId === "gm_troll_hunt") prompt = "You hear heavy tracks and guttural noises ahead. Hunt the troll?";
+        else prompt = `A strange opportunity presents itself (${String(encId)}). Investigate?`;
+      }
+
+      // Phase 4 pacing: showing a choice prompt counts as an intervention.
+      try {
+        if (GM && typeof GM.recordIntervention === "function") {
+          GM.recordIntervention(ctx, { kind: "confirm", channel: "factionTravel", id: String(encId) });
+        }
+      } catch (_) {}
+
+      const onOk = () => {
+        try { startGmFactionEncounter(ctx, encId); } catch (_) {}
+      };
+      const onCancel = () => {
+        try { if (typeof ctx.log === "function") ctx.log("You decide not to get involved.", "info"); } catch (_) {}
+      };
+
+      UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+      return true;
     }
 
     // Unknown intent kinds are ignored for forward compatibility.
@@ -504,22 +541,40 @@ function handleSurveyCacheMarker(ctx, marker) {
       return true;
     }
 
-    sc.active = { instanceId, absX, absY };
-    if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
-    sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
-
-    // IMPORTANT (Phase 1 fix): marker actions must be ctx-first for mode transitions.
-    // Do not use GameAPI here (it reacquires ctx and can desync mode/player coords).
-    const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene", { ctxFirst: true });
-    if (!started) {
-      sc.active = null;
-      return false;
+    const UIO = getMod(ctx, "UIOrchestration");
+    if (!UIO || typeof UIO.showConfirm !== "function") {
+      try { if (typeof ctx.log === "function") ctx.log("[GM] Survey Cache requires confirm UI; skipping.", "warn"); } catch (_) {}
+      return true;
     }
 
+    // Phase 4 pacing: showing a choice prompt counts as an intervention.
     try {
-      GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
+      if (GM && typeof GM.recordIntervention === "function") {
+        GM.recordIntervention(ctx, { kind: "confirm", channel: "marker", id: "gm.surveyCache" });
+      }
     } catch (_) {}
 
+    const onOk = () => {
+      sc.active = { instanceId, absX, absY };
+      if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
+      sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
+
+      const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene", { ctxFirst: true });
+      if (!started) {
+        sc.active = null;
+        return;
+      }
+
+      try {
+        GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
+      } catch (_) {}
+    };
+
+    const onCancel = () => {
+      try { if (typeof ctx.log === "function") ctx.log("You leave the cache alone.", "info"); } catch (_) {}
+    };
+
+    UIO.showConfirm(ctx, "Investigate the Surveyor's Cache?", null, onOk, onCancel);
     return true;
   } catch (_) {
     return true;
@@ -557,21 +612,39 @@ function handleBottleMapMarker(ctx, marker) {
       return true;
     }
 
-    if (thread.status !== "inEncounter") {
-      thread.status = "inEncounter";
-      thread.attempts = (thread.attempts | 0) + 1;
-      try {
-        GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: thread.instanceId } });
-      } catch (_) {}
+    const UIO = getMod(ctx, "UIOrchestration");
+    if (!UIO || typeof UIO.showConfirm !== "function") {
+      try { if (typeof ctx.log === "function") ctx.log("[GM] Bottle Map requires confirm UI; skipping.", "warn"); } catch (_) {}
+      return true;
     }
 
-    // Start the dedicated Bottle Map encounter.
-    const started = !!startGmBottleMapEncounter(ctx);
-    if (!started) {
-      // If we couldn't enter the encounter (e.g., template missing/late load), revert so the player can retry.
-      if (thread.status === "inEncounter") thread.status = "active";
-      return false;
-    }
+    // Phase 4 pacing: showing a choice prompt counts as an intervention.
+    try {
+      if (GM && typeof GM.recordIntervention === "function") {
+        GM.recordIntervention(ctx, { kind: "confirm", channel: "marker", id: "gm.bottleMap" });
+      }
+    } catch (_) {}
+
+    const onOk = () => {
+      if (thread.status !== "inEncounter") {
+        thread.status = "inEncounter";
+        thread.attempts = (thread.attempts | 0) + 1;
+        try {
+          GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: thread.instanceId } });
+        } catch (_) {}
+      }
+
+      const started = !!startGmBottleMapEncounter(ctx);
+      if (!started) {
+        if (thread.status === "inEncounter") thread.status = "active";
+      }
+    };
+
+    const onCancel = () => {
+      try { if (typeof ctx.log === "function") ctx.log("You decide not to follow the Bottle Map right now.", "info"); } catch (_) {}
+    };
+
+    UIO.showConfirm(ctx, "Follow the Bottle Map?", null, onOk, onCancel);
     return true;
   } catch (_) {
     return true;
