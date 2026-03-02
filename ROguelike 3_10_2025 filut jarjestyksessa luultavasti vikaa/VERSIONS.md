@@ -1,3 +1,13 @@
+v1.50.12 — GM Phase 3: boredom hygiene + tuning
+
+- GM boredom relief tuning:
+  - Minor events nudge boredom less (10% instead of 25%).
+  - Medium events nudge boredom less (30% instead of 50%).
+  - Partial nudges always remove at least 1 turn (when turnsSinceLastInterestingEvent > 0).
+- Emitter hygiene:
+  - GM "mechanic" telemetry is treated as **not interesting by default** (no boredom relief unless explicitly marked interesting).
+  - Region Map mode enter/leave events are marked `interesting:false`.
+
 v1.50.11 — GM Phase 2: travel encounter hardening
 
 - GM travel-event encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now have minimal fallback templates inside `core/bridge/gm_bridge.js`.

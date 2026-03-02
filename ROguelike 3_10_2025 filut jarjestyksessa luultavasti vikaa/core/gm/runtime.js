@@ -384,7 +384,12 @@ export function onEvent(ctx, event) {
   //     quest.complete => major
   //     encounter.exit => medium
   //     combat.kill / mechanic / other => minor
-  const interesting = event.interesting !== false;
+  //
+  // Emitter hygiene (Phase 3): "mechanic" telemetry is high-frequency and UI-driven.
+  // Treat it as NOT interesting by default so it doesn't suppress boredom simply by
+  // opening/closing panels. Callers can still explicitly set `interesting:true`.
+  const hasInteresting = Object.prototype.hasOwnProperty.call(event, "interesting");
+  const interesting = hasInteresting ? (event.interesting !== false) : (type !== "mechanic");
 
   const utils = ctx.utils || null;
   const clamp = utils && typeof utils.clamp === "function" ? utils.clamp : localClamp;
@@ -432,10 +437,10 @@ export function onEvent(ctx, event) {
         interestMode = "major";
       } else if (tier === "medium") {
         interestMode = "partial";
-        partialReliefFactor = 0.5;
+        partialReliefFactor = 0.30;
       } else if (tier === "minor") {
         interestMode = "partial";
-        partialReliefFactor = 0.25;
+        partialReliefFactor = 0.10;
       }
     }
   }
@@ -497,7 +502,8 @@ export function onEvent(ctx, event) {
     if (lastNudgeTurn !== turn) {
       const rawTurns = gm.boredom.turnsSinceLastInterestingEvent | 0;
       if (rawTurns > 0) {
-        const removed = Math.floor(rawTurns * partialReliefFactor);
+        let removed = Math.floor(rawTurns * partialReliefFactor);
+        if (removed < 1) removed = 1;
         let nextTurns = rawTurns - removed;
         if (nextTurns < 1) nextTurns = 1;
         gm.boredom.turnsSinceLastInterestingEvent = nextTurns;
