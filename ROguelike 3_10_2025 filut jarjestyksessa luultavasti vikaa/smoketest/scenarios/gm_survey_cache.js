@@ -52,19 +52,7 @@
     const acceptConfirm = async () => {
       const opened = await waitUntil(() => isConfirmOpen(), 2000, 80);
       if (!opened) return false;
-      let clicked = false;
-      try {
-        const D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
-        if (D && typeof D.clickConfirmOk === "function") clicked = !!D.clickConfirmOk();
-      } catch (_) {}
-      if (!clicked) {
-        try {
-          const panel = document.getElementById("confirm-panel");
-          const btns = panel ? panel.querySelectorAll("button") : null;
-          if (btns && btns.length) { btns[btns.length - 1].click(); clicked = true; }
-        } catch (_) {}
-      }
-      if (!clicked) return false;
+      try { key("Enter"); } catch (_) {}
       await waitUntil(() => !isConfirmOpen(), 2000, 80);
       return true;
     };

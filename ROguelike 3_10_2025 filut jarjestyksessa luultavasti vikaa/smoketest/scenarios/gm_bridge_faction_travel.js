@@ -77,18 +77,18 @@
     const worldCtx0 = G.getCtx();
 
     try {
-      const clickConfirmOk = () => {
+      const acceptConfirmOk = async () => {
+        // Prefer keyboard acceptance (Enter) now that ConfirmModal supports it.
+        const opened = await waitUntil(() => isConfirmOpen(), 2000, 80);
+        if (!opened) return false;
         try {
-          const D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
-          if (D && typeof D.clickConfirmOk === "function") return !!D.clickConfirmOk();
+          const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true });
+          window.dispatchEvent(ev);
+          document.dispatchEvent(ev);
         } catch (_) {}
-        try {
-          const panel = document.getElementById("confirm-panel");
-          if (!panel) return false;
-          const btns = panel.querySelectorAll("button");
-          if (!btns || !btns.length) return false;
-          try { btns[btns.length - 1].click(); return true; } catch (_) { return false; }
-        } catch (_) { return false; }
+        await sleep(120);
+        await waitUntil(() => !isConfirmOpen(), 2000, 80);
+        return !isConfirmOpen();
       };
 
       const isConfirmOpen = () => {
@@ -185,8 +185,7 @@
         const confirmOpened = await waitUntil(() => isConfirmOpen(), 1600, 80);
         record(confirmOpened, `ConfirmModal opened for travel encounter (${intent})`);
         if (confirmOpened) {
-          try { clickConfirmOk(); } catch (_) {}
-          await waitUntil(() => !isConfirmOpen(), 1600, 80);
+          await acceptConfirmOk();
         }
 
         const entered = await waitUntilMode("encounter", 3500);

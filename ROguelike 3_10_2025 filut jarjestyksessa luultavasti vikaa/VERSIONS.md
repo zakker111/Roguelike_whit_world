@@ -10,6 +10,11 @@ v1.50.17 — GM Phase 5: choice-first interventions (confirm before starting enc
 - GM markers (`gm.bottleMap`, `gm.surveyCache`) now prompt a confirm modal before entering their encounter scenes.
 - Showing these confirm prompts records a pacing intervention via `GMRuntime.recordIntervention(...)`.
 
+v1.50.19 — ConfirmModal keyboard support + smoketest confirm reliability
+
+- ConfirmModal now supports keyboard shortcuts: <Enter>/<Space> = OK, <Escape> = Cancel. This makes GM “confirm-first” flows testable and more accessible.
+- GM smoketests now accept confirms via <Enter> for travel encounters, bottle map, and survey cache.
+
 v1.50.16 — Smoketest fixes: Region Map reachable exits + GameAPI rest endpoints
 
 - Region Map: exit tiles are now always chosen as reachable (walkable) edge tiles, preventing the Region smoketest from getting stuck unable to step onto the designated exit.

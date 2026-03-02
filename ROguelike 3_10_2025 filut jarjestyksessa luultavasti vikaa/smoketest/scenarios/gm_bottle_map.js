@@ -118,27 +118,14 @@
     };
 
     const acceptConfirm = async () => {
-      // Button-driven (ConfirmModal has no keyboard OK).
+      // Prefer keyboard acceptance (Enter) now that ConfirmModal supports it.
       for (let n = 0; n < 30; n++) {
         if (isConfirmOpen()) break;
         await sleep(80);
       }
       if (!isConfirmOpen()) return false;
 
-      let clicked = false;
-      try {
-        const D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
-        if (D && typeof D.clickConfirmOk === "function") clicked = !!D.clickConfirmOk();
-      } catch (_) {}
-      if (!clicked) {
-        try {
-          const panel = document.getElementById("confirm-panel");
-          const btns = panel ? panel.querySelectorAll("button") : null;
-          if (btns && btns.length) { btns[btns.length - 1].click(); clicked = true; }
-        } catch (_) {}
-      }
-      if (!clicked) return false;
-
+      try { key("Enter"); } catch (_) {}
       for (let n = 0; n < 30; n++) {
         if (!isConfirmOpen()) return true;
         await sleep(80);
