@@ -201,7 +201,17 @@ function upgradeAndNormalizeState(ctx, gm) {
 
   if (!gm.mood || typeof gm.mood !== "object") gm.mood = createDefaultMood();
   if (!gm.boredom || typeof gm.boredom !== "object") {
-    gm.boredom = { level: 0, turnsSinceLastInterestingEvent: 0, lastInterestingEvent: null };
+    gm.boredom = {
+      level: 0,
+      turnsSinceLastInterestingEvent: 0,
+      lastInterestingEvent: null,
+      // Phase 3: interest-based nudges (minor/medium) should only apply once per turn.
+      lastNudgeTurn: -1,
+    };
+  } else {
+    if (typeof gm.boredom.lastNudgeTurn !== "number" || !Number.isFinite(gm.boredom.lastNudgeTurn)) {
+      gm.boredom.lastNudgeTurn = -1;
+    }
   }
 
   // Normalize schema + seed.
@@ -329,7 +339,75 @@ export function onEvent(ctx, event) {
 
   const type = String(event.type || "");
   const scope = event.scope || ctx.mode || "unknown";
+
+  // Phase 3: graded interest -> boredom recovery.
+  //
+  // Rules:
+  // - event.interesting === false => no boredom relief.
+  // - event.interestWeight: number in [0, 1] (overrides tier)
+  //     - 0 => no relief
+  //     - 1 => "major" (hard reset)
+  //     - (0, 1) => partial nudge (reduce turnsSinceLastInterestingEvent by weight)
+  // - event.interestTier: 'minor'|'medium'|'major' (case-insensitive)
+  // - Default tier (conservative) when none provided:
+  //     quest.complete => major
+  //     encounter.exit => medium
+  //     combat.kill / mechanic / other => minor
   const interesting = event.interesting !== false;
+
+  const utils = ctx.utils || null;
+  const clamp = utils && typeof utils.clamp === "function" ? utils.clamp : localClamp;
+
+  let resolvedInterestTier = null;
+  let resolvedInterestWeight = null;
+  let interestMode = "none"; // "none" | "partial" | "major"
+  let partialReliefFactor = 0;
+
+  if (interesting) {
+    const hasInterestWeight = Object.prototype.hasOwnProperty.call(event, "interestWeight");
+
+    if (hasInterestWeight) {
+      const w = (typeof event.interestWeight === "number") ? event.interestWeight : Number(event.interestWeight);
+      if (Number.isFinite(w)) {
+        resolvedInterestWeight = clamp(w, 0, 1);
+      } else {
+        // Weight overrides tier, so malformed weights intentionally produce no relief.
+        resolvedInterestWeight = 0;
+      }
+
+      if (resolvedInterestWeight >= 1) {
+        interestMode = "major";
+        resolvedInterestTier = "major";
+      } else if (resolvedInterestWeight > 0) {
+        interestMode = "partial";
+        partialReliefFactor = resolvedInterestWeight;
+      }
+    } else {
+      const rawTier = (typeof event.interestTier === "string") ? event.interestTier : "";
+      const t = rawTier ? rawTier.trim().toLowerCase() : "";
+      let tier = t;
+
+      if (tier !== "minor" && tier !== "medium" && tier !== "major") {
+        if (type === "quest.complete") tier = "major";
+        else if (type === "encounter.exit") tier = "medium";
+        else if (type === "combat.kill") tier = "minor";
+        else if (type === "mechanic") tier = "minor";
+        else tier = "minor";
+      }
+
+      resolvedInterestTier = tier;
+
+      if (tier === "major") {
+        interestMode = "major";
+      } else if (tier === "medium") {
+        interestMode = "partial";
+        partialReliefFactor = 0.5;
+      } else if (tier === "minor") {
+        interestMode = "partial";
+        partialReliefFactor = 0.25;
+      }
+    }
+  }
 
   const stats = ensureStats(gm);
   ensureTraitsAndMechanics(gm);
@@ -346,7 +424,7 @@ export function onEvent(ctx, event) {
   }
 
   gm.debug.counters.events = (gm.debug.counters.events | 0) + 1;
-  if (interesting) {
+  if (interestMode !== "none") {
     gm.debug.counters.interestingEvents = (gm.debug.counters.interestingEvents | 0) + 1;
   }
 
@@ -355,6 +433,9 @@ export function onEvent(ctx, event) {
     type,
     scope,
     turn,
+    interesting,
+    interestTier: resolvedInterestTier,
+    interestWeight: resolvedInterestWeight,
     payload: hasPayload ? event.payload : null,
   };
 
@@ -367,9 +448,32 @@ export function onEvent(ctx, event) {
     gm.debug.lastEvents = [snapshot];
   }
 
-  if (interesting) {
+  // Phase 3 boredom handling:
+  // - "major" events hard reset boredom and mark the turn as interesting.
+  // - "minor"/"medium" events apply a partial deterministic nudge once per turn,
+  //   reducing turnsSinceLastInterestingEvent by a factor but never to 0.
+  //   (We intentionally do NOT set lastInterestingEvent.turn for partial nudges so
+  //    boredom can still increase normally per turn.)
+  if (interestMode === "major") {
     gm.boredom.turnsSinceLastInterestingEvent = 0;
     gm.boredom.lastInterestingEvent = { type, scope, turn };
+    gm.boredom.lastNudgeTurn = turn;
+  } else if (interestMode === "partial") {
+    const lastNudgeTurn = (typeof gm.boredom.lastNudgeTurn === "number" && Number.isFinite(gm.boredom.lastNudgeTurn))
+      ? (gm.boredom.lastNudgeTurn | 0)
+      : -1;
+
+    if (lastNudgeTurn !== turn) {
+      const rawTurns = gm.boredom.turnsSinceLastInterestingEvent | 0;
+      if (rawTurns > 0) {
+        const removed = Math.floor(rawTurns * partialReliefFactor);
+        let nextTurns = rawTurns - removed;
+        if (nextTurns < 1) nextTurns = 1;
+        gm.boredom.turnsSinceLastInterestingEvent = nextTurns;
+      }
+
+      gm.boredom.lastNudgeTurn = turn;
+    }
   }
 
   // Simple mood impulses.
