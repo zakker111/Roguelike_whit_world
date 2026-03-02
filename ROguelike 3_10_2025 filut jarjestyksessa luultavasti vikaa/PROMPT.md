@@ -1,7 +1,7 @@
-# ROguelike — Persistent AI Coding Guidelines (PROMPT.md)
+# PROMPT.md — AI Coding Guidelines and Project Prompt
 
-This file is the canonical, always-on prompt for AI-assisted development in this repository.  
-Apply these rules to every change; keep patches small and verifiable, and describe what changed, why, and how it was tested.
+This document is a persistent prompt for AI-assisted development in this repository.
+Any time the AI edits code here, it should follow these rules.
 
 ---
 
