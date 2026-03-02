@@ -41,6 +41,38 @@
       } catch (_) { return false; }
     },
 
+    clickConfirmOk() {
+      try {
+        const panel = document.getElementById("confirm-panel");
+        if (!panel) return false;
+        const btns = panel.querySelectorAll("button");
+        if (!btns || !btns.length) return false;
+        for (let i = 0; i < btns.length; i++) {
+          const b = btns[i];
+          const t = String(b && b.textContent || "").trim().toLowerCase();
+          if (t === "ok") { b.click(); return true; }
+        }
+        // Fallback: assume last button is OK
+        try { btns[btns.length - 1].click(); return true; } catch (_) { return false; }
+      } catch (_) { return false; }
+    },
+
+    clickConfirmCancel() {
+      try {
+        const panel = document.getElementById("confirm-panel");
+        if (!panel) return false;
+        const btns = panel.querySelectorAll("button");
+        if (!btns || !btns.length) return false;
+        for (let i = 0; i < btns.length; i++) {
+          const b = btns[i];
+          const t = String(b && b.textContent || "").trim().toLowerCase();
+          if (t === "cancel") { b.click(); return true; }
+        }
+        // Fallback: assume first button is Cancel
+        try { btns[0].click(); return true; } catch (_) { return false; }
+      } catch (_) { return false; }
+    },
+
     key(code) {
       try {
         const ev = new KeyboardEvent("keydown", { key: code, code, bubbles: true });

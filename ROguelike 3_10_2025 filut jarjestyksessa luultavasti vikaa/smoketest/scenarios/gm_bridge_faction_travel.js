@@ -77,6 +77,31 @@
     const worldCtx0 = G.getCtx();
 
     try {
+      const clickConfirmOk = () => {
+        try {
+          const D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
+          if (D && typeof D.clickConfirmOk === "function") return !!D.clickConfirmOk();
+        } catch (_) {}
+        try {
+          const panel = document.getElementById("confirm-panel");
+          if (!panel) return false;
+          const btns = panel.querySelectorAll("button");
+          if (!btns || !btns.length) return false;
+          try { btns[btns.length - 1].click(); return true; } catch (_) { return false; }
+        } catch (_) { return false; }
+      };
+
+      const isConfirmOpen = () => {
+        try {
+          const CM = window.ConfirmModal;
+          if (CM && typeof CM.isOpen === "function") return !!CM.isOpen();
+        } catch (_) {}
+        try {
+          const panel = document.getElementById("confirm-panel");
+          return !!(panel && panel.style.display !== "none");
+        } catch (_) { return false; }
+      };
+
       // Ensure player has enough gold so the confirm dialog can show.
       try {
         const inv = (worldCtx0.player && Array.isArray(worldCtx0.player.inventory)) ? worldCtx0.player.inventory : (worldCtx0.player.inventory = []);
@@ -155,6 +180,14 @@
         let handled2 = false;
         try { handled2 = !!GMB.maybeHandleWorldStep(worldCtx); } catch (_) { handled2 = false; }
         record(handled2, `GMBridge.maybeHandleWorldStep handles forced travel event (${intent})`);
+
+        // Phase 5: travel encounters are confirm-first.
+        const confirmOpened = await waitUntil(() => isConfirmOpen(), 1600, 80);
+        record(confirmOpened, `ConfirmModal opened for travel encounter (${intent})`);
+        if (confirmOpened) {
+          try { clickConfirmOk(); } catch (_) {}
+          await waitUntil(() => !isConfirmOpen(), 1600, 80);
+        }
 
         const entered = await waitUntilMode("encounter", 3500);
         const modeNow = has(G.getMode) ? G.getMode() : "";

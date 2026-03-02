@@ -1,3 +1,9 @@
+v1.50.18 — GM Phase 5 follow-up: confirm metadata + smoketest reliability
+
+- Travel scheduler metadata: `travel.banditBounty` and `travel.trollHunt` actions are now marked `delivery:"confirm"` (matches Phase 5 behavior).
+- Smoketests updated to accept ConfirmModal via button click for GM travel + marker encounters.
+- GM intent decision smoketest no longer fails when `intentHistory` is at its max cap.
+
 v1.50.17 — GM Phase 5: choice-first interventions (confirm before starting encounters)
 
 - Faction travel encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now prompt a confirm modal before entering the encounter.

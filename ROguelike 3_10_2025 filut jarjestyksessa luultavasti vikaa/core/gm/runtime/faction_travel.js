@@ -226,7 +226,7 @@ export function maybeScheduleFactionEvents(ctx, gm, turn, onDirty) {
           kind: "travel.trollHunt",
           status: "scheduled",
           priority: 100,
-          delivery: "auto",
+          delivery: "confirm",
           allowMultiplePerTurn: false,
           createdTurn: safeTurn,
           earliestTurn: trollSlot.earliestTurn | 0,

@@ -106,6 +106,46 @@
       }) || null;
     };
 
+    const isConfirmOpen = () => {
+      try {
+        const CM = window.ConfirmModal;
+        if (CM && typeof CM.isOpen === "function") return !!CM.isOpen();
+      } catch (_) {}
+      try {
+        const panel = document.getElementById("confirm-panel");
+        return !!(panel && panel.style.display !== "none");
+      } catch (_) { return false; }
+    };
+
+    const acceptConfirm = async () => {
+      // Button-driven (ConfirmModal has no keyboard OK).
+      for (let n = 0; n < 30; n++) {
+        if (isConfirmOpen()) break;
+        await sleep(80);
+      }
+      if (!isConfirmOpen()) return false;
+
+      let clicked = false;
+      try {
+        const D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
+        if (D && typeof D.clickConfirmOk === "function") clicked = !!D.clickConfirmOk();
+      } catch (_) {}
+      if (!clicked) {
+        try {
+          const panel = document.getElementById("confirm-panel");
+          const btns = panel ? panel.querySelectorAll("button") : null;
+          if (btns && btns.length) { btns[btns.length - 1].click(); clicked = true; }
+        } catch (_) {}
+      }
+      if (!clicked) return false;
+
+      for (let n = 0; n < 30; n++) {
+        if (!isConfirmOpen()) return true;
+        await sleep(80);
+      }
+      return !isConfirmOpen();
+    };
+
     const getGoldAmount = () => {
       try {
         const c = has(G.getCtx) ? G.getCtx() : gctx;
@@ -259,9 +299,10 @@
 
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
+    const confirmed1 = await acceptConfirm();
     const entered1 = await waitUntilMode("encounter", 3500);
     const modeAfter1 = has(G.getMode) ? G.getMode() : "";
-    record(entered1 && modeAfter1 === "encounter", `Pressing 'g' on bottle map marker starts encounter (mode=${modeAfter1})`);
+    record(confirmed1 && entered1 && modeAfter1 === "encounter", `Pressing 'g' on bottle map marker starts encounter (mode=${modeAfter1})`);
 
     if (!(entered1 && modeAfter1 === "encounter")) {
       // Cleanup marker.
@@ -294,9 +335,10 @@
 
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
+    const confirmed2 = await acceptConfirm();
     const entered2 = await waitUntilMode("encounter", 3500);
     const modeAfter2 = has(G.getMode) ? G.getMode() : "";
-    record(entered2 && modeAfter2 === "encounter", `Re-enter bottle map encounter (mode=${modeAfter2})`);
+    record(confirmed2 && entered2 && modeAfter2 === "encounter", `Re-enter bottle map encounter (mode=${modeAfter2})`);
 
     if (!(entered2 && modeAfter2 === "encounter")) {
       // Cleanup marker (avoid leaking state into subsequent scenarios).
