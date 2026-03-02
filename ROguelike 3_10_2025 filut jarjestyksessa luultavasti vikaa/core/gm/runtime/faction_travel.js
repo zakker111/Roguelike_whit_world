@@ -19,6 +19,8 @@ import {
   schedulerConsume,
 } from "./scheduler/ops.js";
 
+import { checkPacingGate, getPacingConfig } from "./pacing.js";
+
 const FE_ACTION_ID_GUARD = "fe:guardFine";
 const FE_ACTION_ID_BANDIT = "fe:banditBounty";
 const FE_ACTION_ID_TROLL = "fe:trollHunt";
@@ -260,11 +262,21 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
 
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
-  // If slots exist (old view) but scheduler does not, schedule will be rebuilt by onEvent.
-  // We'll still try to pick from scheduler if possible.
   // Deterministic arbitration: priority > earliestTurn > createdTurn > id.
   const action = schedulerPickNext(gm, turn);
   if (!action) return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+
+  // v0.3 pacing gate: interventions are rare and only eligible when bored + off cooldown.
+  // NOTE: forced events (GOD/smoketests) can set `bypassPacing` so they still work.
+  const bypassPacing = !!action.bypassPacing;
+  if (!bypassPacing) {
+    const cfg = getPacingConfig(ctx);
+    const gate = checkPacingGate(ctx, gm, turn, cfg);
+    if (!gate.ok) {
+      // Do NOT consume the scheduler action yet. We'll re-check on future steps.
+      return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+    }
+  }
 
   let intent = { kind: "none" };
   if (action.id === FE_ACTION_ID_GUARD) {
@@ -351,6 +363,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       delivery: "confirm",
       allowMultiplePerTurn: true,
       bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
@@ -366,6 +379,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       delivery: "auto",
       allowMultiplePerTurn: true,
       bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
@@ -381,6 +395,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       delivery: "auto",
       allowMultiplePerTurn: true,
       bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,

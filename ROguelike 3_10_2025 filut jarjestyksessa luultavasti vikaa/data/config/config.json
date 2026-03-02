@@ -38,5 +38,12 @@
       "innGoer": 0.2,
       "wanderer": 0.2
     }
+  },
+  "gm": {
+    "pacing": {
+      "boredomMin": 0.35,
+      "cooldownMinTurns": 400,
+      "cooldownMaxTurns": 600
+    }
   }
 }

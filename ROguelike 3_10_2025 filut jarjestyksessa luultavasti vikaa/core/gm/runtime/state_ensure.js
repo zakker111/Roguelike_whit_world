@@ -375,6 +375,10 @@ export function ensureScheduler(gm) {
 
     a.allowMultiplePerTurn = !!a.allowMultiplePerTurn;
 
+    // Optional: override cadence/pacing gates.
+    a.bypassCadence = !!a.bypassCadence;
+    a.bypassPacing = !!a.bypassPacing;
+
     if (!a.payload || typeof a.payload !== "object") a.payload = {};
   }
 
@@ -406,6 +410,35 @@ export function ensureScheduler(gm) {
   s.recentCountCap = GM_SCHED_MAX_ACTIONS_PER_WINDOW;
 
   return s;
+}
+
+// v0.3 pacing: rare interventions only when bored + after a deterministic cooldown.
+export function ensurePacing(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  let p = gm.pacing;
+  if (!p || typeof p !== "object") {
+    p = {};
+    gm.pacing = p;
+  }
+
+  p.lastInterventionTurn = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn))
+    ? (p.lastInterventionTurn | 0)
+    : -9999;
+
+  p.nextEligibleTurn = (typeof p.nextEligibleTurn === "number" && Number.isFinite(p.nextEligibleTurn))
+    ? (p.nextEligibleTurn | 0)
+    : 0;
+
+  if (p.nextEligibleTurn < 0) p.nextEligibleTurn = 0;
+
+  p.lastCooldownTurns = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns))
+    ? (p.lastCooldownTurns | 0)
+    : 0;
+
+  if (p.lastCooldownTurns < 0) p.lastCooldownTurns = 0;
+
+  return p;
 }
 
 // Returns one of: "unseen", "seenNotTried", "triedRecently", "triedLongAgo", "disinterested".

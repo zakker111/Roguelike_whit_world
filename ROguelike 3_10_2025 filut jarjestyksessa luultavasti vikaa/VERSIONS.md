@@ -1,3 +1,13 @@
+v1.50.13 — GM Phase 4: boredom-gated pacing + deterministic cooldown
+
+- Added v0.3 pacing state to GM (`gm.pacing.nextEligibleTurn`, `gm.pacing.lastInterventionTurn`, `gm.pacing.lastCooldownTurns`).
+- Added config knobs (data-driven) in `data/config/config.json`:
+  - `gm.pacing.boredomMin`
+  - `gm.pacing.cooldownMinTurns` / `gm.pacing.cooldownMaxTurns`
+- Faction travel event delivery is now gated by boredom + cooldown (forced events bypass pacing via `bypassPacing` so GOD/smoketests still work).
+- Guard Fine confirm prompt now records an intervention (spends cooldown) via `GMRuntime.recordIntervention`.
+- GM panel (`O`) now shows pacing fields (next eligible / last intervention).
+
 v1.50.12 — GM Phase 3: boredom hygiene + tuning
 
 - GM boredom relief tuning:

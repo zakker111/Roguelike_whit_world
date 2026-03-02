@@ -487,7 +487,11 @@ function renderSnapshot(gm) {
     _toggleBtn.disabled = false;
   }
 
-  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | Enabled: ${enabled ? "On" : "Off"}`;
+  const pacing = gm.pacing && typeof gm.pacing === "object" ? gm.pacing : {};
+  const nextEligibleTurn = (typeof pacing.nextEligibleTurn === "number" && Number.isFinite(pacing.nextEligibleTurn)) ? (pacing.nextEligibleTurn | 0) : 0;
+  const lastInterventionTurn = (typeof pacing.lastInterventionTurn === "number" && Number.isFinite(pacing.lastInterventionTurn)) ? (pacing.lastInterventionTurn | 0) : -9999;
+
+  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | NextElig: T=${nextEligibleTurn} | LastInt: T=${lastInterventionTurn} | Enabled: ${enabled ? "On" : "Off"}`;
 
   const lines = [];
   lines.push(`Total turns: ${totalTurns}`);
@@ -560,6 +564,12 @@ function renderSnapshot(gm) {
   if (_profileEl) {
     const linesProfile = [];
     linesProfile.push(`  boredom: ${boredomLevel.toFixed(2)}`);
+
+    const p = gm.pacing && typeof gm.pacing === "object" ? gm.pacing : {};
+    const pNext = (typeof p.nextEligibleTurn === "number" && Number.isFinite(p.nextEligibleTurn)) ? (p.nextEligibleTurn | 0) : 0;
+    const pLast = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn)) ? (p.lastInterventionTurn | 0) : -9999;
+    const pCd = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns)) ? (p.lastCooldownTurns | 0) : 0;
+    linesProfile.push(`  pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
 
     const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
     const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);

@@ -1049,6 +1049,13 @@ function handleGuardFineTravelEvent(ctx, GM) {
     };
 
     if (UIO && typeof UIO.showConfirm === "function") {
+      // Phase 4 (v0.3 pacing): showing a choice prompt counts as an intervention.
+      try {
+        if (GM && typeof GM.recordIntervention === "function") {
+          GM.recordIntervention(ctx, { kind: "confirm", channel: "factionTravel", id: "guardFine" });
+        }
+      } catch (_) {}
+
       UIO.showConfirm(ctx, prompt, null, onPay, onRefuse);
       return true;
     }

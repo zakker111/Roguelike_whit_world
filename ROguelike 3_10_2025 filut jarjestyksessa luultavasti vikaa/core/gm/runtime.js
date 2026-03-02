@@ -33,6 +33,7 @@ import {
   ensureFactionEvents,
   ensureRng,
   ensureScheduler,
+  ensurePacing,
 } from "./runtime/state_ensure.js";
 
 import { localClamp, normalizeTurn, getCurrentTurn } from "./runtime/turn_utils.js";
@@ -41,6 +42,8 @@ import { tickImpl } from "./runtime/tick.js";
 
 import { getEntranceIntentImpl } from "./runtime/intents/entrance.js";
 import { getMechanicHintImpl } from "./runtime/intents/mechanic_hint.js";
+
+import { consumeInterventionCooldown } from "./runtime/pacing.js";
 
 import {
   migrateFactionEventSlotsToScheduler,
@@ -197,6 +200,7 @@ function upgradeAndNormalizeState(ctx, gm) {
   ensureFactionEvents(gm);
   ensureRng(gm);
   ensureScheduler(gm);
+  ensurePacing(gm);
   migrateFactionEventSlotsToScheduler(gm, markDirty);
 
   if (!gm.mood || typeof gm.mood !== "object") gm.mood = createDefaultMood();
@@ -577,6 +581,34 @@ export function getMechanicHint(ctx) {
   return intent;
 }
 
+/**
+ * Record that the GM showed a player-facing choice prompt (an "intervention").
+ *
+ * v0.3 contract: only choice prompts spend pacing budget.
+ */
+export function recordIntervention(ctx, meta = {}) {
+  const gm = _ensureState(ctx);
+  if (!ctx) return false;
+  if (!gm || gm.enabled === false) return false;
+
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+  const res = consumeInterventionCooldown(ctx, gm, turn, meta, markDirty);
+  if (!res) return false;
+
+  try {
+    pushIntentDebug(gm, {
+      kind: "intervention",
+      channel: "pacing",
+      reason: (meta && meta.kind) ? String(meta.kind) : "choice",
+      cooldownTurns: res.cooldownTurns | 0,
+      nextEligibleTurn: res.nextEligibleTurn | 0,
+    }, turn);
+  } catch (_) {}
+
+  writePersistedState(ctx, gm, { force: true });
+  return true;
+}
+
 // ------------------------
 // Faction travel events (scheduler-backed)
 // ------------------------
@@ -646,6 +678,7 @@ attachGlobal("GMRuntime", {
   reset,
   getEntranceIntent,
   getMechanicHint,
+  recordIntervention,
   getFactionTravelEvent,
   forceFactionTravelEvent,
   __getRawState,

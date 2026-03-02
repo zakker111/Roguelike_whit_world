@@ -85,6 +85,13 @@ export function createDefaultState() {
       turnsSinceLastInterestingEvent: 0,
       lastInterestingEvent: null,
     },
+
+    // v0.3 pacing: rare interventions when bored.
+    pacing: {
+      lastInterventionTurn: -9999,
+      nextEligibleTurn: 0,
+      lastCooldownTurns: 0,
+    },
     storyFlags: {
       // Back-compat: the old "factionEvents" slots are still kept around as a
       // stable, easy-to-inspect view for the GM panel and for migration.
