@@ -5,6 +5,19 @@ Any time the AI edits code here, it should follow these rules.
 
 ---
 
+## Table of Contents
+
+- [1. High-Level Principles](#1-high-level-principles)
+- [2. Module Boundaries and Where to Put Code](#2-module-boundaries-and-where-to-put-code)
+- [3. Data-First, Code-Second Design](#3-data-first-code-second-design)
+- [4. Coding Style for Readability](#4-coding-style-for-readability)
+- [5. JSON Usage Guidelines](#5-json-usage-guidelines)
+- [6. Testing and Smoketests](#6-testing-and-smoketests)
+- [8. How the AI Should “Think” While Coding](#8-how-the-ai-should-think-while-coding)
+- [9. Performance in Hot Paths](#9-performance-in-hot-paths)
+- [10. Versioning, Docs, and Housekeeping](#10-versioning-docs-and-housekeeping)
+- [11. Health Check & Module Registration (Boot Diagnostics)](#11-health-check--module-registration-boot-diagnostics)
+
 ## 1. High-Level Principles
 
 - **Match the project’s style and architecture.**
@@ -68,6 +81,16 @@ When adding or changing code, first decide where it belongs:
 - If it’s “how the game runs” → `core/`.
 - If it’s “what exists in the world” → `data/` (and maybe `worldgen/`).
 - If it’s “how actors behave” → `ai/`.
+
+### 2.1 Adding New Files / Folders (Architecture Hygiene)
+
+- Add a new file/module only when it reduces coupling: (a) reused in 2+ places, (b) a file is mixing concerns, or (c) you’re introducing a clear new domain within an existing top-level area (`ai/`, `core/`, `ui/`, `worldgen/`, `data/`).
+- Prefer extending existing folders; avoid creating new **top-level** directories unless the domain is durable and will contain multiple modules.
+- Keep module surfaces small: export a few focused functions; avoid “god modules” and import cycles.
+- Naming: match existing `lower_snake_case` filenames (e.g. `town_population.js`) and use domain-specific folder names (`engine/`, `render/`, `services/`) over generic new `utils/` buckets.
+- Avoid “misc/”, “helpers2/”, or one-off utility dumping grounds; if it’s shared, use existing `utils/` or a domain-specific `*_helpers.js`.
+- If adding new JSON files, put them under the appropriate `data/{domain}/` folder, name them descriptively, and wire them through `GameData` (don’t hard-code content in JS).
+- If a new module/data domain becomes required for normal runs, register it in the boot health check (`core/capabilities.js`) so missing wiring fails loudly at startup.
 
 ---
 
