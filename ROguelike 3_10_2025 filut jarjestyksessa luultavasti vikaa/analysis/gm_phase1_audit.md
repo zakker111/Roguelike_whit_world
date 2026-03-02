@@ -127,8 +127,8 @@ From current audit:
 - **Death restart:** resets GM (via `core/death_flow.js:restart` calling `GMRuntime.reset`)
 
 ### Smoketest coverage
-- `smoketest/scenarios.json` includes `gm_seed_reset`.
 - Scenario file exists: `smoketest/scenarios/gm_seed_reset.js`.
+- `smoketest/scenarios.json` **does list** `gm_seed_reset` (and `gm_boredom_interest`).
 
 ---
 
@@ -169,13 +169,13 @@ Evidence-based checks performed:
 - Repo-wide scan of `GM.onEvent(ctx, …)` emitters
 - Read of `core/gm/runtime.js:onEvent` boredom behavior
 - Read of `core/gm/runtime/tick.js` boredom normalization
-- Verified `smoketest/scenarios.json` contains GM scenarios including `gm_seed_reset`
+- Verified GM scenario manifest at `smoketest/scenarios.json` (it lists GM scenarios including `gm_seed_reset` and `gm_boredom_interest`)
 
 ### Runtime smoketests (not executed here)
 This environment does not provide a terminal runner in the current toolset, so smoketests were not executed from here.
 
 Recommended manual verification command/URL (per `smoketest.md`):
-- Open: `index.html?smoketest=1&dev=1&scenarios=gm_seed_reset,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache`
+- Open: `index.html?smoketest=1&dev=1&scenarios=gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache`
 
 ---
 
