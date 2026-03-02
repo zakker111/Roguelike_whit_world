@@ -10,6 +10,13 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
 
 - [ ] GM v0.2: Orchestrating GM (feature-rich skeleton; expandable)
+  - Current status (already implemented)
+    - [x] GMRuntime persistence key `GM_STATE_V1` (`core/gm/runtime.js`, `core/state/persistence.js`)
+    - [x] Bottle Map end-to-end: fishing → item → marker → encounter → cleanup; smoketest (`ui/components/fishing_modal.js`, `core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bottle_map.js`)
+    - [x] Surveyor’s Cache: `gm.surveyCache` marker + encounter + claimed; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_survey_cache.js`)
+    - [x] Guard fine confirm flow emits `gm.guardFine.pay/refuse`; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bridge_faction_travel.js`)
+    - [x] Marker encounter entry is ctx-first (teleport bug fix) (`core/bridge/gm_bridge.js`)
+
   - Frozen scope (agreed)
     - GM uses its own **persisted RNG stream** (separate from `ctx.rng` / global RNG).
       - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
@@ -40,7 +47,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
       - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
     - [ ] Persistence (mid-run continuity only)
-      - LocalStorage: [ ] add `GM_STATE_V1`
+      - LocalStorage: [x] add `GM_STATE_V1`
       - Persist: scheduler queue + active quest threads + GM RNG state
       - Clear `GM_STATE_V1` on:
         - [ ] death restart
@@ -49,7 +56,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
         - [ ] deploy version change (APP_VERSION)
 
   - v0.2 shipping action catalog (minimum content)
-    - [ ] `travel.guardFine` (confirm)
+    - [x] `travel.guardFine` (confirm)
       - Use confirm UI (pay/refuse)
       - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
       - Encounter template already exists: `gm_guard_fine` (data)
@@ -57,7 +64,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Auto-start a **special** encounter (not the normal EncounterService roll)
       - Must obey safety rails + cooldowns
       - Encounter template already exists: `gm_bandit_bounty` (data)
-    - [ ] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
+    - [x] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
       - Acquisition: on fishing success, sometimes grant a "Bottle with a Map" (only if no active quest thread)
       - Activation: on first use/inspect, bind a target overworld tile via GM RNG + placement constraints
       - Marker: place an X marker; show a short clue (near town/region)
@@ -89,6 +96,31 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - [ ] Timeline-style intents/events list (newest-first) with channel + reason visible
       - [ ] Raw GM JSON section (collapsed by default; stringify only when expanded)
       - [ ] "Show all" toggles for traits/mechanics vs only-active filtering
+
+- [ ] GM v0.3: Rare, choice-driven pacing (boredom-gated; deterministic randomness)
+  - Frozen scope (agreed)
+    - Rare only when bored (boredom threshold gate; tuneable)
+    - Intervention budget counts **only player-facing choice prompts** (confirm/choice UI); non-choice hints/logs do not spend cooldown
+    - Choices only (no forced outcomes)
+    - Reset pacing state on apply seed / Start New Game / death restart
+  - Pacing rules
+    - Boredom gate: require `gm.boredom.level >= boredomMin` before proposing an intervention
+    - Cooldown range: 400–600 turns (GM RNG; deterministic)
+    - Store `nextEligibleTurn` (and `lastInterventionTurn`) in GM state (persisted)
+  - Boredom policy
+    - Do NOT hard reset boredom to 0
+    - Partial recovery instead (reduce boredom by a fraction / tiered stepdown)
+    - Introduce event “interest weight” (or tiering)
+  - Phase list (1–4)
+    - [ ] Phase 1: Audit boredom + eligibility transitions
+    - [ ] Phase 2: Ctx-first hardening (all GM entry/exit points)
+    - [ ] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
+    - [ ] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)
+  - v0.3 testing/merge gates
+    - [ ] Determinism across reload (same seed + save/reload preserves `nextEligibleTurn` and eligibility)
+    - [ ] Boredom not stuck at 0 (partial recovery still allows boredom to accumulate)
+    - [ ] No forced negative events (choices only)
+    - [ ] Reset clears `GM_STATE_V1`
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
