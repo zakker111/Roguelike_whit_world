@@ -495,6 +495,16 @@ export function applySeed(ctx, seedUint32) {
       };
     })(s);
   }
+
+  // Phase 2 GM hygiene: seed changes must reset GMRuntime so it re-derives runSeed
+  // and does not carry over in-memory GM state across runs.
+  try {
+    const GMRuntime = getMod(ctx, "GMRuntime");
+    if (GMRuntime && typeof GMRuntime.reset === "function") {
+      GMRuntime.reset(ctx, { reason: "apply_seed" });
+    }
+  } catch (_) {}
+
   if (ctx.mode === "world") {
     ctx.log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
     ctx.initWorld();
