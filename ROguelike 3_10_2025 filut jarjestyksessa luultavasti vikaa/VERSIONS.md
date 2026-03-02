@@ -1,3 +1,9 @@
+v1.50.24 — GM Phase 7C: Bottle Map pity counts every fishing success
+
+- Fishing: `GMBridge.maybeAwardBottleMapFromFishing(ctx)` is now evaluated on every successful fishing attempt (not only when the “special item” roll hits).
+- If a Bottle Map is awarded, it replaces the usual fish/special reward for that catch.
+- Fishing reward RNG no longer falls back to `Math.random()`; it uses `ctx.rng`/`RNGUtils` or a deterministic `() => 0.5` fallback.
+
 v1.50.23 — GM Phase 7A/7B: Bottle Map pity debug + smoketest
 
 - GM panel now displays Bottle Map fishing pity-timer state + derived chance (Profile section).

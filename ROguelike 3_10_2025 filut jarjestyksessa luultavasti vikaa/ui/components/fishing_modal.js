@@ -369,41 +369,45 @@ export function show(ctx, opts = {}) {
     } catch (_) {}
 
     if (ok) {
-      // Small chance to catch an item instead of a fish
+      // Deterministic RNG: prefer ctx.rng or RNGUtils.getRng().
+      // Do NOT use Math.random() in gameplay rewards.
       let rngFn = null;
       try {
         if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
           rngFn = window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
         }
       } catch (_) {}
-      if (!rngFn) rngFn = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+      if (!rngFn) rngFn = (typeof ctx.rng === "function") ? ctx.rng : (() => 0.5);
 
       const specialChance = (opts && typeof opts.itemChance === "number") ? clamp(opts.itemChance, 0, 1) : 0.01;
-      const isSpecial = rngFn() < specialChance;
 
       try {
+        // Ensure inventory exists before any award logic (GMBridge writes into it).
         const inv = (ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : (ctx.player.inventory = []);
 
-        if (isSpecial) {
-          let awarded = null;
-          let isBottleMap = false;
-
-          // GM-driven Bottle Map award logic (pity timer + boredom gating).
-          try {
-            const GMB = (typeof window !== "undefined" ? window.GMBridge : null);
-            if (GMB && typeof GMB.maybeAwardBottleMapFromFishing === "function") {
-              isBottleMap = !!GMB.maybeAwardBottleMapFromFishing(ctx);
-            }
-          } catch (_) {
-            isBottleMap = false;
+        // Phase 7C: evaluate Bottle Map pity logic on EVERY fishing success.
+        // If a Bottle Map is awarded, it replaces the usual fish/special reward.
+        let bottleMapAwarded = false;
+        try {
+          const GMB = (typeof window !== "undefined" ? window.GMBridge : null);
+          if (GMB && typeof GMB.maybeAwardBottleMapFromFishing === "function") {
+            bottleMapAwarded = !!GMB.maybeAwardBottleMapFromFishing(ctx);
           }
+        } catch (_) {
+          bottleMapAwarded = false;
+        }
 
-          if (isBottleMap) {
-            // GMBridge already inserted the item.
-            awarded = null;
-          }
+        if (bottleMapAwarded) {
+          // GMBridge already inserted/logged the bottle map. Do not also award fish/special loot.
+          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+          try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
+        } else {
+          // Small chance to catch an item instead of a fish.
+          const isSpecial = rngFn() < specialChance;
 
-          if (!isBottleMap) {
+          if (isSpecial) {
+            let awarded = null;
+
             // Prefer a real equipment item if Items registry is available; fallback to a trinket
             try {
               if (typeof window !== "undefined" && window.Items && typeof window.Items.createEquipment === "function") {
@@ -414,29 +418,25 @@ export function show(ctx, opts = {}) {
             if (!awarded) {
               awarded = { kind: "material", type: "old_boot", name: "old boot", amount: 1 };
             }
-          }
 
-          if (awarded) inv.push(awarded);
-          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-          try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
-          try {
-            if (ctx.log) {
-              if (!isBottleMap) ctx.log(`You fished up ${awarded.name || "something curious"}!`, "good");
-            }
-          } catch (_) {}
-        } else {
-          // Regular fish
-          const existing = inv.find((it) => it && it.kind === "material" && String(it.type || it.name || "").toLowerCase() === "fish");
-          if (existing) {
-            if (typeof existing.amount === "number") existing.amount += 1;
-            else if (typeof existing.count === "number") existing.count += 1;
-            else existing.amount = 1;
+            if (awarded) inv.push(awarded);
+            try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+            try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
+            try { if (ctx.log) ctx.log(`You fished up ${awarded.name || "something curious"}!`, "good"); } catch (_) {}
           } else {
-            inv.push({ kind: "material", type: "fish", name: "fish", amount: 1 });
+            // Regular fish
+            const existing = inv.find((it) => it && it.kind === "material" && String(it.type || it.name || "").toLowerCase() === "fish");
+            if (existing) {
+              if (typeof existing.amount === "number") existing.amount += 1;
+              else if (typeof existing.count === "number") existing.count += 1;
+              else existing.amount = 1;
+            } else {
+              inv.push({ kind: "material", type: "fish", name: "fish", amount: 1 });
+            }
+            try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+            try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
+            try { if (ctx.log) ctx.log("You caught a fish!", "good"); } catch (_) {}
           }
-          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-          try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
-          try { if (ctx.log) ctx.log("You caught a fish!", "good"); } catch (_) {}
         }
       } catch (_) {}
     } else {
