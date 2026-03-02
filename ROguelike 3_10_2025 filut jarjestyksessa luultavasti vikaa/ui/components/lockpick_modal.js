@@ -490,7 +490,7 @@ function finish(success) {
       const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
       if (GM && typeof GM.onEvent === "function") {
         const scope = _gameCtx && _gameCtx.mode ? _gameCtx.mode : "town";
-        GM.onEvent(_gameCtx, { type: "mechanic", scope, mechanic: "lockpicking", action: success ? "success" : "failure" });
+        GM.onEvent(_gameCtx, { type: "mechanic", scope, interesting: false, mechanic: "lockpicking", action: success ? "success" : "failure" });
       }
     } catch (_) {}
 

@@ -1,3 +1,15 @@
+v1.50.15 — GM Phase 3 completion: explicit interest tagging (full sweep)
+
+- Completed Phase 3 emitter hygiene so boredom is not reduced by UI/telemetry spam:
+  - All `type:"mechanic"` emissions are now explicitly tagged `interesting:false` across:
+    - Fishing modal (`mechanic:fishing`)
+    - Lockpicking modal (`mechanic:lockpicking`) — including the success/failure outcome event
+    - Quest board (`mechanic:questBoard`) — UI open/close + service-side accept/claim attempts
+    - Followers (`mechanic:followers`) — UI open/close + runtime hire/dismiss attempts
+- `quest.complete` events are now explicitly emitted as `interestTier:"major"`.
+- `combat.kill` events are now explicitly emitted as `interestTier:"minor"`.
+- Bugfix: repaired a broken gather-quest turn-in check in `services/quest_service.js` that could throw at runtime.
+
 v1.50.14 — GM Phase 3 follow-up: explicit interest tagging at emitters
 
 - Explicitly tagged high-frequency `type:"mechanic"` UI telemetry as `interesting:false`:
