@@ -98,6 +98,11 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - [ ] "Show all" toggles for traits/mechanics vs only-active filtering
 
 - [ ] GM v0.3: Rare, choice-driven pacing (boredom-gated; deterministic randomness)
+  - Phase 0: Contract (locked)
+    - [x] Contract doc: `analysis/gm_v0_3_contract.md`
+    - Pacing: rare (only when bored)
+    - Authority: choices (no forced outcomes)
+    - Persistence: reset on apply seed / restart / death restart
   - Frozen scope (agreed)
     - Rare only when bored (boredom threshold gate; tuneable)
     - Intervention budget counts **only player-facing choice prompts** (confirm/choice UI); non-choice hints/logs do not spend cooldown
