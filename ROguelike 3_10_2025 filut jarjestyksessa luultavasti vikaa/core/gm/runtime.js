@@ -227,9 +227,40 @@ function upgradeAndNormalizeState(ctx, gm) {
 }
 
 function _ensureState(ctx) {
+  // Seed-boundary guard: GM_STATE_V1 is treated as *per-run* state.
+  // If the global run seed changes while the page is still alive (e.g. GOD applySeed,
+  // rerollSeed, or any other seed reset), we must drop in-memory GM state as well.
+  //
+  // Without this guard, GMRuntime can keep serving a stale _state even though the
+  // run seed (window.RNG.getSeed()/localStorage.SEED) changed, which breaks:
+  // - smoketest gm_seed_reset (probe not cleared, runSeed not updated)
+  // - downstream gm.* marker/encounter flows that rely on runSeed + fresh threads.
+  let runSeedNow = 0;
+  try { runSeedNow = (deriveRunSeed() >>> 0); } catch (_) { runSeedNow = 0; }
+
+  try {
+    const prev = (_state && typeof _state.runSeed === "number" && Number.isFinite(_state.runSeed))
+      ? (_state.runSeed >>> 0)
+      : null;
+    if (prev != null && prev !== runSeedNow) {
+      // Hard reset state on seed change.
+      _state = createDefaultState();
+      _state.runSeed = runSeedNow;
+      // Best-effort: clear persisted per-run GM state so it can't be reloaded later.
+      try { clearPersistedState(ctx); } catch (_) {}
+      // Reset persistence throttles as well.
+      _dirty = false;
+      _lastSavedTurn = -1;
+      _lastSaveMs = 0;
+      _loadedOnce = true;
+    }
+  } catch (_) {}
+
   if (!_state) {
     _state = createDefaultState();
+    _state.runSeed = runSeedNow;
   }
+
   _state = upgradeAndNormalizeState(ctx, _state);
   if (ctx) ctx.gm = _state;
   return _state;

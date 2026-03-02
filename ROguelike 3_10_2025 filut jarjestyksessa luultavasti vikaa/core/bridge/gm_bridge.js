@@ -469,7 +469,13 @@ function handleSurveyCacheMarker(ctx, marker) {
 
     if (sc.claimed && sc.claimed[instanceId]) {
       try { if (typeof ctx.log === "function") ctx.log("This cache has already been picked clean.", "info"); } catch (_) {}
-      try { MS.remove(ctx, { instanceId }); } catch (_) {}
+      try {
+        const iid = String(instanceId);
+        const removed = (typeof MS.remove === "function") ? (MS.remove(ctx, { instanceId: iid }) | 0) : 0;
+        if (!removed && typeof MS.remove === "function") {
+          MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && String(m.instanceId || "") === iid);
+        }
+      } catch (_) {}
       return true;
     }
 
@@ -755,7 +761,7 @@ function grantBottleMapRewards(ctx, reward) {
  */
 export function onEncounterComplete(ctx, info) {
   try {
-    const id = info && info.encounterId != null ? String(info.encounterId) : "";
+    const id = info && info.encounterId != null ? String(info.encounterId).trim().toLowerCase() : "";
     if (!id) return;
 
     // If GM is disabled, don't apply any GM side effects.
@@ -770,7 +776,7 @@ export function onEncounterComplete(ctx, info) {
       const thread = ensureBottleMapThread(gm);
       if (!thread || thread.active !== true) return;
 
-      const outcome = info && info.outcome ? String(info.outcome) : "";
+      const outcome = info && info.outcome ? String(info.outcome).trim().toLowerCase() : "";
       if (outcome !== "victory") {
         thread.status = "active";
         try { GM.onEvent(ctx, { type: "gm.bottleMap.encounterExit", interesting: false, payload: { outcome } }); } catch (_) {}
@@ -783,7 +789,12 @@ export function onEncounterComplete(ctx, info) {
 
       try {
         if (thread.instanceId != null) {
-          MS.remove(ctx, { instanceId: String(thread.instanceId) });
+          const iid = String(thread.instanceId);
+          const removed = (typeof MS.remove === "function") ? (MS.remove(ctx, { instanceId: iid }) | 0) : 0;
+          // Fallback: some legacy markers may not carry instanceId as expected; do a best-effort remove.
+          if (!removed && typeof MS.remove === "function") {
+            MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.bottleMap" && String(m.instanceId || "") === iid);
+          }
         }
       } catch (_) {}
 
@@ -812,7 +823,7 @@ export function onEncounterComplete(ctx, info) {
       const sc = ensureSurveyCacheThread(gm);
       if (!sc || !sc.active) return;
 
-      const outcome = info && info.outcome ? String(info.outcome) : "";
+      const outcome = info && info.outcome ? String(info.outcome).trim().toLowerCase() : "";
       if (outcome !== "victory") {
         sc.active = null;
         try { GM.onEvent(ctx, { type: "gm.surveyCache.encounterExit", interesting: false, payload: { outcome } }); } catch (_) {}
@@ -848,7 +859,14 @@ export function onEncounterComplete(ctx, info) {
 
       try { grantBottleMapRewards(ctx, reward); } catch (_) {}
 
-      try { MS.remove(ctx, { instanceId: String(instanceId) }); } catch (_) {}
+      // Remove the marker now that the cache is claimed.
+      try {
+        const iid = String(instanceId);
+        const removed = (typeof MS.remove === "function") ? (MS.remove(ctx, { instanceId: iid }) | 0) : 0;
+        if (!removed && typeof MS.remove === "function") {
+          MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && String(m.instanceId || "") === iid);
+        }
+      } catch (_) {}
 
       // Record claim.
       if (!sc.claimed || typeof sc.claimed !== "object") sc.claimed = {};
@@ -1138,6 +1156,20 @@ function startGmFactionEncounter(ctx, encounterId, opts) {
     try { if (ctx && typeof ctx.log === "function") ctx.log("[GM] Failed to start faction encounter.", "warn"); } catch (_) {}
     return false;
   }
+
+  // IMPORTANT: GMBridge can be invoked from places that are *not* wrapped by
+  // core/game.js::doAction() (e.g. smoketests calling GMBridge directly, or world
+  // movement hooks). In those cases, there is no automatic applyCtxSyncAndRefresh
+  // call to sync the orchestrator's local state (mode/map/seen/visible) from the
+  // mutated ctx.
+  //
+  // When available, ask GameAPI to perform the orchestrator sync.
+  try {
+    const GA = getMod(ctx, "GameAPI");
+    if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+      GA.applyCtxSyncAndRefresh(ctx);
+    }
+  } catch (_) {}
 
   try {
     if (ctx && typeof ctx.log === "function") {
