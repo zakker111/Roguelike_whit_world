@@ -10,60 +10,127 @@
 let _panel = null;
 let _okCb = null;
 let _cancelCb = null;
-lfunction ensurePanel() {
-  if (_pafunction ensurePanel
-  const panel = document.createEl
-  const panel = document.createElement("div  pa  panel.id = "confirm-panel";
-  panel.style.position = "fi  pane  panel.style.left =   panel  panel.style.top = "50%";
-  panel.style.transform = "translate(-50%, -50%)"    panel.style.zIndex = "50001";
-  // Palette-driv    try {
-      const pal = (typeo    try {
-      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.      const bg = pal && pal.panelB      const bg = pal && pal.panelBg ? pal      const bd = pal && pal.panelB      const bd = pal && pal.panelBorder ? pal.panelBorder :      const sh = pal && pal.panelS      const sh = pal && pal.panelShadow ? pal.panelShadow      panel.style.background = bg;       panel.style.border = bd;
+let _keyHandlerInstalled = false;
+
+function ensurePanel() {
+  if (_panel) return _panel;
+
+  const panel = document.createElement("div");
+  panel.id = "confirm-panel";
+  panel.style.position = "fixed";
+  panel.style.left = "50%";
+  panel.style.top = "50%";
+  panel.style.transform = "translate(-50%, -50%)";
+  panel.style.zIndex = "50001";
+  // Palette-driven modal styling
+  (function () {
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      const bg = pal && pal.panelBg ? pal.panelBg : "rgba(20,24,33,0.98)";
+      const bd = pal && pal.panelBorder ? pal.panelBorder : "1px solid rgba(80,90,120,0.6)";
+      const sh = pal && pal.panelShadow ? pal.panelShadow : "0 10px 30px rgba(0,0,0,0.5)";
+      panel.style.background = bg;
+      panel.style.border = bd;
       panel.style.boxShadow = sh;
     } catch (_) {
-      panel.style.background = "rg      panel.style.ba      panel.style.border = "1px so      panel.style.border =      panel.style.boxShadow = "0 1      panel.style.boxShadow    }
+      panel.style.background = "rgba(20,24,33,0.98)";
+      panel.style.border = "1px solid rgba(80,90,120,0.6)";
+      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
+    }
   })();
-  panel.style.borderRadius = "8px"    panel.style.padding = "12px";
+  panel.style.borderRadius = "8px";
+  panel.style.padding = "12px";
   panel.style.minWidth = "280px";
   panel.style.display = "none";
+  panel.tabIndex = -1;
 
-  const text = document  const text = document  text.id = "confirm-te  tex  text.style.color = "#  text.st  text.style.fontSize =  text.st  text.style.marginBott  text.styl    text.textContent = "A  text.text  te
-  const row = document.  const row  const row  row.style.display = "  row.s  row.style.gap = "8px"    row.style.justifyCont  row.style  row.s
-  const cancelBtn = doc  const can  const cancelBtn = document.createElement(  cancelBtn  cancelBtn.textContent =  cancelBtn  cancelBtn.style.padding = "  cancelBtn  cancelBtn.style.background =   cancelBtn  cancelBtn.style.color =   cancelBtn  cancelBtn.style.border = "1px solid  cancelBtn  cancelBtn.style.borderRadiu  cancelBtn  can  const okBtn = docume
-  const okB  const okBtn = document.createElement(  okB  okBt  okBtn.textConte  okBtn.sty  okBtn.style.padding = "  okBtn.sty  okBtn.style.background =   okBtn.st   okBtn.style.color =   okBtn.sty  okBtn.style.border = "1px solid  okBtn.sty  okBtn.style.borderRadiu  okBtn.sty   row.appendChild(cance  row.a  ro  row.appendChild(c  r  panel.  row.appendChi  pa  panel  panel.appendCh  p
-  document.body.appendC  document.  d  // Button clicks
-  cancelBtn.add  // But  cancelBtn  cancelBtn.addEventListener("click"      const    e.stopProp       hide        try { if (typeof c    hide();
-    try { if (typeof cb === "func  okBtn.addEventListene  okB  });
-  okBtn.addEventListener("click",     const    e.stopPro    hide();
-    try { if (typeof c    hide();
-    try { if (typeof cb === "func
+  const text = document.createElement("div");
+  text.id = "confirm-text";
+  text.style.color = "#e5e7eb";
+  text.style.fontSize = "14px";
+  text.style.marginBottom = "10px";
+  text.textContent = "Are you sure?";
+
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.justifyContent = "flex-end";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.style.padding = "6px 10px";
+  cancelBtn.style.background = "#111827";
+  cancelBtn.style.color = "#9ca3af";
+  cancelBtn.style.border = "1px solid #374151";
+  cancelBtn.style.borderRadius = "4px";
+  cancelBtn.style.cursor = "pointer";
+
+  const okBtn = document.createElement("button");
+  okBtn.textContent = "OK";
+  okBtn.style.padding = "6px 12px";
+  okBtn.style.background = "#1f2937";
+  okBtn.style.color = "#e5e7eb";
+  okBtn.style.border = "1px solid #334155";
+  okBtn.style.borderRadius = "4px";
+  okBtn.style.cursor = "pointer";
+
+  row.appendChild(cancelBtn);
+  row.appendChild(okBtn);
+  panel.appendChild(text);
+  panel.appendChild(row);
+
+  document.body.appendChild(panel);
+
+  // Button clicks
+  cancelBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const cb = _cancelCb;
+    hide();
+    try { if (typeof cb === "function") cb(); } catch (_) {}
+  });
+  okBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const cb = _okCb;
+    hide();
+    try { if (typeof cb === "function") cb(); } catch (_) {}
+  });
+
   // Outside click cancels
-  panel.addEventListener("click",   panel.a    if (e.target === panel) {
+  panel.addEventListener("click", (e) => {
+    if (e.target === panel) {
       const cb = _cancelCb;
       hide();
-      try { if (typeof cb === "fun      try { if (typeof cb ===      e.stopPropagation();
+      try { if (typeof cb === "function") cb(); } catch (_) {}
+      e.stopPropagation();
     }
   });
 
-  // Keyboard shortcuts (for acces  _panel = panel;
-  retur
-export fun
-export function show(text, pos, onOk, onCancel) {
-  const panel = ensurePanel();
-  _okCb = onOk || null;
-  _cancelCb = onCancel  // Updat
-  // Update text
-  try {
-    const t = document.getElementById("confirm-text");
-    if (t) t.textContent = text || "Are y  } catch (_) {}
+  // Keyboard shortcuts (accessibility + smoketests):
+  // - Enter / Space: OK
+  // - Escape: Cancel
+  if (!_keyHandlerInstalled) {
+    _keyHandlerInstalled = true;
+    window.addEventListener("keydown", (e) => {
+      try {
+        if (!isOpen()) return;
+        const k = e && (e.key || e.code || "");
+        if (k === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          cancel();
+          return;
+        }
+        if (k === "Enter" || k === " " || k === "Spacebar") {
+          e.preventDefault();
+          e.stopPropagation();
+          const cb = _okCb;
+          hide();
+          try { if (typeof cb === "function") cb(); } catch (_) {}
+        }
+      } catch (_) {}
+    }, true);
+  }
 
-  // Positi  // Position (optiona     try {
-    const hasPos = pos && typeof pos === "object";
-    const x = hasPos && typeof pos.x === "number" ? pos.x : undefined;
-    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;
-    if (typeof x === "number" && typeof y === "number") {
-      const left = Math.max(10, Math.min(window.innerWidth - 300, Math.round(x)));
-      
   _panel = panel;
   return panel;
 }
@@ -83,14 +150,13 @@ export function show(text, pos, onOk, onCancel) {
   try {
     const hasPos = pos && typeof pos === "object";
     const x = hasPos && typeof pos.x === "number" ? pos.x : undefined;
-    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;     if (typeof x === "n  hide();
-  try { if (typeof cb === "function") cb(); } catc
-export fun
-export function isOpen() {
-  try { return !!(_panel && _panel.style.display !== "none"); } catch (_) { return 
-import { a
-import { attachGlobal } from "/utils/global.js";
-attachGlobal("ConfirmModal", { show, hide, isOpen, cancel }); ""; // absolute position when pos provided
+    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;
+    if (typeof x === "number" && typeof y === "number") {
+      const left = Math.max(10, Math.min(window.innerWidth - 300, Math.round(x)));
+      const top = Math.max(10, Math.min(window.innerHeight - 120, Math.round(y)));
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+      panel.style.transform = "";
     } else {
       panel.style.left = "50%";
       panel.style.top = "50%";
@@ -99,6 +165,7 @@ attachGlobal("ConfirmModal", { show, hide, isOpen, cancel }); ""; // absolute po
   } catch (_) {}
 
   panel.style.display = "block";
+  try { panel.focus(); } catch (_) {}
 }
 
 export function hide() {
