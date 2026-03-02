@@ -1,3 +1,8 @@
+v1.50.16 — Smoketest fixes: Region Map reachable exits + GameAPI rest endpoints
+
+- Region Map: exit tiles are now always chosen as reachable (walkable) edge tiles, preventing the Region smoketest from getting stuck unable to step onto the designated exit.
+- GameAPI: added `restUntilMorning()` and `restAtInn()` endpoints (smoketest API presence).
+
 v1.50.15 — GM Phase 3 completion: explicit interest tagging (full sweep)
 
 - Completed Phase 3 emitter hygiene so boredom is not reduced by UI/telemetry spam:

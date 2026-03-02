@@ -597,6 +597,34 @@ export function create(ctx) {
       try { return ctx.getClock(); } catch (_) { return { hhmm: "00:00", phase: "day", hours: 0, minutes: 0 }; }
     },
     advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); return true; } catch (_) { return false; } },
+
+    // Rest helpers (used by smoketests / automation)
+    restUntilMorning: () => {
+      try {
+        const clock = ctx.getClock ? ctx.getClock() : (ctx.time || null);
+        const curMin = clock && typeof clock.hours === "number" && typeof clock.minutes === "number"
+          ? ((clock.hours | 0) * 60 + (clock.minutes | 0))
+          : 0;
+        const goalMin = 6 * 60;
+        let delta = goalMin - curMin;
+        if (delta <= 0) delta += 24 * 60;
+        ctx.advanceTimeMinutes(delta);
+        // Keep it simple: full heal on an overnight rest.
+        try { if (ctx.player) ctx.player.hp = ctx.player.maxHp; } catch (_) {}
+        ctx.updateUI();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+    restAtInn: () => {
+      // For automation we treat this as a guaranteed overnight rest.
+      try {
+        return !!api.restUntilMorning();
+      } catch (_) {
+        return false;
+      }
+    },
     
     getPerf: () => {
       try {
