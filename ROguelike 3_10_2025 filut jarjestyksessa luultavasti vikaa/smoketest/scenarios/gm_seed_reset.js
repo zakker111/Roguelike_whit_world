@@ -41,29 +41,42 @@
       gm.debug.intentHistory.push({ kind: "smoketest", reason: "seed_reset_probe" });
     } catch (_) {}
 
-    // Choose a new seed.
+    // Choose a new seed (ensure it differs from current SEED when possible).
     let newSeed = 12345;
     try {
-      const cur = (typeof localStorage !== "undefined" && localStorage) ? (Number(localStorage.getItem("SEED")) >>> 0) : 0;
+      const cur = (typeof localStorage !== "undefined" && localStorage)
+        ? (Number(localStorage.getItem("SEED")) >>> 0)
+        : 0;
       newSeed = ((cur + 1) >>> 0) || 1;
     } catch (_) {}
 
     try { GC.applySeed(() => GA.getCtx(), newSeed); } catch (_) {}
-    await sleep(350);
 
-    const gm1 = (() => {
-      try { return GM.getState(GA.getCtx()); } catch (_) { return null; }
-    })();
+    // Wait for GM to reflect the new seed and for debug probe to be cleared.
+    const deadline = Date.now() + 2500;
+    let afterRunSeed = null;
+    let hasProbe = true;
+    let histLen = 0;
 
-    const afterRunSeed = (gm1 && typeof gm1.runSeed === "number") ? (gm1.runSeed >>> 0) : null;
-    const hist = (gm1 && gm1.debug && Array.isArray(gm1.debug.intentHistory)) ? gm1.debug.intentHistory : [];
-    const hasProbe = !!hist.find(x => x && x.reason === "seed_reset_probe");
+    while (Date.now() < deadline) {
+      const gm1 = (() => {
+        try { return GM.getState(GA.getCtx()); } catch (_) { return null; }
+      })();
+
+      afterRunSeed = (gm1 && typeof gm1.runSeed === "number") ? (gm1.runSeed >>> 0) : null;
+      const hist = (gm1 && gm1.debug && Array.isArray(gm1.debug.intentHistory)) ? gm1.debug.intentHistory : [];
+      histLen = hist.length;
+      hasProbe = !!hist.find(x => x && x.reason === "seed_reset_probe");
+
+      if (afterRunSeed === (newSeed >>> 0) && !hasProbe) break;
+      await sleep(120);
+    }
 
     record(afterRunSeed === (newSeed >>> 0), `GM runSeed updates on applySeed (expected ${newSeed}, got ${afterRunSeed})`);
-    record(hasProbe === false, `GM debug probe cleared on applySeed (intentHistoryLen=${hist.length})`);
+    record(hasProbe === false, `GM debug probe cleared on applySeed (intentHistoryLen=${histLen})`);
 
     return true;
   }
 
-  window.SmokeTest.Scenarios.gm_seed_reset = run;
+  window.SmokeTest.Scenarios.gm_seed_reset = { run };
 })();

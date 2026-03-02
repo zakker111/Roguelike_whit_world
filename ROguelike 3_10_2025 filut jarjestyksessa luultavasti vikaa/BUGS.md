@@ -1,4 +1,5 @@
 # BUGS
+- Deployment: `src/main.js` (and other modules) use absolute ESM imports like `/core/...`; hosting under a subpath (e.g. `https://example.com/game/`) will 404 unless you rewrite requests/configure base path or convert imports to relative.
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls
 - some npc dont sleep in theid beds

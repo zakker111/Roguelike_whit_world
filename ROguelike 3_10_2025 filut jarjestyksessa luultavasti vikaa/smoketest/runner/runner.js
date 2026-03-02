@@ -1041,6 +1041,7 @@
         skeleton_key_chest: S.skeleton_key_chest && S.skeleton_key_chest.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
+        gm_seed_reset: S.gm_seed_reset && S.gm_seed_reset.run,
         gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
         gm_bridge_faction_travel: S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run,
         gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,

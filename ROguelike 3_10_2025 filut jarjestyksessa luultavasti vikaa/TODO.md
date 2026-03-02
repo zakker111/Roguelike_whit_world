@@ -19,6 +19,11 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - `travel.guardFine`: **confirm** (pay/refuse)
       - `quest.bottleMap`: **marker** (player travels and presses `G`)
 
+  - Phase 2 (post-fix follow-ups)
+    - [ ] Make non-marker GM encounter starts ctx-first where appropriate
+      - Audit travel events and other non-marker flows (`travel.banditBounty`, `travel.guardFine`, etc.)
+      - Ensure encounter entry and mode transitions use ctx-first facades (no `GameAPI` ctx reacquire / window-only entry)
+
   - Foundation (must ship in v0.2)
     - [ ] General GM **Action Scheduler**
       - Deterministic arbitration: `priority desc → earliestTurn asc → createdTurn asc → id asc` (no RNG calls during arbitration)
@@ -431,6 +436,16 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Shows an overall progress indicator (percentage of tracked steps complete) and a list of step names with status (OK / pending / failed).
       - Allows forcing a re-run of HealthCheck and/or data validation from the GOD panel to refresh the view.
 
+- [ ] Subpath deployment / base URL clarity
+  - [ ] Convert absolute imports in `src/main.js` to be subpath-safe (relative paths or `import.meta.env.BASE_URL`), **or** explicitly document that the app must be served at site root (`/`).
+
+- [ ] Deployment checklist (quick sanity checks after deploy)
+  - Deploy the correct directory (repo root native ESM vs `dist/` when bundling)
+  - Verify these URLs load and work:
+    - `/`
+    - `/docs/`
+    - `/tools/prefab_editor.html`
+
 - [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
 - [ ] GOD panel: add a toggle to visualize enemy FOV/vision cones
   - GOD toggle that overlays the current FOV/vision radius of selected enemies (or all enemies) on the map:
@@ -454,6 +469,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - [ ] Add explicit smoke coverage for:
     - [ ] Harbor towns: validate harbor detection (`harborDir`), port layout generation, and enter/exit stability.
     - [ ] Towers: validate world → tower entry, internal stairs up/down, tower exit, then normal dungeon entry/exit (transition hygiene).
+    - [ ] GM marker interaction: Surveyor’s Cache (`?`) + Bottle Map (`X`) marker flows (only if the smoketest runner can interact with markers / press `G` reliably)
+      - Validate survey cache prompt opens and the cache state is persisted/cleared as expected
+      - Validate Bottle Map marker encounter entry happens at the marker tile (no position/mode desync) and cleanup removes the marker
   - [ ] Future-proof runner against mode/transition semantics changes:
     - Prefer GameAPI programmatic transitions (`enter*/returnToWorld*/completeEncounter`) before keypress fallbacks.
     - Avoid assumptions about walkability of POI tiles; allow ensureWalkable=false when landing on POIs.
