@@ -27,6 +27,9 @@ let _mechEl = null;
 let _intentsEl = null;
 let _eventsEl = null;
 let _toggleBtn = null;
+let _copyBtn = null;
+let _resetBtn = null;
+let _clearBtn = null;
 let _open = false;
 let _refreshTimer = null;
 
@@ -129,6 +132,66 @@ function toggleGMEnabled() {
     else gm.enabled = false;
     refresh();
   } catch (_) {}
+}
+
+async function copyGMStateToClipboard() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.exportState !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    const snap = GM.exportState(ctx);
+    if (!snap) return false;
+    const text = JSON.stringify(snap, null, 2);
+
+    if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      try { ctx.log && ctx.log("[GM] State copied to clipboard.", "info"); } catch (_) {}
+      return true;
+    }
+
+    // Fallback: prompt so user can copy manually
+    try { window.prompt("Copy GM state:", text); } catch (_) {}
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function resetGMState() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.reset !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    GM.reset(ctx);
+    try { ctx.log && ctx.log("[GM] Reset GM state.", "notice"); } catch (_) {}
+    refresh();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function clearGMPersistedState() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.clearPersisted !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    GM.clearPersisted(ctx);
+    try { ctx.log && ctx.log("[GM] Cleared persisted GM state (GM_STATE_V1).", "notice"); } catch (_) {}
+    refresh();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function installDrag(headerEl, panelEl) {
@@ -277,6 +340,53 @@ function ensurePanel() {
     hide();
   });
 
+  function styleSmallBtn(btn) {
+    btn.style.background = "transparent";
+    btn.style.border = "1px solid #4b5563";
+    btn.style.borderRadius = "999px";
+    btn.style.color = "#e5e7eb";
+    btn.style.cursor = "pointer";
+    btn.style.fontSize = "10px";
+    btn.style.lineHeight = "1";
+    btn.style.padding = "2px 6px";
+  }
+
+  _copyBtn = document.createElement("button");
+  _copyBtn.type = "button";
+  _copyBtn.className = "gm-panel-copy";
+  _copyBtn.textContent = "Copy";
+  styleSmallBtn(_copyBtn);
+  _copyBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    copyGMStateToClipboard();
+  });
+
+  _resetBtn = document.createElement("button");
+  _resetBtn.type = "button";
+  _resetBtn.className = "gm-panel-reset";
+  _resetBtn.textContent = "Reset";
+  styleSmallBtn(_resetBtn);
+  _resetBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    resetGMState();
+  });
+
+  _clearBtn = document.createElement("button");
+  _clearBtn.type = "button";
+  _clearBtn.className = "gm-panel-clear";
+  _clearBtn.textContent = "Clear LS";
+  styleSmallBtn(_clearBtn);
+  _clearBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    clearGMPersistedState();
+  });
+
+  actionsWrap.appendChild(_copyBtn);
+  actionsWrap.appendChild(_resetBtn);
+  actionsWrap.appendChild(_clearBtn);
   actionsWrap.appendChild(_toggleBtn);
   actionsWrap.appendChild(closeBtn);
 

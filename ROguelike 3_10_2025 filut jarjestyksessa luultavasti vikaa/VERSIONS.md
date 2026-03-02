@@ -1,3 +1,13 @@
+v1.50.20 — GM Phase 6: debug/ops ergonomics
+
+- GMRuntime: added `exportState(ctx)` (stable JSON snapshot) and `clearPersisted(ctx)`.
+- GM panel: added header actions: Copy / Reset / Clear LS for faster iteration while developing GM phases.
+
+v1.50.19 — ConfirmModal keyboard support + smoketest confirm reliability
+
+- ConfirmModal now supports keyboard shortcuts: <Enter>/<Space> = OK, <Escape> = Cancel. This makes GM “confirm-first” flows testable and more accessible.
+- GM smoketests now accept confirms via <Enter> for travel encounters, bottle map, and survey cache.
+
 v1.50.18 — GM Phase 5 follow-up: confirm metadata + smoketest reliability
 
 - Travel scheduler metadata: `travel.banditBounty` and `travel.trollHunt` actions are now marked `delivery:"confirm"` (matches Phase 5 behavior).
@@ -9,11 +19,6 @@ v1.50.17 — GM Phase 5: choice-first interventions (confirm before starting enc
 - Faction travel encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now prompt a confirm modal before entering the encounter.
 - GM markers (`gm.bottleMap`, `gm.surveyCache`) now prompt a confirm modal before entering their encounter scenes.
 - Showing these confirm prompts records a pacing intervention via `GMRuntime.recordIntervention(...)`.
-
-v1.50.19 — ConfirmModal keyboard support + smoketest confirm reliability
-
-- ConfirmModal now supports keyboard shortcuts: <Enter>/<Space> = OK, <Escape> = Cancel. This makes GM “confirm-first” flows testable and more accessible.
-- GM smoketests now accept confirms via <Enter> for travel encounters, bottle map, and survey cache.
 
 v1.50.16 — Smoketest fixes: Region Map reachable exits + GameAPI rest endpoints
 

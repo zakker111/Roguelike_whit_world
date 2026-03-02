@@ -669,6 +669,22 @@ export function __setRawState(nextState, ctx) {
   return _state;
 }
 
+export function exportState(ctx) {
+  // Stable snapshot for debugging/UI export (avoid leaking live references)
+  try {
+    const gm = getState(ctx);
+    if (!gm || typeof gm !== "object") return null;
+    return JSON.parse(JSON.stringify(gm));
+  } catch (_) {
+    return null;
+  }
+}
+
+export function clearPersisted(ctx) {
+  try { clearPersistedState(ctx); } catch (_) {}
+  return true;
+}
+
 // Back-compat: attach to window
 attachGlobal("GMRuntime", {
   init,
@@ -676,6 +692,8 @@ attachGlobal("GMRuntime", {
   onEvent,
   getState,
   reset,
+  exportState,
+  clearPersisted,
   getEntranceIntent,
   getMechanicHint,
   recordIntervention,
