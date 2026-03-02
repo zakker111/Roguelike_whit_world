@@ -1,23 +1,9 @@
 # PROMPT.md — AI Coding Guidelines and Project Prompt
 
-This document is a persistent prompt for AI-assisted development in this repository.
+This document is a persistent prompt for AI-assisted development on this project.  
 Any time the AI edits code here, it should follow these rules.
 
 ---
-
-## Table of Contents
-
-- [1. High-Level Principles](#1-high-level-principles)
-- [2. Module Boundaries and Where to Put Code](#2-module-boundaries-and-where-to-put-code)
-- [3. Data-First, Code-Second Design](#3-data-first-code-second-design)
-- [4. Coding Style for Readability](#4-coding-style-for-readability)
-- [5. JSON Usage Guidelines](#5-json-usage-guidelines)
-- [6. Testing and Smoketests](#6-testing-and-smoketests)
-- [7. Logging, Debug, and GOD Tools](#7-logging-debug-and-god-tools)
-- [8. How the AI Should “Think” While Coding](#8-how-the-ai-should-think-while-coding)
-- [9. Performance in Hot Paths](#9-performance-in-hot-paths)
-- [10. Versioning, Docs, and Housekeeping](#10-versioning-docs-and-housekeeping)
-- [11. Health Check & Module Registration (Boot Diagnostics)](#11-health-check--module-registration-boot-diagnostics)
 
 ## 1. High-Level Principles
 
@@ -82,15 +68,6 @@ When adding or changing code, first decide where it belongs:
 - If it’s “how the game runs” → `core/`.
 - If it’s “what exists in the world” → `data/` (and maybe `worldgen/`).
 - If it’s “how actors behave” → `ai/`.
-
-### 2.1 Adding New Files / Folders (Architecture Hygiene)
-
-- Before writing new code, look for an existing helper you can reuse (see §4.1).
-- Add a new file/module only when it reduces coupling: (a) reused in 2+ places, (b) a file is mixing concerns, or (c) you’re introducing a clear new domain within an existing top-level area (`ai/`, `core/`, `ui/`, `worldgen/`, `data/`).
-- Prefer extending existing folders; avoid creating new **top-level** directories unless the domain is durable and will contain multiple modules.
-- Naming: match existing `lower_snake_case` filenames (e.g. `town_population.js`) and use domain-specific folder names over generic new `utils/` buckets.
-- This project uses browser-native ESM; keep import style consistent with nearby code (avoid inventing new aliasing patterns).
-- In HTML entrypoints, prefer relative `./...` links (avoid leading `/`) so deployments under subpaths don’t 404.
 
 ---
 
@@ -168,14 +145,6 @@ When writing or refactoring code:
   - Module-level JSDoc: explain what the module does and which other modules it depends on.
   - Function-level JSDoc: for exported or complex helpers.
   - Avoid comments that just restate code.
-
-### 4.1 Reuse Existing Helpers (Avoid Duplication)
-
-- Before implementing new behavior, **search for an existing helper** in the nearest domain module (`ai/`, `core/`, `ui/`, `worldgen/`, `services/`, `utils/`).
-- Prefer **calling or slightly extending** an existing helper over copy-pasting a block of logic.
-- If a helper is “almost right”, add a **thin wrapper** at the call site rather than forking the logic.
-- If identical/near-identical logic appears twice in your patch, **extract it immediately** (same PR) into the most relevant `*_helpers.js` file.
-- Keep one source of truth: remove old duplicates when you introduce a shared helper.
 
 ---
 

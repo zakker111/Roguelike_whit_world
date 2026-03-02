@@ -1,3 +1,8 @@
+v1.76.0 — Docs: GM ctx-first follow-up + subpath deploy caveat
+
+- TODO: Added Phase 2 follow-up: make non-marker GM encounter starts ctx-first where appropriate.
+- BUGS: Documented that absolute ESM imports like `/core/...` will 404 when hosting under a subpath unless you set a base path / rewrite / convert to relative imports.
+
 2026-03-02 — GM v0.2 hygiene: reset GM on seed changes
 
 - Applying a seed via GOD (`Apply Seed` / `Reroll`) now also resets GMRuntime so GM state does not leak across runs when the seed changes.
