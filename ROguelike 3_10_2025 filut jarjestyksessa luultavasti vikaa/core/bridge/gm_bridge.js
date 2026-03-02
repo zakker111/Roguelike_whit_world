@@ -55,6 +55,28 @@ const FALLBACK_GM_ENCOUNTER_TEMPLATES = {
       { type: "bandit", count: { min: 3, max: 6 }, faction: "bandit" }
     ]
   },
+  gm_bandit_bounty: {
+    id: "gm_bandit_bounty",
+    name: "GM: Bandit Bounty",
+    baseWeight: 0.0,
+    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+    map: { generator: "ruins", w: 26, h: 18 },
+    objective: { type: "clearAll" },
+    groups: [
+      { type: "bandit", count: { min: 4, max: 7 }, faction: "bandit" }
+    ]
+  },
+  gm_troll_hunt: {
+    id: "gm_troll_hunt",
+    name: "GM: Troll Hunt",
+    baseWeight: 0.0,
+    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+    map: { generator: "ruins", w: 26, h: 18 },
+    objective: { type: "clearAll" },
+    groups: [
+      { type: "troll", count: { min: 1, max: 2 }, faction: "monster" }
+    ]
+  },
 };
 
 function mulberry32(seed) {
@@ -333,6 +355,9 @@ export function ensureGuaranteedSurveyCache(ctx) {
 
 export function maybeHandleWorldStep(ctx) {
   if (!ctx) return false;
+
+  // Travel events are overworld-only. Guard against accidental calls from other modes.
+  if (typeof ctx.mode === "string" && ctx.mode !== "world") return false;
 
   // Respect gm.enabled: if GM is disabled, do not run any GM-driven world-step intents.
   if (!isGmEnabled(ctx)) return false;
@@ -1114,33 +1139,15 @@ function startGmFactionEncounter(ctx, encounterId, opts) {
   if (difficulty < 1) difficulty = 1;
   if (difficulty > 5) difficulty = 5;
 
-  // v0.3 direction: prefer ctx-first transitions everywhere to avoid ctx reacquire
-  // desync (world movement and marker actions can both run inside commit cycles).
-  // Allow explicit opt-out via opts.ctxFirst === false.
-  const ctxFirst = !(opts && Object.prototype.hasOwnProperty.call(opts, "ctxFirst") && opts.ctxFirst === false);
-
-  let ok = false;
-
+  // Phase 2: GM encounter starts must be ctx-first (no GameAPI ctx reacquire).
   // Preferred: ctx-first entry via Modes facade.
-  if (ctxFirst) {
-    try {
-      const M = (ctx && ctx.Modes) ? ctx.Modes : getMod(ctx, "Modes");
-      if (M && typeof M.enterEncounter === "function") {
-        ok = !!M.enterEncounter(ctx, tmpl, biome, difficulty);
-      }
-    } catch (_) {}
-  }
-
-  // Legacy / fallback: allow GameAPI entry only when ctxFirst is explicitly disabled.
-  // This is kept for compatibility with older flows, but should not be the default.
-  if (!ok && !ctxFirst) {
-    try {
-      const GA = getMod(ctx, "GameAPI");
-      if (GA && typeof GA.enterEncounter === "function") {
-        ok = !!GA.enterEncounter(tmpl, biome, difficulty);
-      }
-    } catch (_) {}
-  }
+  let ok = false;
+  try {
+    const M = (ctx && ctx.Modes) ? ctx.Modes : getMod(ctx, "Modes");
+    if (M && typeof M.enterEncounter === "function") {
+      ok = !!M.enterEncounter(ctx, tmpl, biome, difficulty);
+    }
+  } catch (_) {}
 
   // Fallback: direct EncounterRuntime entry (still ctx-first).
   if (!ok) {

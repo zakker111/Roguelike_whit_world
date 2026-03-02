@@ -106,7 +106,7 @@ From current audit:
 
 - **Travel-event encounter starts**
   - Path: `core/world/move.js` → `GMBridge.maybeHandleWorldStep(ctx)` → `startGmFactionEncounter(ctx, encId)`
-  - **Status:** updated during Phase 2 work so `startGmFactionEncounter` is **ctx-first by default** (opts can still explicitly set `ctxFirst:false` for legacy behavior).
+  - **Status:** updated during Phase 2 work so `startGmFactionEncounter` is **ctx-first always** (no `GameAPI.enterEncounter` ctx reacquire path).
 
 **Phase 2 action (now in-progress):** ensure all GM-driven encounter starts remain ctx-first and remove any remaining ctx-reacquire paths where they can desync movement/transition commits.
 

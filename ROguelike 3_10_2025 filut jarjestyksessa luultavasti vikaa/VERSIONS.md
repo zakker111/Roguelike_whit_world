@@ -1,3 +1,10 @@
+v1.50.11 — GM Phase 2: travel encounter hardening
+
+- GM travel-event encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now have minimal fallback templates inside `core/bridge/gm_bridge.js`.
+  - This prevents “silent no-op” when encounter registries haven’t loaded yet.
+- GMBridge travel-event delivery is now guarded as **world-mode only** (`GMBridge.maybeHandleWorldStep` returns false outside `ctx.mode === "world"`).
+- GM encounter starts inside `GMBridge.startGmFactionEncounter` are now strictly ctx-first (no legacy `GameAPI.enterEncounter` branch).
+
 v1.76.0 — Docs: GM ctx-first follow-up + subpath deploy caveat
 
 - TODO: Added Phase 2 follow-up: make non-marker GM encounter starts ctx-first where appropriate.
