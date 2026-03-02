@@ -112,7 +112,8 @@ This file collects planned features, ideas, and technical cleanups that were pre
     - Partial recovery instead (reduce boredom by a fraction / tiered stepdown)
     - Introduce event “interest weight” (or tiering)
   - Phase list (1–4)
-    - [ ] Phase 1: Audit boredom + eligibility transitions
+    - [x] Phase 1: Audit boredom + eligibility transitions
+      - Report: `analysis/gm_phase1_audit.md`
     - [ ] Phase 2: Ctx-first hardening (all GM entry/exit points)
     - [ ] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
     - [ ] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)

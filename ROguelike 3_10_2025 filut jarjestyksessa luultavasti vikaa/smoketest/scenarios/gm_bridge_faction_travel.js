@@ -96,7 +96,7 @@
       try { handled = !!GMB.maybeHandleWorldStep(worldCtx0); } catch (_) { handled = false; }
       record(handled, "GMBridge.maybeHandleWorldStep handles forced travel event");
 
-      // Confirm should be open if UI is present. (Fallback path is auto-pay).
+      // Confirm should be open if UI is present. (No forced-outcome fallback when confirm UI is missing.)
       const canCheck = !!(CM && has(CM.isOpen));
       if (!canCheck) {
         record(true, "ConfirmModal.isOpen not available; cannot assert modal open state (non-fatal)");
