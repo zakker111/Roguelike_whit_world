@@ -1,3 +1,8 @@
+v1.50.23 — GM Phase 7A/7B: Bottle Map pity debug + smoketest
+
+- GM panel now displays Bottle Map fishing pity-timer state + derived chance (Profile section).
+- Added smoketest scenario `gm_bottle_map_fishing_pity` to ensure the pity timer eventually awards a Bottle Map.
+
 v1.50.22 — GM Phase 7 start: Bottle Map fishing pity timer
 
 - Bottle Map fishing drop is now GM-driven (boredom-gated pity timer) via `GMBridge.maybeAwardBottleMapFromFishing(ctx)`.

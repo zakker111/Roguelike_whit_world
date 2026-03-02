@@ -104,6 +104,68 @@ function formatIntentDebugExtras(intent) {
   return parts.length ? " " + parts.join(" ") : "";
 }
 
+function getBottleMapFishingConfigForPanel() {
+  const DEFAULTS = { S0: 60, Smax: 180, boredomMin: 0.2, boredomMultMax: 3.0, cooldownTurns: 400 };
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config)
+      ? window.GameData.config
+      : null;
+
+    const f = cfg && cfg.gm && cfg.gm.bottleMap && cfg.gm.bottleMap.fishing && typeof cfg.gm.bottleMap.fishing === "object"
+      ? cfg.gm.bottleMap.fishing
+      : null;
+
+    let S0 = f && typeof f.S0 === "number" && Number.isFinite(f.S0) ? (f.S0 | 0) : DEFAULTS.S0;
+    let Smax = f && typeof f.Smax === "number" && Number.isFinite(f.Smax) ? (f.Smax | 0) : DEFAULTS.Smax;
+    let boredomMin = f && typeof f.boredomMin === "number" && Number.isFinite(f.boredomMin) ? f.boredomMin : DEFAULTS.boredomMin;
+    let boredomMultMax = f && typeof f.boredomMultMax === "number" && Number.isFinite(f.boredomMultMax) ? f.boredomMultMax : DEFAULTS.boredomMultMax;
+    let cooldownTurns = f && typeof f.cooldownTurns === "number" && Number.isFinite(f.cooldownTurns) ? (f.cooldownTurns | 0) : DEFAULTS.cooldownTurns;
+
+    if (S0 < 0) S0 = 0;
+    if (Smax < S0) Smax = S0;
+    if (boredomMin < 0) boredomMin = 0;
+    if (boredomMin > 1) boredomMin = 1;
+    if (boredomMultMax < 1) boredomMultMax = 1;
+    if (cooldownTurns < 0) cooldownTurns = 0;
+
+    return { S0, Smax, boredomMin, boredomMultMax, cooldownTurns };
+  } catch (_) {
+    return Object.assign({}, DEFAULTS);
+  }
+}
+
+function deriveBottleMapFishingChance(eligibleSuccesses, boredom, cfg) {
+  const baseChance = 0.002;
+  const maxChance = 0.10;
+
+  let b = typeof boredom === "number" && Number.isFinite(boredom) ? boredom : 0;
+  if (b < 0) b = 0;
+  if (b > 1) b = 1;
+
+  const S0 = (cfg && typeof cfg.S0 === "number") ? (cfg.S0 | 0) : 0;
+  const Smax = (cfg && typeof cfg.Smax === "number") ? (cfg.Smax | 0) : 0;
+  const boredomMin = (cfg && typeof cfg.boredomMin === "number" && Number.isFinite(cfg.boredomMin)) ? cfg.boredomMin : 0;
+  const boredomMultMax = (cfg && typeof cfg.boredomMultMax === "number" && Number.isFinite(cfg.boredomMultMax)) ? cfg.boredomMultMax : 1;
+
+  const s = eligibleSuccesses | 0;
+  const eligible = b >= boredomMin;
+
+  if (!eligible || s < S0) {
+    return { eligible, s, boredom: b, chance: 0, forced: false };
+  }
+
+  const denom = Math.max(1, Smax - S0);
+  const t = Math.max(0, Math.min(1, (s - S0) / denom));
+
+  let chance = baseChance + t * (maxChance - baseChance);
+  chance *= (1 + b * (boredomMultMax - 1));
+
+  const forced = s >= Smax;
+  if (forced) chance = 1;
+
+  return { eligible, s, boredom: b, chance, forced };
+}
+
 function getGMState() {
   try {
     if (typeof window === "undefined") return null;
@@ -680,6 +742,33 @@ function renderSnapshot(gm) {
     const pLast = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn)) ? (p.lastInterventionTurn | 0) : -9999;
     const pCd = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns)) ? (p.lastCooldownTurns | 0) : 0;
     linesProfile.push(`  pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
+
+    const threads = gm.threads && typeof gm.threads === "object" ? gm.threads : {};
+    const bottleMap = threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
+    const fishing = bottleMap && bottleMap.fishing && typeof bottleMap.fishing === "object" ? bottleMap.fishing : null;
+
+    const bmActive = !!(bottleMap && bottleMap.active === true);
+    const bmStatus = bottleMap && typeof bottleMap.status === "string" && bottleMap.status ? bottleMap.status : "-";
+    const bmInstanceId = bottleMap && bottleMap.instanceId != null ? String(bottleMap.instanceId) : "";
+
+    const eligibleSuccesses = fishing ? (fishing.eligibleSuccesses | 0) : 0;
+    const totalSuccesses = fishing ? (fishing.totalSuccesses | 0) : 0;
+    const lastAwardTurn = fishing && typeof fishing.lastAwardTurn === "number" && Number.isFinite(fishing.lastAwardTurn) ? (fishing.lastAwardTurn | 0) : -9999;
+    const awardCount = fishing ? (fishing.awardCount | 0) : 0;
+
+    const cfgBM = getBottleMapFishingConfigForPanel();
+    const derived = deriveBottleMapFishingChance(eligibleSuccesses, boredomLevel, cfgBM);
+    const chancePct = Math.round((derived.chance * 100) * 1000) / 1000;
+    const forcedStr = derived.forced ? " (FORCED)" : "";
+    const iidPart = bmInstanceId ? ` instanceId=${bmInstanceId}` : "";
+
+    linesProfile.push("  bottle map (fishing):");
+    linesProfile.push(`    thread: active=${bmActive} status=${bmStatus}${iidPart}`);
+    linesProfile.push(`    counters: eligibleSuccesses=${eligibleSuccesses} totalSuccesses=${totalSuccesses} lastAwardTurn=${lastAwardTurn} awardCount=${awardCount}`);
+    linesProfile.push(
+      `    config: S0=${cfgBM.S0} Smax=${cfgBM.Smax} boredomMin=${cfgBM.boredomMin.toFixed(2)} boredomMultMax=${cfgBM.boredomMultMax.toFixed(2)} cooldownTurns=${cfgBM.cooldownTurns}`
+    );
+    linesProfile.push(`    chance: eligible=${derived.eligible} boredom=${derived.boredom.toFixed(2)} s=${derived.s} chance=${chancePct}%${forcedStr}`);
 
     const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
     const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);

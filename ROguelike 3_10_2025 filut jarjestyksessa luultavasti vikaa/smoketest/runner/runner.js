@@ -1046,6 +1046,7 @@
         gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
         gm_bridge_faction_travel: S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run,
         gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,
+        gm_bottle_map_fishing_pity: S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run,
         gm_survey_cache: S.gm_survey_cache && S.gm_survey_cache.run,
       };
       let pipeline = [];
