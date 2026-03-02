@@ -784,6 +784,7 @@ import { MarkerService } from "./marker_service.js";
         } catch (_) {}
         GM.onEvent(ctx, {
           type: "quest.complete",
+          interestTier: "major",
           scope: ctx && ctx.mode ? ctx.mode : "town",
           questId: String(qi.templateId || qi.instanceId || "unknown"),
           tags,
@@ -791,8 +792,8 @@ import { MarkerService } from "./marker_service.js";
         });
         try {
           const scope = ctx && ctx.mode ? ctx.mode : "town";
-          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "tried", detail: "accept" });
-          GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "success", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "questBoard", action: "tried", detail: "accept" });
+          GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "questBoard", action: "success", detail: "accept" });
         } catch (_) {}
       }
     } catch (_) {}

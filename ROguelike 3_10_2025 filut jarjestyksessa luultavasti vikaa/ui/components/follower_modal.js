@@ -409,7 +409,7 @@ export function show(ctx = null, view = null) {
     const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
     if (GM && typeof GM.onEvent === "function") {
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "seen", detail: "inspect" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "seen", detail: "inspect" });
     }
   } catch (_) {}
 }
@@ -423,7 +423,7 @@ export function hide() {
     if (GM && typeof GM.onEvent === "function") {
       const ctx = _ctxForCommands;
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "dismiss", detail: "close" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "dismiss", detail: "close" });
     }
   } catch (_) {}
 }

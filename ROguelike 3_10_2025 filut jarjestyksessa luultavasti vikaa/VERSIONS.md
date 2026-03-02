@@ -1,3 +1,13 @@
+v1.50.14 — GM Phase 3 follow-up: explicit interest tagging at emitters
+
+- Explicitly tagged high-frequency `type:"mechanic"` UI telemetry as `interesting:false`:
+  - Fishing modal (`mechanic:fishing`)
+  - Lockpicking modal (`mechanic:lockpicking`)
+  - Quest board open/close (`mechanic:questBoard`)
+  - Follower inspect open/close (`mechanic:followers`)
+- `quest.complete` events are now explicitly emitted as `interestTier:"major"` (keeps the major hard-reset semantics).
+- `combat.kill` events are now explicitly emitted as `interestTier:"minor"`.
+
 v1.50.13 — GM Phase 4: boredom-gated pacing + deterministic cooldown
 
 - Added v0.3 pacing state to GM (`gm.pacing.nextEligibleTurn`, `gm.pacing.lastInterventionTurn`, `gm.pacing.lastCooldownTurns`).
