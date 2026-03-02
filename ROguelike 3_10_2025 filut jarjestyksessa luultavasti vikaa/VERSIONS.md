@@ -1,3 +1,9 @@
+2026-03-02 — GM v0.2 hygiene: reset GM on seed changes
+
+- Applying a seed via GOD (`Apply Seed` / `Reroll`) now also resets GMRuntime so GM state does not leak across runs when the seed changes.
+  - Implemented in `data/god.js::applySeed` so it happens before world/floor regeneration.
+- Added smoketest scenario `gm_seed_reset`.
+
 2026-03-01 — GM thread: Surveyor's Cache (hybrid spawn) + scan-time marker hook
 
 - Added a new Bottle-Map-style GM thread triggered by a `gm.*` overworld marker: **Surveyor's Cache** (`gm.surveyCache`).
