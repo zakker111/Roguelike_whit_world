@@ -607,7 +607,7 @@ function handleBottleMapMarker(ctx, marker) {
 
     // Only start encounter if this marker matches the active thread target.
     const inst = marker && marker.instanceId != null ? String(marker.instanceId) : "";
-    if (thread.instanceId && inst && String(thread.instanceId) !== inst) {
+    if (thread.instanceId && String(thread.instanceId) !== inst) {
       return true;
     }
 
@@ -921,13 +921,13 @@ function ensureBottleMapMarkerIntegrity(ctx) {
     return true;
   }
 
-  // Remove any mismatched bottle map markers (stale instanceId).
+  // Remove any mismatched bottle map markers (stale instanceId, including legacy markers
+  // missing an instanceId). This prevents claiming the active thread reward from the wrong marker.
   try {
     MS.remove(ctx, (m) => {
       if (!m) return false;
       if (String(m.kind || "") !== "gm.bottleMap") return false;
-      const mid = String(m.instanceId || "");
-      return mid && mid !== iid;
+      return String(m.instanceId || "") !== iid;
     });
   } catch (_) {}
 
@@ -1229,15 +1229,37 @@ export function useInventoryItem(ctx, item, idx) {
   }
 
   // Consume the item.
+  // Defensive: InventoryFlow should pass a valid idx, but avoid (idx|0) pitfalls
+  // (e.g. undefined|0 === 0) which could delete the wrong inventory slot.
   let consumed = false;
   try {
     const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
-    const i = (idx | 0);
-    if (i >= 0 && i < inv.length) {
-      inv.splice(i, 1);
-      consumed = true;
+
+    let i = -1;
+    if (typeof idx === "number" && Number.isFinite(idx)) i = (idx | 0);
+
+    // Prefer strict identity match to avoid consuming the wrong item.
+    if (i < 0 || i >= inv.length || inv[i] !== item) {
+      const byRef = inv.indexOf(item);
+      if (byRef >= 0) i = byRef;
     }
-  } catch (_) {}
+
+    // If the resolved index isn't a bottle map, abort.
+    if (i >= 0 && i < inv.length && inv[i] && !isBottleMapItem(inv[i])) i = -1;
+
+    if (i < 0 || i >= inv.length) {
+      try { if (typeof ctx.log === "function") ctx.log("The Bottle Map slips from your fingers. Nothing happens.", "warn"); } catch (_) {}
+      return true;
+    }
+
+    inv.splice(i, 1);
+    consumed = true;
+  } catch (_) {
+    return true;
+  }
+
+  // Safety: never start a Bottle Map thread if we failed to consume the map.
+  if (!consumed) return true;
 
   // Roll deterministic target + reward using GM RNG.
   const target = pickBottleMapTarget(ctx, gm);

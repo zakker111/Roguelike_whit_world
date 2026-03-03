@@ -1,3 +1,10 @@
+v1.50.26 — GM Phase 7D hotfix: Bottle Map consumption + legacy marker safety
+
+- Bottle Map use now consumes the correct inventory slot even if `idx` is missing/invalid (prevents deleting slot 0 due to `undefined|0`).
+- Bottle Map encounters can no longer be started from legacy `gm.bottleMap` markers that are missing/incorrect `instanceId`.
+- Marker integrity now removes *all* mismatched Bottle Map markers (including empty `instanceId`) while a thread is active.
+- Smoketest `gm_bottle_map` expanded: idx-safety regression + better activation-failure forcing (patches both `World.isWalkable` and `world.gen.isWalkable`).
+
 v1.50.25 — GM Phase 7D: Bottle Map lifecycle gate + marker integrity
 
 - Bottle Map activation now fails gracefully if a valid overworld target cannot be found (refunds the item and marks the thread expired).
