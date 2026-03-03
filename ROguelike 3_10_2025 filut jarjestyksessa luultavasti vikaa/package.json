@@ -11,11 +11,12 @@
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --fix",
     "lint:strict": "ESLINT_USE_FLAT_CONFIG=false eslint . --max-warnings=0",
     "format": "prettier --write .",
+    "test": "node scripts/test_gm.js",
     "gen:manifest": "node scripts/gen_manifest.js",
     "gen:smoke": "node scripts/gen_smoke_manifest.js",
     "analyze:phase1": "node scripts/analyze.js",
     "analyze:imports": "node scripts/import_graph.js",
-    "ci": "npm run lint:strict && npm run build"
+    "ci": "npm run lint:strict && npm run test && npm run build"
   },
   "devDependencies": {
     "vite": "^5.3.3",

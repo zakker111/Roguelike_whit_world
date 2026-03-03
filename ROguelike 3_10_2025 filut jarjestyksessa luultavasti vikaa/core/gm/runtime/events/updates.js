@@ -5,6 +5,13 @@
  * - Deterministic: derived only from inputs + existing `gm` state.
  * - Side-effect free beyond mutating the provided GM state bag.
  * - Must not touch localStorage (or any other persistence).
+ *
+ * Semantics note (families/factions counters):
+ * - `positive` ~= "slayer" evidence (player acted against this group; e.g. kills)
+ * - `negative` ~= "ally" evidence (player acted with/for this group; e.g. helped/appeased)
+ * - `score = (positive - negative) / (positive + negative)` so:
+ *   - `score > 0` => slayer-leaning
+ *   - `score < 0` => ally-leaning
  */
 
 import { GUARD_FINE_HEAT_TURNS } from "../constants.js";
@@ -87,6 +94,11 @@ export function extractFactionKeysFromTags(rawTags) {
 
 /**
  * Update `gm.families` metrics based on a `combat.kill` event.
+ *
+ * Semantics note (families/factions):
+ * - `positive` ~= "slayer" evidence (player acted against this group; e.g. kills)
+ * - `negative` ~= "ally" evidence (player acted with/for this group; e.g. helped/appeased)
+ * - `score = (positive - negative) / (positive + negative)` so `score > 0` => slayer, `score < 0` => ally.
  *
  * @param {Record<string, any>} families
  * @param {any} event

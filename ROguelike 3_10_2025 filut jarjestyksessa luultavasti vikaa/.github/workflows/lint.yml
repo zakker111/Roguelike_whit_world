@@ -1,4 +1,4 @@
-name: CI Lint and Build
+name: CI Lint, Test and Build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ "**" ]
 
 jobs:
-  lint-and-build:
+  lint-test-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,6 +23,9 @@ jobs:
 
       - name: Lint (strict)
         run: npm run lint:strict
+
+      - name: Test (GM sims, Node)
+        run: npm test
 
       - name: Build
         run: npm run build

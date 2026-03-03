@@ -316,24 +316,60 @@ export function ensureScheduler(gm) {
     if (!a.payload || typeof a.payload !== "object") a.payload = {};
   }
 
-  // Normalize queue: keep only ids that exist and preserve order.
+  // Normalize queue:
+  // - keep only ids that exist in `actions`
+  // - dedupe while preserving the *first* occurrence (insertion order)
+  //
+  // Note: we mutate the existing array in-place to avoid changing references.
   const q = s.queue;
+  const normalized = [];
   const seen = new Set();
-  for (let i = q.length - 1; i >= 0; i--) {
+
+  for (let i = 0; i < q.length; i++) {
     const id = q[i];
     const key = typeof id === "string" ? id : String(id);
-    if (!key || !Object.prototype.hasOwnProperty.call(actions, key) || seen.has(key)) {
-      q.splice(i, 1);
-      continue;
-    }
-    q[i] = key;
+    if (!key) continue;
+    if (!Object.prototype.hasOwnProperty.call(actions, key)) continue;
+    if (seen.has(key)) continue;
+    normalized.push(key);
     seen.add(key);
   }
+
   // Ensure every action id is present at least once.
+  // If an action id is missing from the queue (corrupt/legacy state), append it
+  // in a deterministic order.
+  const missing = [];
   for (const id in actions) {
     if (!Object.prototype.hasOwnProperty.call(actions, id)) continue;
-    if (!seen.has(id)) q.push(id);
+    if (!seen.has(id)) missing.push(id);
   }
+
+  if (missing.length) {
+    const intId = /^\d+$/;
+    missing.sort((a, b) => {
+      const at = (actions[a] && typeof actions[a] === "object") ? (actions[a].createdTurn | 0) : 0;
+      const bt = (actions[b] && typeof actions[b] === "object") ? (actions[b].createdTurn | 0) : 0;
+      if (at !== bt) return at - bt;
+
+      // If ids are numeric strings (common case with `nextId`), compare numerically.
+      if (intId.test(a) && intId.test(b)) {
+        const an = Number(a);
+        const bn = Number(b);
+        if (an !== bn) return an - bn;
+      }
+
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    });
+
+    for (let i = 0; i < missing.length; i++) {
+      normalized.push(missing[i]);
+    }
+  }
+
+  q.length = 0;
+  for (let i = 0; i < normalized.length; i++) q.push(normalized[i]);
 
   // Bound history to a small size so persisted state stays cheap.
   const maxHist = Math.max(16, GM_SCHED_WINDOW_TURNS);

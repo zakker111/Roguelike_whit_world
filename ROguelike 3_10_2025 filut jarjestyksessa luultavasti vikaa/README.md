@@ -352,6 +352,7 @@ Cleanup and pre‑merge checklist (Phase 5)
   - Output written to analysis/phase1_report.md (top 20 largest files and approximate duplicated 3‑line shingles across JS).
 - Recommended pre‑merge steps:
   - Run lint and formatter (see above).
+  - Run unit/integration sanity checks: `npm test` (GM sims, Node).
   - Regenerate analysis/phase1_report.md and skim duplicates for potential DRY refactors.
   - Run smoketest (?smoketest=1) and confirm 0 FAIL steps; small SKIPs are acceptable.
   - Verify GOD toggles for Grid/Perf/Minimap and debug overlays behave as expected.
