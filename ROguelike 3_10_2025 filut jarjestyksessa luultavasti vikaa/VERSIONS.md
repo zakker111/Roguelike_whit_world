@@ -1,3 +1,8 @@
+v1.50.27 — GM Phase 7D hotfix: Survey Cache marker consumption
+
+- Survey Cache (`gm.surveyCache` / `?`) markers are now consumed/removed when the encounter ends for **any** outcome (victory/defeat/escape).
+- GM state now records the cache as exhausted on encounter completion so scan-time procedural spawns do not respawn the same marker.
+
 v1.50.26 — GM Phase 7D hotfix: Bottle Map consumption + legacy marker safety
 
 - Bottle Map use now consumes the correct inventory slot even if `idx` is missing/invalid (prevents deleting slot 0 due to `undefined|0`).

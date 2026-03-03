@@ -2,9 +2,10 @@
   // SmokeTest Scenario: Survey Cache (gm.surveyCache)
   // Validates:
   // - A gm.surveyCache marker can be added underfoot.
-  // - Pressing 'g' on the marker starts the Survey Cache encounter.
-  // - Withdrawing keeps the marker.
-  // - Winning pays out (gold delta) and removes the marker.
+  // - Pressing 'g' on the marker prompts confirm and starts the Survey Cache encounter.
+  // - Withdrawing consumes the cache (marker removed + claimed state set).
+  // - A consumed cache is not re-enterable.
+  // - Winning pays out (gold delta) and consumes the marker.
 
   window.SmokeTest = window.SmokeTest || {};
   window.SmokeTest.Scenarios = window.SmokeTest.Scenarios || {};
@@ -99,7 +100,7 @@
       return true;
     }
 
-    const gctx = G.getCtx();
+    let gctx = G.getCtx();
     if (!gctx || gctx.mode !== "world") {
       recordSkip("Survey Cache skipped (not in world mode)");
       return true;
@@ -132,6 +133,60 @@
       }
     };
 
+    const getSurveyCacheThread = () => {
+      try {
+        const c = has(G.getCtx) ? G.getCtx() : gctx;
+        const gm = (c && c.gm && typeof c.gm === "object") ? c.gm : null;
+        const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
+        return (threads && threads.surveyCache && typeof threads.surveyCache === "object") ? threads.surveyCache : null;
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const clearSurveyCacheState = (id) => {
+      try {
+        const sc = getSurveyCacheThread();
+        if (!sc) return;
+
+        if (sc.active && sc.active.instanceId && String(sc.active.instanceId) === String(id)) sc.active = null;
+
+        if (sc.claimed && typeof sc.claimed === "object") {
+          try { delete sc.claimed[String(id)]; } catch (_) {}
+        }
+        if (Array.isArray(sc.claimedOrder)) {
+          sc.claimedOrder = sc.claimedOrder.filter((x) => String(x || "") !== String(id));
+        }
+        if (sc.attempts && typeof sc.attempts === "object") {
+          try { delete sc.attempts[String(id)]; } catch (_) {}
+        }
+      } catch (_) {}
+    };
+
+    const isSurveyCacheClaimed = (id) => {
+      try {
+        const sc = getSurveyCacheThread();
+        const claimed = (sc && sc.claimed && typeof sc.claimed === "object") ? sc.claimed : null;
+        if (!claimed) return false;
+        const k = String(id);
+        return Object.prototype.hasOwnProperty.call(claimed, k);
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const getPlayerAbs = () => {
+      const c = has(G.getCtx) ? G.getCtx() : gctx;
+      const w = c.world || null;
+      const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
+      const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
+      const px = (c.player && typeof c.player.x === "number") ? (c.player.x | 0) : 0;
+      const py = (c.player && typeof c.player.y === "number") ? (c.player.y | 0) : 0;
+      const absX = ox + px;
+      const absY = oy + py;
+      return { c, absX, absY, instanceId: `surveyCache:${absX},${absY}` };
+    };
+
     // Encounter templates are required for GMBridge to start the encounter.
     let encReady = true;
     try {
@@ -160,60 +215,48 @@
       return true;
     }
 
-    const w = gctx.world || null;
-    const ox = (w && typeof w.originX === "number") ? (w.originX | 0) : 0;
-    const oy = (w && typeof w.originY === "number") ? (w.originY | 0) : 0;
-    const px = (gctx.player && typeof gctx.player.x === "number") ? (gctx.player.x | 0) : 0;
-    const py = (gctx.player && typeof gctx.player.y === "number") ? (gctx.player.y | 0) : 0;
-    const absX = ox + px;
-    const absY = oy + py;
-    const instanceId = `surveyCache:${absX},${absY}`;
+    // -----------------------------
+    // Flow A: withdraw consumes cache
+    // -----------------------------
+
+    const p0 = getPlayerAbs();
+    gctx = p0.c;
+
+    const absX0 = p0.absX;
+    const absY0 = p0.absY;
+    const instanceId0 = p0.instanceId;
 
     // Ensure we start clean (avoid leaking from prior runs / scenarios).
-    try { MS.remove(gctx, (m) => m && String(m.instanceId || "") === instanceId); } catch (_) {}
-    try {
-      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-      const sc = (threads && threads.surveyCache && typeof threads.surveyCache === "object") ? threads.surveyCache : null;
-      if (sc) {
-        if (sc.active && sc.active.instanceId && String(sc.active.instanceId) === String(instanceId)) sc.active = null;
-        if (sc.claimed && typeof sc.claimed === "object") {
-          try { delete sc.claimed[String(instanceId)]; } catch (_) {}
-        }
-        if (Array.isArray(sc.claimedOrder)) {
-          sc.claimedOrder = sc.claimedOrder.filter((id) => String(id || "") !== String(instanceId));
-        }
-      }
-    } catch (_) {}
+    try { MS.remove(gctx, (m) => m && String(m.instanceId || "") === instanceId0); } catch (_) {}
+    clearSurveyCacheState(instanceId0);
 
-    const m = MS.add(gctx, {
-      x: absX,
-      y: absY,
+    const m0 = MS.add(gctx, {
+      x: absX0,
+      y: absY0,
       kind: "gm.surveyCache",
       glyph: "?",
       paletteKey: "gmMarker",
-      instanceId
+      instanceId: instanceId0
     });
 
-    record(!!m, "MarkerService.add placed gm.surveyCache marker underfoot");
-    if (!m) return true;
+    record(!!m0, "MarkerService.add placed gm.surveyCache marker underfoot");
+    if (!m0) return true;
 
     await waitUntil(() => {
       const at = MS.findAtPlayer(gctx);
       const markers = Array.isArray(at) ? at : (at ? [at] : []);
-      return !!markers.find(mm => mm && String(mm.instanceId || "") === instanceId);
+      return !!markers.find(mm => mm && String(mm.instanceId || "") === instanceId0);
     }, 1200, 80);
 
-    // Attempt 1: enter and withdraw; marker remains.
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
-    const confirmed1 = await acceptConfirm();
-    const entered1 = await waitUntilMode("encounter", 3500);
-    const modeAfter1 = has(G.getMode) ? G.getMode() : "";
-    record(confirmed1 && entered1 && modeAfter1 === "encounter", `Pressing 'g' starts survey cache encounter (mode=${modeAfter1})`);
+    const confirmed0 = await acceptConfirm();
+    const entered0 = await waitUntilMode("encounter", 3500);
+    const modeAfter0 = has(G.getMode) ? G.getMode() : "";
+    record(confirmed0 && entered0 && modeAfter0 === "encounter", `Pressing 'g' starts survey cache encounter (mode=${modeAfter0})`);
 
-    if (!(entered1 && modeAfter1 === "encounter")) {
-      try { MS.remove(gctx, { instanceId }); } catch (_) {}
+    if (!(entered0 && modeAfter0 === "encounter")) {
+      try { MS.remove(gctx, { instanceId: instanceId0 }); } catch (_) {}
       return true;
     }
 
@@ -224,29 +267,162 @@
     record(withdrew, "CompleteEncounter(withdraw) exits encounter");
 
     await waitUntilMode("world", 5000);
+    try { gctx = G.getCtx(); } catch (_) {}
 
+    // After withdraw, marker should be gone.
     await waitUntil(() => {
       const at = MS.findAtPlayer(gctx);
       const markers = Array.isArray(at) ? at : (at ? [at] : []);
-      return !!markers.find(mm => mm && String(mm.instanceId || "") === instanceId);
-    }, 1200, 80);
+      return !markers.find(mm => mm && String(mm.instanceId || "") === instanceId0);
+    }, 2500, 80);
 
     const atAfterWithdraw = MS.findAtPlayer(gctx);
     const markersAfterWithdraw = Array.isArray(atAfterWithdraw) ? atAfterWithdraw : (atAfterWithdraw ? [atAfterWithdraw] : []);
-    record(!!markersAfterWithdraw.find(mm => mm && String(mm.instanceId || "") === instanceId), "Survey cache marker remains after withdraw");
+    const goneAfterWithdraw = !markersAfterWithdraw.find(mm => mm && String(mm.instanceId || "") === instanceId0);
+    record(goneAfterWithdraw, "Survey cache marker removed after withdraw (cache consumed)");
 
-    // Attempt 2: re-enter and win; marker removed and gold delta in 40..70.
+    await waitUntil(() => isSurveyCacheClaimed(instanceId0), 2500, 80);
+    record(isSurveyCacheClaimed(instanceId0), "Survey cache instance is marked claimed after withdraw");
+
+    // A consumed cache should not be enterable again even if a marker re-appears.
+    // (We re-add the marker to simulate deterministic respawns or stale state.)
+    try { MS.remove(gctx, { instanceId: instanceId0 }); } catch (_) {}
+
+    const mRe = MS.add(gctx, {
+      x: absX0,
+      y: absY0,
+      kind: "gm.surveyCache",
+      glyph: "?",
+      paletteKey: "gmMarker",
+      instanceId: instanceId0
+    });
+
+    await sleep(140);
+
+    const atRe = MS.findAtPlayer(gctx);
+    const markersRe = Array.isArray(atRe) ? atRe : (atRe ? [atRe] : []);
+    const markerReadded = !!markersRe.find(mm => mm && String(mm.instanceId || "") === instanceId0);
+    record(!!mRe, "MarkerService.add can re-add marker for consumed cache (test harness)");
+
+    if (markerReadded) {
+      try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
+      key("g");
+
+      const opened = await waitUntil(() => isConfirmOpen(), 500, 50);
+      if (opened) {
+        try { key("Enter"); } catch (_) {}
+        await waitUntil(() => !isConfirmOpen(), 2000, 80);
+      }
+
+      const enteredRe = await waitUntilMode("encounter", 900);
+      const modeAfterRe = has(G.getMode) ? G.getMode() : "";
+      record(!opened, "Consumed cache does not show confirm modal");
+      record(!enteredRe, `Consumed cache cannot be entered again (mode=${modeAfterRe})`);
+
+      // Cleanup any UI state (e.g. Region Map) if we fell through.
+      await ensureWorldMode();
+
+      try { MS.remove(gctx, { instanceId: instanceId0 }); } catch (_) {}
+    } else {
+      record(true, "Consumed cache marker did not persist when re-added (not re-enterable)");
+    }
+
+    // -----------------------------
+    // Flow B: victory pays out
+    // -----------------------------
+
+    if (!has(G.teleportTo) || !has(G.getPlayer) || !has(G.getWorld)) {
+      recordSkip("Survey Cache victory portion skipped (teleport helpers missing)");
+      return true;
+    }
+
+    // Pick a safe nearby walkable tile that is not the original tile.
+    let moved = false;
+    try {
+      const p = has(G.getPlayer) ? G.getPlayer() : { x: 0, y: 0 };
+      const w = has(G.getWorld) ? G.getWorld() : null;
+      const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+
+      let target = null;
+      if (w && w.map && WT && typeof window.World.isWalkable === "function") {
+        const W = w.width | 0;
+        const H = w.height | 0;
+        for (let r = 1; r <= 10 && !target; r++) {
+          for (let dy = -r; dy <= r && !target; dy++) {
+            for (let dx = -r; dx <= r && !target; dx++) {
+              const x = (p.x | 0) + dx;
+              const y = (p.y | 0) + dy;
+              if (x < 0 || y < 0 || x >= W || y >= H) continue;
+              const t = w.map[y] && w.map[y][x];
+              if (t == null) continue;
+              if (t === WT.TOWN || t === WT.DUNGEON) continue;
+              if (!window.World.isWalkable(t)) continue;
+              target = { x, y };
+            }
+          }
+        }
+      }
+
+      if (target) {
+        moved = !!G.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        record(moved, `Teleport to safe tile for victory test (${target.x},${target.y})`);
+        await sleep(160);
+      } else {
+        recordSkip("Survey Cache victory portion skipped (no safe tile found)");
+        return true;
+      }
+    } catch (_) {
+      recordSkip("Survey Cache victory portion skipped (teleport failed)");
+      return true;
+    }
+
+    if (!moved) {
+      recordSkip("Survey Cache victory portion skipped (teleport unsuccessful)");
+      return true;
+    }
+
+    await ensureWorldMode();
+
+    const p1 = getPlayerAbs();
+    gctx = p1.c;
+
+    const absX1 = p1.absX;
+    const absY1 = p1.absY;
+    const instanceId1 = p1.instanceId;
+
+    // If teleport didn't move us in absolute coords, we can't safely test a new cache instance.
+    if (instanceId1 === instanceId0) {
+      recordSkip("Survey Cache victory portion skipped (could not move to distinct tile)");
+      return true;
+    }
+
+    // Ensure we start clean for the second instance.
+    try { MS.remove(gctx, (m) => m && String(m.instanceId || "") === instanceId1); } catch (_) {}
+    clearSurveyCacheState(instanceId1);
+
+    const m1 = MS.add(gctx, {
+      x: absX1,
+      y: absY1,
+      kind: "gm.surveyCache",
+      glyph: "?",
+      paletteKey: "gmMarker",
+      instanceId: instanceId1
+    });
+
+    record(!!m1, "Placed second gm.surveyCache marker underfoot for victory path");
+    if (!m1) return true;
+
     const goldBefore = getGoldAmount();
 
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
-    const confirmed2 = await acceptConfirm();
-    const entered2 = await waitUntilMode("encounter", 3500);
-    const modeAfter2 = has(G.getMode) ? G.getMode() : "";
-    record(confirmed2 && entered2 && modeAfter2 === "encounter", `Re-enter survey cache encounter (mode=${modeAfter2})`);
+    const confirmed1 = await acceptConfirm();
+    const entered1 = await waitUntilMode("encounter", 3500);
+    const modeAfter1 = has(G.getMode) ? G.getMode() : "";
+    record(confirmed1 && entered1 && modeAfter1 === "encounter", `Enter survey cache encounter for victory test (mode=${modeAfter1})`);
 
-    if (!(entered2 && modeAfter2 === "encounter")) {
-      try { MS.remove(gctx, { instanceId }); } catch (_) {}
+    if (!(entered1 && modeAfter1 === "encounter")) {
+      try { MS.remove(gctx, { instanceId: instanceId1 }); } catch (_) {}
       return true;
     }
 
@@ -257,17 +433,18 @@
     record(completed, "CompleteEncounter(victory) exits encounter");
 
     await waitUntilMode("world", 5000);
+    try { gctx = G.getCtx(); } catch (_) {}
 
     // Marker should be removed.
     await waitUntil(() => {
       const at = MS.findAtPlayer(gctx);
       const markers = Array.isArray(at) ? at : (at ? [at] : []);
-      return !markers.find(mm => mm && String(mm.instanceId || "") === instanceId);
+      return !markers.find(mm => mm && String(mm.instanceId || "") === instanceId1);
     }, 2500, 80);
 
     const atFinal = MS.findAtPlayer(gctx);
     const markersFinal = Array.isArray(atFinal) ? atFinal : (atFinal ? [atFinal] : []);
-    const markerGone = !markersFinal.find(mm => mm && String(mm.instanceId || "") === instanceId);
+    const markerGone = !markersFinal.find(mm => mm && String(mm.instanceId || "") === instanceId1);
     record(markerGone, "Survey cache marker removed after victory payout");
 
     await waitUntil(() => (getGoldAmount() - goldBefore) >= 40, 2500, 80);
@@ -277,7 +454,7 @@
     record(delta >= 40 && delta <= 70, `Gold delta after victory within 40..70 (delta=${delta})`);
 
     if (!markerGone) {
-      try { MS.remove(gctx, { instanceId }); } catch (_) {}
+      try { MS.remove(gctx, { instanceId: instanceId1 }); } catch (_) {}
     }
 
     return true;
