@@ -1,3 +1,9 @@
+v1.50.28 — GM hotfix: Survey Cache confirm encounter start
+
+- Fixed a missing `getGameData` import in `core/bridge/gm_bridge.js` that could cause Survey Cache confirm OK to throw `ReferenceError: getGameData is not defined` and prevent the encounter from starting.
+- Survey Cache confirm OK is now wrapped in a defensive try/catch and logs a helpful warning if encounter start fails.
+- Smoketest `gm_survey_cache` now requires the confirm modal to actually close on acceptance.
+
 v1.50.27 — GM Phase 7D hotfix: Survey Cache marker consumption
 
 - Survey Cache (`gm.surveyCache` / `?`) markers are now consumed/removed when the encounter ends for **any** outcome (victory/defeat/escape).

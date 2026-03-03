@@ -11,7 +11,7 @@
  * - ensureGuaranteedSurveyCache(ctx): void          // hybrid guarantee spawn
  */
 
-import { getMod } from "../../utils/access.js";
+import { getGameData, getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
 import { gmRngFloat, hash32 } from "../gm/runtime/rng.js";
 
@@ -565,19 +565,27 @@ function handleSurveyCacheMarker(ctx, marker) {
     } catch (_) {}
 
     const onOk = () => {
-      sc.active = { instanceId, absX, absY };
-      if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
-      sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
-
-      const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene", { ctxFirst: true });
-      if (!started) {
-        sc.active = null;
-        return;
-      }
-
       try {
-        GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
-      } catch (_) {}
+        sc.active = { instanceId, absX, absY };
+        if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
+        sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
+
+        const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene", { ctxFirst: true });
+        if (!started) {
+          sc.active = null;
+          try { if (typeof ctx.log === "function") ctx.log("Nothing happens.", "warn"); } catch (_) {}
+          try { if (typeof ctx.log === "function") ctx.log("[GM] Failed to start Survey Cache encounter.", "warn"); } catch (_) {}
+          return;
+        }
+
+        try {
+          GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
+        } catch (_) {}
+      } catch (err) {
+        sc.active = null;
+        try { if (typeof ctx.log === "function") ctx.log("[GM] Error while starting Survey Cache encounter.", "warn"); } catch (_) {}
+        try { if (typeof console !== "undefined" && console && typeof console.error === "function") console.error(err); } catch (_) {}
+      }
     };
 
     const onCancel = () => {

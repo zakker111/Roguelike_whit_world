@@ -54,8 +54,8 @@
       const opened = await waitUntil(() => isConfirmOpen(), 2000, 80);
       if (!opened) return false;
       try { key("Enter"); } catch (_) {}
-      await waitUntil(() => !isConfirmOpen(), 2000, 80);
-      return true;
+      const closed = await waitUntil(() => !isConfirmOpen(), 2000, 80);
+      return !!closed;
     };
 
     async function ensureWorldMode() {
