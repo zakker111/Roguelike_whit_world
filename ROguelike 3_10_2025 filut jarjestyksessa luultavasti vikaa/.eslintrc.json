@@ -68,6 +68,13 @@
           }
         ]
       }
+    },
+    {
+      "files": ["server.js", "vite.config.js", "scripts/**/*.js"],
+      "env": {
+        "browser": false,
+        "node": true
+      }
     }
   ]
 }

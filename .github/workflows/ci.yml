@@ -18,14 +18,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        # No lockfile in repo, so npm ci would fail. If/when package-lock.json is added,
+        # switching back to npm ci is recommended for reproducibility.
+        run: npm install
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint (strict)
+        run: npm run lint:strict
 
       - name: Build
         run: npm run build
