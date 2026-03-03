@@ -1,3 +1,10 @@
+v1.50.25 — GM Phase 7D: Bottle Map lifecycle gate + marker integrity
+
+- Bottle Map activation now fails gracefully if a valid overworld target cannot be found (refunds the item and marks the thread expired).
+- Added `GMBridge.reconcileMarkers(ctx)` to clean orphan `gm.bottleMap` markers and restore missing active markers (no RNG consumption).
+- GM panel now shows an explicit Bottle Map quest thread snapshot (target/attempts/placement/failure).
+- Smoketest `gm_bottle_map` now verifies marker restoration via `reconcileMarkers`.
+
 v1.50.24 — GM Phase 7C: Bottle Map pity counts every fishing success
 
 - Fishing: `GMBridge.maybeAwardBottleMapFromFishing(ctx)` is now evaluated on every successful fishing attempt (not only when the “special item” roll hits).

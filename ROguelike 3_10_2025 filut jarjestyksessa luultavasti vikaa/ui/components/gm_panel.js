@@ -770,6 +770,24 @@ function renderSnapshot(gm) {
     );
     linesProfile.push(`    chance: eligible=${derived.eligible} boredom=${derived.boredom.toFixed(2)} s=${derived.s} chance=${chancePct}%${forcedStr}`);
 
+    // Bottle Map quest thread snapshot
+    if (bottleMap) {
+      const t = bottleMap.target && typeof bottleMap.target === "object" ? bottleMap.target : null;
+      const tx = t && typeof t.absX === "number" ? (t.absX | 0) : null;
+      const ty = t && typeof t.absY === "number" ? (t.absY | 0) : null;
+      const createdTurn = bottleMap.createdTurn == null ? null : (bottleMap.createdTurn | 0);
+      const claimedTurn = bottleMap.claimedTurn == null ? null : (bottleMap.claimedTurn | 0);
+      const attempts = bottleMap.attempts == null ? 0 : (bottleMap.attempts | 0);
+      const placementTries = bottleMap.placementTries == null ? null : (bottleMap.placementTries | 0);
+      const failureReason = bottleMap.failureReason ? String(bottleMap.failureReason) : "";
+
+      linesProfile.push("  bottle map (quest):");
+      linesProfile.push(`    state: active=${bmActive} status=${bmStatus} attempts=${attempts}`);
+      linesProfile.push(`    target: ${tx == null ? "-" : tx},${ty == null ? "-" : ty} createdTurn=${createdTurn == null ? "-" : createdTurn} claimedTurn=${claimedTurn == null ? "-" : claimedTurn}`);
+      if (placementTries != null) linesProfile.push(`    placement: tries=${placementTries}`);
+      if (failureReason) linesProfile.push(`    failure: ${failureReason}`);
+    }
+
     const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
     const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);
     if (mtEntriesProfile.length) {

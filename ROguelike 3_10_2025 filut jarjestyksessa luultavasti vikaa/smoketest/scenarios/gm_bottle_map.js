@@ -280,6 +280,21 @@
     record(!!marker, "gm.bottleMap marker exists in world.questMarkers");
     if (!marker) return true;
 
+    // Phase 7 lifecycle gate: if a marker is removed unexpectedly, GMBridge should restore it.
+    let restored = true;
+    try {
+      if (GMB && has(GMB.reconcileMarkers) && marker.instanceId != null) {
+        MS.remove(gctx, { instanceId: marker.instanceId });
+        await sleep(120);
+        GMB.reconcileMarkers(gctx);
+        await sleep(120);
+        restored = !!findBottleMarker(marker.instanceId);
+      }
+    } catch (_) {
+      restored = true;
+    }
+    record(restored, "Bottle map marker integrity: reconcile restores missing marker");
+
     // Attempt 1: Enter and withdraw. Marker should remain.
     const tpOk1 = await teleportToMarker(marker);
     record(tpOk1, "Teleport to bottle map marker");

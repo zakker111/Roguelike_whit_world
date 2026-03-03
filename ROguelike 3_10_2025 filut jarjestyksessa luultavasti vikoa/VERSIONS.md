@@ -1,0 +1,1 @@
+This directory appears to be an accidental duplicate and is not used by the app build.

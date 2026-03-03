@@ -1,6 +1,6 @@
 {
   "name": "tiny-roguelike",
-  "version": "1.50.24",
+  "version": "1.50.25",
   "private": true,
   "type": "module",
   "scripts": {

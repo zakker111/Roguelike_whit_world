@@ -362,6 +362,10 @@ export function maybeHandleWorldStep(ctx) {
   // Respect gm.enabled: if GM is disabled, do not run any GM-driven world-step intents.
   if (!isGmEnabled(ctx)) return false;
 
+  // Phase 7: keep Bottle Map marker/thread state consistent as you move.
+  // This is a cheap integrity pass (no RNG consumption).
+  try { ensureBottleMapMarkerIntegrity(ctx); } catch (_) {}
+
   try {
     const GM = getMod(ctx, "GMRuntime");
     if (!GM || typeof GM.getFactionTravelEvent !== "function") return false;
@@ -889,11 +893,78 @@ function pickBottleMapTarget(ctx, gm) {
     if (T && isDisallowed(tile)) continue;
     if (!isWalkableOverworldTile(tile)) continue;
 
-    return { absX, absY };
+    return { absX, absY, tries: n + 1 };
   }
 
-  // Fallback: current player tile (as absolute coords)
-  return { absX: pAbsX, absY: pAbsY };
+  return null;
+}
+
+function ensureBottleMapMarkerIntegrity(ctx) {
+  if (!ctx || !isGmEnabled(ctx)) return false;
+
+  const GM = getMod(ctx, "GMRuntime");
+  const MS = getMod(ctx, "MarkerService");
+  if (!GM || !MS || typeof MS.add !== "function" || typeof MS.remove !== "function") return false;
+
+  const gm = GM.getState(ctx);
+  if (!gm || gm.enabled === false) return false;
+
+  const thread = ensureBottleMapThread(gm);
+  if (!thread) return false;
+
+  const active = thread.active === true && thread.status !== "claimed";
+  const iid = thread.instanceId != null ? String(thread.instanceId) : "";
+
+  // If no active thread, remove orphan bottle map markers.
+  if (!active || !iid) {
+    try { MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
+    return true;
+  }
+
+  // Remove any mismatched bottle map markers (stale instanceId).
+  try {
+    MS.remove(ctx, (m) => {
+      if (!m) return false;
+      if (String(m.kind || "") !== "gm.bottleMap") return false;
+      const mid = String(m.instanceId || "");
+      return mid && mid !== iid;
+    });
+  } catch (_) {}
+
+  const target = thread.target && typeof thread.target === "object" ? thread.target : null;
+  const tx = target && typeof target.absX === "number" ? (target.absX | 0) : null;
+  const ty = target && typeof target.absY === "number" ? (target.absY | 0) : null;
+
+  if (tx == null || ty == null) {
+    // Thread is broken; expire it and remove marker(s).
+    thread.active = false;
+    thread.status = "expired";
+    thread.failureReason = thread.failureReason || "missingTarget";
+    try { MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
+    return true;
+  }
+
+  // Ensure marker exists.
+  let found = false;
+  try {
+    const list = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!m) continue;
+      if (String(m.kind || "") !== "gm.bottleMap") continue;
+      if (String(m.instanceId || "") !== iid) continue;
+      found = true;
+      break;
+    }
+  } catch (_) { found = false; }
+
+  if (!found) {
+    try {
+      MS.add(ctx, { x: tx, y: ty, kind: "gm.bottleMap", glyph: "X", paletteKey: "gmMarker", instanceId: iid });
+    } catch (_) {}
+  }
+
+  return true;
 }
 
 function ensureUniqueGranted(gm) {
@@ -1158,14 +1229,37 @@ export function useInventoryItem(ctx, item, idx) {
   }
 
   // Consume the item.
+  let consumed = false;
   try {
     const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
     const i = (idx | 0);
-    if (i >= 0 && i < inv.length) inv.splice(i, 1);
+    if (i >= 0 && i < inv.length) {
+      inv.splice(i, 1);
+      consumed = true;
+    }
   } catch (_) {}
 
   // Roll deterministic target + reward using GM RNG.
   const target = pickBottleMapTarget(ctx, gm);
+  if (!target) {
+    // Graceful expiry: if we can't find a valid target, do not start the thread.
+    // Refund the item if we consumed it.
+    try {
+      if (consumed) {
+        const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
+        inv.push({ kind: "tool", type: "bottle_map", id: "bottle_map", name: "bottle map", decay: 0, usable: true });
+      }
+    } catch (_) {}
+
+    thread.active = false;
+    thread.status = "expired";
+    thread.failureReason = "targetPlacementFailed";
+
+    try { if (typeof ctx.log === "function") ctx.log("The Bottle Map's ink runs and becomes unreadable.", "warn"); } catch (_) {}
+    try { GM.onEvent(ctx, { type: "gm.bottleMap.expired", interesting: false, payload: { reason: "targetPlacementFailed" } }); } catch (_) {}
+    return true;
+  }
+
   const reward = rollBottleMapReward(ctx, gm);
 
   const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
@@ -1176,22 +1270,25 @@ export function useInventoryItem(ctx, item, idx) {
   thread.createdTurn = turn;
   thread.status = "active";
   thread.attempts = 0;
-  thread.target = target;
+  thread.target = { absX: target.absX, absY: target.absY };
   thread.reward = reward;
+  thread.failureReason = null;
+  thread.placementTries = target.tries | 0;
 
-  if (target && typeof target.absX === "number" && typeof target.absY === "number") {
-    try {
-      MS.add(ctx, {
-        x: target.absX,
-        y: target.absY,
-        kind: "gm.bottleMap",
-        glyph: "X",
-        paletteKey: "gmMarker",
-        instanceId: id,
-        createdTurn: turn,
-      });
-    } catch (_) {}
-  }
+  try {
+    MS.add(ctx, {
+      x: target.absX,
+      y: target.absY,
+      kind: "gm.bottleMap",
+      glyph: "X",
+      paletteKey: "gmMarker",
+      instanceId: id,
+      createdTurn: turn,
+    });
+  } catch (_) {}
+
+  // Ensure marker is present and stale markers are cleaned.
+  try { ensureBottleMapMarkerIntegrity(ctx); } catch (_) {}
 
   try { GM.onEvent(ctx, { type: "gm.bottleMap.activated", interesting: true, payload: { instanceId: id } }); } catch (_) {}
   try { if (typeof ctx.log === "function") ctx.log("You study the Bottle Map. An X appears on your world map.", "notice"); } catch (_) {}
@@ -1410,6 +1507,10 @@ function startGmFactionEncounter(ctx, encounterId, opts) {
   return true;
 }
 
+export function reconcileMarkers(ctx) {
+  try { return !!ensureBottleMapMarkerIntegrity(ctx); } catch (_) { return false; }
+}
+
 attachGlobal("GMBridge", {
   maybeHandleWorldStep,
   handleMarkerAction,
@@ -1419,4 +1520,5 @@ attachGlobal("GMBridge", {
   onWorldScanRect,
   onWorldScanTile,
   ensureGuaranteedSurveyCache,
+  reconcileMarkers,
 });
