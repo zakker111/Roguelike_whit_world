@@ -11,6 +11,7 @@
  * - tick(ctx)
  * - onEvent(ctx, event)
  * - getState(ctx)
+ * - setEnabled(ctx, enabled, { write = true } = {})
  * - reset(ctx)
  * - getEntranceIntent(ctx, mode?)
  * - getMechanicHint(ctx)
@@ -132,9 +133,9 @@ function readPersistedState(ctx) {
   }
 }
 
-function writePersistedState(ctx, gm, { force = false } = {}) {
+function writePersistedState(ctx, gm, { force = false, allowDisabled = false } = {}) {
   if (!gm || typeof gm !== "object") return false;
-  if (gm.enabled === false) return false;
+  if (gm.enabled === false && !allowDisabled) return false;
   if (isLocalStorageDisabled(ctx)) return false;
 
   if (!force && !_dirty) return false;
@@ -207,7 +208,11 @@ function upgradeAndNormalizeState(ctx, gm) {
   const runSeed = deriveRunSeed();
   gm.runSeed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : (runSeed >>> 0);
 
-  ensureSeededGmRng(gm);
+  // When GM is disabled, avoid mutating/advancing any GM-only streams.
+  // (The RNG will lazily seed on first use once GM is re-enabled.)
+  if (gm.enabled !== false) {
+    ensureSeededGmRng(gm);
+  }
 
   if (ctx) ctx.gm = gm;
 
@@ -408,6 +413,31 @@ export function getState(ctx) {
   return _ensureState(ctx);
 }
 
+/**
+ * Enable/disable the GM system.
+ *
+ * This persists the flag immediately so it survives reloads.
+ *
+ * Note: When disabled, GMRuntime tick/event processing is a no-op.
+ */
+export function setEnabled(ctx, enabled, { write = true } = {}) {
+  if (!ctx) return null;
+
+  // Ensure state exists, but do not advance turn/RNG/scheduler.
+  const gm = _ensureState(ctx);
+  if (!gm || typeof gm !== "object") return null;
+
+  gm.enabled = !!enabled;
+
+  if (write) {
+    markDirty(gm);
+    // Persist even when disabling.
+    writePersistedState(ctx, gm, { force: true, allowDisabled: true });
+  }
+
+  return gm;
+}
+
 export function getEntranceIntent(ctx, mode) {
   const gm = _ensureState(ctx);
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
@@ -500,6 +530,7 @@ attachGlobal("GMRuntime", {
   tick,
   onEvent,
   getState,
+  setEnabled,
   reset,
   getEntranceIntent,
   getMechanicHint,

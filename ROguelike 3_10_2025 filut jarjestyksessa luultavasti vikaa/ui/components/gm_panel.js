@@ -125,8 +125,16 @@ function toggleGMEnabled() {
     if (!ctx) return;
     const gm = GM.getState(ctx);
     if (!gm || typeof gm !== "object") return;
-    if (gm.enabled === false) gm.enabled = true;
-    else gm.enabled = false;
+
+    const current = gm.enabled !== false;
+    const nextEnabled = !current;
+
+    if (typeof GM.setEnabled === "function") {
+      GM.setEnabled(ctx, nextEnabled);
+    } else {
+      gm.enabled = nextEnabled;
+    }
+
     refresh();
   } catch (_) {}
 }

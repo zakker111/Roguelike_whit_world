@@ -59,7 +59,7 @@ This file should describe the **current state**, not the future; update it whene
 - GM panel overlay **(EXPERIMENTAL)**:
   - `O` — toggle the GM panel (floating, non-modal debug overlay).
   - Shows GM state (mood/boredom/traits/mechanics) and recent GM intent history.
-  - Includes a toggle to enable/disable `gm.enabled` for the current session.
+  - Includes a toggle to enable/disable `gm.enabled` (persisted via localStorage).
 - FOV adjust:
   - Decrease FOV:
     - `[`, `-`, `NumpadSubtract` (depending on keyboard layout).

@@ -354,6 +354,143 @@ export function runGmSim() {
     })
   );
 
+  checks.push(
+    check("9) guard fine scheduling + polarity", () => {
+      function score(entry) {
+        if (!entry || typeof entry !== "object") return 0;
+        const p = entry.positive | 0;
+        const n = entry.negative | 0;
+        const samples = p + n;
+        return samples > 0 ? (p - n) / samples : 0;
+      }
+
+      // --- scheduling ---
+      {
+        const ctx = createCtx();
+        const gm = resetAndPrime(ctx, { turn: 0, mode: "world" });
+
+        gm.storyFlags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : (gm.storyFlags = {});
+        gm.storyFlags.factionEvents =
+          gm.storyFlags.factionEvents && typeof gm.storyFlags.factionEvents === "object"
+            ? gm.storyFlags.factionEvents
+            : (gm.storyFlags.factionEvents = {});
+
+        gm.storyFlags.factionEvents.guardFine =
+          gm.storyFlags.factionEvents.guardFine && typeof gm.storyFlags.factionEvents.guardFine === "object"
+            ? gm.storyFlags.factionEvents.guardFine
+            : (gm.storyFlags.factionEvents.guardFine = {});
+
+        gm.storyFlags.factionEvents.guardFine.status = "none";
+        gm.storyFlags.factionEvents.banditBounty = gm.storyFlags.factionEvents.banditBounty || {};
+        gm.storyFlags.factionEvents.trollHunt = gm.storyFlags.factionEvents.trollHunt || {};
+
+        gm.factions = gm.factions && typeof gm.factions === "object" ? gm.factions : (gm.factions = {});
+        gm.factions.guard = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 0 };
+        gm.factions.town = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 0 };
+
+        // Trigger scheduling pass.
+        GMRuntime.onEvent(ctx, { type: "mode.enter", scope: "world", turn: 0, interesting: false });
+
+        const slot = gm.storyFlags.factionEvents.guardFine;
+        assertEq(slot.status, "scheduled", "guardFine slot should be scheduled when slayer-leaning");
+        assertEq(slot.earliestTurn | 0, 30, "guardFine earliestTurn should be turn+30");
+
+        ctx.time.turnCounter = slot.earliestTurn | 0;
+        const intent = GMRuntime.getFactionTravelEvent(ctx);
+        assertEq(intent.kind, "guard_fine", "guardFine should be delivered at earliestTurn");
+      }
+
+      // --- polarity ---
+      {
+        const ctx = createCtx();
+        const gm = resetAndPrime(ctx, { turn: 10, mode: "world" });
+
+        gm.factions = gm.factions && typeof gm.factions === "object" ? gm.factions : (gm.factions = {});
+        gm.factions.guard = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 10 };
+        gm.factions.town = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 10 };
+
+        const before = score(gm.factions.guard);
+        GMRuntime.onEvent(ctx, { type: "gm.guardFine.pay", turn: 10, interesting: true });
+        const after = score(gm.factions.guard);
+
+        assert(after < before, "gm.guardFine.pay should move score toward ally (decrease score)", { before, after });
+      }
+
+      {
+        const ctx = createCtx();
+        const gm = resetAndPrime(ctx, { turn: 11, mode: "world" });
+
+        gm.factions = gm.factions && typeof gm.factions === "object" ? gm.factions : (gm.factions = {});
+        gm.factions.guard = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 11 };
+        gm.factions.town = { seen: 3, positive: 8, negative: 2, lastUpdatedTurn: 11 };
+
+        const before = score(gm.factions.guard);
+        GMRuntime.onEvent(ctx, { type: "gm.guardFine.refuse", turn: 11, interesting: true });
+        const after = score(gm.factions.guard);
+
+        assert(after > before, "gm.guardFine.refuse should move score toward slayer (increase score)", { before, after });
+      }
+
+      return { ok: true };
+    })
+  );
+
+  checks.push(
+    check("10) setEnabled persists disabled toggle", () => {
+      // In the browser, `localStorage` is typically non-writable (and we don't
+      // want to clobber user state from gm_sim.html), so only run this in Node.
+      if (typeof localStorage !== "undefined") {
+        return { skipped: true };
+      }
+
+      const prev = Object.prototype.hasOwnProperty.call(globalThis, "localStorage") ? globalThis.localStorage : undefined;
+
+      const mem = new Map();
+      globalThis.localStorage = {
+        getItem(k) {
+          const key = String(k);
+          return mem.has(key) ? mem.get(key) : null;
+        },
+        setItem(k, v) {
+          mem.set(String(k), String(v));
+        },
+        removeItem(k) {
+          mem.delete(String(k));
+        },
+      };
+
+      try {
+        assert(typeof GMRuntime.setEnabled === "function", "GMRuntime.setEnabled must exist");
+
+        const ctx = createCtx();
+        const gm = resetAndPrime(ctx, { turn: 0, mode: "world" });
+
+        const callsBefore = gm && gm.rng ? (gm.rng.calls | 0) : 0;
+
+        GMRuntime.setEnabled(ctx, false);
+
+        assertEq(gm.enabled, false, "setEnabled should set gm.enabled=false");
+
+        const raw = globalThis.localStorage.getItem("GM_STATE_V1");
+        assert(!!raw, "GM_STATE_V1 should be persisted when disabling");
+
+        const obj = JSON.parse(String(raw));
+        assertEq(obj.enabled, false, "persisted GM_STATE_V1.enabled should be false");
+
+        const callsAfter = gm && gm.rng ? (gm.rng.calls | 0) : 0;
+        assertEq(callsAfter, callsBefore, "setEnabled should not consume GM RNG");
+
+        return { enabled: obj.enabled };
+      } finally {
+        if (prev === undefined) {
+          try { delete globalThis.localStorage; } catch (_) {}
+        } else {
+          globalThis.localStorage = prev;
+        }
+      }
+    })
+  );
+
   return {
     ok: checks.every((c) => c.ok),
     createdAt: new Date().toISOString(),

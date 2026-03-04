@@ -12,12 +12,29 @@ import { getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
 import { gmRngFloat } from "../gm/runtime/rng.js";
 
+function isGmDisabled(ctx, GM) {
+  try {
+    const gm = ctx && ctx.gm;
+    if (gm && typeof gm === "object" && gm.enabled === false) return true;
+  } catch (_) {}
+
+  try {
+    if (GM && typeof GM.__getRawState === "function") {
+      const gm = GM.__getRawState();
+      if (gm && typeof gm === "object" && gm.enabled === false) return true;
+    }
+  } catch (_) {}
+
+  return false;
+}
+
 export function maybeHandleWorldStep(ctx) {
   if (!ctx) return false;
 
   try {
     const GM = getMod(ctx, "GMRuntime");
     if (!GM || typeof GM.getFactionTravelEvent !== "function") return false;
+    if (isGmDisabled(ctx, GM)) return false;
 
     const intent = GM.getFactionTravelEvent(ctx) || { kind: "none" };
     if (!intent || intent.kind === "none") return false;
@@ -58,6 +75,14 @@ export function handleMarkerAction(ctx) {
     const gmMarker = markers.find((m) => m && typeof m.kind === "string" && m.kind.startsWith("gm.")) || null;
     if (!gmMarker) return false;
 
+    const GM = getMod(ctx, "GMRuntime");
+    if (isGmDisabled(ctx, GM)) {
+      try {
+        if (typeof ctx.log === "function") ctx.log("[GM] Disabled.", "info");
+      } catch (_) {}
+      return true;
+    }
+
     const kind = String(gmMarker.kind || "");
 
     if (kind === "gm.bottleMap") {
@@ -85,6 +110,8 @@ function handleBottleMapMarker(ctx, marker) {
     if (!GM || !MS) return true;
 
     const gm = GM.getState(ctx);
+    if (gm && typeof gm === "object" && gm.enabled === false) return true;
+
     const thread = ensureBottleMapThread(gm);
     if (!thread || thread.active !== true) {
       try { if (typeof ctx.log === "function") ctx.log("The map's ink has faded.", "warn"); } catch (_) {}
@@ -110,9 +137,14 @@ function handleBottleMapMarker(ctx, marker) {
     if (thread.status !== "inEncounter") {
       thread.status = "inEncounter";
       thread.attempts = (thread.attempts | 0) + 1;
-      try {
-        GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: thread.instanceId } });
-      } catch (_) {}
+
+      // Belt-and-suspenders: handleMarkerAction already gates GM-disabled, but we
+      // also guard here so `GM.onEvent` is never invoked while disabled.
+      if (gm && typeof gm === "object" && gm.enabled !== false) {
+        try {
+          GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: thread.instanceId } });
+        } catch (_) {}
+      }
     }
 
     // Start the dedicated Bottle Map encounter.
@@ -321,6 +353,7 @@ export function onEncounterComplete(ctx, info) {
     const GM = getMod(ctx, "GMRuntime");
     const MS = getMod(ctx, "MarkerService");
     if (!GM || !MS) return;
+    if (isGmDisabled(ctx, GM)) return;
 
     const gm = GM.getState(ctx);
     const thread = ensureBottleMapThread(gm);
@@ -370,12 +403,14 @@ export function useInventoryItem(ctx, item, idx) {
   if (!ctx || !item) return false;
   if (!isBottleMapItem(item)) return false;
 
+  const GM = getMod(ctx, "GMRuntime");
+  if (isGmDisabled(ctx, GM)) return false;
+
   if (ctx.mode !== "world") {
     try { if (typeof ctx.log === "function") ctx.log("The map can only be used in the overworld.", "warn"); } catch (_) {}
     return true;
   }
 
-  const GM = getMod(ctx, "GMRuntime");
   const MS = getMod(ctx, "MarkerService");
   if (!GM || !MS) {
     try { if (typeof ctx.log === "function") ctx.log("Nothing happens.", "warn"); } catch (_) {}

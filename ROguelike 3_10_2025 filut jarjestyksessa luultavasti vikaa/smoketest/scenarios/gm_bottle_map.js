@@ -121,6 +121,22 @@
       return ok;
     };
 
+    const GM = window.GMRuntime || null;
+    const gm = (GM && has(GM.getState)) ? GM.getState(gctx) : (gctx.gm || null);
+    const snapEnabled = (gm && Object.prototype.hasOwnProperty.call(gm, "enabled")) ? gm.enabled : undefined;
+
+    const restoreEnabled = () => {
+      if (!gm || typeof gm !== "object") return;
+      if (snapEnabled === undefined) {
+        try { delete gm.enabled; } catch (_) { gm.enabled = undefined; }
+      } else {
+        gm.enabled = snapEnabled;
+      }
+    };
+
+    // Ensure the scenario is stable even if the GM panel has been toggled off.
+    try { if (gm) gm.enabled = true; } catch (_) {}
+
     // Add a bottle map item to inventory.
     let idx = -1;
     try {
@@ -132,6 +148,27 @@
 
     record(idx >= 0, "Bottle map inserted into inventory");
 
+    // gm.enabled=false should suppress GMBridge bottle map side effects.
+    if (gm && typeof gm === "object") {
+      try { gm.enabled = false; } catch (_) {}
+
+      let usedDisabled = false;
+      try { usedDisabled = !!IF.useItemByIndex(gctx, idx); } catch (_) { usedDisabled = false; }
+      record(usedDisabled === false, "Bottle map use returns false when gm.enabled=false (not consumed)");
+
+      let stillInInv = false;
+      try {
+        const inv = (gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : [];
+        stillInInv = !!inv.find(it => it && String(it.type || it.id || "").toLowerCase().includes("bottle_map"));
+      } catch (_) { stillInInv = false; }
+      record(stillInInv, "Bottle map remains in inventory when gm.enabled=false");
+
+      await sleep(220);
+      record(!findBottleMarker(null), "No gm.bottleMap marker placed when gm.enabled=false");
+
+      try { gm.enabled = true; } catch (_) {}
+    }
+
     // Use it.
     let used = false;
     try { used = !!IF.useItemByIndex(gctx, idx); } catch (_) { used = false; }
@@ -142,11 +179,30 @@
     const marker = findBottleMarker(null);
 
     record(!!marker, "gm.bottleMap marker exists in world.questMarkers");
-    if (!marker) return true;
+    if (!marker) {
+      restoreEnabled();
+      return true;
+    }
 
     // Attempt 1: Enter and withdraw. Marker should remain.
     const tpOk1 = await teleportToMarker(marker);
     record(tpOk1, "Teleport to bottle map marker");
+
+    // gm.enabled=false should consume the action but not start the encounter or remove markers.
+    if (gm && typeof gm === "object") {
+      try { gm.enabled = false; } catch (_) {}
+
+      key("g");
+      await sleep(220);
+
+      const modeAfterDisabled = has(G.getMode) ? G.getMode() : "";
+      record(modeAfterDisabled === "world", `gm.enabled=false: pressing 'g' does not start encounter (mode=${modeAfterDisabled})`);
+
+      const markerStillThere = !!findBottleMarker(marker.instanceId);
+      record(markerStillThere, "gm.enabled=false: bottle map marker not removed");
+
+      try { gm.enabled = true; } catch (_) {}
+    }
 
     key("g");
     const entered1 = await waitUntilMode("encounter", 3500);
@@ -156,6 +212,7 @@
     if (!(entered1 && modeAfter1 === "encounter")) {
       // Cleanup marker.
       try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
+      restoreEnabled();
       return true;
     }
 
@@ -190,6 +247,7 @@
     if (!(entered2 && modeAfter2 === "encounter")) {
       // Cleanup marker (avoid leaking state into subsequent scenarios).
       try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
+      restoreEnabled();
       return true;
     }
 
@@ -224,6 +282,7 @@
       try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
     }
 
+    restoreEnabled();
     return true;
   }
 

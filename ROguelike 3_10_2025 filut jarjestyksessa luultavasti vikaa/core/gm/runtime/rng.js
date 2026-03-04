@@ -80,6 +80,11 @@ export function ensureSeededGmRng(gm) {
  * @returns {number} Unsigned 32-bit integer.
  */
 export function gmRngNextUint32(gm, onDirty) {
+  // Contract: when the GM is disabled, GM RNG must be a no-op.
+  // This prevents hidden side-effects (RNG consumption / state mutation) when the
+  // user has toggled GM off.
+  if (gm && typeof gm === "object" && gm.enabled === false) return 0;
+
   const rng = ensureSeededGmRng(gm);
   if (!rng) return 0;
 
