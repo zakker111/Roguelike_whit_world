@@ -30,6 +30,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Artifact check
+        run: npm run artifact:check
+
       - name: Upload dist (artifact)
         if: success()
         uses: actions/upload-artifact@v4

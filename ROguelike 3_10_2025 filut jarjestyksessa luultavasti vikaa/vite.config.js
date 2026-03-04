@@ -53,6 +53,49 @@ function copyStaticRuntimeFiles() {
         path.resolve(root, 'smoketest', 'scenarios.json'),
         path.resolve(outDir, 'smoketest', 'scenarios.json')
       );
+
+      // Docs viewer: served as static HTML + raw markdown sources fetched at runtime.
+      // Copy the viewer and the markdown files it references.
+      await copyDir(path.resolve(root, 'docs'), path.join(outDir, 'docs'));
+
+      const docFiles = [
+        // Top-level docs referenced by /docs/index.html
+        'README.md',
+        'VERSIONS.md',
+        'FEATURES.md',
+        'TODO.md',
+        'BUGS.md',
+        'CHECKLIST.md',
+        'DEPLOYMENT.md',
+        'smoketest.md',
+
+        // Folder READMEs referenced by /docs/index.html
+        'core/README.md',
+        'core/state/README.md',
+        'ui/README.md',
+        'world/README.md',
+        'dungeon/README.md',
+        'services/README.md',
+        'entities/README.md',
+        'combat/README.md',
+        'ai/README.md',
+        'region_map/README.md',
+        'utils/README.md',
+        'tools/README.md',
+        'scripts/README.md',
+        'worldgen/README.md',
+
+        // Smoketest docs referenced by /docs/index.html
+        'smoketest/README.md',
+        'smoketest/runner/README.md',
+        'smoketest/helpers/README.md',
+        'smoketest/reporting/README.md',
+        'smoketest/scenarios/README.md'
+      ];
+
+      for (const rel of docFiles) {
+        await copyFileIfExists(path.resolve(root, rel), path.resolve(outDir, rel));
+      }
     }
   };
 }

@@ -7,20 +7,21 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 8080",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
-    "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --fix",
-    "lint:strict": "ESLINT_USE_FLAT_CONFIG=false eslint . --max-warnings=0",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:strict": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "test": "node scripts/test_gm.js",
+    "artifact:check": "node scripts/artifact_check.js",
     "gen:manifest": "node scripts/gen_manifest.js",
     "gen:smoke": "node scripts/gen_smoke_manifest.js",
     "analyze:phase1": "node scripts/analyze.js",
     "analyze:imports": "node scripts/import_graph.js",
-    "ci": "npm run lint:strict && npm run test && npm run build"
+    "ci": "npm run lint:strict && npm run test && npm run build && npm run artifact:check"
   },
   "devDependencies": {
     "vite": "^5.3.3",
-    "eslint": "^9.38.0",
+    "eslint": "^8.57.1",
     "prettier": "^3.6.2"
   }
 }
