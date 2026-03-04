@@ -120,7 +120,7 @@ Data-driven configuration
   - data/entities/{items.json, enemies.json, npcs.json, consumables.json}
   - data/shops/shops.json, data/world/town.json
 - Loader: data/loader.js loads and exposes GameData.*; logs a warning if world_assets.json is missing/invalid; tiles/props are not loaded in strict mode without it.
-- file://: you can still open index.html directly; minimal defaults keep the game playable, but tiles/props require the combined assets file for full visuals.
+- file://: some browsers block module/JSON loading or treat absolute paths like `/src/main.js` as filesystem-root, so file:// is not recommended. Use `node server.js` or `npm run dev` for reliable loading.
 
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel (persisted to localStorage as SEED).
@@ -259,12 +259,10 @@ Logging system (UI + Dev API)
   - Shop lifecycle (category Shop): phase changes and restock summaries; row details when tracing enabled.
   - Prefab/Town/Dungeon state notices and errors under their respective categories.
 
-- Gameplay-specific logging refinements
--  - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
--  - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
--  - Status effect messages (dazed, bleeding, burning) now log at info level so players always see them at the default threshold.meplay-specific logging refinements
-  - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
-  - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
+Gameplay-specific logging refinements
+- Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
+- Combat “crit” messages pass the threshold at info-level (styled red for distinction).
+- Status effect messages (dazed, bleeding, burning) now log at info level so players always see them at the default threshold.
 
 Notes
 - Most runtime modules log via ctx.log(...), which the engine routes to window.Logger.log(...) when available.
