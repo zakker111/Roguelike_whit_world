@@ -260,6 +260,17 @@
       return true;
     }
 
+    // New invariant: cache is consumed immediately on successful encounter start.
+    // Use absolute coords rather than findAtPlayer (player is now in encounter coords).
+    let goneOnStart = false;
+    try {
+      const cEnc = has(G.getCtx) ? G.getCtx() : gctx;
+      const atAbs = MS.findAt(cEnc, absX0, absY0);
+      const markersAbs = Array.isArray(atAbs) ? atAbs : (atAbs ? [atAbs] : []);
+      goneOnStart = !markersAbs.find(mm => mm && String(mm.instanceId || "") === instanceId0);
+    } catch (_) { goneOnStart = false; }
+    record(goneOnStart, "Survey cache marker removed immediately on encounter start");
+
     let withdrew = false;
     try {
       if (has(G.completeEncounter)) withdrew = !!G.completeEncounter("withdraw");

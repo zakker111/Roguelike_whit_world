@@ -130,6 +130,58 @@ function isSurveyCacheClaimed(sc, instanceId) {
   return Object.prototype.hasOwnProperty.call(claimed, String(instanceId));
 }
 
+function removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY } = {}) {
+  if (!MS || typeof MS.remove !== "function") return 0;
+
+  const iid = (instanceId != null) ? String(instanceId) : "";
+  const x = (typeof absX === "number" && Number.isFinite(absX)) ? (absX | 0) : null;
+  const y = (typeof absY === "number" && Number.isFinite(absY)) ? (absY | 0) : null;
+
+  let removed = 0;
+
+  if (iid) {
+    // Prefer criteria object with kind+instanceId to avoid accidental collisions.
+    try { removed = (MS.remove(ctx, { kind: "gm.surveyCache", instanceId: iid }) | 0); } catch (_) {}
+    if (!removed) {
+      try {
+        removed = (MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && String(m.instanceId || "") === iid) | 0);
+      } catch (_) {}
+    }
+  }
+
+  if (!removed && x != null && y != null) {
+    try {
+      removed = (MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && (m.x | 0) === x && (m.y | 0) === y) | 0);
+    } catch (_) {}
+  }
+
+  return removed;
+}
+
+function recordSurveyCacheClaim(sc, instanceId, turn) {
+  if (!sc || typeof sc !== "object") return;
+
+  if (!sc.claimed || typeof sc.claimed !== "object") sc.claimed = {};
+  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
+
+  const iid = String(instanceId);
+
+  sc.claimed[iid] = (turn | 0);
+
+  // Dedupe claimedOrder and move newest to front.
+  for (let i = sc.claimedOrder.length - 1; i >= 0; i--) {
+    if (String(sc.claimedOrder[i] || "") === iid) sc.claimedOrder.splice(i, 1);
+  }
+  sc.claimedOrder.unshift(iid);
+
+  // Keep bounded; only delete the pruned claimed entry if it no longer exists
+  // anywhere else in claimedOrder (defensive against legacy duplicate lists).
+  if (sc.claimedOrder.length > 256) {
+    const old = String(sc.claimedOrder.pop() || "");
+    if (old && !sc.claimedOrder.includes(old)) delete sc.claimed[old];
+  }
+}
+
 function isDisallowedSurveyTile(tile, T) {
   if (!T) return false;
   return tile === T.WATER
@@ -543,9 +595,17 @@ function handleSurveyCacheMarker(ctx, marker) {
       try { if (typeof ctx.log === "function") ctx.log("This cache has already been picked clean.", "info"); } catch (_) {}
       try {
         const iid = String(instanceId);
-        const removed = (typeof MS.remove === "function") ? (MS.remove(ctx, { instanceId: iid }) | 0) : 0;
+        const removed = (typeof MS.remove === "function")
+          ? (MS.remove(ctx, { kind: "gm.surveyCache", instanceId: iid }) | 0)
+          : 0;
+
         if (!removed && typeof MS.remove === "function") {
-          MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && String(m.instanceId || "") === iid);
+          MS.remove(ctx, (m) => {
+            if (!m) return false;
+            if (String(m.kind || "") !== "gm.surveyCache") return false;
+            if (String(m.instanceId || "") === iid) return true;
+            return (m.x | 0) === (absX | 0) && (m.y | 0) === (absY | 0);
+          });
         }
       } catch (_) {}
       return true;
@@ -577,6 +637,12 @@ function handleSurveyCacheMarker(ctx, marker) {
           try { if (typeof ctx.log === "function") ctx.log("[GM] Failed to start Survey Cache encounter.", "warn"); } catch (_) {}
           return;
         }
+
+        // Consume immediately so fleeing/withdrawing cannot re-enter the same cache.
+        // Keep sc.active intact so victory payout can still resolve the reward.
+        const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+        try { removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY }); } catch (_) {}
+        try { recordSurveyCacheClaim(sc, instanceId, turn); } catch (_) {}
 
         try {
           GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
@@ -1146,32 +1212,56 @@ export function onEncounterComplete(ctx, info) {
 
       const gm = GM.getState(ctx);
       const sc = ensureSurveyCacheThread(gm);
-      if (!sc || !sc.active) return;
+      if (!sc) return;
 
       const outcome = info && info.outcome ? String(info.outcome).trim().toLowerCase() : "";
       const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
-      const { instanceId, absX, absY } = sc.active;
 
-      // Consume the marker on encounter completion for any outcome.
-      // This prevents re-running the same cache by re-entering the encounter.
+      // Prefer the explicit active marker reference set when the player accepted the confirm.
+      // Fallback: derive from worldReturnPos so we still consume the marker even if GM state
+      // lost sc.active (e.g. page reload or other non-standard exit paths).
+      let instanceId = null;
+      let absX = null;
+      let absY = null;
       try {
-        const iid = String(instanceId);
-        const removed = (typeof MS.remove === "function") ? (MS.remove(ctx, { instanceId: iid }) | 0) : 0;
-        if (!removed && typeof MS.remove === "function") {
-          MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && String(m.instanceId || "") === iid);
+        if (sc.active && typeof sc.active === "object") {
+          instanceId = sc.active.instanceId != null ? String(sc.active.instanceId) : null;
+          absX = (typeof sc.active.absX === "number" && Number.isFinite(sc.active.absX)) ? (sc.active.absX | 0) : null;
+          absY = (typeof sc.active.absY === "number" && Number.isFinite(sc.active.absY)) ? (sc.active.absY | 0) : null;
         }
       } catch (_) {}
 
-      // Record the cache as exhausted/claimed so deterministic scan-time spawns do not respawn it.
-      if (!sc.claimed || typeof sc.claimed !== "object") sc.claimed = {};
-      if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
-      sc.claimed[String(instanceId)] = turn;
-      sc.claimedOrder.unshift(String(instanceId));
-      if (sc.claimedOrder.length > 256) {
-        const old = sc.claimedOrder.pop();
-        if (old) delete sc.claimed[String(old)];
+      if (!instanceId || absX == null || absY == null) {
+        try {
+          const pos = ctx.worldReturnPos || null;
+          if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
+            absX = pos.x | 0;
+            absY = pos.y | 0;
+            instanceId = `surveyCache:${absX},${absY}`;
+
+            // Prefer the actual marker's instanceId if present.
+            try {
+              if (typeof MS.findAt === "function") {
+                const at = MS.findAt(ctx, absX, absY);
+                const list = Array.isArray(at) ? at : (at ? [at] : []);
+                const m = list.find(mm => mm && String(mm.kind || "") === "gm.surveyCache") || null;
+                if (m && m.instanceId != null) instanceId = String(m.instanceId);
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
       }
 
+      if (!instanceId || absX == null || absY == null) return;
+
+      // Consume the marker on encounter completion for any outcome.
+      // This prevents re-running the same cache by re-entering the encounter.
+      try { removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY }); } catch (_) {}
+
+      // Record the cache as exhausted/claimed so deterministic scan-time spawns do not respawn it.
+      try { recordSurveyCacheClaim(sc, instanceId, turn); } catch (_) {}
+
+      // Clear active regardless of whether we came from the explicit marker flow.
       sc.active = null;
 
       try { GM.onEvent(ctx, { type: "gm.surveyCache.encounterExit", interesting: false, payload: { outcome, instanceId } }); } catch (_) {}

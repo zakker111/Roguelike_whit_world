@@ -1,3 +1,15 @@
+v1.50.31 — GM hotfix: Survey Cache consume-on-start (no re-entry after flee/withdraw)
+
+- Survey Cache (`gm.surveyCache`) markers are now consumed immediately after the encounter successfully starts, and the cache is marked claimed.
+- Prevents re-entering the same cache by returning to the `?` tile after fleeing/withdrawing.
+- Victory payout still occurs via the encounter completion hook.
+
+v1.50.30 — GM hotfix: Survey Cache claimedOrder de-dupe + robust marker removal
+
+- Survey Cache claim bookkeeping now de-dupes `gm.threads.surveyCache.claimedOrder` and only deletes pruned `claimed` entries when safe.
+  - Prevents edge cases where duplicate entries could cause the wrong claim to be evicted at the 256-cap.
+- Survey Cache marker consumption now removes by `{ kind, instanceId }` with a coordinate fallback to avoid leaving stale `?` markers behind.
+
 v1.50.29 — GM hotfix: Survey Cache confirm OK ctx sync (no teleport / no-encounter)
 
 - Exposed `GameAPI.applyCtxSyncAndRefresh(c)` (GameAPIBuilder) so async confirm callbacks that mutate ctx (e.g., `GMBridge.startGmFactionEncounter`) can reliably sync mode + refresh.
