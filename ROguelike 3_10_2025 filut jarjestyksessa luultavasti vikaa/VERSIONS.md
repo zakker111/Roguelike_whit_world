@@ -1,3 +1,8 @@
+v1.50.29 — GM hotfix: Survey Cache confirm OK ctx sync (no teleport / no-encounter)
+
+- Exposed `GameAPI.applyCtxSyncAndRefresh(c)` (GameAPIBuilder) so async confirm callbacks that mutate ctx (e.g., `GMBridge.startGmFactionEncounter`) can reliably sync mode + refresh.
+- Fixes a mode/position desync where Survey Cache confirm OK could leave the game in overworld mode while coordinates mutated, resulting in “teleport” behavior and/or the encounter not starting.
+
 v1.50.28 — GM hotfix: Survey Cache confirm encounter start
 
 - Fixed a missing `getGameData` import in `core/bridge/gm_bridge.js` that could cause Survey Cache confirm OK to throw `ReferenceError: getGameData is not defined` and prevent the encounter from starting.
