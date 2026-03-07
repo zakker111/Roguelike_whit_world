@@ -194,10 +194,65 @@ function open(ctx, size) {
     decorateRuinsSample(sample, rng, RU);
   }
 
-  const exitNorth = { x: (width / 2) | 0, y: 0 };
-  const exitSouth = { x: (width / 2) | 0, y: height - 1 };
-  const exitWest = { x: 0, y: (height / 2) | 0 };
-  const exitEast = { x: width - 1, y: (height / 2) | 0 };
+  // Exit tiles must be reachable; pick walkable edge tiles near the canonical midpoints.
+  function pickWalkableExit(edge) {
+    try {
+      if (edge === "N") {
+        const y = 0;
+        const x0 = clamp((width / 2) | 0, 0, width - 1);
+        if (regionWalkableAt(x0, y)) return { x: x0, y };
+        for (let r = 1; r < width; r++) {
+          const xl = x0 - r, xr = x0 + r;
+          if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+          if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+        }
+        return { x: x0, y };
+      }
+      if (edge === "S") {
+        const y = (height - 1) | 0;
+        const x0 = clamp((width / 2) | 0, 0, width - 1);
+        if (regionWalkableAt(x0, y)) return { x: x0, y };
+        for (let r = 1; r < width; r++) {
+          const xl = x0 - r, xr = x0 + r;
+          if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+          if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+        }
+        return { x: x0, y };
+      }
+      if (edge === "W") {
+        const x = 0;
+        const y0 = clamp((height / 2) | 0, 0, height - 1);
+        if (regionWalkableAt(x, y0)) return { x, y: y0 };
+        for (let r = 1; r < height; r++) {
+          const yu = y0 - r, yd = y0 + r;
+          if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+          if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+        }
+        return { x, y: y0 };
+      }
+      // "E"
+      const x = (width - 1) | 0;
+      const y0 = clamp((height / 2) | 0, 0, height - 1);
+      if (regionWalkableAt(x, y0)) return { x, y: y0 };
+      for (let r = 1; r < height; r++) {
+        const yu = y0 - r, yd = y0 + r;
+        if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+        if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+      }
+      return { x, y: y0 };
+    } catch (_) {
+      // Fallback to canonical midpoints
+      if (edge === "N") return { x: (width / 2) | 0, y: 0 };
+      if (edge === "S") return { x: (width / 2) | 0, y: (height - 1) | 0 };
+      if (edge === "W") return { x: 0, y: (height / 2) | 0 };
+      return { x: (width - 1) | 0, y: (height / 2) | 0 };
+    }
+  }
+
+  const exitNorth = pickWalkableExit("N");
+  const exitSouth = pickWalkableExit("S");
+  const exitWest = pickWalkableExit("W");
+  const exitEast = pickWalkableExit("E");
 
   // Compute region-map coordinate corresponding to the player's world position within the sampled window
   const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;

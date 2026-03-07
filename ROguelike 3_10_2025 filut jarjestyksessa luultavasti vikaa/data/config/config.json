@@ -38,5 +38,26 @@
       "innGoer": 0.2,
       "wanderer": 0.2
     }
+  },
+  "gm": {
+    "pacing": {
+      "boredomMin": 0.35,
+      "cooldownMinTurns": 400,
+      "cooldownMaxTurns": 600
+    },
+    "surveyCache": {
+      "boredomMin": 0.6,
+      "cooldownMinTurns": 600,
+      "cooldownMaxTurns": 900
+    },
+    "bottleMap": {
+      "fishing": {
+        "S0": 60,
+        "Smax": 180,
+        "boredomMin": 0.2,
+        "boredomMultMax": 3.0,
+        "cooldownTurns": 400
+      }
+    }
   }
 }

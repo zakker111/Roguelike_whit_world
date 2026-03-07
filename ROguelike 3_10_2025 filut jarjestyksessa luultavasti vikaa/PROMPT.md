@@ -5,6 +5,19 @@ Any time the AI edits code here, it should follow these rules.
 
 ---
 
+## Table of Contents
+
+- [1. High-Level Principles](#1-high-level-principles)
+- [2. Module Boundaries and Where to Put Code](#2-module-boundaries-and-where-to-put-code)
+- [3. Data-First, Code-Second Design](#3-data-first-code-second-design)
+- [4. Coding Style for Readability](#4-coding-style-for-readability)
+- [5. JSON Usage Guidelines](#5-json-usage-guidelines)
+- [6. Testing and Smoketests](#6-testing-and-smoketests)
+- [8. How the AI Should “Think” While Coding](#8-how-the-ai-should-think-while-coding)
+- [9. Performance in Hot Paths](#9-performance-in-hot-paths)
+- [10. Versioning, Docs, and Housekeeping](#10-versioning-docs-and-housekeeping)
+- [11. Health Check & Module Registration (Boot Diagnostics)](#11-health-check--module-registration-boot-diagnostics)
+
 ## 1. High-Level Principles
 
 - **Match the project’s style and architecture.**
@@ -14,6 +27,11 @@ Any time the AI edits code here, it should follow these rules.
 - **Prefer modular, composable code.**
   - Split big files into focused modules when it makes sense.
   - Extract reusable helpers; avoid copy-paste logic.
+
+- **It’s OK to create new folders/files/modules when necessary.**
+  - Keep additions small and consistent with the existing architecture and naming.
+  - Avoid large refactors or moving existing files/paths unless explicitly requested.
+  - If you add new modules, update imports/exports and any wiring/registration so existing paths remain stable.
 
 - **Be explicit, deterministic, and data-driven.**
   - Use `ctx.rng` or RNG utilities from `utils/access.js` — never `Math.random` in core gameplay.
@@ -63,6 +81,16 @@ When adding or changing code, first decide where it belongs:
 - If it’s “how the game runs” → `core/`.
 - If it’s “what exists in the world” → `data/` (and maybe `worldgen/`).
 - If it’s “how actors behave” → `ai/`.
+
+### 2.1 Adding New Files / Folders (Architecture Hygiene)
+
+- Add a new file/module only when it reduces coupling: (a) reused in 2+ places, (b) a file is mixing concerns, or (c) you’re introducing a clear new domain within an existing top-level area (`ai/`, `core/`, `ui/`, `worldgen/`, `data/`).
+- Prefer extending existing folders; avoid creating new **top-level** directories unless the domain is durable and will contain multiple modules.
+- Keep module surfaces small: export a few focused functions; avoid “god modules” and import cycles.
+- Naming: match existing `lower_snake_case` filenames (e.g. `town_population.js`) and use domain-specific folder names (`engine/`, `render/`, `services/`) over generic new `utils/` buckets.
+- Avoid “misc/”, “helpers2/”, or one-off utility dumping grounds; if it’s shared, use existing `utils/` or a domain-specific `*_helpers.js`.
+- If adding new JSON files, put them under the appropriate `data/{domain}/` folder, name them descriptively, and wire them through `GameData` (don’t hard-code content in JS).
+- If a new module/data domain becomes required for normal runs, register it in the boot health check (`core/capabilities.js`) so missing wiring fails loudly at startup.
 
 ---
 
@@ -216,6 +244,72 @@ Before and during coding:
    - What was implemented.
    - Why that design was chosen.
    - How to test it (steps and what to look for).
+
+### 8.1. Subagent Workflow (Prefer Delegation)
+
+Use subagents frequently to keep work small, parallel, and reviewable.
+
+- **Delegate to a subagent when:**
+  - You need to locate the right files / entry points across the repo.
+  - A change can be isolated to a small surface area (typically 1–3 files).
+  - You want a focused patch for a single behavior, bug, or data tweak.
+  - You can parallelize independent tasks (e.g. UI tweak + data update + smoketest path).
+
+- **Do it directly (no subagent) when:**
+  - The change is trivial and clearly localized (single function / single JSON edit).
+  - You are already in the correct file and the fix is obvious.
+  - You must coordinate multiple edits tightly (shared state, refactor spanning many files).
+
+- **How to scope a subagent task (required):**
+  - State the goal in one sentence.
+  - Limit the edit set: touch at most **1–3 files** (list expected files if known).
+  - Provide **acceptance criteria** as bullet points (observable behaviors).
+  - Provide **test steps** (commands + in-game/manual path) that validate the change.
+
+- **Iterative QA loop (default):**
+  1. Subagent produces a small diff + testing notes.
+  2. Orchestrator reviews the diff for style/architecture and correctness.
+  3. Orchestrator runs targeted tests/smoketests (minimum needed).
+  4. Deploy/apply the change, then re-check the specific scenario to confirm.
+
+- **Failure handling:**
+  - If a subagent’s result is incorrect/too broad/uncertain, reduce scope (smaller diff, fewer files, narrower goal) and retry.
+  - If file discovery is failing, run a “locator” subagent first (find entry points), then a second subagent to implement the change.
+
+### 8.2. Prompting Discipline: Subagent Tasks, Evidence, and Questions
+
+This repo benefits from small, deterministic patches. Prompt subagents in a way that produces **reviewable diffs** and **verifiable claims**.
+
+**Subagent task template (copy/paste):**
+- Goal (1 sentence):
+- Repo context (paths / symbols to start from):
+- Constraints (max files, no new deps, performance/hot-path notes):
+- Deliverables:
+  - Exact file list to change (1–3):
+  - Acceptance criteria (observable behavior):
+  - Tests to run (commands + in-game path):
+- Out of scope (what NOT to touch):
+
+**Reporting changes (required):**
+- Files changed: `pathA`, `pathB`
+- What changed (bullet list, concrete):
+- Why (design intent / tradeoffs, 1–3 bullets):
+- How tested:
+  - Commands run + results
+  - Manual test path + expected/observed behavior
+- Follow-ups / risks (only if real):
+
+**Anti-hallucination rules:**
+- Don’t claim a function/module/JSON field exists unless you can point to it by **file path + identifier**.
+- If you didn’t run tests/build, say so explicitly and provide the exact commands to run.
+- When unsure about an API or call site: **search first**, then quote the minimal relevant snippet.
+- Prefer “I observed X in `file:line`” over “the code does X”.
+- Never invent stack traces, test output, or game behaviors—reproduce or label as hypothesis.
+
+**Asking for missing info (when ambiguity affects implementation):**
+- Ask up to 3 targeted questions, each tied to a concrete decision (data schema, UI behavior, balance numbers).
+- Offer 1–2 safe defaults (clearly labeled) so work can proceed if the user agrees.
+- Explicitly list assumptions you’re making; if the user disagrees, revise before broad edits.
 
 ---
 

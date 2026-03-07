@@ -10,6 +10,7 @@
 let _panel = null;
 let _okCb = null;
 let _cancelCb = null;
+let _keyHandlerInstalled = false;
 
 function ensurePanel() {
   if (_panel) return _panel;
@@ -41,6 +42,7 @@ function ensurePanel() {
   panel.style.padding = "12px";
   panel.style.minWidth = "280px";
   panel.style.display = "none";
+  panel.tabIndex = -1;
 
   const text = document.createElement("div");
   text.id = "confirm-text";
@@ -103,6 +105,32 @@ function ensurePanel() {
     }
   });
 
+  // Keyboard shortcuts (accessibility + smoketests):
+  // - Enter / Space: OK
+  // - Escape: Cancel
+  if (!_keyHandlerInstalled) {
+    _keyHandlerInstalled = true;
+    window.addEventListener("keydown", (e) => {
+      try {
+        if (!isOpen()) return;
+        const k = e && (e.key || e.code || "");
+        if (k === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          cancel();
+          return;
+        }
+        if (k === "Enter" || k === " " || k === "Spacebar") {
+          e.preventDefault();
+          e.stopPropagation();
+          const cb = _okCb;
+          hide();
+          try { if (typeof cb === "function") cb(); } catch (_) {}
+        }
+      } catch (_) {}
+    }, true);
+  }
+
   _panel = panel;
   return panel;
 }
@@ -128,7 +156,7 @@ export function show(text, pos, onOk, onCancel) {
       const top = Math.max(10, Math.min(window.innerHeight - 120, Math.round(y)));
       panel.style.left = `${left}px`;
       panel.style.top = `${top}px`;
-      panel.style.transform = ""; // absolute position when pos provided
+      panel.style.transform = "";
     } else {
       panel.style.left = "50%";
       panel.style.top = "50%";
@@ -137,6 +165,7 @@ export function show(text, pos, onOk, onCancel) {
   } catch (_) {}
 
   panel.style.display = "block";
+  try { panel.focus(); } catch (_) {}
 }
 
 export function hide() {

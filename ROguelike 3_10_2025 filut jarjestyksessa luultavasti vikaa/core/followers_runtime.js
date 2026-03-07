@@ -205,8 +205,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
       const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
       if (GM && typeof GM.onEvent === "function") {
         const scope = ctx && ctx.mode ? ctx.mode : "town";
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "tried", detail: "hire" });
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "failure", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "tried", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "failure", detail: "hire" });
       }
     } catch (_) {}
     return false;
@@ -227,8 +227,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
       const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
       if (GM && typeof GM.onEvent === "function") {
         const scope = ctx && ctx.mode ? ctx.mode : "town";
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "tried", detail: "hire" });
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "failure", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "tried", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "failure", detail: "hire" });
       }
     } catch (_) {}
     return false;
@@ -241,8 +241,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
       const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
       if (GM && typeof GM.onEvent === "function") {
         const scope = ctx && ctx.mode ? ctx.mode : "town";
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "tried", detail: "hire" });
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "failure", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "tried", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "failure", detail: "hire" });
       }
     } catch (_) {}
     return false;
@@ -262,8 +262,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
       const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
       if (GM && typeof GM.onEvent === "function") {
         const scope = ctx && ctx.mode ? ctx.mode : "town";
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "tried", detail: "hire" });
-        GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "failure", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "tried", detail: "hire" });
+        GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "failure", detail: "hire" });
       }
     } catch (_) {}
     return false;
@@ -331,8 +331,8 @@ export function hireFollowerFromArchetype(ctx, archetypeId) {
     const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
     if (GM && typeof GM.onEvent === "function") {
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "tried", detail: "hire" });
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "success", detail: "hire" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "tried", detail: "hire" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "success", detail: "hire" });
     }
   } catch (_) {}
 
@@ -958,7 +958,7 @@ export function dismissFollower(ctx, followerId) {
     const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
     if (GM && typeof GM.onEvent === "function") {
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "followers", action: "success", detail: "dismiss" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "followers", action: "success", detail: "dismiss" });
     }
   } catch (_) {}
 

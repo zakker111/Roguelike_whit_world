@@ -146,7 +146,8 @@
         const afterLen = Array.isArray(gm.debug.intentHistory) ? gm.debug.intentHistory.length : 0;
         const last = Array.isArray(gm.debug.intentHistory) && gm.debug.intentHistory.length ? gm.debug.intentHistory[0] : null;
 
-        ctx.record(afterLen === beforeLen + 1, `GM entrance intent pushes intentHistory entry (town entry ${entryNo})`);
+        const expectedLen = Math.min(beforeLen + 1, 20);
+        ctx.record(afterLen === expectedLen, `GM entrance intent pushes intentHistory entry (town entry ${entryNo})`);
         ctx.record(!!(last && last.channel === "entrance"), `GM entrance intentHistory entry has channel 'entrance' (town entry ${entryNo})`);
         ctx.record(!!(intent && (intent.kind === "flavor" || intent.kind === "none")), `GM entrance intent kind is flavor|none (town entry ${entryNo})`);
 
@@ -195,7 +196,8 @@
       const afterMechLen = Array.isArray(gm.debug.intentHistory) ? gm.debug.intentHistory.length : 0;
       const mechLast = Array.isArray(gm.debug.intentHistory) && gm.debug.intentHistory.length ? gm.debug.intentHistory[0] : null;
 
-      const mechLogged = (afterMechLen === beforeMechLen + 1) && !!(mechLast && mechLast.channel === "mechanicHint");
+      const expectedMechLen = Math.min(beforeMechLen + 1, 20);
+      const mechLogged = (afterMechLen === expectedMechLen) && !!(mechLast && mechLast.channel === "mechanicHint");
       ctx.record(mechLogged, "GM mechanicHint pushes intentHistory entry");
 
       const mechOk = !!(

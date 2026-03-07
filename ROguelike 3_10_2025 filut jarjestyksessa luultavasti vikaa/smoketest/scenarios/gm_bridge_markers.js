@@ -14,6 +14,8 @@
     const record = (ctx && ctx.record) || function () {};
     const recordSkip = (ctx && ctx.recordSkip) || function () {};
     const sleep = (ctx && ctx.sleep) || (ms => new Promise(r => setTimeout(r, ms | 0)));
+    const key = (ctx && ctx.key) || (k => { try { window.dispatchEvent(new KeyboardEvent("keydown", { key: k, code: k, bubbles: true })); } catch (_) {} });
+    const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) || null;
 
     const G = window.GameAPI || null;
     if (!G || !has(G.getCtx) || !has(G.getMode)) {
@@ -26,6 +28,9 @@
       recordSkip("GMBridge markers skipped (not in world mode)");
       return true;
     }
+
+    // Ensure no modal UI (GOD/smoke/inventory/etc) is intercepting key input.
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
 
     const MS = window.MarkerService || null;
     record(!!MS, "MarkerService is available on window");
@@ -95,11 +100,8 @@
     record(!!m, "MarkerService.add can place a gm.* marker underfoot");
 
     // Press 'g' and confirm we did NOT enter the Region Map.
-    // Input handling listens to e.key, so emitting key='g' is enough.
-    try {
-      const ev = new KeyboardEvent("keydown", { key: "g", code: "g", bubbles: true });
-      window.dispatchEvent(ev);
-    } catch (_) {}
+    try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
+    key("g");
 
     await sleep(220);
 

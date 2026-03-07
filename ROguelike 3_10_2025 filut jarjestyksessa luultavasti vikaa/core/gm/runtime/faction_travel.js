@@ -19,6 +19,8 @@ import {
   schedulerConsume,
 } from "./scheduler/ops.js";
 
+import { checkPacingGate, getPacingConfig } from "./pacing.js";
+
 const FE_ACTION_ID_GUARD = "fe:guardFine";
 const FE_ACTION_ID_BANDIT = "fe:banditBounty";
 const FE_ACTION_ID_TROLL = "fe:trollHunt";
@@ -224,7 +226,7 @@ export function maybeScheduleFactionEvents(ctx, gm, turn, onDirty) {
           kind: "travel.trollHunt",
           status: "scheduled",
           priority: 100,
-          delivery: "auto",
+          delivery: "confirm",
           allowMultiplePerTurn: false,
           createdTurn: safeTurn,
           earliestTurn: trollSlot.earliestTurn | 0,
@@ -260,11 +262,21 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
 
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
-  // If slots exist (old view) but scheduler does not, schedule will be rebuilt by onEvent.
-  // We'll still try to pick from scheduler if possible.
   // Deterministic arbitration: priority > earliestTurn > createdTurn > id.
   const action = schedulerPickNext(gm, turn);
   if (!action) return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+
+  // v0.3 pacing gate: interventions are rare and only eligible when bored + off cooldown.
+  // NOTE: forced events (GOD/smoketests) can set `bypassPacing` so they still work.
+  const bypassPacing = !!action.bypassPacing;
+  if (!bypassPacing) {
+    const cfg = getPacingConfig(ctx);
+    const gate = checkPacingGate(ctx, gm, turn, cfg);
+    if (!gate.ok) {
+      // Do NOT consume the scheduler action yet. We'll re-check on future steps.
+      return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+    }
+  }
 
   let intent = { kind: "none" };
   if (action.id === FE_ACTION_ID_GUARD) {
@@ -349,35 +361,41 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       status: "scheduled",
       priority: 300,
       delivery: "confirm",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
       payload: { kind: "guard_fine" },
     }, markDirty);
     intent = { kind: "guard_fine" };
-  } else if (key === "bandit_bounty" || key === "bandit" || key === "bounty") {
+  } else if (key === "bandit_bounty" || key === "gm_bandit_bounty" || key === "bandit" || key === "bounty") {
     ensureSlot("banditBounty");
     schedulerUpsertAction(gm, FE_ACTION_ID_BANDIT, {
       kind: "travel.banditBounty",
       status: "scheduled",
       priority: 200,
       delivery: "auto",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
       payload: { encounterId: "gm_bandit_bounty" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
-  } else if (key === "troll_hunt" || key === "troll" || key === "trolls") {
+  } else if (key === "troll_hunt" || key === "gm_troll_hunt" || key === "troll" || key === "trolls") {
     ensureSlot("trollHunt");
     schedulerUpsertAction(gm, FE_ACTION_ID_TROLL, {
       kind: "travel.trollHunt",
       status: "scheduled",
       priority: 100,
       delivery: "auto",
-      allowMultiplePerTurn: false,
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
+      bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
       latestTurn: turn,
@@ -388,7 +406,11 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
     return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
   }
 
-  gm.lastActionTurn = turn;
+  // NOTE: Do NOT update gm.lastActionTurn here.
+  // `gm.lastActionTurn` is used by scheduler arbitration (via schedulerCanDeliver) to prevent
+  // multiple deliveries in the same turn. If we set it here, then calling
+  // GMBridge.maybeHandleWorldStep() in the same turn would refuse to deliver the forced action.
+  // The correct place to update lastActionTurn is when the action is actually consumed.
   if (pushIntentDebug(gm, Object.assign({ channel: "factionTravel" }, intent), turn)) markDirty(gm);
 
   return { intent, shouldWrite: true, writeOptions: { force: true } };

@@ -1,3 +1,180 @@
+v1.50.32 — GM: Survey Cache spawn gate + cooldown
+
+- Survey Cache (`gm.surveyCache`) markers are now spawned only when GM boredom is high enough.
+- Added a per-thread spawn cooldown (`gm.threads.surveyCache.nextSpawnTurn`) so markers do not reappear too frequently.
+- Added config knobs: `config.gm.surveyCache` (boredomMin, cooldownMinTurns, cooldownMaxTurns).
+- Added smoketest scenario `gm_survey_cache_spawn_gate`.
+- GM merge prep notes:
+  - Survey Cache: consume-on-start + claimed bookkeeping + robust removal
+  - Bottle Map: marker integrity, activation failure refund, idx safety
+  - GM persistence hygiene: seed reset, death restart resets GM
+  - Smoke tests coverage: gm_survey_cache, gm_survey_cache_spawn_gate, gm_bottle_map, gm_bottle_map_fishing_pity, gm_seed_reset
+  - Merge notes:
+    - core/bridge/gm_bridge.js — marker entry/confirm flows + thread reconciliation
+    - core/gm/runtime.js — persistence + reset semantics
+    - services/marker_service.js — marker integrity / removal helpers
+    - smoketest/scenarios/gm_*.js — scenarios listed above
+
+v1.50.31 — GM hotfix: Survey Cache consume-on-start (no re-entry after flee/withdraw)
+
+- Survey Cache (`gm.surveyCache`) markers are now consumed immediately after the encounter successfully starts, and the cache is marked claimed.
+- Prevents re-entering the same cache by returning to the `?` tile after fleeing/withdrawing.
+- Victory payout still occurs via the encounter completion hook.
+
+v1.50.30 — GM hotfix: Survey Cache claimedOrder de-dupe + robust marker removal
+
+- Survey Cache claim bookkeeping now de-dupes `gm.threads.surveyCache.claimedOrder` and only deletes pruned `claimed` entries when safe.
+  - Prevents edge cases where duplicate entries could cause the wrong claim to be evicted at the 256-cap.
+- Survey Cache marker consumption now removes by `{ kind, instanceId }` with a coordinate fallback to avoid leaving stale `?` markers behind.
+
+v1.50.29 — GM hotfix: Survey Cache confirm OK ctx sync (no teleport / no-encounter)
+
+- Exposed `GameAPI.applyCtxSyncAndRefresh(c)` (GameAPIBuilder) so async confirm callbacks that mutate ctx (e.g., `GMBridge.startGmFactionEncounter`) can reliably sync mode + refresh.
+- Fixes a mode/position desync where Survey Cache confirm OK could leave the game in overworld mode while coordinates mutated, resulting in “teleport” behavior and/or the encounter not starting.
+
+v1.50.28 — GM hotfix: Survey Cache confirm encounter start
+
+- Fixed a missing `getGameData` import in `core/bridge/gm_bridge.js` that could cause Survey Cache confirm OK to throw `ReferenceError: getGameData is not defined` and prevent the encounter from starting.
+- Survey Cache confirm OK is now wrapped in a defensive try/catch and logs a helpful warning if encounter start fails.
+- Smoketest `gm_survey_cache` now requires the confirm modal to actually close on acceptance.
+
+v1.50.27 — GM Phase 7D hotfix: Survey Cache marker consumption
+
+- Survey Cache (`gm.surveyCache` / `?`) markers are now consumed/removed when the encounter ends for **any** outcome (victory/defeat/escape).
+- GM state now records the cache as exhausted on encounter completion so scan-time procedural spawns do not respawn the same marker.
+
+v1.50.26 — GM Phase 7D hotfix: Bottle Map consumption + legacy marker safety
+
+- Bottle Map use now consumes the correct inventory slot even if `idx` is missing/invalid (prevents deleting slot 0 due to `undefined|0`).
+- Bottle Map encounters can no longer be started from legacy `gm.bottleMap` markers that are missing/incorrect `instanceId`.
+- Marker integrity now removes *all* mismatched Bottle Map markers (including empty `instanceId`) while a thread is active.
+- Smoketest `gm_bottle_map` expanded: idx-safety regression + better activation-failure forcing (patches both `World.isWalkable` and `world.gen.isWalkable`).
+
+v1.50.25 — GM Phase 7D: Bottle Map lifecycle gate + marker integrity
+
+- Bottle Map activation now fails gracefully if a valid overworld target cannot be found (refunds the item and marks the thread expired).
+- Added `GMBridge.reconcileMarkers(ctx)` to clean orphan `gm.bottleMap` markers and restore missing active markers (no RNG consumption).
+- GM panel now shows an explicit Bottle Map quest thread snapshot (target/attempts/placement/failure).
+- Smoketest `gm_bottle_map` now verifies marker restoration via `reconcileMarkers`.
+
+v1.50.24 — GM Phase 7C: Bottle Map pity counts every fishing success
+
+- Fishing: `GMBridge.maybeAwardBottleMapFromFishing(ctx)` is now evaluated on every successful fishing attempt (not only when the “special item” roll hits).
+- If a Bottle Map is awarded, it replaces the usual fish/special reward for that catch.
+- Fishing reward RNG no longer falls back to `Math.random()`; it uses `ctx.rng`/`RNGUtils` or a deterministic `() => 0.5` fallback.
+
+v1.50.23 — GM Phase 7A/7B: Bottle Map pity debug + smoketest
+
+- GM panel now displays Bottle Map fishing pity-timer state + derived chance (Profile section).
+- Added smoketest scenario `gm_bottle_map_fishing_pity` to ensure the pity timer eventually awards a Bottle Map.
+
+v1.50.22 — GM Phase 7 start: Bottle Map fishing pity timer
+
+- Bottle Map fishing drop is now GM-driven (boredom-gated pity timer) via `GMBridge.maybeAwardBottleMapFromFishing(ctx)`.
+- Added config knobs: `config.gm.bottleMap.fishing` (S0/Smax/boredomMin/boredomMultMax/cooldownTurns).
+- GM state now tracks Bottle Map fishing counters under `gm.threads.bottleMap.fishing`.
+
+v1.50.21 — Hotfix: ConfirmModal parse error
+
+- Fixed a corrupted `ui/components/confirm_modal.js` deploy causing `Unexpected identifier 'ensurePanel'` at runtime.
+
+v1.50.20 — GM Phase 6: debug/ops ergonomics
+
+- GMRuntime: added `exportState(ctx)` (stable JSON snapshot) and `clearPersisted(ctx)`.
+- GM panel: added header actions: Copy / Reset / Clear LS for faster iteration while developing GM phases.
+
+v1.50.19 — ConfirmModal keyboard support + smoketest confirm reliability
+
+- ConfirmModal now supports keyboard shortcuts: <Enter>/<Space> = OK, <Escape> = Cancel. This makes GM “confirm-first” flows testable and more accessible.
+- GM smoketests now accept confirms via <Enter> for travel encounters, bottle map, and survey cache.
+
+v1.50.18 — GM Phase 5 follow-up: confirm metadata + smoketest reliability
+
+- Travel scheduler metadata: `travel.banditBounty` and `travel.trollHunt` actions are now marked `delivery:"confirm"` (matches Phase 5 behavior).
+- Smoketests updated to accept ConfirmModal via button click for GM travel + marker encounters.
+- GM intent decision smoketest no longer fails when `intentHistory` is at its max cap.
+
+v1.50.17 — GM Phase 5: choice-first interventions (confirm before starting encounters)
+
+- Faction travel encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now prompt a confirm modal before entering the encounter.
+- GM markers (`gm.bottleMap`, `gm.surveyCache`) now prompt a confirm modal before entering their encounter scenes.
+- Showing these confirm prompts records a pacing intervention via `GMRuntime.recordIntervention(...)`.
+
+v1.50.16 — Smoketest fixes: Region Map reachable exits + GameAPI rest endpoints
+
+- Region Map: exit tiles are now always chosen as reachable (walkable) edge tiles, preventing the Region smoketest from getting stuck unable to step onto the designated exit.
+- GameAPI: added `restUntilMorning()` and `restAtInn()` endpoints (smoketest API presence).
+
+v1.50.15 — GM Phase 3 completion: explicit interest tagging (full sweep)
+
+- Completed Phase 3 emitter hygiene so boredom is not reduced by UI/telemetry spam:
+  - All `type:"mechanic"` emissions are now explicitly tagged `interesting:false` across:
+    - Fishing modal (`mechanic:fishing`)
+    - Lockpicking modal (`mechanic:lockpicking`) — including the success/failure outcome event
+    - Quest board (`mechanic:questBoard`) — UI open/close + service-side accept/claim attempts
+    - Followers (`mechanic:followers`) — UI open/close + runtime hire/dismiss attempts
+- `quest.complete` events are now explicitly emitted as `interestTier:"major"`.
+- `combat.kill` events are now explicitly emitted as `interestTier:"minor"`.
+- Bugfix: repaired a broken gather-quest turn-in check in `services/quest_service.js` that could throw at runtime.
+
+v1.50.14 — GM Phase 3 follow-up: explicit interest tagging at emitters
+
+- Explicitly tagged high-frequency `type:"mechanic"` UI telemetry as `interesting:false`:
+  - Fishing modal (`mechanic:fishing`)
+  - Lockpicking modal (`mechanic:lockpicking`)
+  - Quest board open/close (`mechanic:questBoard`)
+  - Follower inspect open/close (`mechanic:followers`)
+- `quest.complete` events are now explicitly emitted as `interestTier:"major"` (keeps the major hard-reset semantics).
+- `combat.kill` events are now explicitly emitted as `interestTier:"minor"`.
+
+v1.50.13 — GM Phase 4: boredom-gated pacing + deterministic cooldown
+
+- Added v0.3 pacing state to GM (`gm.pacing.nextEligibleTurn`, `gm.pacing.lastInterventionTurn`, `gm.pacing.lastCooldownTurns`).
+- Added config knobs (data-driven) in `data/config/config.json`:
+  - `gm.pacing.boredomMin`
+  - `gm.pacing.cooldownMinTurns` / `gm.pacing.cooldownMaxTurns`
+- Faction travel event delivery is now gated by boredom + cooldown (forced events bypass pacing via `bypassPacing` so GOD/smoketests still work).
+- Guard Fine confirm prompt now records an intervention (spends cooldown) via `GMRuntime.recordIntervention`.
+- GM panel (`O`) now shows pacing fields (next eligible / last intervention).
+
+v1.50.12 — GM Phase 3: boredom hygiene + tuning
+
+- GM boredom relief tuning:
+  - Minor events nudge boredom less (10% instead of 25%).
+  - Medium events nudge boredom less (30% instead of 50%).
+  - Partial nudges always remove at least 1 turn (when turnsSinceLastInterestingEvent > 0).
+- Emitter hygiene:
+  - GM "mechanic" telemetry is treated as **not interesting by default** (no boredom relief unless explicitly marked interesting).
+  - Region Map mode enter/leave events are marked `interesting:false`.
+
+v1.50.11 — GM Phase 2: travel encounter hardening
+
+- GM travel-event encounters (`gm_bandit_bounty`, `gm_troll_hunt`) now have minimal fallback templates inside `core/bridge/gm_bridge.js`.
+  - This prevents “silent no-op” when encounter registries haven’t loaded yet.
+- GMBridge travel-event delivery is now guarded as **world-mode only** (`GMBridge.maybeHandleWorldStep` returns false outside `ctx.mode === "world"`).
+- GM encounter starts inside `GMBridge.startGmFactionEncounter` are now strictly ctx-first (no legacy `GameAPI.enterEncounter` branch).
+
+v1.76.0 — Docs: GM ctx-first follow-up + subpath deploy caveat
+
+- TODO: Added Phase 2 follow-up: make non-marker GM encounter starts ctx-first where appropriate.
+- BUGS: Documented that absolute ESM imports like `/core/...` will 404 when hosting under a subpath unless you set a base path / rewrite / convert to relative imports.
+
+2026-03-02 — GM v0.2 hygiene: reset GM on seed changes
+
+- Applying a seed via GOD (`Apply Seed` / `Reroll`) now also resets GMRuntime so GM state does not leak across runs when the seed changes.
+  - Implemented in `data/god.js::applySeed` so it happens before world/floor regeneration.
+- Added smoketest scenario `gm_seed_reset`.
+
+2026-03-01 — GM thread: Surveyor's Cache (hybrid spawn) + scan-time marker hook
+
+- Added a new Bottle-Map-style GM thread triggered by a `gm.*` overworld marker: **Surveyor's Cache** (`gm.surveyCache`).
+  - Hybrid spawn: guarantees at least one marker per run on world boot, and also spawns rare procedural markers as you explore.
+  - Rewards are location-seeded (order-independent) and include gold + tier-2 equipment.
+- Added `GMBridge.onWorldScanRect(...)` so scan-time GM marker spawns can be integrated efficiently without per-tile GM calls.
+- Added smoketest scenario `gm_survey_cache`.
+- Fixed a critical mode/position desync when pressing `G` on GM overworld markers (`?` Surveyor's Cache, `X` Bottle Map): GM marker encounters now enter via ctx-first transitions (no `GameAPI` ctx reacquire), preventing the "? marker teleport" bug.
+- Input: ignore key-repeat for `G` to reduce accidental double-triggering during transitions.
+
 2026-02-21 — GM v0.1 merge gate first pass (Policy A): deterministic hints + observability
 
 - GM v0.1 automated gates:

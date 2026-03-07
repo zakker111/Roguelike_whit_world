@@ -145,6 +145,17 @@
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 5 }, "faction": "bandit" }
       ]
+    },
+    {
+      "id": "gm_survey_cache_scene",
+      "name": "GM: Surveyor's Cache",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
+      "map": { "generator": "ruins", "w": 26, "h": 18 },
+      "objective": { "type": "clearAll" },
+      "groups": [
+        { "type": "bandit", "count": { "min": 3, "max": 6 }, "faction": "bandit" }
+      ]
     }
   ]
 }

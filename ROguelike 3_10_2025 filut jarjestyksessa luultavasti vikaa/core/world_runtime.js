@@ -13,6 +13,7 @@ import { ensureInBounds as ensureInBoundsExt } from "./world/expand.js";
 import { tryMovePlayerWorld as tryMovePlayerWorldExt } from "./world/move.js";
 import { tick as tickExt } from "./world/tick.js";
 import { allocFog } from "./engine/fog.js";
+import * as GMBridge from "./bridge/gm_bridge.js";
 import {
   ensurePOIState,
   addTown,
@@ -170,6 +171,13 @@ export function generate(ctx, opts = {}) {
 
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
+
+    // Hybrid GM marker thread: guarantee at least one Survey Cache per run.
+    try {
+      if (GMBridge && typeof GMBridge.ensureGuaranteedSurveyCache === "function") {
+        GMBridge.ensureGuaranteedSurveyCache(ctx);
+      }
+    } catch (_) {}
 
     // Spawn a few travelling caravans that wander between the known towns.
     try { spawnInitialCaravans(ctx); } catch (_) {}

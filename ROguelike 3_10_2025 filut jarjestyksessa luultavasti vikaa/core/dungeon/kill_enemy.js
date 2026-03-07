@@ -252,6 +252,7 @@ export function killEnemy(ctx, enemy) {
       } catch (_) {}
       GM.onEvent(ctx, {
         type: "combat.kill",
+        interestTier: "minor",
         scope: ctx && ctx.mode ? ctx.mode : "dungeon",
         enemyId: String(enemy.type || enemy.id || "unknown"),
         tags,

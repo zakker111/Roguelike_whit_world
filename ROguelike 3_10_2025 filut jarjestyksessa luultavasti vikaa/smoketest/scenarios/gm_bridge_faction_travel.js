@@ -77,6 +77,31 @@
     const worldCtx0 = G.getCtx();
 
     try {
+      const acceptConfirmOk = async () => {
+        // Prefer keyboard acceptance (Enter) now that ConfirmModal supports it.
+        const opened = await waitUntil(() => isConfirmOpen(), 2000, 80);
+        if (!opened) return false;
+        try {
+          const ev = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true });
+          window.dispatchEvent(ev);
+          document.dispatchEvent(ev);
+        } catch (_) {}
+        await sleep(120);
+        await waitUntil(() => !isConfirmOpen(), 2000, 80);
+        return !isConfirmOpen();
+      };
+
+      const isConfirmOpen = () => {
+        try {
+          const CM = window.ConfirmModal;
+          if (CM && typeof CM.isOpen === "function") return !!CM.isOpen();
+        } catch (_) {}
+        try {
+          const panel = document.getElementById("confirm-panel");
+          return !!(panel && panel.style.display !== "none");
+        } catch (_) { return false; }
+      };
+
       // Ensure player has enough gold so the confirm dialog can show.
       try {
         const inv = (worldCtx0.player && Array.isArray(worldCtx0.player.inventory)) ? worldCtx0.player.inventory : (worldCtx0.player.inventory = []);
@@ -96,7 +121,7 @@
       try { handled = !!GMB.maybeHandleWorldStep(worldCtx0); } catch (_) { handled = false; }
       record(handled, "GMBridge.maybeHandleWorldStep handles forced travel event");
 
-      // Confirm should be open if UI is present. (Fallback path is auto-pay).
+      // Confirm should be open if UI is present. (No forced-outcome fallback when confirm UI is missing.)
       const canCheck = !!(CM && has(CM.isOpen));
       if (!canCheck) {
         record(true, "ConfirmModal.isOpen not available; cannot assert modal open state (non-fatal)");
@@ -155,6 +180,13 @@
         let handled2 = false;
         try { handled2 = !!GMB.maybeHandleWorldStep(worldCtx); } catch (_) { handled2 = false; }
         record(handled2, `GMBridge.maybeHandleWorldStep handles forced travel event (${intent})`);
+
+        // Phase 5: travel encounters are confirm-first.
+        const confirmOpened = await waitUntil(() => isConfirmOpen(), 1600, 80);
+        record(confirmOpened, `ConfirmModal opened for travel encounter (${intent})`);
+        if (confirmOpened) {
+          await acceptConfirmOk();
+        }
 
         const entered = await waitUntilMode("encounter", 3500);
         const modeNow = has(G.getMode) ? G.getMode() : "";

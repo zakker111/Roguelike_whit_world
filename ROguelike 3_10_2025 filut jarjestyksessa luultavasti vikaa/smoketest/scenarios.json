@@ -17,8 +17,13 @@
     { "id": "skeleton_key_chest", "label": "Skeleton Key + Locked Chest" },
     { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },
     { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" },
+    { "id": "gm_seed_reset", "label": "GM: Seed reset (apply seed clears GM state)" },
+    { "id": "gm_boredom_interest", "label": "GM: Boredom interest weighting (Phase 3)" },
     { "id": "gm_bridge_markers", "label": "GMBridge + Markers" },
     { "id": "gm_bridge_faction_travel", "label": "GMBridge: Faction travel (guard fine confirm)" },
-    { "id": "gm_bottle_map", "label": "GM: Bottle Map" }
+    { "id": "gm_bottle_map", "label": "GM: Bottle Map" },
+    { "id": "gm_bottle_map_fishing_pity", "label": "GM: Bottle Map (fishing pity)" },
+    { "id": "gm_survey_cache", "label": "GM: Survey Cache" },
+    { "id": "gm_survey_cache_spawn_gate", "label": "GM: Survey Cache (spawn gate)" }
   ]
 }

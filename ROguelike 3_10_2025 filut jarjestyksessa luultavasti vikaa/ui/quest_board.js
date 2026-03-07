@@ -271,7 +271,7 @@ export function hide() {
     if (GM && typeof GM.onEvent === "function") {
       const ctx = _ctxForBoard;
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "dismiss", detail: "close" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "questBoard", action: "dismiss", detail: "close" });
     }
   } catch (_) {}
 }
@@ -298,7 +298,7 @@ export function open(ctx) {
     const GM = (typeof window !== "undefined" ? window.GMRuntime : null);
     if (GM && typeof GM.onEvent === "function") {
       const scope = ctx && ctx.mode ? ctx.mode : "town";
-      GM.onEvent(ctx, { type: "mechanic", scope, mechanic: "questBoard", action: "seen", detail: "open" });
+      GM.onEvent(ctx, { type: "mechanic", scope, interesting: false, mechanic: "questBoard", action: "seen", detail: "open" });
     }
   } catch (_) {}
 

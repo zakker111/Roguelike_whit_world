@@ -241,6 +241,29 @@
     return await waitUntilTrue(() => isRunnerReady(), to, 80);
   }
 
+  // Runner-level data readiness: wait for GameData.ready to settle (when present)
+  async function waitUntilGameDataReady(timeoutMs) {
+    try {
+      const GD = (typeof window !== "undefined") ? window.GameData : null;
+      if (!GD || !GD.ready || typeof GD.ready.then !== "function") return true;
+
+      let settled = false;
+      try {
+        GD.ready.then(
+          () => { settled = true; },
+          () => { settled = true; }
+        );
+      } catch (_) {
+        settled = true;
+      }
+
+      const ok = await waitUntilTrue(() => settled, Math.max(250, timeoutMs | 0), 80);
+      return !!ok;
+    } catch (_) {
+      return true;
+    }
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -251,6 +274,8 @@
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
       await waitUntilRunnerReady(6000);
+      // Ensure JSON registries (notably encounters) have finished loading before any scenario runs.
+      await waitUntilGameDataReady(15000);
 
       // Validation summary (non-fatal): record warnings/notices up front
       let __valWarnings = 0, __valNotices = 0;
@@ -507,7 +532,8 @@
             window.SmokeTest.Runner = window.SmokeTest.Runner || {};
           } catch (_) {}
           if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.DUNGEON_LOCK) {
-            return getMode() === "dungeon";
+            if (getMode() === "dungeon") return true;
+            try { window.SmokeTest.Runner.DUNGEON_LOCK = false; } catch (_) {}
           }
           // If already in dungeon, set lock and return
           if (modeNow === "dungeon") {
@@ -766,7 +792,8 @@
             window.SmokeTest.Runner = window.SmokeTest.Runner || {};
           } catch (_) {}
           if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.TOWN_LOCK) {
-            return getMode() === "town";
+            if (getMode() === "town") return true;
+            try { window.SmokeTest.Runner.TOWN_LOCK = false; } catch (_) {}
           }
           // If already in town, set lock and return
           if (modeNow === "town") {
@@ -1014,9 +1041,14 @@
         skeleton_key_chest: S.skeleton_key_chest && S.skeleton_key_chest.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,
         gm_intent_decisions: S.GMIntentDecisions && S.GMIntentDecisions.run,
+        gm_seed_reset: S.gm_seed_reset && S.gm_seed_reset.run,
+        gm_boredom_interest: S.gm_boredom_interest && S.gm_boredom_interest.run,
         gm_bridge_markers: S.gm_bridge_markers && S.gm_bridge_markers.run,
         gm_bridge_faction_travel: S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run,
         gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,
+        gm_bottle_map_fishing_pity: S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run,
+        gm_survey_cache: S.gm_survey_cache && S.gm_survey_cache.run,
+        gm_survey_cache_spawn_gate: S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run,
       };
       let pipeline = [];
       try {
@@ -1443,7 +1475,32 @@
           token.style.display = "none";
           document.body.appendChild(token);
         }
+        // CI/headless contract: token text MUST be exactly PASS/FAIL.
         token.textContent = ok ? "PASS" : "FAIL";
+        token.style.display = "none";
+
+        // Human-visible banner (separate from the CI token so we don't break tooling)
+        try {
+          var banner = document.getElementById("smoke-pass-banner");
+          if (!banner) {
+            banner = document.createElement("div");
+            banner.id = "smoke-pass-banner";
+            document.body.appendChild(banner);
+          }
+          banner.textContent = ok ? "SMOKE PASS" : "SMOKE FAIL";
+          banner.style.display = "block";
+          banner.style.position = "fixed";
+          banner.style.top = "6px";
+          banner.style.left = "6px";
+          banner.style.zIndex = "99999";
+          banner.style.padding = "4px 6px";
+          banner.style.background = "rgba(0,0,0,0.75)";
+          banner.style.color = ok ? "#7CFC00" : "#ff4d4d";
+          banner.style.fontFamily = "monospace";
+          banner.style.fontSize = "12px";
+          banner.style.borderRadius = "4px";
+        } catch (_) {}
+
         var jsonToken = document.getElementById("smoke-json-token");
         if (!jsonToken) {
           jsonToken = document.createElement("div");
@@ -1471,6 +1528,8 @@
 
   async function runSeries(count) {
     const params = parseParams();
+    // Ensure data registries are loaded before we start clicking "New Game" (more deterministic).
+    await waitUntilGameDataReady(15000);
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
     const all = [];
     let pass = 0, fail = 0;

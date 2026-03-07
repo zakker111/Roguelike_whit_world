@@ -4,12 +4,57 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
+### GM Merge Readiness (v1.50.32)
+
+Implemented (ready in GM branch):
+- [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)
+- [x] Surveyor’s Cache marker + encounter + claimed state
+- [x] Travel events (guard fine confirm + bandit bounty)
+- [x] Pacing: deterministic low-frequency hints / intent eval (no RNG consumption)
+- [x] Confirm prompts (pay/refuse)
+- [x] Marker integrity: ctx-first marker encounter entry (no teleport/mode desync)
+- [x] Fishing pity (special fishing drops ramp after misses; tuneable)
+
+Merge checklist:
+- Smoketest scenarios (IDs):
+  - `gm_mechanic_hints`
+  - `gm_intent_decisions`
+  - `gm_boredom_interest`
+  - `determinism`
+  - `gm_seed_reset`
+  - `gm_bridge_markers`
+  - `gm_bridge_faction_travel`
+  - `gm_bottle_map`
+  - `gm_bottle_map_fishing_pity`
+  - `gm_survey_cache`
+  - `gm_survey_cache_spawn_gate`
+- Manual checks:
+  - Survey Cache: cache is **consumed on encounter start** (cannot double-claim)
+  - Bottle Map: withdrawing from the marker encounter keeps the `X` marker + quest thread intact
+  - Bandit bounty: victory pays the bounty (and does not pay on withdraw/defeat)
+- State/seed reset checks:
+  - Start New Game clears `GM_STATE_V1` (no stale `X`/`?` markers)
+  - Death restart clears `GM_STATE_V1`
+  - Seed reroll / apply seed clears `GM_STATE_V1` (and restarts GM pacing)
+
+Known issues / deferred (post-merge):
+- [ ] Persisted GM RNG stream + reload continuity gate — defer
+- [ ] General GM action scheduler + safety rails — defer
+- [ ] Reset semantics coverage for all entry points + APP_VERSION bump — defer
+
 - [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
   - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
   - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.
   - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
 
 - [ ] GM v0.2: Orchestrating GM (feature-rich skeleton; expandable)
+  - Current status (already implemented)
+    - [x] GMRuntime persistence key `GM_STATE_V1` (`core/gm/runtime.js`, `core/state/persistence.js`)
+    - [x] Bottle Map end-to-end: fishing → item → marker → encounter → cleanup; smoketest (`ui/components/fishing_modal.js`, `core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bottle_map.js`)
+    - [x] Surveyor’s Cache: `gm.surveyCache` marker + encounter + claimed; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_survey_cache.js`)
+    - [x] Guard fine confirm flow emits `gm.guardFine.pay/refuse`; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bridge_faction_travel.js`)
+    - [x] Marker encounter entry is ctx-first (teleport bug fix) (`core/bridge/gm_bridge.js`)
+
   - Frozen scope (agreed)
     - GM uses its own **persisted RNG stream** (separate from `ctx.rng` / global RNG).
       - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
@@ -18,6 +63,53 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - `travel.banditBounty`: **auto** (special encounter)
       - `travel.guardFine`: **confirm** (pay/refuse)
       - `quest.bottleMap`: **marker** (player travels and presses `G`)
+
+  - GM v0.2 ship roadmap (phases)
+    - [ ] Phase 0: Baseline QA gate
+      - Scope: lock current behavior; tighten determinism + crash hygiene.
+      - Likely files: `core/gm/runtime.js`, `core/bridge/gm_bridge.js`, `smoketest/` runner.
+      - Acceptance: 10x smoketest runs stable; no new console errors in normal play.
+      - Smoketests (new/extend): extend existing determinism scenario + add a short “smoke suite” CI loop.
+    - [ ] Phase 1: GM RNG persistence gate
+      - Scope: make GM RNG a first-class persisted stream; prove reload continuity.
+      - Likely files: `core/gm/runtime.js` (RNG), `core/state/persistence.js`, `smoketest/scenarios/determinism*.js`.
+      - Acceptance: save → reload → next N GM RNG draws identical; GM RNG draws never consume `ctx.rng`.
+      - Smoketests (new/extend): add/extend a `gm_rng_persistence` scenario.
+    - [ ] Phase 2: Scheduler
+      - Scope: implement action queue + deterministic arbitration (RNG-free winner selection).
+      - Likely files: `core/gm/scheduler*.js` (new), `core/gm/runtime.js`.
+      - Acceptance: stable sort `priority → earliestTurn → createdTurn → id`; lifecycle statuses behave as specified.
+      - Smoketests (new/extend): add `gm_scheduler_arbitration` (assert 0 RNG calls during arbitration).
+    - [ ] Phase 3: Narrow GMBridge
+      - Scope: route all GM→Game side effects through a minimal bridge API.
+      - Likely files: `core/bridge/gm_bridge.js`, `core/bridge/ui_bridge.js`, `core/gm/runtime.js` call sites.
+      - Acceptance: GM runtime does not directly mutate unrelated systems; bridge surface is reviewed + documented.
+      - Smoketests (new/extend): extend bottle-map + survey-cache scenarios to assert bridge-only side effects.
+    - [ ] Phase 4: Reset semantics
+      - Scope: guarantee GM resets on death restart / Start New Game / seed reroll / APP_VERSION bump.
+      - Likely files: `core/state/persistence.js`, any “new game / apply seed / death restart” handlers.
+      - Acceptance: `GM_STATE_V1` reliably cleared on each reset path; no stale markers/threads after reset.
+      - Smoketests (new/extend): add `gm_reset_semantics` scenario (force each reset path).
+    - [ ] Phase 5: banditBounty via scheduler
+      - Scope: ship `travel.banditBounty` as an auto action scheduled + executed through the bridge.
+      - Likely files: `core/gm/runtime.js` (action defs), `core/bridge/gm_bridge.js`, encounter data `gm_bandit_bounty`.
+      - Acceptance: obeys safety rails + cooldowns; auto encounter entry is ctx-first; no interference with normal travel rolls.
+      - Smoketests (new/extend): add `gm_bandit_bounty` scenario (cooldown + ctx-first entry).
+    - [ ] Phase 6: GM panel surfacing
+      - Scope: expose scheduler queue + RNG stream + active quest summaries in GM panel.
+      - Likely files: `ui/` GM panel component(s), `ui/style.css`, `core/gm/runtime.js` snapshot/export.
+      - Acceptance: panel shows next actions + statuses; RNG stream (algo/state/calls) visible; no perf regressions.
+      - Smoketests (new/extend): extend UI smoketests to open panel and assert key fields render.
+    - [ ] Phase 7: Final ship gate
+      - Scope: run full v0.2 gates; document known limitations; freeze merge.
+      - Likely files: `TODO.md` gates, `smoketest/` scenarios, `VERSIONS.md` notes.
+      - Acceptance: all v0.2 “testing/merge gates” checked; disable switch verified; no regressions in travel/fishing/markers.
+      - Smoketests (new/extend): run full smoke suite ≥ 10 iterations; require 100% pass.
+
+  - Phase 2 (post-fix follow-ups)
+    - [ ] Make non-marker GM encounter starts ctx-first where appropriate
+      - Audit travel events and other non-marker flows (`travel.banditBounty`, `travel.guardFine`, etc.)
+      - Ensure encounter entry and mode transitions use ctx-first facades (no `GameAPI` ctx reacquire / window-only entry)
 
   - Foundation (must ship in v0.2)
     - [ ] General GM **Action Scheduler**
@@ -35,7 +127,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
       - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
     - [ ] Persistence (mid-run continuity only)
-      - LocalStorage: [ ] add `GM_STATE_V1`
+      - LocalStorage: [x] add `GM_STATE_V1`
       - Persist: scheduler queue + active quest threads + GM RNG state
       - Clear `GM_STATE_V1` on:
         - [ ] death restart
@@ -44,7 +136,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
         - [ ] deploy version change (APP_VERSION)
 
   - v0.2 shipping action catalog (minimum content)
-    - [ ] `travel.guardFine` (confirm)
+    - [x] `travel.guardFine` (confirm)
       - Use confirm UI (pay/refuse)
       - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
       - Encounter template already exists: `gm_guard_fine` (data)
@@ -52,7 +144,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Auto-start a **special** encounter (not the normal EncounterService roll)
       - Must obey safety rails + cooldowns
       - Encounter template already exists: `gm_bandit_bounty` (data)
-    - [ ] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
+    - [x] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
       - Acquisition: on fishing success, sometimes grant a "Bottle with a Map" (only if no active quest thread)
       - Activation: on first use/inspect, bind a target overworld tile via GM RNG + placement constraints
       - Marker: place an X marker; show a short clue (near town/region)
@@ -84,6 +176,37 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - [ ] Timeline-style intents/events list (newest-first) with channel + reason visible
       - [ ] Raw GM JSON section (collapsed by default; stringify only when expanded)
       - [ ] "Show all" toggles for traits/mechanics vs only-active filtering
+
+- [ ] GM v0.3: Rare, choice-driven pacing (boredom-gated; deterministic randomness)
+  - Phase 0: Contract (locked)
+    - [x] Contract doc: `analysis/gm_v0_3_contract.md`
+    - Pacing: rare (only when bored)
+    - Authority: choices (no forced outcomes)
+    - Persistence: reset on apply seed / restart / death restart
+  - Frozen scope (agreed)
+    - Rare only when bored (boredom threshold gate; tuneable)
+    - Intervention budget counts **only player-facing choice prompts** (confirm/choice UI); non-choice hints/logs do not spend cooldown
+    - Choices only (no forced outcomes)
+    - Reset pacing state on apply seed / Start New Game / death restart
+  - Pacing rules
+    - Boredom gate: require `gm.boredom.level >= boredomMin` before proposing an intervention
+    - Cooldown range: 400–600 turns (GM RNG; deterministic)
+    - Store `nextEligibleTurn` (and `lastInterventionTurn`) in GM state (persisted)
+  - Boredom policy
+    - Do NOT hard reset boredom to 0
+    - Partial recovery instead (reduce boredom by a fraction / tiered stepdown)
+    - Introduce event “interest weight” (or tiering)
+  - Phase list (1–4)
+    - [x] Phase 1: Audit boredom + eligibility transitions
+      - Report: `analysis/gm_phase1_audit.md`
+    - [ ] Phase 2: Ctx-first hardening (all GM entry/exit points)
+    - [ ] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
+    - [ ] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)
+  - v0.3 testing/merge gates
+    - [ ] Determinism across reload (same seed + save/reload preserves `nextEligibleTurn` and eligibility)
+    - [ ] Boredom not stuck at 0 (partial recovery still allows boredom to accumulate)
+    - [ ] No forced negative events (choices only)
+    - [ ] Reset clears `GM_STATE_V1`
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
@@ -431,6 +554,16 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - Shows an overall progress indicator (percentage of tracked steps complete) and a list of step names with status (OK / pending / failed).
       - Allows forcing a re-run of HealthCheck and/or data validation from the GOD panel to refresh the view.
 
+- [ ] Subpath deployment / base URL clarity
+  - [ ] Convert absolute imports in `src/main.js` to be subpath-safe (relative paths or `import.meta.env.BASE_URL`), **or** explicitly document that the app must be served at site root (`/`).
+
+- [ ] Deployment checklist (quick sanity checks after deploy)
+  - Deploy the correct directory (repo root native ESM vs `dist/` when bundling)
+  - Verify these URLs load and work:
+    - `/`
+    - `/docs/`
+    - `/tools/prefab_editor.html`
+
 - [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
 - [ ] GOD panel: add a toggle to visualize enemy FOV/vision cones
   - GOD toggle that overlays the current FOV/vision radius of selected enemies (or all enemies) on the map:
@@ -454,6 +587,9 @@ This file collects planned features, ideas, and technical cleanups that were pre
   - [ ] Add explicit smoke coverage for:
     - [ ] Harbor towns: validate harbor detection (`harborDir`), port layout generation, and enter/exit stability.
     - [ ] Towers: validate world → tower entry, internal stairs up/down, tower exit, then normal dungeon entry/exit (transition hygiene).
+    - [ ] GM marker interaction: Surveyor’s Cache (`?`) + Bottle Map (`X`) marker flows (only if the smoketest runner can interact with markers / press `G` reliably)
+      - Validate survey cache prompt opens and the cache state is persisted/cleared as expected
+      - Validate Bottle Map marker encounter entry happens at the marker tile (no position/mode desync) and cleanup removes the marker
   - [ ] Future-proof runner against mode/transition semantics changes:
     - Prefer GameAPI programmatic transitions (`enter*/returnToWorld*/completeEncounter`) before keypress fallbacks.
     - Avoid assumptions about walkability of POI tiles; allow ensureWalkable=false when landing on POIs.

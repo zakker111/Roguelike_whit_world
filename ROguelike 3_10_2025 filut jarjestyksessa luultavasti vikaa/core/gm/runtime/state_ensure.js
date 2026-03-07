@@ -183,6 +183,80 @@ export function ensureTraitsAndMechanics(gm) {
   }
 }
 
+export function ensureThreads(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  if (!gm.threads || typeof gm.threads !== "object") {
+    gm.threads = {};
+  }
+
+  // Bottle Map: single active thread at a time.
+  if (!gm.threads.bottleMap || typeof gm.threads.bottleMap !== "object") {
+    gm.threads.bottleMap = { active: false, fishing: { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 } };
+  }
+  if (typeof gm.threads.bottleMap.active !== "boolean") {
+    gm.threads.bottleMap.active = !!gm.threads.bottleMap.active;
+  }
+  if (!gm.threads.bottleMap.fishing || typeof gm.threads.bottleMap.fishing !== "object") {
+    gm.threads.bottleMap.fishing = { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 };
+  }
+  const bf = gm.threads.bottleMap.fishing;
+  bf.eligibleSuccesses = bf.eligibleSuccesses | 0;
+  bf.totalSuccesses = bf.totalSuccesses | 0;
+  bf.lastAwardTurn = (typeof bf.lastAwardTurn === "number" && Number.isFinite(bf.lastAwardTurn)) ? (bf.lastAwardTurn | 0) : -9999;
+  bf.awardCount = bf.awardCount | 0;
+
+  // Survey Cache: potentially many markers; persist only claimed ids (bounded).
+  if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
+    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null, nextSpawnTurn: 0 };
+  }
+  const sc = gm.threads.surveyCache;
+  if (!sc.claimed || typeof sc.claimed !== "object" || Array.isArray(sc.claimed)) sc.claimed = {};
+  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
+  if (!sc.attempts || typeof sc.attempts !== "object" || Array.isArray(sc.attempts)) sc.attempts = {};
+
+  // Active marker reference used during encounter resolution.
+  if (sc.active != null && typeof sc.active !== "object") sc.active = null;
+
+  // Cooldown tracking (turn-gated) for survey cache marker placement.
+  sc.nextSpawnTurn = (typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
+  if (sc.nextSpawnTurn < 0) sc.nextSpawnTurn = 0;
+
+  // Prune claimed map to a bounded size.
+  const MAX_CLAIMS = 256;
+  if (sc.claimedOrder.length > MAX_CLAIMS) sc.claimedOrder.length = MAX_CLAIMS;
+  for (let i = sc.claimedOrder.length - 1; i >= 0; i--) {
+    const id = sc.claimedOrder[i];
+    const key = typeof id === "string" ? id : String(id);
+    if (!key || !Object.prototype.hasOwnProperty.call(sc.claimed, key)) {
+      sc.claimedOrder.splice(i, 1);
+    } else {
+      sc.claimedOrder[i] = key;
+    }
+  }
+  // If claimed map is larger than the order list, prune arbitrarily (stable-ish by key).
+  try {
+    const keys = Object.keys(sc.claimed);
+    if (keys.length > MAX_CLAIMS) {
+      const keep = new Set(sc.claimedOrder);
+      for (const k of keys) {
+        if (keep.has(k)) continue;
+        delete sc.claimed[k];
+      }
+    }
+  } catch (_) {}
+
+  // Unique grant bookkeeping: ensure container + runSeed guard exist.
+  if (!gm.uniqueGranted || typeof gm.uniqueGranted !== "object" || Array.isArray(gm.uniqueGranted)) {
+    gm.uniqueGranted = {};
+  }
+  gm.uniqueGrantedRunSeed = (typeof gm.uniqueGrantedRunSeed === "number" && Number.isFinite(gm.uniqueGrantedRunSeed))
+    ? (gm.uniqueGrantedRunSeed >>> 0)
+    : 0;
+
+  return gm.threads;
+}
+
 export function ensureFactionEvents(gm) {
   if (!gm || typeof gm !== "object") return;
 
@@ -313,6 +387,10 @@ export function ensureScheduler(gm) {
 
     a.allowMultiplePerTurn = !!a.allowMultiplePerTurn;
 
+    // Optional: override cadence/pacing gates.
+    a.bypassCadence = !!a.bypassCadence;
+    a.bypassPacing = !!a.bypassPacing;
+
     if (!a.payload || typeof a.payload !== "object") a.payload = {};
   }
 
@@ -344,6 +422,35 @@ export function ensureScheduler(gm) {
   s.recentCountCap = GM_SCHED_MAX_ACTIONS_PER_WINDOW;
 
   return s;
+}
+
+// v0.3 pacing: rare interventions only when bored + after a deterministic cooldown.
+export function ensurePacing(gm) {
+  if (!gm || typeof gm !== "object") return null;
+
+  let p = gm.pacing;
+  if (!p || typeof p !== "object") {
+    p = {};
+    gm.pacing = p;
+  }
+
+  p.lastInterventionTurn = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn))
+    ? (p.lastInterventionTurn | 0)
+    : -9999;
+
+  p.nextEligibleTurn = (typeof p.nextEligibleTurn === "number" && Number.isFinite(p.nextEligibleTurn))
+    ? (p.nextEligibleTurn | 0)
+    : 0;
+
+  if (p.nextEligibleTurn < 0) p.nextEligibleTurn = 0;
+
+  p.lastCooldownTurns = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns))
+    ? (p.lastCooldownTurns | 0)
+    : 0;
+
+  if (p.lastCooldownTurns < 0) p.lastCooldownTurns = 0;
+
+  return p;
 }
 
 // Returns one of: "unseen", "seenNotTried", "triedRecently", "triedLongAgo", "disinterested".

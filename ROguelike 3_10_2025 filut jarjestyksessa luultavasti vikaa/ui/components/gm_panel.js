@@ -27,6 +27,9 @@ let _mechEl = null;
 let _intentsEl = null;
 let _eventsEl = null;
 let _toggleBtn = null;
+let _copyBtn = null;
+let _resetBtn = null;
+let _clearBtn = null;
 let _open = false;
 let _refreshTimer = null;
 
@@ -101,6 +104,68 @@ function formatIntentDebugExtras(intent) {
   return parts.length ? " " + parts.join(" ") : "";
 }
 
+function getBottleMapFishingConfigForPanel() {
+  const DEFAULTS = { S0: 60, Smax: 180, boredomMin: 0.2, boredomMultMax: 3.0, cooldownTurns: 400 };
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config)
+      ? window.GameData.config
+      : null;
+
+    const f = cfg && cfg.gm && cfg.gm.bottleMap && cfg.gm.bottleMap.fishing && typeof cfg.gm.bottleMap.fishing === "object"
+      ? cfg.gm.bottleMap.fishing
+      : null;
+
+    let S0 = f && typeof f.S0 === "number" && Number.isFinite(f.S0) ? (f.S0 | 0) : DEFAULTS.S0;
+    let Smax = f && typeof f.Smax === "number" && Number.isFinite(f.Smax) ? (f.Smax | 0) : DEFAULTS.Smax;
+    let boredomMin = f && typeof f.boredomMin === "number" && Number.isFinite(f.boredomMin) ? f.boredomMin : DEFAULTS.boredomMin;
+    let boredomMultMax = f && typeof f.boredomMultMax === "number" && Number.isFinite(f.boredomMultMax) ? f.boredomMultMax : DEFAULTS.boredomMultMax;
+    let cooldownTurns = f && typeof f.cooldownTurns === "number" && Number.isFinite(f.cooldownTurns) ? (f.cooldownTurns | 0) : DEFAULTS.cooldownTurns;
+
+    if (S0 < 0) S0 = 0;
+    if (Smax < S0) Smax = S0;
+    if (boredomMin < 0) boredomMin = 0;
+    if (boredomMin > 1) boredomMin = 1;
+    if (boredomMultMax < 1) boredomMultMax = 1;
+    if (cooldownTurns < 0) cooldownTurns = 0;
+
+    return { S0, Smax, boredomMin, boredomMultMax, cooldownTurns };
+  } catch (_) {
+    return Object.assign({}, DEFAULTS);
+  }
+}
+
+function deriveBottleMapFishingChance(eligibleSuccesses, boredom, cfg) {
+  const baseChance = 0.002;
+  const maxChance = 0.10;
+
+  let b = typeof boredom === "number" && Number.isFinite(boredom) ? boredom : 0;
+  if (b < 0) b = 0;
+  if (b > 1) b = 1;
+
+  const S0 = (cfg && typeof cfg.S0 === "number") ? (cfg.S0 | 0) : 0;
+  const Smax = (cfg && typeof cfg.Smax === "number") ? (cfg.Smax | 0) : 0;
+  const boredomMin = (cfg && typeof cfg.boredomMin === "number" && Number.isFinite(cfg.boredomMin)) ? cfg.boredomMin : 0;
+  const boredomMultMax = (cfg && typeof cfg.boredomMultMax === "number" && Number.isFinite(cfg.boredomMultMax)) ? cfg.boredomMultMax : 1;
+
+  const s = eligibleSuccesses | 0;
+  const eligible = b >= boredomMin;
+
+  if (!eligible || s < S0) {
+    return { eligible, s, boredom: b, chance: 0, forced: false };
+  }
+
+  const denom = Math.max(1, Smax - S0);
+  const t = Math.max(0, Math.min(1, (s - S0) / denom));
+
+  let chance = baseChance + t * (maxChance - baseChance);
+  chance *= (1 + b * (boredomMultMax - 1));
+
+  const forced = s >= Smax;
+  if (forced) chance = 1;
+
+  return { eligible, s, boredom: b, chance, forced };
+}
+
 function getGMState() {
   try {
     if (typeof window === "undefined") return null;
@@ -129,6 +194,66 @@ function toggleGMEnabled() {
     else gm.enabled = false;
     refresh();
   } catch (_) {}
+}
+
+async function copyGMStateToClipboard() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.exportState !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    const snap = GM.exportState(ctx);
+    if (!snap) return false;
+    const text = JSON.stringify(snap, null, 2);
+
+    if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      try { ctx.log && ctx.log("[GM] State copied to clipboard.", "info"); } catch (_) {}
+      return true;
+    }
+
+    // Fallback: prompt so user can copy manually
+    try { window.prompt("Copy GM state:", text); } catch (_) {}
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function resetGMState() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.reset !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    GM.reset(ctx);
+    try { ctx.log && ctx.log("[GM] Reset GM state.", "notice"); } catch (_) {}
+    refresh();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function clearGMPersistedState() {
+  try {
+    if (typeof window === "undefined") return false;
+    const GA = window.GameAPI || null;
+    const GM = window.GMRuntime || null;
+    if (!GA || !GM || typeof GA.getCtx !== "function" || typeof GM.clearPersisted !== "function") return false;
+    const ctx = GA.getCtx();
+    if (!ctx) return false;
+    GM.clearPersisted(ctx);
+    try { ctx.log && ctx.log("[GM] Cleared persisted GM state (GM_STATE_V1).", "notice"); } catch (_) {}
+    refresh();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function installDrag(headerEl, panelEl) {
@@ -277,6 +402,53 @@ function ensurePanel() {
     hide();
   });
 
+  function styleSmallBtn(btn) {
+    btn.style.background = "transparent";
+    btn.style.border = "1px solid #4b5563";
+    btn.style.borderRadius = "999px";
+    btn.style.color = "#e5e7eb";
+    btn.style.cursor = "pointer";
+    btn.style.fontSize = "10px";
+    btn.style.lineHeight = "1";
+    btn.style.padding = "2px 6px";
+  }
+
+  _copyBtn = document.createElement("button");
+  _copyBtn.type = "button";
+  _copyBtn.className = "gm-panel-copy";
+  _copyBtn.textContent = "Copy";
+  styleSmallBtn(_copyBtn);
+  _copyBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    copyGMStateToClipboard();
+  });
+
+  _resetBtn = document.createElement("button");
+  _resetBtn.type = "button";
+  _resetBtn.className = "gm-panel-reset";
+  _resetBtn.textContent = "Reset";
+  styleSmallBtn(_resetBtn);
+  _resetBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    resetGMState();
+  });
+
+  _clearBtn = document.createElement("button");
+  _clearBtn.type = "button";
+  _clearBtn.className = "gm-panel-clear";
+  _clearBtn.textContent = "Clear LS";
+  styleSmallBtn(_clearBtn);
+  _clearBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    clearGMPersistedState();
+  });
+
+  actionsWrap.appendChild(_copyBtn);
+  actionsWrap.appendChild(_resetBtn);
+  actionsWrap.appendChild(_clearBtn);
   actionsWrap.appendChild(_toggleBtn);
   actionsWrap.appendChild(closeBtn);
 
@@ -487,7 +659,11 @@ function renderSnapshot(gm) {
     _toggleBtn.disabled = false;
   }
 
-  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | Enabled: ${enabled ? "On" : "Off"}`;
+  const pacing = gm.pacing && typeof gm.pacing === "object" ? gm.pacing : {};
+  const nextEligibleTurn = (typeof pacing.nextEligibleTurn === "number" && Number.isFinite(pacing.nextEligibleTurn)) ? (pacing.nextEligibleTurn | 0) : 0;
+  const lastInterventionTurn = (typeof pacing.lastInterventionTurn === "number" && Number.isFinite(pacing.lastInterventionTurn)) ? (pacing.lastInterventionTurn | 0) : -9999;
+
+  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | NextElig: T=${nextEligibleTurn} | LastInt: T=${lastInterventionTurn} | Enabled: ${enabled ? "On" : "Off"}`;
 
   const lines = [];
   lines.push(`Total turns: ${totalTurns}`);
@@ -560,6 +736,57 @@ function renderSnapshot(gm) {
   if (_profileEl) {
     const linesProfile = [];
     linesProfile.push(`  boredom: ${boredomLevel.toFixed(2)}`);
+
+    const p = gm.pacing && typeof gm.pacing === "object" ? gm.pacing : {};
+    const pNext = (typeof p.nextEligibleTurn === "number" && Number.isFinite(p.nextEligibleTurn)) ? (p.nextEligibleTurn | 0) : 0;
+    const pLast = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn)) ? (p.lastInterventionTurn | 0) : -9999;
+    const pCd = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns)) ? (p.lastCooldownTurns | 0) : 0;
+    linesProfile.push(`  pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
+
+    const threads = gm.threads && typeof gm.threads === "object" ? gm.threads : {};
+    const bottleMap = threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
+    const fishing = bottleMap && bottleMap.fishing && typeof bottleMap.fishing === "object" ? bottleMap.fishing : null;
+
+    const bmActive = !!(bottleMap && bottleMap.active === true);
+    const bmStatus = bottleMap && typeof bottleMap.status === "string" && bottleMap.status ? bottleMap.status : "-";
+    const bmInstanceId = bottleMap && bottleMap.instanceId != null ? String(bottleMap.instanceId) : "";
+
+    const eligibleSuccesses = fishing ? (fishing.eligibleSuccesses | 0) : 0;
+    const totalSuccesses = fishing ? (fishing.totalSuccesses | 0) : 0;
+    const lastAwardTurn = fishing && typeof fishing.lastAwardTurn === "number" && Number.isFinite(fishing.lastAwardTurn) ? (fishing.lastAwardTurn | 0) : -9999;
+    const awardCount = fishing ? (fishing.awardCount | 0) : 0;
+
+    const cfgBM = getBottleMapFishingConfigForPanel();
+    const derived = deriveBottleMapFishingChance(eligibleSuccesses, boredomLevel, cfgBM);
+    const chancePct = Math.round((derived.chance * 100) * 1000) / 1000;
+    const forcedStr = derived.forced ? " (FORCED)" : "";
+    const iidPart = bmInstanceId ? ` instanceId=${bmInstanceId}` : "";
+
+    linesProfile.push("  bottle map (fishing):");
+    linesProfile.push(`    thread: active=${bmActive} status=${bmStatus}${iidPart}`);
+    linesProfile.push(`    counters: eligibleSuccesses=${eligibleSuccesses} totalSuccesses=${totalSuccesses} lastAwardTurn=${lastAwardTurn} awardCount=${awardCount}`);
+    linesProfile.push(
+      `    config: S0=${cfgBM.S0} Smax=${cfgBM.Smax} boredomMin=${cfgBM.boredomMin.toFixed(2)} boredomMultMax=${cfgBM.boredomMultMax.toFixed(2)} cooldownTurns=${cfgBM.cooldownTurns}`
+    );
+    linesProfile.push(`    chance: eligible=${derived.eligible} boredom=${derived.boredom.toFixed(2)} s=${derived.s} chance=${chancePct}%${forcedStr}`);
+
+    // Bottle Map quest thread snapshot
+    if (bottleMap) {
+      const t = bottleMap.target && typeof bottleMap.target === "object" ? bottleMap.target : null;
+      const tx = t && typeof t.absX === "number" ? (t.absX | 0) : null;
+      const ty = t && typeof t.absY === "number" ? (t.absY | 0) : null;
+      const createdTurn = bottleMap.createdTurn == null ? null : (bottleMap.createdTurn | 0);
+      const claimedTurn = bottleMap.claimedTurn == null ? null : (bottleMap.claimedTurn | 0);
+      const attempts = bottleMap.attempts == null ? 0 : (bottleMap.attempts | 0);
+      const placementTries = bottleMap.placementTries == null ? null : (bottleMap.placementTries | 0);
+      const failureReason = bottleMap.failureReason ? String(bottleMap.failureReason) : "";
+
+      linesProfile.push("  bottle map (quest):");
+      linesProfile.push(`    state: active=${bmActive} status=${bmStatus} attempts=${attempts}`);
+      linesProfile.push(`    target: ${tx == null ? "-" : tx},${ty == null ? "-" : ty} createdTurn=${createdTurn == null ? "-" : createdTurn} claimedTurn=${claimedTurn == null ? "-" : claimedTurn}`);
+      if (placementTries != null) linesProfile.push(`    placement: tries=${placementTries}`);
+      if (failureReason) linesProfile.push(`    failure: ${failureReason}`);
+    }
 
     const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
     const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);

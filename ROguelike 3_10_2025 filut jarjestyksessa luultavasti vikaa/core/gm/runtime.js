@@ -29,9 +29,11 @@ import { createDefaultMood, createDefaultState } from "./runtime/state_defaults.
 import {
   ensureStats,
   ensureTraitsAndMechanics,
+  ensureThreads,
   ensureFactionEvents,
   ensureRng,
   ensureScheduler,
+  ensurePacing,
 } from "./runtime/state_ensure.js";
 
 import { localClamp, normalizeTurn, getCurrentTurn } from "./runtime/turn_utils.js";
@@ -40,6 +42,8 @@ import { tickImpl } from "./runtime/tick.js";
 
 import { getEntranceIntentImpl } from "./runtime/intents/entrance.js";
 import { getMechanicHintImpl } from "./runtime/intents/mechanic_hint.js";
+
+import { consumeInterventionCooldown } from "./runtime/pacing.js";
 
 import {
   migrateFactionEventSlotsToScheduler,
@@ -192,14 +196,26 @@ function upgradeAndNormalizeState(ctx, gm) {
   // Ensure core containers exist.
   ensureStats(gm);
   ensureTraitsAndMechanics(gm);
+  ensureThreads(gm);
   ensureFactionEvents(gm);
   ensureRng(gm);
   ensureScheduler(gm);
+  ensurePacing(gm);
   migrateFactionEventSlotsToScheduler(gm, markDirty);
 
   if (!gm.mood || typeof gm.mood !== "object") gm.mood = createDefaultMood();
   if (!gm.boredom || typeof gm.boredom !== "object") {
-    gm.boredom = { level: 0, turnsSinceLastInterestingEvent: 0, lastInterestingEvent: null };
+    gm.boredom = {
+      level: 0,
+      turnsSinceLastInterestingEvent: 0,
+      lastInterestingEvent: null,
+      // Phase 3: interest-based nudges (minor/medium) should only apply once per turn.
+      lastNudgeTurn: -1,
+    };
+  } else {
+    if (typeof gm.boredom.lastNudgeTurn !== "number" || !Number.isFinite(gm.boredom.lastNudgeTurn)) {
+      gm.boredom.lastNudgeTurn = -1;
+    }
   }
 
   // Normalize schema + seed.
@@ -215,9 +231,40 @@ function upgradeAndNormalizeState(ctx, gm) {
 }
 
 function _ensureState(ctx) {
+  // Seed-boundary guard: GM_STATE_V1 is treated as *per-run* state.
+  // If the global run seed changes while the page is still alive (e.g. GOD applySeed,
+  // rerollSeed, or any other seed reset), we must drop in-memory GM state as well.
+  //
+  // Without this guard, GMRuntime can keep serving a stale _state even though the
+  // run seed (window.RNG.getSeed()/localStorage.SEED) changed, which breaks:
+  // - smoketest gm_seed_reset (probe not cleared, runSeed not updated)
+  // - downstream gm.* marker/encounter flows that rely on runSeed + fresh threads.
+  let runSeedNow = 0;
+  try { runSeedNow = (deriveRunSeed() >>> 0); } catch (_) { runSeedNow = 0; }
+
+  try {
+    const prev = (_state && typeof _state.runSeed === "number" && Number.isFinite(_state.runSeed))
+      ? (_state.runSeed >>> 0)
+      : null;
+    if (prev != null && prev !== runSeedNow) {
+      // Hard reset state on seed change.
+      _state = createDefaultState();
+      _state.runSeed = runSeedNow;
+      // Best-effort: clear persisted per-run GM state so it can't be reloaded later.
+      try { clearPersistedState(ctx); } catch (_) {}
+      // Reset persistence throttles as well.
+      _dirty = false;
+      _lastSavedTurn = -1;
+      _lastSaveMs = 0;
+      _loadedOnce = true;
+    }
+  } catch (_) {}
+
   if (!_state) {
     _state = createDefaultState();
+    _state.runSeed = runSeedNow;
   }
+
   _state = upgradeAndNormalizeState(ctx, _state);
   if (ctx) ctx.gm = _state;
   return _state;
@@ -327,7 +374,80 @@ export function onEvent(ctx, event) {
 
   const type = String(event.type || "");
   const scope = event.scope || ctx.mode || "unknown";
-  const interesting = event.interesting !== false;
+
+  // Phase 3: graded interest -> boredom recovery.
+  //
+  // Rules:
+  // - event.interesting === false => no boredom relief.
+  // - event.interestWeight: number in [0, 1] (overrides tier)
+  //     - 0 => no relief
+  //     - 1 => "major" (hard reset)
+  //     - (0, 1) => partial nudge (reduce turnsSinceLastInterestingEvent by weight)
+  // - event.interestTier: 'minor'|'medium'|'major' (case-insensitive)
+  // - Default tier (conservative) when none provided:
+  //     quest.complete => major
+  //     encounter.exit => medium
+  //     combat.kill / mechanic / other => minor
+  //
+  // Emitter hygiene (Phase 3): "mechanic" telemetry is high-frequency and UI-driven.
+  // Treat it as NOT interesting by default so it doesn't suppress boredom simply by
+  // opening/closing panels. Callers can still explicitly set `interesting:true`.
+  const hasInteresting = Object.prototype.hasOwnProperty.call(event, "interesting");
+  const interesting = hasInteresting ? (event.interesting !== false) : (type !== "mechanic");
+
+  const utils = ctx.utils || null;
+  const clamp = utils && typeof utils.clamp === "function" ? utils.clamp : localClamp;
+
+  let resolvedInterestTier = null;
+  let resolvedInterestWeight = null;
+  let interestMode = "none"; // "none" | "partial" | "major"
+  let partialReliefFactor = 0;
+
+  if (interesting) {
+    const hasInterestWeight = Object.prototype.hasOwnProperty.call(event, "interestWeight");
+
+    if (hasInterestWeight) {
+      const w = (typeof event.interestWeight === "number") ? event.interestWeight : Number(event.interestWeight);
+      if (Number.isFinite(w)) {
+        resolvedInterestWeight = clamp(w, 0, 1);
+      } else {
+        // Weight overrides tier, so malformed weights intentionally produce no relief.
+        resolvedInterestWeight = 0;
+      }
+
+      if (resolvedInterestWeight >= 1) {
+        interestMode = "major";
+        resolvedInterestTier = "major";
+      } else if (resolvedInterestWeight > 0) {
+        interestMode = "partial";
+        partialReliefFactor = resolvedInterestWeight;
+      }
+    } else {
+      const rawTier = (typeof event.interestTier === "string") ? event.interestTier : "";
+      const t = rawTier ? rawTier.trim().toLowerCase() : "";
+      let tier = t;
+
+      if (tier !== "minor" && tier !== "medium" && tier !== "major") {
+        if (type === "quest.complete") tier = "major";
+        else if (type === "encounter.exit") tier = "medium";
+        else if (type === "combat.kill") tier = "minor";
+        else if (type === "mechanic") tier = "minor";
+        else tier = "minor";
+      }
+
+      resolvedInterestTier = tier;
+
+      if (tier === "major") {
+        interestMode = "major";
+      } else if (tier === "medium") {
+        interestMode = "partial";
+        partialReliefFactor = 0.30;
+      } else if (tier === "minor") {
+        interestMode = "partial";
+        partialReliefFactor = 0.10;
+      }
+    }
+  }
 
   const stats = ensureStats(gm);
   ensureTraitsAndMechanics(gm);
@@ -344,7 +464,7 @@ export function onEvent(ctx, event) {
   }
 
   gm.debug.counters.events = (gm.debug.counters.events | 0) + 1;
-  if (interesting) {
+  if (interestMode !== "none") {
     gm.debug.counters.interestingEvents = (gm.debug.counters.interestingEvents | 0) + 1;
   }
 
@@ -353,6 +473,9 @@ export function onEvent(ctx, event) {
     type,
     scope,
     turn,
+    interesting,
+    interestTier: resolvedInterestTier,
+    interestWeight: resolvedInterestWeight,
     payload: hasPayload ? event.payload : null,
   };
 
@@ -365,9 +488,33 @@ export function onEvent(ctx, event) {
     gm.debug.lastEvents = [snapshot];
   }
 
-  if (interesting) {
+  // Phase 3 boredom handling:
+  // - "major" events hard reset boredom and mark the turn as interesting.
+  // - "minor"/"medium" events apply a partial deterministic nudge once per turn,
+  //   reducing turnsSinceLastInterestingEvent by a factor but never to 0.
+  //   (We intentionally do NOT set lastInterestingEvent.turn for partial nudges so
+  //    boredom can still increase normally per turn.)
+  if (interestMode === "major") {
     gm.boredom.turnsSinceLastInterestingEvent = 0;
     gm.boredom.lastInterestingEvent = { type, scope, turn };
+    gm.boredom.lastNudgeTurn = turn;
+  } else if (interestMode === "partial") {
+    const lastNudgeTurn = (typeof gm.boredom.lastNudgeTurn === "number" && Number.isFinite(gm.boredom.lastNudgeTurn))
+      ? (gm.boredom.lastNudgeTurn | 0)
+      : -1;
+
+    if (lastNudgeTurn !== turn) {
+      const rawTurns = gm.boredom.turnsSinceLastInterestingEvent | 0;
+      if (rawTurns > 0) {
+        let removed = Math.floor(rawTurns * partialReliefFactor);
+        if (removed < 1) removed = 1;
+        let nextTurns = rawTurns - removed;
+        if (nextTurns < 1) nextTurns = 1;
+        gm.boredom.turnsSinceLastInterestingEvent = nextTurns;
+      }
+
+      gm.boredom.lastNudgeTurn = turn;
+    }
   }
 
   // Simple mood impulses.
@@ -434,6 +581,34 @@ export function getMechanicHint(ctx) {
   return intent;
 }
 
+/**
+ * Record that the GM showed a player-facing choice prompt (an "intervention").
+ *
+ * v0.3 contract: only choice prompts spend pacing budget.
+ */
+export function recordIntervention(ctx, meta = {}) {
+  const gm = _ensureState(ctx);
+  if (!ctx) return false;
+  if (!gm || gm.enabled === false) return false;
+
+  const turn = normalizeTurn(getCurrentTurn(ctx, gm));
+  const res = consumeInterventionCooldown(ctx, gm, turn, meta, markDirty);
+  if (!res) return false;
+
+  try {
+    pushIntentDebug(gm, {
+      kind: "intervention",
+      channel: "pacing",
+      reason: (meta && meta.kind) ? String(meta.kind) : "choice",
+      cooldownTurns: res.cooldownTurns | 0,
+      nextEligibleTurn: res.nextEligibleTurn | 0,
+    }, turn);
+  } catch (_) {}
+
+  writePersistedState(ctx, gm, { force: true });
+  return true;
+}
+
 // ------------------------
 // Faction travel events (scheduler-backed)
 // ------------------------
@@ -494,6 +669,22 @@ export function __setRawState(nextState, ctx) {
   return _state;
 }
 
+export function exportState(ctx) {
+  // Stable snapshot for debugging/UI export (avoid leaking live references)
+  try {
+    const gm = getState(ctx);
+    if (!gm || typeof gm !== "object") return null;
+    return JSON.parse(JSON.stringify(gm));
+  } catch (_) {
+    return null;
+  }
+}
+
+export function clearPersisted(ctx) {
+  try { clearPersistedState(ctx); } catch (_) {}
+  return true;
+}
+
 // Back-compat: attach to window
 attachGlobal("GMRuntime", {
   init,
@@ -501,8 +692,11 @@ attachGlobal("GMRuntime", {
   onEvent,
   getState,
   reset,
+  exportState,
+  clearPersisted,
   getEntranceIntent,
   getMechanicHint,
+  recordIntervention,
   getFactionTravelEvent,
   forceFactionTravelEvent,
   __getRawState,

@@ -93,6 +93,11 @@ export function schedulerCountRecent(sched, turn) {
 export function schedulerCanDeliver(gm, sched, action, turn) {
   const t = normalizeTurn(turn);
 
+  // Debug/test hook: allow forced actions to bypass cadence rails.
+  // This is used by GMRuntime.forceFactionTravelEvent so it can deliver an intent
+  // immediately even if another scheduler action already fired this turn.
+  if (action && action.bypassCadence === true) return true;
+
   const lastActionTurn = typeof gm.lastActionTurn === "number" ? (gm.lastActionTurn | 0) : -1;
   if (!action.allowMultiplePerTurn && lastActionTurn === t) return false;
 
@@ -193,6 +198,9 @@ export function schedulerConsume(gm, action, turn, onDirty) {
   const t = normalizeTurn(turn);
   action.status = "consumed";
   action.consumedTurn = t;
+
+  // Force/bypass is a one-shot scheduling hint.
+  try { if (action.bypassCadence === true) delete action.bypassCadence; } catch (_) {}
 
   gm.lastActionTurn = t;
 

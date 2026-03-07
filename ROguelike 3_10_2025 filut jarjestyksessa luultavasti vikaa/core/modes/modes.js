@@ -187,12 +187,18 @@ function gmEvent(ctx, event) {
     const GM = ctx.GMRuntime || getMod(ctx, "GMRuntime");
     if (!GM) return;
 
+    const ev = event || {};
+
+    // Region Map is a non-turn UI overlay; don't let open/close affect GM boredom/interest.
+    if ((ev.type === "mode.enter" || ev.type === "mode.leave") && (ev.scope || ctx.mode) === "region") {
+      ev.interesting = false;
+    }
+
     if (typeof GM.onEvent === "function") {
-      GM.onEvent(ctx, event || {});
+      GM.onEvent(ctx, ev);
     }
 
     // Phase 0–1 GM integration: lightweight flavor intent on mode enter.
-    const ev = event || {};
     const isModeEnter = ev.type === "mode.enter";
     const scope = ev.scope || ctx.mode || "unknown";
     const isTownEnter = isModeEnter && scope === "town";
