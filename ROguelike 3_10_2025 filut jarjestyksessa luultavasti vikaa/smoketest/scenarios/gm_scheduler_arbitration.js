@@ -99,13 +99,16 @@
     gm.lastActionTurn = -9999;
     gm.scheduler.lastAutoTurn = -9999;
 
+    const turn = (gctx && gctx.time && typeof gctx.time.turnCounter === "number") ? (gctx.time.turnCounter | 0) : 0;
+
     // Create actions.
+    // Make them eligible *this* turn so schedulerPickNext can consider them.
     const common = {
       status: "scheduled",
       priority: 100,
-      createdTurn: 0,
-      earliestTurn: 0,
-      latestTurn: 0,
+      createdTurn: turn,
+      earliestTurn: turn,
+      latestTurn: turn,
       // Prevent auto-spacing rails from interfering.
       delivery: "confirm",
       allowMultiplePerTurn: false,
