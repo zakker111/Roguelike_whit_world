@@ -26,6 +26,48 @@ This file collects planned features, ideas, and technical cleanups that were pre
       - `travel.guardFine`: **confirm** (pay/refuse)
       - `quest.bottleMap`: **marker** (player travels and presses `G`)
 
+  - GM v0.2 ship roadmap (phases)
+    - [ ] Phase 0: Baseline QA gate
+      - Scope: lock current behavior; tighten determinism + crash hygiene.
+      - Likely files: `core/gm/runtime.js`, `core/bridge/gm_bridge.js`, `smoketest/` runner.
+      - Acceptance: 10x smoketest runs stable; no new console errors in normal play.
+      - Smoketests (new/extend): extend existing determinism scenario + add a short “smoke suite” CI loop.
+    - [ ] Phase 1: GM RNG persistence gate
+      - Scope: make GM RNG a first-class persisted stream; prove reload continuity.
+      - Likely files: `core/gm/runtime.js` (RNG), `core/state/persistence.js`, `smoketest/scenarios/determinism*.js`.
+      - Acceptance: save → reload → next N GM RNG draws identical; GM RNG draws never consume `ctx.rng`.
+      - Smoketests (new/extend): add/extend a `gm_rng_persistence` scenario.
+    - [ ] Phase 2: Scheduler
+      - Scope: implement action queue + deterministic arbitration (RNG-free winner selection).
+      - Likely files: `core/gm/scheduler*.js` (new), `core/gm/runtime.js`.
+      - Acceptance: stable sort `priority → earliestTurn → createdTurn → id`; lifecycle statuses behave as specified.
+      - Smoketests (new/extend): add `gm_scheduler_arbitration` (assert 0 RNG calls during arbitration).
+    - [ ] Phase 3: Narrow GMBridge
+      - Scope: route all GM→Game side effects through a minimal bridge API.
+      - Likely files: `core/bridge/gm_bridge.js`, `core/bridge/ui_bridge.js`, `core/gm/runtime.js` call sites.
+      - Acceptance: GM runtime does not directly mutate unrelated systems; bridge surface is reviewed + documented.
+      - Smoketests (new/extend): extend bottle-map + survey-cache scenarios to assert bridge-only side effects.
+    - [ ] Phase 4: Reset semantics
+      - Scope: guarantee GM resets on death restart / Start New Game / seed reroll / APP_VERSION bump.
+      - Likely files: `core/state/persistence.js`, any “new game / apply seed / death restart” handlers.
+      - Acceptance: `GM_STATE_V1` reliably cleared on each reset path; no stale markers/threads after reset.
+      - Smoketests (new/extend): add `gm_reset_semantics` scenario (force each reset path).
+    - [ ] Phase 5: banditBounty via scheduler
+      - Scope: ship `travel.banditBounty` as an auto action scheduled + executed through the bridge.
+      - Likely files: `core/gm/runtime.js` (action defs), `core/bridge/gm_bridge.js`, encounter data `gm_bandit_bounty`.
+      - Acceptance: obeys safety rails + cooldowns; auto encounter entry is ctx-first; no interference with normal travel rolls.
+      - Smoketests (new/extend): add `gm_bandit_bounty` scenario (cooldown + ctx-first entry).
+    - [ ] Phase 6: GM panel surfacing
+      - Scope: expose scheduler queue + RNG stream + active quest summaries in GM panel.
+      - Likely files: `ui/` GM panel component(s), `ui/style.css`, `core/gm/runtime.js` snapshot/export.
+      - Acceptance: panel shows next actions + statuses; RNG stream (algo/state/calls) visible; no perf regressions.
+      - Smoketests (new/extend): extend UI smoketests to open panel and assert key fields render.
+    - [ ] Phase 7: Final ship gate
+      - Scope: run full v0.2 gates; document known limitations; freeze merge.
+      - Likely files: `TODO.md` gates, `smoketest/` scenarios, `VERSIONS.md` notes.
+      - Acceptance: all v0.2 “testing/merge gates” checked; disable switch verified; no regressions in travel/fishing/markers.
+      - Smoketests (new/extend): run full smoke suite ≥ 10 iterations; require 100% pass.
+
   - Phase 2 (post-fix follow-ups)
     - [ ] Make non-marker GM encounter starts ctx-first where appropriate
       - Audit travel events and other non-marker flows (`travel.banditBounty`, `travel.guardFine`, etc.)
