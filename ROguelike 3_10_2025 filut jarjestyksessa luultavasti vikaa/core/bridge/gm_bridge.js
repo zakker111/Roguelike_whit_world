@@ -13,46 +13,14 @@
 
 import { getMod } from "../../utils/access.js";
 import { attachGlobal } from "../../utils/global.js";
-import { gmRngFloat, hash32 } from "../gm/runtime/rng.js";
+import { gmRngFloat } from "../gm/runtime/rng.js";
 import { grantBottleMapRewards, startGmFactionEncounter } from "./gm_bridge_effects.js";
 
 // ------------------------
-// Survey Cache (gm.surveyCache): hybrid gm.* marker thread
+// Survey Cache (gm.surveyCache)
 // ------------------------
-
-const SURVEY_GRID = 44;
-const SURVEY_CHANCE = 0.18; // per-cell, not per-tile
-const SURVEY_MARGIN = 3;
-
-// Salts used for deterministic coordinate hashing (does NOT consume the GM RNG stream).
-const SURVEY_SALT_ANCHOR_X = 0x53_58_01;
-const SURVEY_SALT_ANCHOR_Y = 0x53_59_02;
-const SURVEY_SALT_ROLL = 0x53_52_03;
-const SURVEY_SALT_REWARD = 0x53_52_04;
-const SURVEY_SALT_GUARANTEE = 0x53_47_05;
-const SURVEY_SALT_COOLDOWN = 0x53_43_06;
-
-
-
-function mulberry32(seed) {
-  let a = (seed >>> 0);
-  return function () {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function hash2Float(seed, x, y) {
-  // Deterministic 2D hash -> [0,1)
-  let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + (seed | 0)) | 0;
-  n = (n ^ (n >>> 13)) | 0;
-  n = Math.imul(n, 1274126177) | 0;
-  n = (n ^ (n >>> 16)) >>> 0;
-  return n / 4294967296;
-}
+// NOTE: Survey Cache decisions + persistent bookkeeping now live in GMRuntime.
+// GMBridge only applies effects (marker add/remove, UI prompts, encounter start, reward grant).
 
 function isGmEnabled(ctx) {
   try {
@@ -70,103 +38,7 @@ function isGmEnabled(ctx) {
   }
 }
 
-function ensureSurveyCacheThread(gm) {
-  if (!gm || typeof gm !== "object") return null;
-  if (!gm.threads || typeof gm.threads !== "object") gm.threads = {};
-  if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
-    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null, nextSpawnTurn: 0 };
-  }
-  const sc = gm.threads.surveyCache;
-  if (!sc.claimed || typeof sc.claimed !== "object" || Array.isArray(sc.claimed)) sc.claimed = {};
-  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
-  if (!sc.attempts || typeof sc.attempts !== "object" || Array.isArray(sc.attempts)) sc.attempts = {};
-  if (sc.active != null && typeof sc.active !== "object") sc.active = null;
 
-  sc.nextSpawnTurn = (typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
-  if (sc.nextSpawnTurn < 0) sc.nextSpawnTurn = 0;
-
-  return sc;
-}
-
-function getSurveyCacheSpawnConfig(ctx) {
-  const DEFAULTS = { boredomMin: 0.6, cooldownMinTurns: 600, cooldownMaxTurns: 900 };
-  try {
-    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config)
-      ? window.GameData.config
-      : null;
-
-    const s = cfg && cfg.gm && cfg.gm.surveyCache && typeof cfg.gm.surveyCache === "object"
-      ? cfg.gm.surveyCache
-      : null;
-
-    let boredomMin = s && typeof s.boredomMin === "number" && Number.isFinite(s.boredomMin) ? s.boredomMin : DEFAULTS.boredomMin;
-    let cooldownMinTurns = s && typeof s.cooldownMinTurns === "number" && Number.isFinite(s.cooldownMinTurns) ? (s.cooldownMinTurns | 0) : DEFAULTS.cooldownMinTurns;
-    let cooldownMaxTurns = s && typeof s.cooldownMaxTurns === "number" && Number.isFinite(s.cooldownMaxTurns) ? (s.cooldownMaxTurns | 0) : DEFAULTS.cooldownMaxTurns;
-
-    if (boredomMin < 0) boredomMin = 0;
-    if (boredomMin > 1) boredomMin = 1;
-
-    if (cooldownMinTurns < 0) cooldownMinTurns = 0;
-    if (cooldownMaxTurns < cooldownMinTurns) cooldownMaxTurns = cooldownMinTurns;
-
-    return { boredomMin, cooldownMinTurns, cooldownMaxTurns };
-  } catch (_) {
-    return Object.assign({}, DEFAULTS);
-  }
-}
-
-function isGmBoredEnoughForSurveyCache(ctx, gm) {
-  const cfg = getSurveyCacheSpawnConfig(ctx);
-  let boredom = 0;
-  try {
-    boredom = (gm && gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)) ? gm.boredom.level : 0;
-  } catch (_) { boredom = 0; }
-  if (boredom < 0) boredom = 0;
-  if (boredom > 1) boredom = 1;
-
-  return boredom >= cfg.boredomMin;
-}
-
-function surveyCacheCooldownReady(ctx, sc) {
-  const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number" && Number.isFinite(ctx.time.turnCounter)) ? (ctx.time.turnCounter | 0) : 0;
-  const next = (sc && typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
-  return turn >= next;
-}
-
-function setSurveyCacheNextSpawnTurn(ctx, gm, sc) {
-  const cfg = getSurveyCacheSpawnConfig(ctx);
-  const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number" && Number.isFinite(ctx.time.turnCounter)) ? (ctx.time.turnCounter | 0) : 0;
-
-  let min = cfg.cooldownMinTurns | 0;
-  let max = cfg.cooldownMaxTurns | 0;
-  if (min < 0) min = 0;
-  if (max < min) max = min;
-
-  // IMPORTANT: do not consume ctx.rng here.
-  // This cooldown is deterministic, but should not advance the run RNG stream.
-  const span = Math.max(0, (max - min) | 0);
-
-  let runSeed = 0;
-  try { runSeed = (gm && typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0; } catch (_) { runSeed = 0; }
-
-  const prev = (sc && typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
-  const u = hash32((runSeed ^ SURVEY_SALT_COOLDOWN ^ Math.imul(turn | 0, 0x9e3779b9) ^ (prev | 0)) >>> 0) >>> 0;
-  const dt = min + (span ? (u % (span + 1)) : 0);
-
-  sc.nextSpawnTurn = (turn + dt) | 0;
-}
-
-function canSpawnSurveyCacheNow(ctx, gm, sc) {
-  if (!isGmBoredEnoughForSurveyCache(ctx, gm)) return false;
-  if (!surveyCacheCooldownReady(ctx, sc)) return false;
-  return true;
-}
-
-function isSurveyCacheClaimed(sc, instanceId) {
-  const claimed = (sc && sc.claimed && typeof sc.claimed === "object") ? sc.claimed : null;
-  if (!claimed) return false;
-  return Object.prototype.hasOwnProperty.call(claimed, String(instanceId));
-}
 
 function removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY } = {}) {
   if (!MS || typeof MS.remove !== "function") return 0;
@@ -196,165 +68,35 @@ function removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY } = {}) {
   return removed;
 }
 
-function recordSurveyCacheClaim(sc, instanceId, turn) {
-  if (!sc || typeof sc !== "object") return;
 
-  if (!sc.claimed || typeof sc.claimed !== "object") sc.claimed = {};
-  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
-
-  const iid = String(instanceId);
-
-  sc.claimed[iid] = (turn | 0);
-
-  // Dedupe claimedOrder and move newest to front.
-  for (let i = sc.claimedOrder.length - 1; i >= 0; i--) {
-    if (String(sc.claimedOrder[i] || "") === iid) sc.claimedOrder.splice(i, 1);
-  }
-  sc.claimedOrder.unshift(iid);
-
-  // Keep bounded; only delete the pruned claimed entry if it no longer exists
-  // anywhere else in claimedOrder (defensive against legacy duplicate lists).
-  if (sc.claimedOrder.length > 256) {
-    const old = String(sc.claimedOrder.pop() || "");
-    if (old && !sc.claimedOrder.includes(old)) delete sc.claimed[old];
-  }
-}
-
-function isDisallowedSurveyTile(tile, T) {
-  if (!T) return false;
-  return tile === T.WATER
-    || tile === T.RIVER
-    || tile === T.MOUNTAIN
-    || tile === T.TOWN
-    || tile === T.DUNGEON
-    || (T.CASTLE != null && tile === T.CASTLE)
-    || (T.TOWER != null && tile === T.TOWER)
-    || tile === T.RUINS;
-}
-
-function maybeSpawnSurveyCacheMarker(ctx, gm, sc, absX, absY, tile) {
-  const MS = getMod(ctx, "MarkerService");
-  if (!MS || typeof MS.add !== "function") return;
-
-  // Spawn gate: only place new markers when GM boredom is high enough and the thread cooldown has elapsed.
-  if (!canSpawnSurveyCacheNow(ctx, gm, sc)) return;
-
-  // Skip obvious non-walkable / POI tiles.
-  const T = (ctx.World && ctx.World.TILES)
-    || (typeof window !== "undefined" && window.World && window.World.TILES)
-    || null;
-  if (T && isDisallowedSurveyTile(tile, T)) return;
-
-  // Deterministic anchor-per-cell spawning.
-  const cellX = Math.floor((absX | 0) / SURVEY_GRID);
-  const cellY = Math.floor((absY | 0) / SURVEY_GRID);
-  const baseX = cellX * SURVEY_GRID;
-  const baseY = cellY * SURVEY_GRID;
-
-  const seed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0;
-  const inner = Math.max(1, SURVEY_GRID - SURVEY_MARGIN * 2);
-  const offX = SURVEY_MARGIN + Math.floor(hash2Float((seed ^ SURVEY_SALT_ANCHOR_X) >>> 0, cellX, cellY) * inner);
-  const offY = SURVEY_MARGIN + Math.floor(hash2Float((seed ^ SURVEY_SALT_ANCHOR_Y) >>> 0, cellX, cellY) * inner);
-  const anchorX = baseX + offX;
-  const anchorY = baseY + offY;
-
-  if ((absX | 0) !== (anchorX | 0) || (absY | 0) !== (anchorY | 0)) return;
-
-  const roll = hash2Float((seed ^ SURVEY_SALT_ROLL) >>> 0, cellX, cellY);
-  if (roll >= SURVEY_CHANCE) return;
-
-  // Walkability check: prefer generator if available.
-  try {
-    const gen = ctx.world && ctx.world.gen;
-    if (gen && typeof gen.isWalkable === "function") {
-      if (!gen.isWalkable(tile)) return;
-    } else if (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") {
-      if (!window.World.isWalkable(tile)) return;
-    }
-  } catch (_) {}
-
-  const instanceId = `surveyCache:${absX | 0},${absY | 0}`;
-  if (isSurveyCacheClaimed(sc, instanceId)) return;
-
-  let placed = null;
-  try {
-    placed = MS.add(ctx, {
-      x: (absX | 0),
-      y: (absY | 0),
-      kind: "gm.surveyCache",
-      glyph: "?",
-      paletteKey: "gmMarker",
-      instanceId,
-    });
-  } catch (_) {}
-
-  if (placed) {
-    try { setSurveyCacheNextSpawnTurn(ctx, gm, sc); } catch (_) {}
-  }
-}
 
 export function onWorldScanRect(ctx, { x0, y0, w, h } = {}) {
   if (!ctx) return;
   if (!isGmEnabled(ctx)) return;
 
   const GM = getMod(ctx, "GMRuntime");
-  if (!GM || typeof GM.getState !== "function") return;
+  const MS = getMod(ctx, "MarkerService");
+  if (!GM || !MS || typeof MS.add !== "function" || typeof GM.getState !== "function") return;
 
   const gm = GM.getState(ctx);
   if (!gm || gm.enabled === false) return;
 
-  const sc = ensureSurveyCacheThread(gm);
-  if (!sc) return;
-
-  const world = ctx.world || null;
-  const map = Array.isArray(ctx.map) ? ctx.map : (world && Array.isArray(world.map) ? world.map : null);
-  if (!world || !map || !map.length || !map[0]) return;
-
-  const ox = (typeof world.originX === "number") ? (world.originX | 0) : 0;
-  const oy = (typeof world.originY === "number") ? (world.originY | 0) : 0;
-
-  const lx0 = (typeof x0 === "number" && Number.isFinite(x0)) ? (x0 | 0) : 0;
-  const ly0 = (typeof y0 === "number" && Number.isFinite(y0)) ? (y0 | 0) : 0;
-  const lw = (typeof w === "number" && Number.isFinite(w)) ? (w | 0) : 0;
-  const lh = (typeof h === "number" && Number.isFinite(h)) ? (h | 0) : 0;
-  if (lw <= 0 || lh <= 0) return;
-
-  const absX0 = (ox + lx0) | 0;
-  const absY0 = (oy + ly0) | 0;
-  const absX1 = (absX0 + lw - 1) | 0;
-  const absY1 = (absY0 + lh - 1) | 0;
-
-  const cellX0 = Math.floor(absX0 / SURVEY_GRID);
-  const cellY0 = Math.floor(absY0 / SURVEY_GRID);
-  const cellX1 = Math.floor(absX1 / SURVEY_GRID);
-  const cellY1 = Math.floor(absY1 / SURVEY_GRID);
-
-  for (let cy = cellY0; cy <= cellY1; cy++) {
-    for (let cx = cellX0; cx <= cellX1; cx++) {
-      const baseX = cx * SURVEY_GRID;
-      const baseY = cy * SURVEY_GRID;
-      const seed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0;
-      const inner = Math.max(1, SURVEY_GRID - SURVEY_MARGIN * 2);
-      const offX = SURVEY_MARGIN + Math.floor(hash2Float((seed ^ SURVEY_SALT_ANCHOR_X) >>> 0, cx, cy) * inner);
-      const offY = SURVEY_MARGIN + Math.floor(hash2Float((seed ^ SURVEY_SALT_ANCHOR_Y) >>> 0, cx, cy) * inner);
-      const anchorX = (baseX + offX) | 0;
-      const anchorY = (baseY + offY) | 0;
-
-      if (anchorX < absX0 || anchorY < absY0 || anchorX > absX1 || anchorY > absY1) continue;
-
-      const lx = (anchorX - ox) | 0;
-      const ly = (anchorY - oy) | 0;
-      if (ly < 0 || lx < 0 || ly >= map.length || lx >= (map[0] ? map[0].length : 0)) continue;
-
-      const tile = map[ly] ? map[ly][lx] : null;
-      if (tile == null) continue;
-
-      maybeSpawnSurveyCacheMarker(ctx, gm, sc, anchorX, anchorY, tile);
+  // Delegate Survey Cache spawn decisions to GMRuntime; GMBridge only applies effects.
+  try {
+    if (typeof GM.surveyCache_worldScanRect === "function") {
+      const res = GM.surveyCache_worldScanRect(ctx, { x0, y0, w, h }) || {};
+      const markers = Array.isArray(res.markers) ? res.markers : [];
+      for (const m of markers) {
+        let placed = null;
+        try { placed = MS.add(ctx, m); } catch (_) { placed = null; }
+        if (placed && typeof GM.surveyCache_onMarkerPlaced === "function") {
+          try { GM.surveyCache_onMarkerPlaced(ctx); } catch (_) {}
+        }
+      }
     }
-  }
+  } catch (_) {}
 
-  // Hybrid thread: the guarantee spawn should be safe to call repeatedly. This allows the
-  // "guarantee at least one per run" behavior to occur later in the run once boredom rises.
+  // Hybrid thread: guarantee spawn should be safe to call repeatedly.
   try { ensureGuaranteedSurveyCache(ctx); } catch (_) {}
 }
 
@@ -374,94 +116,22 @@ export function ensureGuaranteedSurveyCache(ctx) {
 
   const GM = getMod(ctx, "GMRuntime");
   const MS = getMod(ctx, "MarkerService");
-  if (!GM || !MS || typeof MS.add !== "function") return;
+  if (!GM || !MS || typeof MS.add !== "function" || typeof GM.getState !== "function") return;
 
   const gm = GM.getState(ctx);
   if (!gm || gm.enabled === false) return;
 
-  const sc = ensureSurveyCacheThread(gm);
-  if (!sc) return;
+  if (typeof GM.surveyCache_ensureGuaranteed !== "function") return;
 
-  // Spawn gate: do not guarantee a cache unless boredom and cooldown allow it.
-  if (!canSpawnSurveyCacheNow(ctx, gm, sc)) return;
-
-  // If we already have a Survey Cache marker in this run/window, do nothing.
-  try {
-    const markers = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
-    if (markers.some(m => m && String(m.kind || "") === "gm.surveyCache")) return;
-  } catch (_) {}
-
-  const w = ctx.world || null;
-  const map = Array.isArray(ctx.map) ? ctx.map : (w && Array.isArray(w.map) ? w.map : null);
-  if (!w || !map || !map.length || !map[0]) return;
-
-  const ox = (typeof w.originX === "number") ? (w.originX | 0) : 0;
-  const oy = (typeof w.originY === "number") ? (w.originY | 0) : 0;
-  const H = map.length | 0;
-  const W = map[0].length | 0;
-
-  const px = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
-  const py = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
-  const pAbsX = ox + px;
-  const pAbsY = oy + py;
-
-  const seed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0;
-  const rng = mulberry32(hash32((seed ^ SURVEY_SALT_GUARANTEE ^ 0x9e3779b9) >>> 0));
-
-  const T = (ctx.World && ctx.World.TILES)
-    || (typeof window !== "undefined" && window.World && window.World.TILES)
-    || null;
-
-  let picked = null;
-  for (let n = 0; n < 80; n++) {
-    const r = 14 + Math.floor(rng() * 22); // 14..35
-    const ang = rng() * Math.PI * 2;
-    const dx = Math.round(Math.cos(ang) * r);
-    const dy = Math.round(Math.sin(ang) * r);
-    const absX = (pAbsX + dx) | 0;
-    const absY = (pAbsY + dy) | 0;
-    const lx = absX - ox;
-    const ly = absY - oy;
-    if (lx < 0 || ly < 0 || lx >= W || ly >= H) continue;
-
-    const tile = map[ly] ? map[ly][lx] : null;
-    if (tile == null) continue;
-    if (T && isDisallowedSurveyTile(tile, T)) continue;
-
-    try {
-      const gen = w.gen;
-      if (gen && typeof gen.isWalkable === "function") {
-        if (!gen.isWalkable(tile)) continue;
-      } else if (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") {
-        if (!window.World.isWalkable(tile)) continue;
-      }
-    } catch (_) {}
-
-    const instanceId = `surveyCache:${absX},${absY}`;
-    if (isSurveyCacheClaimed(sc, instanceId)) continue;
-
-    picked = { absX, absY, instanceId };
-    break;
-  }
-
-  if (!picked) {
-    picked = { absX: pAbsX, absY: pAbsY, instanceId: `surveyCache:${pAbsX},${pAbsY}` };
-  }
+  const res = GM.surveyCache_ensureGuaranteed(ctx) || {};
+  const marker = res.marker || null;
+  if (!marker) return;
 
   let placed = null;
-  try {
-    placed = MS.add(ctx, {
-      x: picked.absX,
-      y: picked.absY,
-      kind: "gm.surveyCache",
-      glyph: "?",
-      paletteKey: "gmMarker",
-      instanceId: picked.instanceId,
-    });
-  } catch (_) {}
+  try { placed = MS.add(ctx, marker); } catch (_) { placed = null; }
 
-  if (placed) {
-    try { setSurveyCacheNextSpawnTurn(ctx, gm, sc); } catch (_) {}
+  if (placed && typeof GM.surveyCache_onMarkerPlaced === "function") {
+    try { GM.surveyCache_onMarkerPlaced(ctx); } catch (_) {}
   }
 }
 
@@ -637,11 +307,8 @@ function handleSurveyCacheMarker(ctx, marker) {
     const MS = getMod(ctx, "MarkerService");
     if (!GM || !MS) return true;
 
-    const gm = GM.getState(ctx);
+    const gm = (typeof GM.getState === "function") ? GM.getState(ctx) : null;
     if (gm && gm.enabled === false) return false;
-
-    const sc = ensureSurveyCacheThread(gm);
-    if (!sc) return true;
 
     const absX = marker && typeof marker.x === "number" ? (marker.x | 0) : 0;
     const absY = marker && typeof marker.y === "number" ? (marker.y | 0) : 0;
@@ -649,25 +316,19 @@ function handleSurveyCacheMarker(ctx, marker) {
       ? String(marker.instanceId)
       : `surveyCache:${absX},${absY}`;
 
-    if (isSurveyCacheClaimed(sc, instanceId)) {
-      try { if (typeof ctx.log === "function") ctx.log("This cache has already been picked clean.", "info"); } catch (_) {}
-      try {
-        const iid = String(instanceId);
-        const removed = (typeof MS.remove === "function")
-          ? (MS.remove(ctx, { kind: "gm.surveyCache", instanceId: iid }) | 0)
-          : 0;
-
-        if (!removed && typeof MS.remove === "function") {
-          MS.remove(ctx, (m) => {
-            if (!m) return false;
-            if (String(m.kind || "") !== "gm.surveyCache") return false;
-            if (String(m.instanceId || "") === iid) return true;
-            return (m.x | 0) === (absX | 0) && (m.y | 0) === (absY | 0);
-          });
-        }
-      } catch (_) {}
-      return true;
-    }
+    // Delegate claim bookkeeping to GMRuntime.
+    try {
+      if (typeof GM.surveyCache_isClaimed === "function" && GM.surveyCache_isClaimed(ctx, instanceId)) {
+        try { if (typeof ctx.log === "function") ctx.log("This cache has already been picked clean.", "info"); } catch (_) {}
+        try {
+          const iid = String(instanceId);
+          if (typeof MS.remove === "function") {
+            MS.remove(ctx, (m) => m && String(m.kind || "") === "gm.surveyCache" && (String(m.instanceId || "") === iid || ((m.x | 0) === absX && (m.y | 0) === absY)));
+          }
+        } catch (_) {}
+        return true;
+      }
+    } catch (_) {}
 
     const UIO = getMod(ctx, "UIOrchestration");
     if (!UIO || typeof UIO.showConfirm !== "function") {
@@ -677,36 +338,34 @@ function handleSurveyCacheMarker(ctx, marker) {
 
     // Phase 4 pacing: showing a choice prompt counts as an intervention.
     try {
-      if (GM && typeof GM.recordIntervention === "function") {
+      if (typeof GM.recordIntervention === "function") {
         GM.recordIntervention(ctx, { kind: "confirm", channel: "marker", id: "gm.surveyCache" });
       }
     } catch (_) {}
 
     const onOk = () => {
       try {
-        sc.active = { instanceId, absX, absY };
-        if (!sc.attempts || typeof sc.attempts !== "object") sc.attempts = {};
-        sc.attempts[instanceId] = ((sc.attempts[instanceId] | 0) + 1);
-
         const started = !!startGmFactionEncounter(ctx, "gm_survey_cache_scene", { ctxFirst: true });
         if (!started) {
-          sc.active = null;
           try { if (typeof ctx.log === "function") ctx.log("Nothing happens.", "warn"); } catch (_) {}
           try { if (typeof ctx.log === "function") ctx.log("[GM] Failed to start Survey Cache encounter.", "warn"); } catch (_) {}
           return;
         }
 
-        // Consume immediately so fleeing/withdrawing cannot re-enter the same cache.
-        // Keep sc.active intact so victory payout can still resolve the reward.
-        const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+        // Persist encounter start + claim immediately so fleeing/withdrawing cannot re-enter.
+        try {
+          if (typeof GM.surveyCache_onEncounterStart === "function") {
+            GM.surveyCache_onEncounterStart(ctx, { instanceId, absX, absY });
+          }
+        } catch (_) {}
+
+        // Consume marker on successful start.
         try { removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY }); } catch (_) {}
-        try { recordSurveyCacheClaim(sc, instanceId, turn); } catch (_) {}
 
         try {
           GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
         } catch (_) {}
       } catch (err) {
-        sc.active = null;
         try { if (typeof ctx.log === "function") ctx.log("[GM] Error while starting Survey Cache encounter.", "warn"); } catch (_) {}
         try { if (typeof console !== "undefined" && console && typeof console.error === "function") console.error(err); } catch (_) {}
       }
@@ -1240,94 +899,54 @@ export function onEncounterComplete(ctx, info) {
       const MS = getMod(ctx, "MarkerService");
       if (!GM || !MS) return;
 
-      const gm = GM.getState(ctx);
-      const sc = ensureSurveyCacheThread(gm);
-      if (!sc) return;
-
       const outcome = info && info.outcome ? String(info.outcome).trim().toLowerCase() : "";
-      const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
 
-      // Prefer the explicit active marker reference set when the player accepted the confirm.
-      // Fallback: derive from worldReturnPos so we still consume the marker even if GM state
-      // lost sc.active (e.g. page reload or other non-standard exit paths).
-      let instanceId = null;
-      let absX = null;
-      let absY = null;
+      let res = null;
       try {
-        if (sc.active && typeof sc.active === "object") {
-          instanceId = sc.active.instanceId != null ? String(sc.active.instanceId) : null;
-          absX = (typeof sc.active.absX === "number" && Number.isFinite(sc.active.absX)) ? (sc.active.absX | 0) : null;
-          absY = (typeof sc.active.absY === "number" && Number.isFinite(sc.active.absY)) ? (sc.active.absY | 0) : null;
+        if (typeof GM.surveyCache_onEncounterComplete === "function") {
+          res = GM.surveyCache_onEncounterComplete(ctx, { outcome, worldReturnPos: ctx.worldReturnPos });
         }
-      } catch (_) {}
+      } catch (_) {
+        res = null;
+      }
+
+      let instanceId = res && res.instanceId != null ? String(res.instanceId) : null;
+      let absX = res && typeof res.absX === "number" && Number.isFinite(res.absX) ? (res.absX | 0) : null;
+      let absY = res && typeof res.absY === "number" && Number.isFinite(res.absY) ? (res.absY | 0) : null;
 
       if (!instanceId || absX == null || absY == null) {
+        // Fallback: best-effort derive from worldReturnPos.
         try {
           const pos = ctx.worldReturnPos || null;
           if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
             absX = pos.x | 0;
             absY = pos.y | 0;
             instanceId = `surveyCache:${absX},${absY}`;
-
-            // Prefer the actual marker's instanceId if present.
-            try {
-              if (typeof MS.findAt === "function") {
-                const at = MS.findAt(ctx, absX, absY);
-                const list = Array.isArray(at) ? at : (at ? [at] : []);
-                const m = list.find(mm => mm && String(mm.kind || "") === "gm.surveyCache") || null;
-                if (m && m.instanceId != null) instanceId = String(m.instanceId);
-              }
-            } catch (_) {}
           }
         } catch (_) {}
       }
 
-      if (!instanceId || absX == null || absY == null) return;
-
-      // Consume the marker on encounter completion for any outcome.
-      // This prevents re-running the same cache by re-entering the encounter.
-      try { removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY }); } catch (_) {}
-
-      // Record the cache as exhausted/claimed so deterministic scan-time spawns do not respawn it.
-      try { recordSurveyCacheClaim(sc, instanceId, turn); } catch (_) {}
-
-      // Clear active regardless of whether we came from the explicit marker flow.
-      sc.active = null;
-
-      try { GM.onEvent(ctx, { type: "gm.surveyCache.encounterExit", interesting: false, payload: { outcome, instanceId } }); } catch (_) {}
-
-      if (outcome !== "victory") {
-        return;
+      if (instanceId && absX != null && absY != null) {
+        try { removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY }); } catch (_) {}
       }
-
-      const runSeed = (typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0;
-      const seed = hash32((runSeed ^ SURVEY_SALT_REWARD ^ Math.imul(absX | 0, 374761393) ^ Math.imul(absY | 0, 668265263)) >>> 0);
-      const rng = mulberry32(seed);
-
-      // Rewards: gold 40..70 + tier-2 equipment + 8% fine lockpick.
-      const gold = 40 + Math.floor(rng() * 31);
-      const reward = { grants: [{ kind: "gold", amount: gold }] };
 
       try {
-        const Items = (typeof window !== "undefined" ? window.Items : null) || (ctx && ctx.Items ? ctx.Items : null);
-        if (Items && typeof Items.createEquipment === "function") {
-          const it = Items.createEquipment(2, () => rng());
-          if (it) reward.grants.push({ kind: "item", item: it });
-        } else {
-          reward.grants.push({ kind: "item", item: { kind: "equip", slot: "hand", name: "iron gear", tier: 2, atk: 0, def: 0, decay: 0 } });
+        if (instanceId) {
+          GM.onEvent(ctx, { type: "gm.surveyCache.encounterExit", interesting: false, payload: { outcome, instanceId } });
         }
-      } catch (_) {
-        reward.grants.push({ kind: "item", item: { kind: "equip", slot: "hand", name: "iron gear", tier: 2, atk: 0, def: 0, decay: 0 } });
-      }
+      } catch (_) {}
 
-      if (rng() < 0.08) {
-        reward.grants.push({ kind: "tool", tool: { kind: "tool", type: "lockpick_fine", name: "fine lockpick", decay: 0 } });
-      }
+      if (outcome !== "victory") return;
 
-      try { grantBottleMapRewards(ctx, reward); } catch (_) {}
+      const reward = res && res.reward ? res.reward : null;
+      if (reward) {
+        try { grantBottleMapRewards(ctx, reward); } catch (_) {}
+      }
 
       try { if (typeof ctx.log === "function") ctx.log("You pry open a forgotten surveyor's cache.", "good"); } catch (_) {}
-      try { GM.onEvent(ctx, { type: "gm.surveyCache.claimed", interesting: true, payload: { instanceId } }); } catch (_) {}
+      try {
+        if (instanceId) GM.onEvent(ctx, { type: "gm.surveyCache.claimed", interesting: true, payload: { instanceId } });
+      } catch (_) {}
       return;
     }
   } catch (_) {}

@@ -16,6 +16,15 @@
  * - getMechanicHint(ctx)
  * - getFactionTravelEvent(ctx)
  * - forceFactionTravelEvent(ctx, id)
+ * - surveyCache_worldScanRect(ctx, rect)
+ * - surveyCache_ensureGuaranteed(ctx)
+ * - surveyCache_onMarkerPlaced(ctx)
+ * - surveyCache_isClaimed(ctx, instanceId)
+ * - surveyCache_onEncounterStart(ctx, meta)
+ * - surveyCache_onEncounterComplete(ctx, meta)
+ * - onWorldScanRect(ctx, rect)              // legacy wrappers (delegate to GMBridge)
+ * - onWorldScanTile(ctx, meta)              // legacy wrappers
+ * - ensureGuaranteedSurveyCache(ctx)        // legacy wrapper
  */
 
 import { attachGlobal } from "../../utils/global.js";
@@ -61,6 +70,15 @@ import {
   updateMechanicsUsage,
   applyGuardFineOutcome,
 } from "./runtime/events/updates.js";
+
+import {
+  surveyCacheComputeScanSpawn,
+  surveyCacheComputeGuaranteedSpawn,
+  surveyCacheIsClaimed,
+  surveyCacheSetNextSpawnTurn,
+  surveyCacheOnEncounterStart as surveyCacheOnEncounterStartImpl,
+  surveyCacheOnEncounterComplete as surveyCacheOnEncounterCompleteImpl,
+} from "./runtime/threads/survey_cache.js";
 
 // HealthCheck registration for GMRuntime is handled centrally in core/capabilities.js.
 
@@ -637,6 +655,121 @@ export function forceFactionTravelEvent(ctx, id) {
 }
 
 // ------------------------
+// Survey Cache (thread-owned; bridge applies effects)
+// ------------------------
+
+export function surveyCache_worldScanRect(ctx, rect) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { markers: [] };
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return { markers: [] };
+
+  const markers = surveyCacheComputeScanSpawn(ctx, gm, sc, rect);
+  return { markers: Array.isArray(markers) ? markers : [] };
+}
+
+export function surveyCache_ensureGuaranteed(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { marker: null };
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return { marker: null };
+
+  const marker = surveyCacheComputeGuaranteedSpawn(ctx, gm, sc);
+  return { marker: marker || null };
+}
+
+// NOTE: cooldown should only advance when a marker was actually placed.
+export function surveyCache_onMarkerPlaced(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return false;
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return false;
+
+  try {
+    surveyCacheSetNextSpawnTurn(ctx, gm, sc);
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function surveyCache_isClaimed(ctx, instanceId) {
+  const gm = _ensureState(ctx);
+  if (!gm || gm.enabled === false) return false;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return false;
+  return surveyCacheIsClaimed(sc, instanceId);
+}
+
+export function surveyCache_onEncounterStart(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return null;
+
+  const res = surveyCacheOnEncounterStartImpl(gm, sc, meta, ctx);
+  if (res) {
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+  }
+  return res;
+}
+
+export function surveyCache_onEncounterComplete(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return null;
+
+  const res = surveyCacheOnEncounterCompleteImpl(gm, sc, meta, ctx);
+  if (res) {
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+  }
+  return res;
+}
+
+// ------------------------
+// Survey Cache marker helpers (bridge wrappers)
+// ------------------------
+
+// Back-compat: for older callers that still route scan-time spawns through GMBridge.
+export function onWorldScanRect(ctx, rect) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.onWorldScanRect === "function") {
+      return GB.onWorldScanRect(ctx, rect);
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function onWorldScanTile(ctx, meta) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.onWorldScanTile === "function") {
+      return GB.onWorldScanTile(ctx, meta);
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function ensureGuaranteedSurveyCache(ctx) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.ensureGuaranteedSurveyCache === "function") {
+      return GB.ensureGuaranteedSurveyCache(ctx);
+    }
+  } catch (_) {}
+  return false;
+}
+
+// ------------------------
 // Event update helpers (traits/families/factions/mechanics)
 // ------------------------
 // Moved to ./runtime/events/updates.js
@@ -699,6 +832,15 @@ attachGlobal("GMRuntime", {
   recordIntervention,
   getFactionTravelEvent,
   forceFactionTravelEvent,
+  surveyCache_worldScanRect,
+  surveyCache_ensureGuaranteed,
+  surveyCache_onMarkerPlaced,
+  surveyCache_isClaimed,
+  surveyCache_onEncounterStart,
+  surveyCache_onEncounterComplete,
+  onWorldScanRect,
+  onWorldScanTile,
+  ensureGuaranteedSurveyCache,
   __getRawState,
   __setRawState,
 });
