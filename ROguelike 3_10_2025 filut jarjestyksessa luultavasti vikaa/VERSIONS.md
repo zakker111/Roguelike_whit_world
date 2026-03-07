@@ -1,3 +1,10 @@
+v1.50.32 — GM: Survey Cache spawn gate + cooldown
+
+- Survey Cache (`gm.surveyCache`) markers are now spawned only when GM boredom is high enough.
+- Added a per-thread spawn cooldown (`gm.threads.surveyCache.nextSpawnTurn`) so markers do not reappear too frequently.
+- Added config knobs: `config.gm.surveyCache` (boredomMin, cooldownMinTurns, cooldownMaxTurns).
+- Added smoketest scenario `gm_survey_cache_spawn_gate`.
+
 v1.50.31 — GM hotfix: Survey Cache consume-on-start (no re-entry after flee/withdraw)
 
 - Survey Cache (`gm.surveyCache`) markers are now consumed immediately after the encounter successfully starts, and the cache is marked claimed.

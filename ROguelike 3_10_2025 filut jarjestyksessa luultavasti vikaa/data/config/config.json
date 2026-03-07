@@ -45,6 +45,11 @@
       "cooldownMinTurns": 400,
       "cooldownMaxTurns": 600
     },
+    "surveyCache": {
+      "boredomMin": 0.6,
+      "cooldownMinTurns": 600,
+      "cooldownMaxTurns": 900
+    },
     "bottleMap": {
       "fishing": {
         "S0": 60,

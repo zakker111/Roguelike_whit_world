@@ -110,7 +110,7 @@ export function createDefaultState() {
           awardCount: 0,
         },
       },
-      surveyCache: { claimed: {}, claimedOrder: [], attempts: {}, active: null },
+      surveyCache: { claimed: {}, claimedOrder: [], attempts: {}, active: null, nextSpawnTurn: 0 },
     },
 
     // Per-run unique reward gating.

@@ -29,6 +29,7 @@ const SURVEY_SALT_ANCHOR_Y = 0x53_59_02;
 const SURVEY_SALT_ROLL = 0x53_52_03;
 const SURVEY_SALT_REWARD = 0x53_52_04;
 const SURVEY_SALT_GUARANTEE = 0x53_47_05;
+const SURVEY_SALT_COOLDOWN = 0x53_43_06;
 
 // Minimal fallback encounter templates used when JSON registries haven't loaded.
 // These should match data/encounters/encounters.json so gameplay stays consistent.
@@ -119,9 +120,92 @@ function ensureSurveyCacheThread(gm) {
   if (!gm || typeof gm !== "object") return null;
   if (!gm.threads || typeof gm.threads !== "object") gm.threads = {};
   if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
-    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null };
+    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null, nextSpawnTurn: 0 };
   }
-  return gm.threads.surveyCache;
+  const sc = gm.threads.surveyCache;
+  if (!sc.claimed || typeof sc.claimed !== "object" || Array.isArray(sc.claimed)) sc.claimed = {};
+  if (!Array.isArray(sc.claimedOrder)) sc.claimedOrder = [];
+  if (!sc.attempts || typeof sc.attempts !== "object" || Array.isArray(sc.attempts)) sc.attempts = {};
+  if (sc.active != null && typeof sc.active !== "object") sc.active = null;
+
+  sc.nextSpawnTurn = (typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
+  if (sc.nextSpawnTurn < 0) sc.nextSpawnTurn = 0;
+
+  return sc;
+}
+
+function getSurveyCacheSpawnConfig(ctx) {
+  const DEFAULTS = { boredomMin: 0.6, cooldownMinTurns: 600, cooldownMaxTurns: 900 };
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config)
+      ? window.GameData.config
+      : null;
+
+    const s = cfg && cfg.gm && cfg.gm.surveyCache && typeof cfg.gm.surveyCache === "object"
+      ? cfg.gm.surveyCache
+      : null;
+
+    let boredomMin = s && typeof s.boredomMin === "number" && Number.isFinite(s.boredomMin) ? s.boredomMin : DEFAULTS.boredomMin;
+    let cooldownMinTurns = s && typeof s.cooldownMinTurns === "number" && Number.isFinite(s.cooldownMinTurns) ? (s.cooldownMinTurns | 0) : DEFAULTS.cooldownMinTurns;
+    let cooldownMaxTurns = s && typeof s.cooldownMaxTurns === "number" && Number.isFinite(s.cooldownMaxTurns) ? (s.cooldownMaxTurns | 0) : DEFAULTS.cooldownMaxTurns;
+
+    if (boredomMin < 0) boredomMin = 0;
+    if (boredomMin > 1) boredomMin = 1;
+
+    if (cooldownMinTurns < 0) cooldownMinTurns = 0;
+    if (cooldownMaxTurns < cooldownMinTurns) cooldownMaxTurns = cooldownMinTurns;
+
+    return { boredomMin, cooldownMinTurns, cooldownMaxTurns };
+  } catch (_) {
+    return Object.assign({}, DEFAULTS);
+  }
+}
+
+function isGmBoredEnoughForSurveyCache(ctx, gm) {
+  const cfg = getSurveyCacheSpawnConfig(ctx);
+  let boredom = 0;
+  try {
+    boredom = (gm && gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)) ? gm.boredom.level : 0;
+  } catch (_) { boredom = 0; }
+  if (boredom < 0) boredom = 0;
+  if (boredom > 1) boredom = 1;
+
+  return boredom >= cfg.boredomMin;
+}
+
+function surveyCacheCooldownReady(ctx, sc) {
+  const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number" && Number.isFinite(ctx.time.turnCounter)) ? (ctx.time.turnCounter | 0) : 0;
+  const next = (sc && typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
+  return turn >= next;
+}
+
+function setSurveyCacheNextSpawnTurn(ctx, gm, sc) {
+  const cfg = getSurveyCacheSpawnConfig(ctx);
+  const turn = (ctx && ctx.time && typeof ctx.time.turnCounter === "number" && Number.isFinite(ctx.time.turnCounter)) ? (ctx.time.turnCounter | 0) : 0;
+
+  let min = cfg.cooldownMinTurns | 0;
+  let max = cfg.cooldownMaxTurns | 0;
+  if (min < 0) min = 0;
+  if (max < min) max = min;
+
+  // IMPORTANT: do not consume ctx.rng here.
+  // This cooldown is deterministic, but should not advance the run RNG stream.
+  const span = Math.max(0, (max - min) | 0);
+
+  let runSeed = 0;
+  try { runSeed = (gm && typeof gm.runSeed === "number" && Number.isFinite(gm.runSeed)) ? (gm.runSeed >>> 0) : 0; } catch (_) { runSeed = 0; }
+
+  const prev = (sc && typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
+  const u = hash32((runSeed ^ SURVEY_SALT_COOLDOWN ^ Math.imul(turn | 0, 0x9e3779b9) ^ (prev | 0)) >>> 0) >>> 0;
+  const dt = min + (span ? (u % (span + 1)) : 0);
+
+  sc.nextSpawnTurn = (turn + dt) | 0;
+}
+
+function canSpawnSurveyCacheNow(ctx, gm, sc) {
+  if (!isGmBoredEnoughForSurveyCache(ctx, gm)) return false;
+  if (!surveyCacheCooldownReady(ctx, sc)) return false;
+  return true;
 }
 
 function isSurveyCacheClaimed(sc, instanceId) {
@@ -198,6 +282,9 @@ function maybeSpawnSurveyCacheMarker(ctx, gm, sc, absX, absY, tile) {
   const MS = getMod(ctx, "MarkerService");
   if (!MS || typeof MS.add !== "function") return;
 
+  // Spawn gate: only place new markers when GM boredom is high enough and the thread cooldown has elapsed.
+  if (!canSpawnSurveyCacheNow(ctx, gm, sc)) return;
+
   // Skip obvious non-walkable / POI tiles.
   const T = (ctx.World && ctx.World.TILES)
     || (typeof window !== "undefined" && window.World && window.World.TILES)
@@ -235,8 +322,9 @@ function maybeSpawnSurveyCacheMarker(ctx, gm, sc, absX, absY, tile) {
   const instanceId = `surveyCache:${absX | 0},${absY | 0}`;
   if (isSurveyCacheClaimed(sc, instanceId)) return;
 
+  let placed = null;
   try {
-    MS.add(ctx, {
+    placed = MS.add(ctx, {
       x: (absX | 0),
       y: (absY | 0),
       kind: "gm.surveyCache",
@@ -245,6 +333,10 @@ function maybeSpawnSurveyCacheMarker(ctx, gm, sc, absX, absY, tile) {
       instanceId,
     });
   } catch (_) {}
+
+  if (placed) {
+    try { setSurveyCacheNextSpawnTurn(ctx, gm, sc); } catch (_) {}
+  }
 }
 
 export function onWorldScanRect(ctx, { x0, y0, w, h } = {}) {
@@ -306,6 +398,10 @@ export function onWorldScanRect(ctx, { x0, y0, w, h } = {}) {
       maybeSpawnSurveyCacheMarker(ctx, gm, sc, anchorX, anchorY, tile);
     }
   }
+
+  // Hybrid thread: the guarantee spawn should be safe to call repeatedly. This allows the
+  // "guarantee at least one per run" behavior to occur later in the run once boredom rises.
+  try { ensureGuaranteedSurveyCache(ctx); } catch (_) {}
 }
 
 // Backwards-compatible 1-tile hook.
@@ -329,14 +425,17 @@ export function ensureGuaranteedSurveyCache(ctx) {
   const gm = GM.getState(ctx);
   if (!gm || gm.enabled === false) return;
 
+  const sc = ensureSurveyCacheThread(gm);
+  if (!sc) return;
+
+  // Spawn gate: do not guarantee a cache unless boredom and cooldown allow it.
+  if (!canSpawnSurveyCacheNow(ctx, gm, sc)) return;
+
   // If we already have a Survey Cache marker in this run/window, do nothing.
   try {
     const markers = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
     if (markers.some(m => m && String(m.kind || "") === "gm.surveyCache")) return;
   } catch (_) {}
-
-  const sc = ensureSurveyCacheThread(gm);
-  if (!sc) return;
 
   const w = ctx.world || null;
   const map = Array.isArray(ctx.map) ? ctx.map : (w && Array.isArray(w.map) ? w.map : null);
@@ -395,8 +494,9 @@ export function ensureGuaranteedSurveyCache(ctx) {
     picked = { absX: pAbsX, absY: pAbsY, instanceId: `surveyCache:${pAbsX},${pAbsY}` };
   }
 
+  let placed = null;
   try {
-    MS.add(ctx, {
+    placed = MS.add(ctx, {
       x: picked.absX,
       y: picked.absY,
       kind: "gm.surveyCache",
@@ -405,6 +505,10 @@ export function ensureGuaranteedSurveyCache(ctx) {
       instanceId: picked.instanceId,
     });
   } catch (_) {}
+
+  if (placed) {
+    try { setSurveyCacheNextSpawnTurn(ctx, gm, sc); } catch (_) {}
+  }
 }
 
 // ------------------------

@@ -1048,6 +1048,7 @@
         gm_bottle_map: S.gm_bottle_map && S.gm_bottle_map.run,
         gm_bottle_map_fishing_pity: S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run,
         gm_survey_cache: S.gm_survey_cache && S.gm_survey_cache.run,
+        gm_survey_cache_spawn_gate: S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run,
       };
       let pipeline = [];
       try {
@@ -1474,7 +1475,32 @@
           token.style.display = "none";
           document.body.appendChild(token);
         }
+        // CI/headless contract: token text MUST be exactly PASS/FAIL.
         token.textContent = ok ? "PASS" : "FAIL";
+        token.style.display = "none";
+
+        // Human-visible banner (separate from the CI token so we don't break tooling)
+        try {
+          var banner = document.getElementById("smoke-pass-banner");
+          if (!banner) {
+            banner = document.createElement("div");
+            banner.id = "smoke-pass-banner";
+            document.body.appendChild(banner);
+          }
+          banner.textContent = ok ? "SMOKE PASS" : "SMOKE FAIL";
+          banner.style.display = "block";
+          banner.style.position = "fixed";
+          banner.style.top = "6px";
+          banner.style.left = "6px";
+          banner.style.zIndex = "99999";
+          banner.style.padding = "4px 6px";
+          banner.style.background = "rgba(0,0,0,0.75)";
+          banner.style.color = ok ? "#7CFC00" : "#ff4d4d";
+          banner.style.fontFamily = "monospace";
+          banner.style.fontSize = "12px";
+          banner.style.borderRadius = "4px";
+        } catch (_) {}
+
         var jsonToken = document.getElementById("smoke-json-token");
         if (!jsonToken) {
           jsonToken = document.createElement("div");

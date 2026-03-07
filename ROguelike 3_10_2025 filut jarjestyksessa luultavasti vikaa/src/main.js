@@ -245,6 +245,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_bottle_map.js',
         '/smoketest/scenarios/gm_bottle_map_fishing_pity.js',
         '/smoketest/scenarios/gm_survey_cache.js',
+        '/smoketest/scenarios/gm_survey_cache_spawn_gate.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

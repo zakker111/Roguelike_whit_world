@@ -208,7 +208,7 @@ export function ensureThreads(gm) {
 
   // Survey Cache: potentially many markers; persist only claimed ids (bounded).
   if (!gm.threads.surveyCache || typeof gm.threads.surveyCache !== "object") {
-    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null };
+    gm.threads.surveyCache = { claimed: {}, claimedOrder: [], attempts: {}, active: null, nextSpawnTurn: 0 };
   }
   const sc = gm.threads.surveyCache;
   if (!sc.claimed || typeof sc.claimed !== "object" || Array.isArray(sc.claimed)) sc.claimed = {};
@@ -217,6 +217,10 @@ export function ensureThreads(gm) {
 
   // Active marker reference used during encounter resolution.
   if (sc.active != null && typeof sc.active !== "object") sc.active = null;
+
+  // Cooldown tracking (turn-gated) for survey cache marker placement.
+  sc.nextSpawnTurn = (typeof sc.nextSpawnTurn === "number" && Number.isFinite(sc.nextSpawnTurn)) ? (sc.nextSpawnTurn | 0) : 0;
+  if (sc.nextSpawnTurn < 0) sc.nextSpawnTurn = 0;
 
   // Prune claimed map to a bounded size.
   const MAX_CLAIMS = 256;
