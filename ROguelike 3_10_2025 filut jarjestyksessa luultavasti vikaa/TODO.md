@@ -4,6 +4,44 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
+### GM Merge Readiness (v1.50.32)
+
+Implemented (ready in GM branch):
+- [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)
+- [x] Surveyor’s Cache marker + encounter + claimed state
+- [x] Travel events (guard fine confirm + bandit bounty)
+- [x] Pacing: deterministic low-frequency hints / intent eval (no RNG consumption)
+- [x] Confirm prompts (pay/refuse)
+- [x] Marker integrity: ctx-first marker encounter entry (no teleport/mode desync)
+- [x] Fishing pity (special fishing drops ramp after misses; tuneable)
+
+Merge checklist:
+- Smoketest scenarios (IDs):
+  - `gm_mechanic_hints`
+  - `gm_intent_decisions`
+  - `gm_boredom_interest`
+  - `determinism`
+  - `gm_seed_reset`
+  - `gm_bridge_markers`
+  - `gm_bridge_faction_travel`
+  - `gm_bottle_map`
+  - `gm_bottle_map_fishing_pity`
+  - `gm_survey_cache`
+  - `gm_survey_cache_spawn_gate`
+- Manual checks:
+  - Survey Cache: cache is **consumed on encounter start** (cannot double-claim)
+  - Bottle Map: withdrawing from the marker encounter keeps the `X` marker + quest thread intact
+  - Bandit bounty: victory pays the bounty (and does not pay on withdraw/defeat)
+- State/seed reset checks:
+  - Start New Game clears `GM_STATE_V1` (no stale `X`/`?` markers)
+  - Death restart clears `GM_STATE_V1`
+  - Seed reroll / apply seed clears `GM_STATE_V1` (and restarts GM pacing)
+
+Known issues / deferred (post-merge):
+- [ ] Persisted GM RNG stream + reload continuity gate — defer
+- [ ] General GM action scheduler + safety rails — defer
+- [ ] Reset semantics coverage for all entry points + APP_VERSION bump — defer
+
 - [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
   - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
   - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.

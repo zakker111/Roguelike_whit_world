@@ -4,6 +4,16 @@ v1.50.32 — GM: Survey Cache spawn gate + cooldown
 - Added a per-thread spawn cooldown (`gm.threads.surveyCache.nextSpawnTurn`) so markers do not reappear too frequently.
 - Added config knobs: `config.gm.surveyCache` (boredomMin, cooldownMinTurns, cooldownMaxTurns).
 - Added smoketest scenario `gm_survey_cache_spawn_gate`.
+- GM merge prep notes:
+  - Survey Cache: consume-on-start + claimed bookkeeping + robust removal
+  - Bottle Map: marker integrity, activation failure refund, idx safety
+  - GM persistence hygiene: seed reset, death restart resets GM
+  - Smoke tests coverage: gm_survey_cache, gm_survey_cache_spawn_gate, gm_bottle_map, gm_bottle_map_fishing_pity, gm_seed_reset
+  - Merge notes:
+    - core/bridge/gm_bridge.js — marker entry/confirm flows + thread reconciliation
+    - core/gm/runtime.js — persistence + reset semantics
+    - services/marker_service.js — marker integrity / removal helpers
+    - smoketest/scenarios/gm_*.js — scenarios listed above
 
 v1.50.31 — GM hotfix: Survey Cache consume-on-start (no re-entry after flee/withdraw)
 
