@@ -1049,6 +1049,9 @@
         gm_bottle_map_fishing_pity: S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run,
         gm_survey_cache: S.gm_survey_cache && S.gm_survey_cache.run,
         gm_survey_cache_spawn_gate: S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run,
+        gm_disable_switch: S.gm_disable_switch && S.gm_disable_switch.run,
+        gm_rng_persistence: S.gm_rng_persistence && S.gm_rng_persistence.run,
+        gm_scheduler_arbitration: S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run,
       };
       let pipeline = [];
       try {

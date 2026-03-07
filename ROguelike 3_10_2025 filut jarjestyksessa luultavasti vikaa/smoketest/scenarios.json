@@ -25,6 +25,7 @@
     { "id": "gm_bottle_map_fishing_pity", "label": "GM: Bottle Map (fishing pity)" },
     { "id": "gm_survey_cache", "label": "GM: Survey Cache" },
     { "id": "gm_survey_cache_spawn_gate", "label": "GM: Survey Cache (spawn gate)" },
+    { "id": "gm_disable_switch", "label": "GM: Disable switch (gm.enabled=false)" },
     { "id": "gm_rng_persistence", "label": "GM: RNG persistence (soft reload continuity)" },
     { "id": "gm_scheduler_arbitration", "label": "GM: Scheduler arbitration (RNG-free)" }
   ]
