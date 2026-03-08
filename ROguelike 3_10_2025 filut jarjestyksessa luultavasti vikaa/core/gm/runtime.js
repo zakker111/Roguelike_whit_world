@@ -23,6 +23,10 @@
  * - surveyCache_onEncounterStart(ctx, meta)
  * - surveyCache_onEncounterComplete(ctx, meta)
  * - bottleMap_onFishingSuccess(ctx)
+ * - bottleMap_onUseItem(ctx, meta)
+ * - bottleMap_reconcileMarkers(ctx, meta)
+ * - bottleMap_onEncounterStart(ctx, meta)
+ * - bottleMap_onEncounterComplete(ctx, meta)
  * - onWorldScanRect(ctx, rect)              // legacy wrappers (delegate to GMBridge)
  * - onWorldScanTile(ctx, meta)              // legacy wrappers
  * - ensureGuaranteedSurveyCache(ctx)        // legacy wrapper
@@ -81,9 +85,7 @@ import {
   surveyCacheOnEncounterComplete as surveyCacheOnEncounterCompleteImpl,
 } from "./runtime/threads/survey_cache.js";
 
-import {
-  bottleMapOnFishingSuccess as bottleMapOnFishingSuccessImpl,
-} from "./runtime/threads/bottle_map.js";
+import * as bottleMapThread from "./runtime/threads/bottle_map.js";
 
 // HealthCheck registration for GMRuntime is handled centrally in core/capabilities.js.
 
@@ -750,7 +752,9 @@ export function bottleMap_onFishingSuccess(ctx) {
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return { awarded: false };
 
-  const res = bottleMapOnFishingSuccessImpl(ctx, gm, thread, { onDirty: markDirty }) || { awarded: false, changed: false };
+  const res = (bottleMapThread && typeof bottleMapThread.bottleMapOnFishingSuccess === "function")
+    ? (bottleMapThread.bottleMapOnFishingSuccess(ctx, gm, thread, { onDirty: markDirty }) || { awarded: false, changed: false })
+    : { awarded: false, changed: false };
 
   // Persist any mutation (counters and/or GM RNG stream).
   if (res && res.changed) {
@@ -767,6 +771,95 @@ export function bottleMap_onFishingSuccess(ctx) {
   }
 
   return res;
+}
+
+function stripChanged(res) {
+  if (!res || typeof res !== "object") return res;
+  if (!Object.prototype.hasOwnProperty.call(res, "changed")) return res;
+  const { changed, ...pub } = res;
+  return pub;
+}
+
+function bottleMapCallThread(ctx, gm, thread, fn, meta) {
+  if (typeof fn !== "function") return null;
+
+  // Contract: bottle map thread impls use GM RNG; pass onDirty so RNG calls mark state dirty.
+  const opts = { onDirty: markDirty };
+
+  // Preferred signature: (ctx, gm, thread, meta, opts)
+  if (meta !== undefined && fn.length >= 5) return fn(ctx, gm, thread, meta, opts);
+
+  // Fallback signatures.
+  if (meta === undefined) return fn(ctx, gm, thread, opts);
+  if (fn.length === 4) return fn(ctx, gm, thread, Object.assign({ meta }, opts));
+
+  return fn(ctx, gm, thread, meta, opts);
+}
+
+function bottleMapPersistIfChanged(ctx, gm, res) {
+  if (!res || res.changed !== true) return;
+  markDirty(gm);
+  writePersistedState(ctx, gm, { force: true });
+}
+
+export function bottleMap_onUseItem(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnUseItem, meta);
+  bottleMapPersistIfChanged(ctx, gm, res);
+  return stripChanged(res);
+}
+
+export function bottleMap_reconcileMarkers(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapReconcileMarkers, meta);
+  bottleMapPersistIfChanged(ctx, gm, res);
+  return stripChanged(res);
+}
+
+export function bottleMap_onEncounterStart(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterStart, meta);
+  bottleMapPersistIfChanged(ctx, gm, res);
+  return stripChanged(res);
+}
+
+export function bottleMap_onEncounterComplete(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterComplete, meta);
+  bottleMapPersistIfChanged(ctx, gm, res);
+  return stripChanged(res);
+}
+
+export function bottleMap_activateFromItem(ctx, meta) {
+  return bottleMap_onUseItem(ctx, meta);
+}
+
+export function bottleMap_getReconcilePlan(ctx, meta) {
+  return bottleMap_reconcileMarkers(ctx, meta);
+}
+
+export function bottleMap_onEncounterAttempt(ctx, meta) {
+  return bottleMap_onEncounterStart(ctx, meta);
 }
 
 // ------------------------
@@ -874,6 +967,13 @@ attachGlobal("GMRuntime", {
   surveyCache_onEncounterStart,
   surveyCache_onEncounterComplete,
   bottleMap_onFishingSuccess,
+  bottleMap_onUseItem,
+  bottleMap_activateFromItem,
+  bottleMap_reconcileMarkers,
+  bottleMap_getReconcilePlan,
+  bottleMap_onEncounterStart,
+  bottleMap_onEncounterAttempt,
+  bottleMap_onEncounterComplete,
   onWorldScanRect,
   onWorldScanTile,
   ensureGuaranteedSurveyCache,
