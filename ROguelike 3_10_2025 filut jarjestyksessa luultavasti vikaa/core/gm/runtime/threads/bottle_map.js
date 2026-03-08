@@ -131,6 +131,10 @@ export function bottleMapOnFishingSuccess(ctx, gm, thread, opts = {}) {
   const boredomMult = 1 + boredom * (cfg.boredomMultMax - 1);
   chance *= boredomMult;
 
+  // Defensive clamp (config may set high boredomMultMax).
+  if (chance < 0) chance = 0;
+  if (chance > 1) chance = 1;
+
   // Hard guarantee at Smax.
   const force = s >= (cfg.Smax | 0);
   const roll = gmRngFloat(gm, onDirty);
