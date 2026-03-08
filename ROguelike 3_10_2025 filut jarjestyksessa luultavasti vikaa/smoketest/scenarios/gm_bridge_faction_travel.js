@@ -157,9 +157,43 @@
         return true;
       }
 
+      const waitForEncounterTemplate = async (id) => {
+        try {
+          // Wait for registries to settle first (runner also does this, but scenario may run standalone).
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          if (GD && GD.ready && typeof GD.ready.then === "function") {
+            let settled = false;
+            try { GD.ready.then(() => { settled = true; }, () => { settled = true; }); } catch (_) { settled = true; }
+            await waitUntil(() => settled, 15000, 80);
+          }
+
+          const want = String(id || "").toLowerCase();
+          if (!want) return false;
+
+          return await waitUntil(() => {
+            try {
+              const GD2 = (typeof window !== "undefined" ? window.GameData : null);
+              const reg = GD2 && GD2.encounters && Array.isArray(GD2.encounters.templates) ? GD2.encounters.templates : [];
+              return !!reg.find(t => t && String(t.id || "").toLowerCase() === want);
+            } catch (_) {
+              return false;
+            }
+          }, 12000, 80);
+        } catch (_) {
+          return false;
+        }
+      };
+
       const encounterIntents = ["gm_bandit_bounty", "gm_troll_hunt"];
       for (const intent of encounterIntents) {
         await ensureWorld();
+
+        const encReady = await (ctx && typeof ctx.waitForEncounterTemplate === "function" ? ctx.waitForEncounterTemplate(intent) : waitForEncounterTemplate(intent));
+        record(encReady, `Encounter template '${intent}' loaded`);
+        if (!encReady) {
+          // Phase 6: avoid SKIP-based false negatives; missing templates should surface as a real failure.
+          return true;
+        }
 
         // Ensure any confirm modal isn't interfering.
         try { if (UIO && has(UIO.cancelConfirm)) UIO.cancelConfirm(G.getCtx()); } catch (_) {}

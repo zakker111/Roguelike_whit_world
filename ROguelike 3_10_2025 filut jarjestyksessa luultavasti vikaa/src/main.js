@@ -212,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const injectList = [
         // Helpers
         '/smoketest/helpers/dom.js',
+        '/smoketest/helpers/gamedata.js',
         '/smoketest/helpers/budget.js',
         '/smoketest/helpers/logging.js',
         '/smoketest/helpers/movement.js',

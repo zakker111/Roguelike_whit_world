@@ -8,6 +8,31 @@
 (function () {
   const RUNNER_VERSION = "1.8.0";
 
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
+  }
+
+  async function waitUntilTrue(fn, timeoutMs, intervalMs) {
+    const deadline = Date.now() + Math.max(0, timeoutMs | 0);
+    const interval = Math.max(1, (intervalMs | 0) || 80);
+    while (Date.now() < deadline) {
+      try { if (fn()) return true; } catch (_) {}
+      await sleep(interval);
+    }
+    try { return !!fn(); } catch (_) { return false; }
+  }
+
+  async function waitForOrchestrator(timeoutMs) {
+    return await waitUntilTrue(() => {
+      try {
+        const OR = window.SmokeTest && window.SmokeTest.Run;
+        return !!(OR && typeof OR.run === "function" && typeof OR.runSeries === "function");
+      } catch (_) {
+        return false;
+      }
+    }, Math.max(500, timeoutMs | 0), 80);
+  }
+
   // Parse relevant params (support legacy &smoke= and new &scenarios=)
   function parseParams() {
     try {
@@ -29,6 +54,7 @@
   // Thin legacy run: delegate to orchestrator's run()
   async function run() {
     try {
+      await waitForOrchestrator(8000);
       const OR = window.SmokeTest && window.SmokeTest.Run;
       if (OR && typeof OR.run === "function") {
         return await OR.run({});
@@ -49,6 +75,7 @@
   async function runSeries(count) {
     const params = parseParams();
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
+    await waitForOrchestrator(8000);
     const OR = window.SmokeTest && window.SmokeTest.Run;
     if (OR && typeof OR.runSeries === "function") {
       return await OR.runSeries(n);

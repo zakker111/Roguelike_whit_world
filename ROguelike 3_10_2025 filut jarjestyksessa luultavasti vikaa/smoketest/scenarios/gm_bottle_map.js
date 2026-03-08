@@ -267,25 +267,34 @@
     // Encounter template must be present for GMBridge to start the encounter.
     let encReady = true;
     try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      if (GD && GD.ready && typeof GD.ready.then === "function") {
-        let settled = false;
-        try {
-          GD.ready.then(() => { settled = true; }, () => { settled = true; });
-        } catch (_) {
-          settled = true;
+      if (ctx && typeof ctx.waitForEncounterTemplate === "function") {
+        encReady = await ctx.waitForEncounterTemplate("gm_bottle_map_scene", { timeoutMs: 12000, settleTimeoutMs: 15000, intervalMs: 80 });
+      } else {
+        const H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.GameData;
+        if (H && typeof H.waitForEncounterTemplate === "function") {
+          encReady = await H.waitForEncounterTemplate("gm_bottle_map_scene", { timeoutMs: 12000, settleTimeoutMs: 15000, intervalMs: 80 });
+        } else {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          if (GD && GD.ready && typeof GD.ready.then === "function") {
+            let settled = false;
+            try {
+              GD.ready.then(() => { settled = true; }, () => { settled = true; });
+            } catch (_) {
+              settled = true;
+            }
+            await waitUntil(() => settled, 15000, 80);
+          }
+          encReady = await waitUntil(() => {
+            try {
+              const GD2 = (typeof window !== "undefined" ? window.GameData : null);
+              const reg = GD2 && GD2.encounters && Array.isArray(GD2.encounters.templates) ? GD2.encounters.templates : [];
+              return !!reg.find(t => t && String(t.id || "").toLowerCase() === "gm_bottle_map_scene");
+            } catch (_) {
+              return false;
+            }
+          }, 12000, 80);
         }
-        await waitUntil(() => settled, 10000, 80);
       }
-      encReady = await waitUntil(() => {
-        try {
-          const GD2 = (typeof window !== "undefined" ? window.GameData : null);
-          const reg = GD2 && GD2.encounters && Array.isArray(GD2.encounters.templates) ? GD2.encounters.templates : [];
-          return !!reg.find(t => t && String(t.id || "").toLowerCase() === "gm_bottle_map_scene");
-        } catch (_) {
-          return false;
-        }
-      }, 2500, 80);
     } catch (_) {
       encReady = false;
     }
