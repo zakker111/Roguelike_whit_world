@@ -110,18 +110,17 @@
     const origSurveyScan = (GM && typeof GM.surveyCache_worldScanRect === "function") ? GM.surveyCache_worldScanRect : null;
     const origSurveyEnsureGuaranteed = (GM && typeof GM.surveyCache_ensureGuaranteed === "function") ? GM.surveyCache_ensureGuaranteed : null;
     const origSurveyOnMarkerPlaced = (GM && typeof GM.surveyCache_onMarkerPlaced === "function") ? GM.surveyCache_onMarkerPlaced : null;
-    const origGBEnsureGuaranteed = (GB && typeof GB.ensureGuaranteedSurveyCache === "function") ? GB.ensureGuaranteedSurveyCache : null;
+    const origGetFactionTravelEvent = (GM && typeof GM.getFactionTravelEvent === "function") ? GM.getFactionTravelEvent : null;
 
     const modes = (gctx && gctx.Modes && typeof gctx.Modes === "object") ? gctx.Modes : (typeof window !== "undefined" ? window.Modes : null);
     const origEnterEncounter = (modes && typeof modes.enterEncounter === "function") ? modes.enterEncounter : null;
     const origEREnter = (ER && typeof ER.enter === "function") ? ER.enter : null;
 
     let markerAddCalls = 0;
-    let markerRemoveCalls = 0;
     let surveyScanCalls = 0;
     let surveyEnsureGuaranteedCalls = 0;
     let surveyMarkerPlacedCalls = 0;
-    let gbEnsureGuaranteedCalls = 0;
+    let getFactionTravelEventCalls = 0;
     let confirmCalls = 0;
     let enterCalls = 0;
 
@@ -143,12 +142,6 @@
           return origMsAdd.apply(this, arguments);
         };
       }
-      if (MS && has(origMsRemove)) {
-        MS.remove = function () {
-          markerRemoveCalls++;
-          return origMsRemove.apply(this, arguments);
-        };
-      }
       if (GM && has(origSurveyScan)) {
         GM.surveyCache_worldScanRect = function () {
           surveyScanCalls++;
@@ -167,10 +160,11 @@
           return origSurveyOnMarkerPlaced.apply(this, arguments);
         };
       }
-      if (GB && has(origGBEnsureGuaranteed)) {
-        GB.ensureGuaranteedSurveyCache = function () {
-          gbEnsureGuaranteedCalls++;
-          return origGBEnsureGuaranteed.apply(this, arguments);
+      if (GM && has(origGetFactionTravelEvent)) {
+        GM.getFactionTravelEvent = function () {
+          getFactionTravelEventCalls++;
+          // If GMBridge ignores gm.enabled, this would normally trigger a confirm prompt.
+          return { kind: "encounter", encounterId: "gm_bandit_bounty" };
         };
       }
       if (UIO && has(origShowConfirm)) {
@@ -200,15 +194,34 @@
         const beforeScan = surveyScanCalls;
         const beforeEnsure = surveyEnsureGuaranteedCalls;
         const beforePlaced = surveyMarkerPlacedCalls;
-        const beforeGbEnsure = gbEnsureGuaranteedCalls;
+
         try {
           GB.onWorldScanRect(gctx, { x0: 0, y0: 0, w: 32, h: 32 });
         } catch (_) {}
-        record(markerAddCalls === beforeAdd, "GM disabled: GMBridge.onWorldScanRect does not place markers");
-        record(surveyScanCalls === beforeScan, "GM disabled: GMBridge.onWorldScanRect does not consult GMRuntime.surveyCache_worldScanRect");
-        record(surveyEnsureGuaranteedCalls === beforeEnsure, "GM disabled: GMBridge.onWorldScanRect does not consult GMRuntime.surveyCache_ensureGuaranteed");
-        record(surveyMarkerPlacedCalls === beforePlaced, "GM disabled: GMBridge.onWorldScanRect does not advance survey cache cooldown (surveyCache_onMarkerPlaced)");
-        record(gbEnsureGuaranteedCalls === beforeGbEnsure, "GM disabled: GMBridge.onWorldScanRect does not call GMBridge.ensureGuaranteedSurveyCache");
+
+        if (MS && has(origMsAdd)) {
+          record(markerAddCalls === beforeAdd, "GM disabled: GMBridge.onWorldScanRect does not place markers");
+        } else {
+          recordSkip("GM disable switch: scan marker spawn check skipped (MarkerService.add missing)");
+        }
+
+        if (GM && has(origSurveyScan)) {
+          record(surveyScanCalls === beforeScan, "GM disabled: GMBridge.onWorldScanRect does not consult GMRuntime.surveyCache_worldScanRect");
+        } else {
+          recordSkip("GM disable switch: scan Survey Cache scan probe skipped (GMRuntime.surveyCache_worldScanRect missing)");
+        }
+
+        if (GM && has(origSurveyEnsureGuaranteed)) {
+          record(surveyEnsureGuaranteedCalls === beforeEnsure, "GM disabled: GMBridge.onWorldScanRect does not consult GMRuntime.surveyCache_ensureGuaranteed");
+        } else {
+          recordSkip("GM disable switch: scan Survey Cache guarantee probe skipped (GMRuntime.surveyCache_ensureGuaranteed missing)");
+        }
+
+        if (GM && has(origSurveyOnMarkerPlaced)) {
+          record(surveyMarkerPlacedCalls === beforePlaced, "GM disabled: GMBridge.onWorldScanRect does not advance survey cache cooldown (surveyCache_onMarkerPlaced)");
+        } else {
+          recordSkip("GM disable switch: scan Survey Cache cooldown probe skipped (GMRuntime.surveyCache_onMarkerPlaced missing)");
+        }
       } else {
         recordSkip("GM disable switch: scan spawn check skipped (GMBridge.onWorldScanRect missing)");
       }
@@ -217,13 +230,30 @@
       // (2) World step is suppressed
       // ------------------------------
       if (GB && typeof GB.maybeHandleWorldStep === "function") {
+        const beforeGetFaction = getFactionTravelEventCalls;
         const beforeConfirm = confirmCalls;
         const beforeEnter = enterCalls;
         let handled = false;
         try { handled = !!GB.maybeHandleWorldStep(gctx); } catch (_) { handled = false; }
         record(handled === false, "GM disabled: GMBridge.maybeHandleWorldStep returns false");
-        record(confirmCalls === beforeConfirm, "GM disabled: GMBridge.maybeHandleWorldStep does not open confirm UI");
-        record(enterCalls === beforeEnter, "GM disabled: GMBridge.maybeHandleWorldStep does not start encounters");
+
+        if (GM && has(origGetFactionTravelEvent)) {
+          record(getFactionTravelEventCalls === beforeGetFaction, "GM disabled: GMBridge.maybeHandleWorldStep does not consult GMRuntime.getFactionTravelEvent");
+        } else {
+          recordSkip("GM disable switch: world step intent probe skipped (GMRuntime.getFactionTravelEvent missing)");
+        }
+
+        if (UIO && has(origShowConfirm)) {
+          record(confirmCalls === beforeConfirm, "GM disabled: GMBridge.maybeHandleWorldStep does not open confirm UI");
+        } else {
+          recordSkip("GM disable switch: world step confirm probe skipped (UIOrchestration.showConfirm missing)");
+        }
+
+        if ((modes && has(origEnterEncounter)) || (ER && has(origEREnter))) {
+          record(enterCalls === beforeEnter, "GM disabled: GMBridge.maybeHandleWorldStep does not start encounters");
+        } else {
+          recordSkip("GM disable switch: world step encounter probe skipped (Modes.enterEncounter/EncounterRuntime.enter missing)");
+        }
       } else {
         recordSkip("GM disable switch: world step check skipped (GMBridge.maybeHandleWorldStep missing)");
       }
@@ -231,34 +261,90 @@
       // ------------------------------
       // (3) Marker action is consumed but has no effect
       // ------------------------------
-      if (!MS || !has(MS.add) || !has(MS.remove) || !GB || typeof GB.handleMarkerAction !== "function") {
-        recordSkip("GM disable switch: marker action check skipped (MarkerService/GMBridge.handleMarkerAction missing)");
+      if (!MS || !has(MS.add) || !GB || typeof GB.handleMarkerAction !== "function") {
+        recordSkip("GM disable switch: marker action check skipped (MarkerService.add/GMBridge.handleMarkerAction missing)");
         return true;
       }
 
-      // Inject a gm.* marker under the player.
-      const { absX, absY } = getPlayerAbs(gctx);
-      injectedMarkerInstanceId = `surveyCache:${absX},${absY}`;
+      function findGmMarkerAtPlayer() {
+        try {
+          if (MS && typeof MS.findAtPlayer === "function") {
+            const at = MS.findAtPlayer(gctx) || [];
+            const list = Array.isArray(at) ? at : [at];
+            return list.find((m) => m && typeof m.kind === "string" && m.kind.indexOf("gm.") === 0) || null;
+          }
+        } catch (_) {}
 
-      try {
-        MS.add(gctx, {
-          x: absX,
-          y: absY,
-          kind: "gm.surveyCache",
-          glyph: "?",
-          paletteKey: "gmMarker",
-          instanceId: injectedMarkerInstanceId,
-        });
-      } catch (_) {
-        // If we can't inject, we can't meaningfully test consumption.
-        recordSkip("GM disable switch: marker injection failed (cannot test handleMarkerAction)");
+        try {
+          const { absX, absY } = getPlayerAbs(gctx);
+          const arr = (gctx && gctx.world && Array.isArray(gctx.world.questMarkers)) ? gctx.world.questMarkers : [];
+          return arr.find((m) => m && typeof m.kind === "string" && m.kind.indexOf("gm.") === 0 && (m.x | 0) === (absX | 0) && (m.y | 0) === (absY | 0)) || null;
+        } catch (_) {}
+
+        return null;
+      }
+
+      function markerExists(kind, instanceId, absX, absY) {
+        try {
+          const arr = (gctx && gctx.world && Array.isArray(gctx.world.questMarkers)) ? gctx.world.questMarkers : [];
+          const k = String(kind || "");
+          const iid = (instanceId != null) ? String(instanceId) : null;
+          const x = (typeof absX === "number" && Number.isFinite(absX)) ? (absX | 0) : null;
+          const y = (typeof absY === "number" && Number.isFinite(absY)) ? (absY | 0) : null;
+
+          return arr.some((m) => {
+            if (!m) return false;
+            if (String(m.kind || "") !== k) return false;
+            if (iid != null) {
+              return String(m.instanceId || "") === iid;
+            }
+            if (x == null || y == null) return false;
+            return (m.x | 0) === x && (m.y | 0) === y;
+          });
+        } catch (_) {
+          return false;
+        }
+      }
+
+      // Prefer an existing gm.* marker at the player's feet; otherwise inject a Survey Cache marker.
+      let marker0 = findGmMarkerAtPlayer();
+      if (!marker0) {
+        const { absX, absY } = getPlayerAbs(gctx);
+        const iid = `surveyCache:${absX},${absY}`;
+        try {
+          const placed = MS.add(gctx, {
+            x: absX,
+            y: absY,
+            kind: "gm.surveyCache",
+            glyph: "?",
+            paletteKey: "gmMarker",
+            instanceId: iid,
+          });
+          if (placed) {
+            injectedMarkerInstanceId = iid;
+          }
+        } catch (_) {}
+        marker0 = findGmMarkerAtPlayer();
+      }
+
+      if (!marker0) {
+        recordSkip("GM disable switch: marker action check skipped (no gm.* marker under player)");
+        return true;
+      }
+
+      const markerKind = String(marker0.kind || "");
+      const markerInstanceId = (marker0.instanceId != null) ? String(marker0.instanceId) : null;
+      const markerX = (typeof marker0.x === "number" && Number.isFinite(marker0.x)) ? (marker0.x | 0) : null;
+      const markerY = (typeof marker0.y === "number" && Number.isFinite(marker0.y)) ? (marker0.y | 0) : null;
+
+      if (!markerExists(markerKind, markerInstanceId, markerX, markerY)) {
+        recordSkip("GM disable switch: marker action check skipped (marker presence could not be verified)");
         return true;
       }
 
       const gold0 = getGoldAmount(gctx);
       const confirm0 = confirmCalls;
       const enter0 = enterCalls;
-      const remove0 = markerRemoveCalls;
       const mode0 = (has(GA.getMode) ? GA.getMode() : (gctx.mode || ""));
 
       let consumed = false;
@@ -266,11 +352,23 @@
 
       const gold1 = getGoldAmount(gctx);
       const mode1 = (has(GA.getMode) ? GA.getMode() : (gctx.mode || ""));
+      const markerStillThere = markerExists(markerKind, markerInstanceId, markerX, markerY);
 
       record(consumed === true, "GM disabled: GMBridge.handleMarkerAction consumes gm.* marker action");
-      record(confirmCalls === confirm0, "GM disabled: handleMarkerAction does not open confirm UI");
-      record(enterCalls === enter0, "GM disabled: handleMarkerAction does not start encounter");
-      record(markerRemoveCalls === remove0, "GM disabled: handleMarkerAction does not remove the marker");
+
+      if (UIO && has(origShowConfirm)) {
+        record(confirmCalls === confirm0, "GM disabled: handleMarkerAction does not open confirm UI");
+      } else {
+        recordSkip("GM disable switch: marker action confirm probe skipped (UIOrchestration.showConfirm missing)");
+      }
+
+      if ((modes && has(origEnterEncounter)) || (ER && has(origEREnter))) {
+        record(enterCalls === enter0, "GM disabled: handleMarkerAction does not start encounter");
+      } else {
+        recordSkip("GM disable switch: marker action encounter probe skipped (Modes.enterEncounter/EncounterRuntime.enter missing)");
+      }
+
+      record(markerStillThere, "GM disabled: handleMarkerAction does not remove the gm.* marker");
       record(gold1 === gold0, `GM disabled: handleMarkerAction does not grant rewards (gold ${gold0} -> ${gold1})`);
       record(mode1 === mode0, `GM disabled: handleMarkerAction does not change mode (mode=${mode1})`);
 
@@ -292,7 +390,7 @@
       try { if (GM && origSurveyScan && GM.surveyCache_worldScanRect !== origSurveyScan) GM.surveyCache_worldScanRect = origSurveyScan; } catch (_) {}
       try { if (GM && origSurveyEnsureGuaranteed && GM.surveyCache_ensureGuaranteed !== origSurveyEnsureGuaranteed) GM.surveyCache_ensureGuaranteed = origSurveyEnsureGuaranteed; } catch (_) {}
       try { if (GM && origSurveyOnMarkerPlaced && GM.surveyCache_onMarkerPlaced !== origSurveyOnMarkerPlaced) GM.surveyCache_onMarkerPlaced = origSurveyOnMarkerPlaced; } catch (_) {}
-      try { if (GB && origGBEnsureGuaranteed && GB.ensureGuaranteedSurveyCache !== origGBEnsureGuaranteed) GB.ensureGuaranteedSurveyCache = origGBEnsureGuaranteed; } catch (_) {}
+      try { if (GM && origGetFactionTravelEvent && GM.getFactionTravelEvent !== origGetFactionTravelEvent) GM.getFactionTravelEvent = origGetFactionTravelEvent; } catch (_) {}
       try { if (UIO && origShowConfirm && UIO.showConfirm !== origShowConfirm) UIO.showConfirm = origShowConfirm; } catch (_) {}
       try { if (modes && origEnterEncounter && modes.enterEncounter !== origEnterEncounter) modes.enterEncounter = origEnterEncounter; } catch (_) {}
       try { if (ER && origEREnter && ER.enter !== origEREnter) ER.enter = origEREnter; } catch (_) {}
