@@ -1,4 +1,4 @@
-</ eslint-disableode>/**
+/**
  * Bottle Map thread helpers (gm.threads.bottleMap).
  *
  * Responsibilities:
