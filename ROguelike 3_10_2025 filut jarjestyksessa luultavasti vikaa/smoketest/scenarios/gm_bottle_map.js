@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 (function () {
   // SmokeTest Scenario: Bottle Map
   // Validates:
@@ -64,9 +65,75 @@
     const MS = window.MarkerService || null;
     const IF = window.InventoryFlow || null;
     const GMB = window.GMBridge || null;
+    const GMRuntime = window.GMRuntime || null;
     record(!!MS, "MarkerService is available");
     record(!!IF, "InventoryFlow is available");
     record(!!GMB, "GMBridge is available");
+    record(!!GMRuntime, "GMRuntime is available");
+
+    const getGmState = () => {
+      try {
+        const c = has(G.getCtx) ? G.getCtx() : gctx;
+        if (GMRuntime && has(GMRuntime.getState)) return GMRuntime.getState(c);
+        if (c && c.gm && typeof c.gm === "object") return c.gm;
+      } catch (_) {}
+      return null;
+    };
+
+    const getBottleMapThread = () => {
+      try {
+        const gm = getGmState();
+        const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
+        return (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const resetBottleMapThread = () => {
+      try {
+        const bm = getBottleMapThread();
+        if (!bm) return;
+        bm.active = false;
+        bm.status = "claimed";
+        bm.instanceId = null;
+        bm.createdTurn = null;
+        bm.claimedTurn = null;
+        bm.attempts = 0;
+        bm.target = null;
+        bm.reward = null;
+        bm.failureReason = null;
+        bm.placementTries = null;
+      } catch (_) {}
+    };
+
+    const normalizeBottleMapStatus = (rawStatus, active) => {
+      const s = (typeof rawStatus === "string" ? rawStatus : "").trim();
+      const low = s.toLowerCase();
+      if (low === "inencounter" || low === "in_encounter" || low === "in-encounter") return "inEncounter";
+      if (low === "active") return "active";
+      if (low === "claimed") return "claimed";
+      if (low === "expired") return "expired";
+      return active ? "active" : "claimed";
+    };
+
+    const readBottleMapThreadSnapshot = () => {
+      try {
+        const bm = getBottleMapThread();
+        if (!bm || typeof bm !== "object") return null;
+        const active = bm.active === true;
+        const instanceId = bm.instanceId != null ? String(bm.instanceId) : "";
+        const status = normalizeBottleMapStatus(bm.status, active);
+        const attempts = (typeof bm.attempts === "number" && Number.isFinite(bm.attempts)) ? (bm.attempts | 0) : 0;
+        const t = bm.target && typeof bm.target === "object" ? bm.target : null;
+        const absX = (t && typeof t.absX === "number" && Number.isFinite(t.absX)) ? (t.absX | 0) : null;
+        const absY = (t && typeof t.absY === "number" && Number.isFinite(t.absY)) ? (t.absY | 0) : null;
+        const claimedTurn = (typeof bm.claimedTurn === "number" && Number.isFinite(bm.claimedTurn)) ? (bm.claimedTurn | 0) : null;
+        return { active, status, instanceId, attempts, target: (absX == null || absY == null) ? null : { absX, absY }, claimedTurn };
+      } catch (_) {
+        return null;
+      }
+    };
 
     if (!MS || !has(MS.add) || !has(MS.findAtPlayer) || !has(MS.remove) || !IF || !has(IF.useItemByIndex)) {
       recordSkip("Bottle Map skipped (MarkerService/InventoryFlow missing required functions)");
@@ -75,18 +142,7 @@
 
     // Clean any stale Bottle Map state from a prior attempt (keeps this scenario deterministic).
     try { MS.remove(gctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
-    try {
-      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-      const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-      if (bm) {
-        bm.active = false;
-        bm.status = "claimed";
-        bm.instanceId = null;
-        bm.target = null;
-        bm.reward = null;
-      }
-    } catch (_) {}
+    resetBottleMapThread();
 
     const worldRef = gctx.world || null;
 
@@ -154,16 +210,27 @@
       }
     };
 
+    
+
+    const isBottleMapItem = (it) => {
+      try {
+        if (!it) return false;
+        const k = String(it.kind || "").toLowerCase();
+        if (k !== "tool") return false;
+        const id = String(it.type || it.id || it.key || it.name || "").toLowerCase();
+        return id === "bottle_map" || id === "bottle map" || id.includes("bottle map") || id.includes("bottle_map");
+      } catch (_) {
+        return false;
+      }
+    };
+
     const countBottleMaps = () => {
       try {
         const c = has(G.getCtx) ? G.getCtx() : gctx;
         const inv = (c && c.player && Array.isArray(c.player.inventory)) ? c.player.inventory : [];
         let n = 0;
         for (const it of inv) {
-          if (!it) continue;
-          if (String(it.kind || "") !== "tool") continue;
-          if (String(it.type || "") !== "bottle_map") continue;
-          n++;
+          if (isBottleMapItem(it)) n++;
         }
         return n;
       } catch (_) {
@@ -176,11 +243,7 @@
         const c = has(G.getCtx) ? G.getCtx() : gctx;
         const inv = (c && c.player && Array.isArray(c.player.inventory)) ? c.player.inventory : [];
         for (let i = inv.length - 1; i >= 0; i--) {
-          const it = inv[i];
-          if (!it) continue;
-          if (String(it.kind || "") !== "tool") continue;
-          if (String(it.type || "") !== "bottle_map") continue;
-          inv.splice(i, 1);
+          if (isBottleMapItem(inv[i])) inv.splice(i, 1);
         }
         if (typeof c.updateUI === "function") c.updateUI();
         else if (typeof gctx.updateUI === "function") gctx.updateUI();
@@ -288,30 +351,20 @@
     // Phase 7D regression gate: GMBridge.useInventoryItem should not treat an undefined idx as 0
     // (undefined | 0 === 0), which could consume the wrong inventory slot.
     let idxSafetyOk = true;
+    let handledIdxSafety = false;
     try {
       if (GMB && has(GMB.useInventoryItem)) {
         // Hard reset bottle map state.
         try { MS.remove(gctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
-        try {
-          const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-          const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-          const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-          if (bm) {
-            bm.active = false;
-            bm.status = "claimed";
-            bm.instanceId = null;
-            bm.target = null;
-            bm.reward = null;
-          }
-        } catch (_) {}
+        resetBottleMapThread();
 
         const inv = (gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : (gctx.player.inventory = []);
         const invSnap = inv.slice(0);
 
         // Keep only our two test items to avoid interacting with other systems.
         inv.length = 0;
-        const dummy = { kind: "tool", type: "dummy_tool", name: "dummy tool", decay: 0, usable: true };
-        const bmItem = { kind: "tool", type: "bottle_map", name: "bottle map", decay: 0, usable: true };
+        const dummy = { kind: "tool", id: "dummy_tool", type: "dummy_tool", name: "dummy tool", decay: 0, usable: true };
+        const bmItem = { kind: "tool", id: "bottle_map", type: "bottle_map", name: "bottle map", decay: 0, usable: true };
         inv.push(dummy);
         inv.push(bmItem);
 
@@ -325,7 +378,7 @@
           if (origWalk && WorldMod) WorldMod.isWalkable = () => false;
           if (origGenWalk && gen) gen.isWalkable = () => false;
           // idx intentionally undefined
-          GMB.useInventoryItem(gctx, bmItem, undefined);
+          handledIdxSafety = !!GMB.useInventoryItem(gctx, bmItem, undefined);
         } finally {
           if (origWalk && WorldMod) WorldMod.isWalkable = origWalk;
           if (origGenWalk && gen) gen.isWalkable = origGenWalk;
@@ -335,7 +388,7 @@
         const dummyStillThere = inv.indexOf(dummy) >= 0;
         // Bottle map should still exist (refunded after failure).
         const bmCount = countBottleMaps();
-        idxSafetyOk = dummyStillThere && bmCount >= 1;
+        idxSafetyOk = !!handledIdxSafety && dummyStillThere && bmCount >= 1;
 
         // Cleanup: restore original inventory snapshot.
         try {
@@ -345,12 +398,12 @@
         } catch (_) {}
       }
     } catch (_) {
-      idxSafetyOk = true;
+      idxSafetyOk = false;
     }
     record(idxSafetyOk, "Bottle map idx safety: undefined idx does not consume wrong inventory slot");
 
     // Phase 7D lifecycle gate: activation failure should refund the item and expire the thread.
-    let activationFailureOk = true;
+    let activationFailureOk = false;
     try {
       const WorldMod = (typeof window !== "undefined" ? window.World : null);
       const origWalk = (WorldMod && typeof WorldMod.isWalkable === "function") ? WorldMod.isWalkable : null;
@@ -366,7 +419,7 @@
       try {
         const inv = (gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : (gctx.player.inventory = []);
         idxFail = inv.length;
-        inv.push({ kind: "tool", type: "bottle_map", name: "bottle map", decay: 0, usable: true });
+        inv.push({ kind: "tool", id: "bottle_map", type: "bottle_map", name: "bottle map", decay: 0, usable: true });
         if (typeof gctx.updateUI === "function") gctx.updateUI();
       } catch (_) {}
 
@@ -383,9 +436,7 @@
 
       const threadExpiredNow = () => {
         try {
-          const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-          const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-          const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
+          const bm = getBottleMapThread();
           const st = String((bm && bm.status) || "");
           return !!(bm && bm.active === false && st && st.indexOf("expired") >= 0);
         } catch (_) {
@@ -403,29 +454,18 @@
       activationFailureOk = (bmAfter >= (bmBefore + 1)) && !markerPlaced && expiredOk;
       record(true, "Bottle map activation failure path executed");
     } catch (_) {
-      activationFailureOk = true;
+      activationFailureOk = false;
     }
 
     // Cleanup any refunded bottle maps so the main scenario starts from a clean slate.
     try { removeAllBottleMaps(); } catch (_) {}
     try { MS.remove(gctx, (m) => m && String(m.kind || "") === "gm.bottleMap"); } catch (_) {}
-    try {
-      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-      const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-      if (bm) {
-        bm.active = false;
-        bm.status = "claimed";
-        bm.instanceId = null;
-        bm.target = null;
-        bm.reward = null;
-      }
-    } catch (_) {}
+    resetBottleMapThread();
 
     record(activationFailureOk, "Bottle map activation failure: item refunded, thread expired, marker not placed");
 
     // Phase 7D lifecycle gate: orphan markers should be cleaned when the thread is inactive.
-    let orphanCleanupOk = true;
+    let orphanCleanupOk = false;
     try {
       if (GMB && has(GMB.reconcileMarkers)) {
         const w = (has(G.getCtx) ? (G.getCtx() && G.getCtx().world) : null) || worldRef;
@@ -436,18 +476,7 @@
         MS.add(gctx, { x: ox + (p.x | 0), y: oy + (p.y | 0), kind: "gm.bottleMap", glyph: "X", paletteKey: "questMarker", instanceId: orphanId });
 
         // Ensure thread is inactive.
-        try {
-          const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-          const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-          const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-          if (bm) {
-            bm.active = false;
-            bm.status = "claimed";
-            bm.instanceId = null;
-            bm.target = null;
-            bm.reward = null;
-          }
-        } catch (_) {}
+        resetBottleMapThread();
 
         await sleep(120);
         GMB.reconcileMarkers(gctx);
@@ -455,19 +484,106 @@
         orphanCleanupOk = !findBottleMarker(orphanId);
 
         // Hard cleanup for subsequent steps.
-        try { MS.remove(gctx, { instanceId: orphanId }); } catch (_) {}
+        try { MS.remove(gctx, { kind: "gm.bottleMap", instanceId: orphanId }); } catch (_) {}
       }
     } catch (_) {
-      orphanCleanupOk = true;
+      orphanCleanupOk = false;
     }
     record(orphanCleanupOk, "Bottle map marker integrity: reconcile removes orphan marker when thread inactive");
 
+    const ensureSafeOverworldForBottleMap = async () => {
+      try {
+        const w = (has(G.getCtx) ? (G.getCtx() && G.getCtx().world) : null) || worldRef;
+        if (!w || !Array.isArray(w.map) || !w.map.length) return true;
+        const WorldMod = (typeof window !== "undefined" ? window.World : null);
+        const WT = (WorldMod && WorldMod.TILES) ? WorldMod.TILES : null;
+        const disallowed = WT ? new Set([WT.WATER, WT.RIVER, WT.MOUNTAIN, WT.RUINS, WT.TOWN, WT.DUNGEON, WT.CASTLE, WT.TOWER]) : null;
+
+        const gen = w.gen || null;
+        const walkableTile = (t) => {
+          try {
+            if (gen && typeof gen.isWalkable === "function") return !!gen.isWalkable(t);
+            if (WorldMod && typeof WorldMod.isWalkable === "function") return !!WorldMod.isWalkable(t);
+          } catch (_) {}
+          return true;
+        };
+
+        const h = w.map.length | 0;
+        const w0 = (w.map[0] && w.map[0].length) ? (w.map[0].length | 0) : 0;
+        const inBounds = (x, y) => (x >= 0 && y >= 0 && x < w0 && y < h);
+        const tileAt = (x, y) => (inBounds(x, y) ? w.map[y][x] : null);
+        const isAllowed = (t) => {
+          if (!disallowed) return true;
+          return !disallowed.has(t);
+        };
+
+        const ringTargetCount = (cx, cy) => {
+          let count = 0;
+          const radii = [14, 18, 22, 26, 30];
+          const steps = 16;
+          for (let ri = 0; ri < radii.length; ri++) {
+            const r = radii[ri];
+            for (let i = 0; i < steps; i++) {
+              const a = (Math.PI * 2 * i) / steps;
+              const dx = Math.round(Math.cos(a) * r);
+              const dy = Math.round(Math.sin(a) * r);
+              const x = (cx | 0) + dx;
+              const y = (cy | 0) + dy;
+              if (!inBounds(x, y)) continue;
+              const t = tileAt(x, y);
+              if (t == null) continue;
+              if (!isAllowed(t)) continue;
+              if (!walkableTile(t)) continue;
+              count++;
+            }
+          }
+          return count;
+        };
+
+        const p0 = has(G.getPlayer) ? G.getPlayer() : null;
+        if (!p0) return true;
+
+        let best = null;
+        for (let r = 0; r <= 10 && !best; r++) {
+          for (let dy = -r; dy <= r && !best; dy++) {
+            for (let dx = -r; dx <= r && !best; dx++) {
+              const x = (p0.x | 0) + dx;
+              const y = (p0.y | 0) + dy;
+              if (!inBounds(x, y)) continue;
+              const t = tileAt(x, y);
+              if (t == null) continue;
+              if (!isAllowed(t)) continue;
+              if (!walkableTile(t)) continue;
+              if (ringTargetCount(x, y) < 3) continue;
+              best = { x, y };
+            }
+          }
+        }
+
+        if (!best) return false;
+        if ((best.x | 0) === (p0.x | 0) && (best.y | 0) === (p0.y | 0)) return true;
+
+        if (has(G.teleportTo)) {
+          return !!G.teleportTo(best.x, best.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        }
+        return false;
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const safePosOk = await ensureSafeOverworldForBottleMap();
+    if (safePosOk) record(true, "Bottle map activation: positioned on safe overworld tile");
+    else recordSkip("Bottle map activation: could not reposition to a safe overworld tile (continuing)");
+
     // Add a bottle map item to inventory.
     let idx = -1;
+    let bmBeforeUse = 0;
     try {
       const inv = (gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : (gctx.player.inventory = []);
+      bmBeforeUse = countBottleMaps();
       idx = inv.length;
-      inv.push({ kind: "tool", type: "bottle_map", name: "bottle map", decay: 0, usable: true });
+      inv.push({ kind: "tool", id: "bottle_map", type: "bottle_map", name: "bottle map", decay: 0, usable: true });
       if (typeof gctx.updateUI === "function") gctx.updateUI();
     } catch (_) {}
 
@@ -477,6 +593,9 @@
     let used = false;
     try { used = !!IF.useItemByIndex(gctx, idx); } catch (_) { used = false; }
     record(used, "InventoryFlow.useItemByIndex consumes bottle map");
+
+    // Track inventory count deltas; we will assert consumption only if activation succeeds.
+    const bmAfterUse = countBottleMaps();
 
     // If use failed, remove the injected item so we don't leak state into later scenarios.
     if (!used && idx >= 0) {
@@ -492,36 +611,45 @@
     const marker = findBottleMarker(null);
 
     record(!!marker, "gm.bottleMap marker exists in world.questMarkers");
-    if (!marker) return true;
 
-    // Phase 7D lifecycle gate: if a marker is removed unexpectedly while the thread is active,
-    // GMBridge.reconcileMarkers should restore it.
+    // Only assert inventory consumption if activation succeeded (i.e., marker exists).
+    if (marker) {
+      record(bmAfterUse === bmBeforeUse, `Bottle map consumed from inventory on activation (before=${bmBeforeUse}, after=${bmAfterUse})`);
+    } else {
+      recordSkip(`Bottle map consumption check skipped (activation did not place marker; before=${bmBeforeUse}, after=${bmAfterUse})`);
+      return true;
+    }
+
+    // Activation should create both the marker and a matching active thread state.
     let threadActiveOk = true;
+    let threadStatusOk = true;
+    let threadTargetOk = true;
     try {
-      const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-      const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-      const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-      threadActiveOk = !!(bm && bm.active === true && String(bm.instanceId || "") === String(marker.instanceId || ""));
+      const iid = String(marker.instanceId || "");
+      const snap = readBottleMapThreadSnapshot();
+      threadActiveOk = !!(snap && snap.active === true && snap.instanceId === iid);
+      threadStatusOk = !!(snap && snap.status === "active");
+      threadTargetOk = !!(snap && snap.target && (snap.target.absX | 0) === (marker.x | 0) && (snap.target.absY | 0) === (marker.y | 0));
     } catch (_) {
       threadActiveOk = true;
+      threadStatusOk = true;
+      threadTargetOk = true;
     }
-    record(threadActiveOk, "Bottle map thread active with instanceId matches marker");
+    record(threadActiveOk && threadStatusOk && threadTargetOk, "Bottle map activation: marker + active thread state (status/instanceId/target)");
 
     let restored = true;
     let threadStillOk = true;
     try {
       if (GMB && has(GMB.reconcileMarkers) && marker.instanceId != null) {
-        MS.remove(gctx, { instanceId: marker.instanceId });
+        MS.remove(gctx, { kind: "gm.bottleMap", instanceId: marker.instanceId });
         await sleep(120);
         GMB.reconcileMarkers(gctx);
         await sleep(120);
         restored = !!findBottleMarker(marker.instanceId);
 
         try {
-          const gm = (gctx && gctx.gm && typeof gctx.gm === "object") ? gctx.gm : null;
-          const threads = (gm && gm.threads && typeof gm.threads === "object") ? gm.threads : null;
-          const bm = (threads && threads.bottleMap && typeof threads.bottleMap === "object") ? threads.bottleMap : null;
-          threadStillOk = !!(bm && bm.active === true && String(bm.instanceId || "") === String(marker.instanceId || ""));
+          const snap = readBottleMapThreadSnapshot();
+          threadStillOk = !!(snap && snap.active === true && snap.instanceId === String(marker.instanceId || ""));
         } catch (_) {
           threadStillOk = true;
         }
@@ -537,7 +665,12 @@
     record(tpOk1, "Teleport to bottle map marker");
 
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
-    key("g");
+    try {
+      if (GMB && has(GMB.handleMarkerAction)) GMB.handleMarkerAction(gctx);
+      else key("g");
+    } catch (_) {
+      key("g");
+    }
     const confirmed1 = await acceptConfirm();
     const entered1 = await waitUntilMode("encounter", 3500);
     const modeAfter1 = has(G.getMode) ? G.getMode() : "";
@@ -545,12 +678,23 @@
 
     if (!(entered1 && modeAfter1 === "encounter")) {
       // Cleanup marker.
-      try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
+      try { MS.remove(gctx, { kind: "gm.bottleMap", instanceId: marker.instanceId }); } catch (_) {}
       return true;
     }
 
+    const inEncounterThreadOk1 = await waitUntil(() => {
+      const snap = readBottleMapThreadSnapshot();
+      return !!(snap && snap.active === true
+        && snap.instanceId === String(marker.instanceId || "")
+        && snap.status === "inEncounter"
+        && (snap.attempts | 0) >= 1);
+    }, 1600, 80);
+    record(inEncounterThreadOk1, "Bottle map encounter start: thread status=IN_ENCOUNTER and attempts incremented");
+
     const markerInEncounter1 = !!findBottleMarker(marker.instanceId);
     record(markerInEncounter1, "Bottle map marker remains while in encounter (pre-withdraw)");
+
+    const goldBeforeWithdraw = getGoldAmount();
 
     let withdrew = false;
     try {
@@ -561,6 +705,17 @@
     await waitUntilMode("world", 5000);
     const modeAfterWithdraw = has(G.getMode) ? G.getMode() : "";
     record(modeAfterWithdraw === "world", `After withdraw, mode is world (mode=${modeAfterWithdraw})`);
+
+    const goldAfterWithdraw = getGoldAmount();
+    record((goldAfterWithdraw | 0) === (goldBeforeWithdraw | 0), `Bottle map withdraw: no reward paid (goldBefore=${goldBeforeWithdraw}, goldAfter=${goldAfterWithdraw})`);
+
+    const afterWithdrawThreadOk = await waitUntil(() => {
+      const snap = readBottleMapThreadSnapshot();
+      return !!(snap && snap.active === true
+        && snap.instanceId === String(marker.instanceId || "")
+        && snap.status === "active");
+    }, 1600, 80);
+    record(afterWithdrawThreadOk, "Bottle map withdraw: thread remains active (status=ACTIVE)");
 
     // Ensure marker is NOT removed on withdraw.
     await waitUntil(() => !!findBottleMarker(marker.instanceId), 1200, 80);
@@ -581,7 +736,7 @@
 
     if (!(entered2 && modeAfter2 === "encounter")) {
       // Cleanup marker (avoid leaking state into subsequent scenarios).
-      try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
+      try { MS.remove(gctx, { kind: "gm.bottleMap", instanceId: marker.instanceId }); } catch (_) {}
       return true;
     }
 
@@ -613,7 +768,7 @@
     record(delta >= 60 && delta <= 80, `Gold delta after victory within 60..80 (delta=${delta})`);
 
     if (!markerGone) {
-      try { MS.remove(gctx, { instanceId: marker.instanceId }); } catch (_) {}
+      try { MS.remove(gctx, { kind: "gm.bottleMap", instanceId: marker.instanceId }); } catch (_) {}
     }
 
     return true;

@@ -749,20 +749,18 @@ export function bottleMap_onFishingSuccess(ctx) {
   const gm = _ensureState(ctx);
   if (!ctx || !gm || gm.enabled === false) return { awarded: false };
 
+  ensureThreads(gm);
+
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return { awarded: false };
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
 
   const res = (bottleMapThread && typeof bottleMapThread.bottleMapOnFishingSuccess === "function")
     ? (bottleMapThread.bottleMapOnFishingSuccess(ctx, gm, thread, { onDirty: markDirty }) || { awarded: false, changed: false })
     : { awarded: false, changed: false };
 
-  // Persist any mutation (counters and/or GM RNG stream).
-  if (res && res.changed) {
-    try {
-      markDirty(gm);
-      writePersistedState(ctx, gm, { force: true });
-    } catch (_) {}
-  }
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
 
   // Do not leak internal flag.
   if (res && Object.prototype.hasOwnProperty.call(res, "changed")) {
@@ -796,8 +794,20 @@ function bottleMapCallThread(ctx, gm, thread, fn, meta) {
   return fn(ctx, gm, thread, meta, opts);
 }
 
-function bottleMapPersistIfChanged(ctx, gm, res) {
-  if (!res || res.changed !== true) return;
+function bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore) {
+  const before = (typeof rngCallsBefore === "number" && Number.isFinite(rngCallsBefore)) ? (rngCallsBefore | 0) : null;
+
+  let after = null;
+  try {
+    after = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+  } catch (_) {
+    after = null;
+  }
+
+  const rngAdvanced = (before != null && after != null) ? (after !== before) : false;
+
+  if (!rngAdvanced && (!res || res.changed !== true)) return;
+
   markDirty(gm);
   writePersistedState(ctx, gm, { force: true });
 }
@@ -806,11 +816,15 @@ export function bottleMap_onUseItem(ctx, meta) {
   const gm = _ensureState(ctx);
   if (!ctx || !gm || gm.enabled === false) return null;
 
+  ensureThreads(gm);
+
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return null;
 
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
   const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnUseItem, meta);
-  bottleMapPersistIfChanged(ctx, gm, res);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
   return stripChanged(res);
 }
 
@@ -818,11 +832,15 @@ export function bottleMap_reconcileMarkers(ctx, meta) {
   const gm = _ensureState(ctx);
   if (!ctx || !gm || gm.enabled === false) return null;
 
+  ensureThreads(gm);
+
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return null;
 
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
   const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapReconcileMarkers, meta);
-  bottleMapPersistIfChanged(ctx, gm, res);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
   return stripChanged(res);
 }
 
@@ -830,11 +848,15 @@ export function bottleMap_onEncounterStart(ctx, meta) {
   const gm = _ensureState(ctx);
   if (!ctx || !gm || gm.enabled === false) return null;
 
+  ensureThreads(gm);
+
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return null;
 
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
   const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterStart, meta);
-  bottleMapPersistIfChanged(ctx, gm, res);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
   return stripChanged(res);
 }
 
@@ -842,11 +864,15 @@ export function bottleMap_onEncounterComplete(ctx, meta) {
   const gm = _ensureState(ctx);
   if (!ctx || !gm || gm.enabled === false) return null;
 
+  ensureThreads(gm);
+
   const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
   if (!thread) return null;
 
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
   const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterComplete, meta);
-  bottleMapPersistIfChanged(ctx, gm, res);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
   return stripChanged(res);
 }
 
