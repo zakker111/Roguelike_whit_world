@@ -22,6 +22,7 @@
  * - surveyCache_isClaimed(ctx, instanceId)
  * - surveyCache_onEncounterStart(ctx, meta)
  * - surveyCache_onEncounterComplete(ctx, meta)
+ * - bottleMap_onFishingSuccess(ctx)
  * - onWorldScanRect(ctx, rect)              // legacy wrappers (delegate to GMBridge)
  * - onWorldScanTile(ctx, meta)              // legacy wrappers
  * - ensureGuaranteedSurveyCache(ctx)        // legacy wrapper
@@ -79,6 +80,10 @@ import {
   surveyCacheOnEncounterStart as surveyCacheOnEncounterStartImpl,
   surveyCacheOnEncounterComplete as surveyCacheOnEncounterCompleteImpl,
 } from "./runtime/threads/survey_cache.js";
+
+import {
+  bottleMapOnFishingSuccess as bottleMapOnFishingSuccessImpl,
+} from "./runtime/threads/bottle_map.js";
 
 // HealthCheck registration for GMRuntime is handled centrally in core/capabilities.js.
 
@@ -735,6 +740,36 @@ export function surveyCache_onEncounterComplete(ctx, meta) {
 }
 
 // ------------------------
+// Bottle Map (fishing award; bridge applies effects)
+// ------------------------
+
+export function bottleMap_onFishingSuccess(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { awarded: false };
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return { awarded: false };
+
+  const res = bottleMapOnFishingSuccessImpl(ctx, gm, thread, { onDirty: markDirty }) || { awarded: false, changed: false };
+
+  // Persist any mutation (counters and/or GM RNG stream).
+  if (res && res.changed) {
+    try {
+      markDirty(gm);
+      writePersistedState(ctx, gm, { force: true });
+    } catch (_) {}
+  }
+
+  // Do not leak internal flag.
+  if (res && Object.prototype.hasOwnProperty.call(res, "changed")) {
+    const { changed, ...pub } = res;
+    return pub;
+  }
+
+  return res;
+}
+
+// ------------------------
 // Survey Cache marker helpers (bridge wrappers)
 // ------------------------
 
@@ -838,6 +873,7 @@ attachGlobal("GMRuntime", {
   surveyCache_isClaimed,
   surveyCache_onEncounterStart,
   surveyCache_onEncounterComplete,
+  bottleMap_onFishingSuccess,
   onWorldScanRect,
   onWorldScanTile,
   ensureGuaranteedSurveyCache,
