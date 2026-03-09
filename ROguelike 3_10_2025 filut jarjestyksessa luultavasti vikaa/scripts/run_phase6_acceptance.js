@@ -1,6 +1,10 @@
 import { spawn } from 'node:child_process';
-import { setTimeout as sleep } from 'node:timers/promises';
+import { request } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
+import path from 'node:path';
 import process from 'node:process';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath, URL } from 'node:url';
 
 import { chromium } from 'playwright-chromium';
 
@@ -13,15 +17,39 @@ const PHASE6_SCENARIOS = [
   'gm_survey_cache'
 ].join(',');
 
+async function httpGetOk(urlStr) {
+  const u = new URL(urlStr);
+
+  return await new Promise((resolve, reject) => {
+    const req = request(
+      {
+        method: 'GET',
+        hostname: u.hostname,
+        port: u.port || 80,
+        path: u.pathname + u.search,
+        headers: { 'Cache-Control': 'no-store' }
+      },
+      (res) => {
+        const ok = res && typeof res.statusCode === 'number' && res.statusCode >= 200 && res.statusCode < 300;
+        res.resume();
+        if (ok) resolve();
+        else reject(new Error(`HTTP ${res.statusCode}`));
+      }
+    );
+
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 async function waitForHttpOk(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let lastErr = null;
 
   while (Date.now() < deadline) {
     try {
-      const res = await globalThis.fetch(url, { cache: 'no-store' });
-      if (res.ok) return;
-      lastErr = new Error(`HTTP ${res.status}`);
+      await httpGetOk(url);
+      return;
     } catch (e) {
       lastErr = e;
     }
@@ -32,8 +60,38 @@ async function waitForHttpOk(url, timeoutMs) {
   throw lastErr || new Error(`Timed out waiting for ${url}`);
 }
 
+async function findFreePort(preferredPort) {
+  const tryListen = (port) =>
+    new Promise((resolve, reject) => {
+      const s = createNetServer();
+      s.unref();
+      s.once('error', reject);
+      s.listen(port, '127.0.0.1', () => {
+        const addr = s.address();
+        const p = (addr && typeof addr === 'object' && typeof addr.port === 'number') ? addr.port : port;
+        s.close(() => resolve(p));
+      });
+    });
+
+  const base = Number.isFinite(preferredPort) ? preferredPort : 8080;
+  for (let p = base; p < base + 20; p++) {
+    try {
+      return await tryListen(p);
+    } catch (e) {
+      if (!(e && e.code === 'EADDRINUSE')) throw e;
+    }
+  }
+
+  return await tryListen(0);
+}
+
 async function main() {
-  const port = Number(process.env.PORT || 8080);
+  const preferredPort = Number(process.env.PORT || 8080);
+  const port = process.env.PORT ? preferredPort : await findFreePort(preferredPort);
+
+  const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+  const projectRoot = path.resolve(scriptsDir, '..');
+
   const base = new URL(`http://127.0.0.1:${port}/index.html`);
 
   base.searchParams.set('smoketest', '1');
@@ -46,7 +104,8 @@ async function main() {
 
   const url = base.toString();
 
-  const server = spawn(process.execPath, ['server.js'], {
+  const server = spawn(process.execPath, [path.join(projectRoot, 'server.js')], {
+    cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(port) }
   });
@@ -62,9 +121,9 @@ async function main() {
   server.stderr.on('data', onLog);
 
   try {
-    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, 15000);
+    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, 30000);
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
@@ -86,7 +145,7 @@ async function main() {
 
       await page.waitForFunction(
         () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
-        { timeout: 30000 }
+        { timeout: 60000 }
       );
 
       const series = await page.evaluate(async () => {

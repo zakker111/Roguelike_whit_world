@@ -195,7 +195,7 @@ export function maybeHandleWorldStep(ctx) {
       } catch (_) {}
 
       const onOk = () => {
-        try { startGmFactionEncounter(ctx, encId); } catch (_) {}
+        try { startGmFactionEncounter(ctx, encId, { ctxFirst: true }); } catch (_) {}
       };
       const onCancel = () => {
         try { if (typeof ctx.log === "function") ctx.log("You decide not to get involved.", "info"); } catch (_) {}

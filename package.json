@@ -1,0 +1,11 @@
+{
+  "name": "tiny-roguelike-repo",
+  "private": true,
+  "workspaces": [
+    "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa"
+  ],
+  "scripts": {
+    "ci": "npm --workspace tiny-roguelike run ci",
+    "acceptance:phase6": "npm --workspace tiny-roguelike run acceptance:phase6"
+  }
+}

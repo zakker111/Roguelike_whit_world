@@ -164,12 +164,26 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
   if (difficulty < 1) difficulty = 1;
   if (difficulty > 5) difficulty = 5;
 
+  // Prefer a single sync boundary.
+  // - If Modes.enterEncounter is used, pass GameAPI.applyCtxSyncAndRefresh so Modes does not
+  //   perform its own StateSync-based syncAfterMutation.
+  // - If we fall back to EncounterRuntime.enter, sync once here.
+  let applyCtxSyncAndRefresh = null;
+  try {
+    const GA = getMod(ctx, "GameAPI");
+    if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+      applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
+    }
+  } catch (_) {}
+
   // Preferred: ctx-first entry via Modes facade.
   let ok = false;
+  let synced = false;
   try {
     const M = ctx && ctx.Modes ? ctx.Modes : getMod(ctx, "Modes");
     if (M && typeof M.enterEncounter === "function") {
-      ok = !!M.enterEncounter(ctx, tmpl, biome, difficulty);
+      ok = !!M.enterEncounter(ctx, tmpl, biome, difficulty, applyCtxSyncAndRefresh || undefined);
+      if (ok) synced = true;
     }
   } catch (_) {}
 
@@ -190,13 +204,33 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
     return false;
   }
 
-  // Ask GameAPI to sync orchestrator state when available.
-  try {
-    const GA = getMod(ctx, "GameAPI");
-    if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
-      GA.applyCtxSyncAndRefresh(ctx);
+  if (!synced) {
+    // Sync after the EncounterRuntime fallback path.
+    try {
+      if (typeof applyCtxSyncAndRefresh === "function") {
+        applyCtxSyncAndRefresh(ctx);
+        synced = true;
+      }
+    } catch (_) {}
+
+    // Last resort: keep the old Mode-less behavior playable.
+    if (!synced) {
+      try {
+        const SS = (ctx && ctx.StateSync) ? ctx.StateSync : getMod(ctx, "StateSync");
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+          synced = true;
+        }
+      } catch (_) {}
+
+      if (!synced) {
+        try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+        try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
+        try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+        try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+      }
     }
-  } catch (_) {}
+  }
 
   try {
     if (ctx && typeof ctx.log === "function") {
