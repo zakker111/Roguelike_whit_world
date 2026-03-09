@@ -10,6 +10,7 @@
     { "id": "town", "label": "Town" },
     { "id": "town_diagnostics", "label": "Town Diagnostics" },
     { "id": "overlays", "label": "Overlays" },
+    { "id": "ui_layout", "label": "UI Layout (Canvas Stability)" },
     { "id": "determinism", "label": "Determinism" },
     { "id": "encounters", "label": "Encounters" },
     { "id": "api", "label": "API" },

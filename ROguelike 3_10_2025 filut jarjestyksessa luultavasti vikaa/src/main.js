@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/inventory.js',
         '/smoketest/scenarios/combat.js',
         '/smoketest/scenarios/overlays.js',
+        '/smoketest/scenarios/ui_layout.js',
         '/smoketest/scenarios/world.js',
         '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',

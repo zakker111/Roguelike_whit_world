@@ -327,6 +327,7 @@
       if (name === "town") return S.Town && S.Town.run;
       if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
       if (name === "overlays") return S.Overlays && S.Overlays.run;
+      if (name === "ui_layout") return S.UILayout && S.UILayout.run;
       if (name === "determinism") return S.Determinism && S.Determinism.run;
       if (name === "encounters") return (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run);
       if (name === "api") return S.API && S.API.run;
@@ -1171,6 +1172,7 @@
         town: S.Town && S.Town.run,
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
+        ui_layout: S.UILayout && S.UILayout.run,
         determinism: S.Determinism && S.Determinism.run,
         encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
         api: S.API && S.API.run,
