@@ -117,8 +117,19 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   } catch (_) {}
 
   let gmHandled = false;
+  const modeBeforeGm = ctx.mode;
   try {
     gmHandled = !!GMBridge.maybeHandleWorldStep(ctx);
+  } catch (_) {}
+
+  // Phase 2: if GMBridge changed mode synchronously, apply exactly one sync boundary here.
+  try {
+    if (modeBeforeGm && ctx.mode !== modeBeforeGm) {
+      const GA = getMod(ctx, "GameAPI");
+      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+        GA.applyCtxSyncAndRefresh(ctx);
+      }
+    }
   } catch (_) {}
 
   // Encounter roll before advancing time (modules may switch mode)

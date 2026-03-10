@@ -37,6 +37,25 @@ function isGmEnabled(ctx) {
   }
 }
 
+function applySyncAfterGmTransition(ctx) {
+  try {
+    const GA = getMod(ctx, "GameAPI");
+    if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+      GA.applyCtxSyncAndRefresh(ctx);
+      return true;
+    }
+  } catch (_) {}
+
+  try {
+    const SS = getMod(ctx, "StateSync");
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+      return true;
+    }
+  } catch (_) {}
+
+  return false;
+}
 
 
 function removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY } = {}) {
@@ -195,10 +214,10 @@ export function maybeHandleWorldStep(ctx) {
       } catch (_) {}
 
       const onOk = () => {
-        try { startGmFactionEncounter(ctx, encId, { ctxFirst: true }); } catch (_) {}
-      };
-      const onCancel = () => {
-        try { if (typeof ctx.log === "function") ctx.log("You decide not to get involved.", "info"); } catch (_) {}
+        try {
+          const started = !!startGmFactionEncounter(ctx, encId, { ctxFirst: true });
+          if (started) applySyncAfterGmTransition(ctx);
+        } catch (_) {}
       };
 
       UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
@@ -364,6 +383,9 @@ function handleSurveyCacheMarker(ctx, marker) {
         try {
           GM.onEvent(ctx, { type: "gm.surveyCache.encounterStart", interesting: false, payload: { instanceId } });
         } catch (_) {}
+
+        // Phase 2 rule: caller applies the single sync boundary after mode changes.
+        applySyncAfterGmTransition(ctx);
       } catch (err) {
         try { if (typeof ctx.log === "function") ctx.log("[GM] Error while starting Survey Cache encounter.", "warn"); } catch (_) {}
         try { if (typeof console !== "undefined" && console && typeof console.error === "function") console.error(err); } catch (_) {}
@@ -598,6 +620,9 @@ function handleBottleMapMarker(ctx, marker) {
         try {
           GM.onEvent(ctx, { type: "gm.bottleMap.encounterStart", interesting: false, payload: { instanceId: inst } });
         } catch (_) {}
+
+        // Phase 2 rule: caller applies the single sync boundary after mode changes.
+        applySyncAfterGmTransition(ctx);
       }
     };
 
