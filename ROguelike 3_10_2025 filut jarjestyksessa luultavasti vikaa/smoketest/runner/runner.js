@@ -12,9 +12,22 @@
     try {
       const u = new URL(window.location.href);
       const p = (name, def) => u.searchParams.get(name) || def;
+
+      // Convenience selectors (avoid copying long scenario lists).
+      // gmphase6=1 maps to the GM v0.3 pipeline doc Phase-6 acceptance set.
+      const gmPhase6 = (p("gmphase6", "0") === "1");
+
       // Support both legacy "smoke" and new "scenarios" params
       const legacySel = (p("smoke", "") || "").trim();
-      const sel = legacySel ? legacySel : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
+
+      let sel = legacySel
+        ? legacySel
+        : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
+
+      if (gmPhase6) {
+        sel = "gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache";
+      }
+
       return {
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
