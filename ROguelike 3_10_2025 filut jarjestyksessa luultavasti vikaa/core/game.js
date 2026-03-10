@@ -199,6 +199,8 @@ import "./sandbox/runtime.js";
   let encounterProps = [];
   let encounterBiome = null;
   let encounterObjective = null;
+  // Active encounter template metadata (id/name). Needed across ctx recreations.
+  let encounterInfo = null;
   // Dungeon decorative props (e.g., wall torches)
   let dungeonProps = [];
   // Occupancy Grid (entities on tiles)
@@ -731,6 +733,7 @@ import "./sandbox/runtime.js";
       setDungeonProps: (v) => { if (Array.isArray(v)) dungeonProps = v; },
       setEncounterBiome: (v) => { encounterBiome = v; },
       setEncounterObjective: (v) => { encounterObjective = v; },
+      setEncounterInfo: (v) => { if (typeof v !== "undefined") encounterInfo = v; },
       setShops: (v) => { if (Array.isArray(v)) shops = v; },
       setTownProps: (v) => { if (Array.isArray(v)) townProps = v; },
       setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },

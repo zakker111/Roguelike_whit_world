@@ -82,6 +82,11 @@ export function syncFromCtxWithSink(ctx, sink) {
       sink.setEncounterObjective(ctx.encounterObjective);
     }
   } catch (_) {}
+  try {
+    if (typeof sink.setEncounterInfo === "function" && Object.prototype.hasOwnProperty.call(ctx, "encounterInfo")) {
+      sink.setEncounterInfo(ctx.encounterInfo);
+    }
+  } catch (_) {}
 
   try { if (typeof sink.setShops === "function" && Array.isArray(ctx.shops)) sink.setShops(ctx.shops); } catch (_) {}
   try { if (typeof sink.setTownProps === "function" && Array.isArray(ctx.townProps)) sink.setTownProps(ctx.townProps); } catch (_) {}
