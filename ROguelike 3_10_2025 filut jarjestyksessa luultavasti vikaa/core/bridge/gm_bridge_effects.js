@@ -10,46 +10,7 @@
 
 import { getGameData, getMod } from "../../utils/access.js";
 
-// Minimal fallback encounter templates used when JSON registries haven't loaded.
-// These should match data/encounters/encounters.json so gameplay stays consistent.
-const FALLBACK_GM_ENCOUNTER_TEMPLATES = {
-  gm_bottle_map_scene: {
-    id: "gm_bottle_map_scene",
-    name: "GM: Bottle Map Cache",
-    baseWeight: 0.0,
-    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
-    map: { generator: "ruins", w: 26, h: 18 },
-    objective: { type: "clearAll" },
-    groups: [{ type: "bandit", count: { min: 3, max: 5 }, faction: "bandit" }],
-  },
-  gm_survey_cache_scene: {
-    id: "gm_survey_cache_scene",
-    name: "GM: Surveyor's Cache",
-    baseWeight: 0.0,
-    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
-    map: { generator: "ruins", w: 26, h: 18 },
-    objective: { type: "clearAll" },
-    groups: [{ type: "bandit", count: { min: 3, max: 6 }, faction: "bandit" }],
-  },
-  gm_bandit_bounty: {
-    id: "gm_bandit_bounty",
-    name: "GM: Bandit Bounty",
-    baseWeight: 0.0,
-    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
-    map: { generator: "ruins", w: 26, h: 18 },
-    objective: { type: "clearAll" },
-    groups: [{ type: "bandit", count: { min: 4, max: 7 }, faction: "bandit" }],
-  },
-  gm_troll_hunt: {
-    id: "gm_troll_hunt",
-    name: "GM: Troll Hunt",
-    baseWeight: 0.0,
-    allowedBiomes: ["FOREST", "GRASS", "DESERT", "SNOW", "BEACH", "MOUNTAIN", "SWAMP"],
-    map: { generator: "ruins", w: 26, h: 18 },
-    objective: { type: "clearAll" },
-    groups: [{ type: "troll", count: { min: 1, max: 2 }, faction: "monster" }],
-  },
-};
+
 
 const NO_SYNC = () => {};
 
@@ -121,18 +82,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
     tmpl = null;
   }
 
-  // If encounter registries haven't loaded yet (or failed to load), use a minimal fallback
-  // for known GM encounters so marker interactions remain functional.
-  if (!tmpl && (!reg || !reg.length)) {
-    tmpl = FALLBACK_GM_ENCOUNTER_TEMPLATES[key] || null;
-    if (tmpl) {
-      try {
-        if (ctx && typeof ctx.log === "function") {
-          ctx.log(`[GM] Encounter templates not available yet; using fallback for '${id}'.`, "notice");
-        }
-      } catch (_) {}
-    }
-  }
+  
 
   if (!tmpl) {
     try {
