@@ -1140,6 +1140,29 @@ export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAnd
   return false;
 }
 
+export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  try {
+    const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+    if (RMR && typeof RMR.open === "function") {
+      const ok = !!RMR.open(ctx);
+      if (!ok) return false;
+
+      // Region Map can be toggled frequently; treat it as not-interesting by default.
+      gmEvent(ctx, { type: "mode.leave", scope: "world", interesting: false });
+      gmEvent(ctx, { type: "mode.enter", scope: "region", interesting: false });
+
+      if (typeof applyCtxSyncAndRefresh === "function") {
+        try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+      } else {
+        syncAfterMutation(ctx);
+      }
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh) {
   if (!ctx || ctx.mode !== "region") return false;
   try {
