@@ -350,6 +350,7 @@
       if (name === "gm_intent_decisions") return S.GMIntentDecisions && S.GMIntentDecisions.run;
       if (name === "gm_seed_reset") return S.gm_seed_reset && S.gm_seed_reset.run;
       if (name === "gm_boredom_interest") return S.gm_boredom_interest && S.gm_boredom_interest.run;
+      if (name === "gm_boredom_milestones") return S.gm_boredom_milestones && S.gm_boredom_milestones.run;
       if (name === "gm_bridge_markers") return S.gm_bridge_markers && S.gm_bridge_markers.run;
       if (name === "gm_bridge_faction_travel") return S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run;
       if (name === "gm_bottle_map") return S.gm_bottle_map && S.gm_bottle_map.run;

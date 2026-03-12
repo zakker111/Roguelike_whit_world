@@ -870,6 +870,7 @@ export function enterTownIfOnTile(ctx) {
               type: "mode.enter",
               scope: "town",
               interesting: true,
+              interestTier: "medium",
               payload: {
                 name: ctx.townName || null,
                 size: ctx.townSize || null,
@@ -905,6 +906,7 @@ export function enterTownIfOnTile(ctx) {
               type: "mode.enter",
               scope: "town",
               interesting: true,
+              interestTier: "medium",
               payload: {
                 name: ctx.townName || null,
                 size: ctx.townSize || null,
@@ -1014,6 +1016,7 @@ export function enterDungeonIfOnEntrance(ctx) {
             type: "mode.enter",
             scope: "dungeon",
             interesting: true,
+            interestTier: "medium",
             payload: {
               level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
             },
@@ -1056,6 +1059,7 @@ export function enterDungeonIfOnEntrance(ctx) {
       type: "mode.enter",
       scope: "dungeon",
       interesting: true,
+      interestTier: "medium",
       payload: {
         level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
       },
@@ -1087,6 +1091,7 @@ export function enterRuinsIfOnTile(ctx) {
             type: "mode.enter",
             scope: "ruins",
             interesting: true,
+            interestTier: "medium",
           });
           syncAfterMutation(ctx);
           return true;
@@ -1120,6 +1125,7 @@ export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAnd
       type: "encounter.enter",
       scope: "encounter",
       interesting: true,
+      interestTier: "medium",
       payload: {
         templateId: (template && template.id) || null,
       },
@@ -1130,34 +1136,6 @@ export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAnd
       syncAfterMutation(ctx);
     }
     return true;
-  } catch (_) {}
-  return false;
-}
-
-export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
-  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
-  try {
-    const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
-    if (RMR && typeof RMR.open === "function") {
-      const ok = !!RMR.open(ctx);
-      if (!ok) return false;
-      gmEvent(ctx, {
-        type: "mode.leave",
-        scope: "world",
-        interesting: true,
-      });
-      gmEvent(ctx, {
-        type: "mode.enter",
-        scope: "region",
-        interesting: true,
-      });
-      if (typeof applyCtxSyncAndRefresh === "function") {
-        try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
-      } else {
-        syncAfterMutation(ctx);
-      }
-      return true;
-    }
   } catch (_) {}
   return false;
 }
@@ -1180,6 +1158,7 @@ export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefres
       type: "encounter.enter",
       scope: "encounter",
       interesting: true,
+      interestTier: "medium",
       payload: {
         templateId: (template && template.id) || null,
       },
@@ -1205,6 +1184,7 @@ export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers)
       type: "encounter.exit",
       scope: "encounter",
       interesting: true,
+      interestTier: "medium",
       payload: { outcome: outcome || null },
     });
     if (typeof applyCtxSyncAndRefresh === "function") {

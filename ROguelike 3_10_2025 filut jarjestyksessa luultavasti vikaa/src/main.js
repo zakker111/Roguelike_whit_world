@@ -249,6 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_intent_decisions.js',
         '/smoketest/scenarios/gm_seed_reset.js',
         '/smoketest/scenarios/gm_boredom_interest.js',
+        '/smoketest/scenarios/gm_boredom_milestones.js',
         '/smoketest/scenarios/gm_disable_switch.js',
         '/smoketest/scenarios/gm_bridge_markers.js',
         '/smoketest/scenarios/gm_bridge_faction_travel.js',
