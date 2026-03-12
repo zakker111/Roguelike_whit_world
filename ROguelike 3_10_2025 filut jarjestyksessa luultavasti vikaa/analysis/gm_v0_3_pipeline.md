@@ -92,3 +92,5 @@ This document translates the GM v0.3 contract (rare pacing, choices-only authori
 ## Suggested immediate next action
 
 Start with **Phase 6 then Phase 2** (test reliability + transition correctness), because pacing work is hard to validate until tests and transitions are stable.
+
+For merge readiness, follow: `analysis/gm_pre_merge_plan.md`.
