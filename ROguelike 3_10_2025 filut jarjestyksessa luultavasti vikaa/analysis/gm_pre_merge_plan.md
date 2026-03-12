@@ -11,7 +11,7 @@ Before merging, we keep GM behavior **strictly data-driven**:
 - If encounter templates are not loaded yet, GM entry points should defer (tests should wait).
 
 Quick check:
-- `gm_bridge_effects.js` should not contain hard-coded fallback GM encounter templates.
+- `core/bridge/gm_bridge_effects.js` should not contain hard-coded fallback GM encounter templates.
 - Phase 6 smoketests must pass without relying on timing luck (they should wait for templates).
 
 ### Gate A — Phase 6 smoketest stability
@@ -53,6 +53,26 @@ Run one of:
    - Accept path: clean transition to encounter, then withdraw to overworld; no camera/position desync.
 
 **Pass criteria:** no visible desync; no console errors.
+
+### Gate C — Boredom relief on exploration milestones
+
+**Goal:** boredom should drop significantly when the player enters major content, so the v0.3 pacing system can arm/disarm naturally.
+
+**Required behavior (policy):**
+- Entering these should produce meaningful boredom relief (at least `interestTier:"medium"`, or equivalent `interestWeight`):
+  - town entry
+  - dungeon entry
+  - ruins entry
+  - encounter entry/exit
+- High-frequency UI telemetry must not provide boredom relief (`type:"mechanic"` should be `interesting:false`).
+
+**What to verify before merging (quick manual check):**
+1. Open GM panel (`O`).
+2. Note `Boredom` and `turnsSinceLastInterestingEvent`.
+3. Enter each of: town, dungeon, ruins, an encounter.
+4. Confirm boredom noticeably decreases after each transition.
+
+**Pass criteria:** boredom relief is clearly observable on these transitions.
 
 ## Build / hygiene gates (must be green)
 
