@@ -732,7 +732,7 @@ export function requestLeaveTown(ctx) {
   leaveTownNow(ctx);
 }
 
-export function enterTownIfOnTile(ctx) {
+export function enterTownIfOnTile(ctx, applyCtxSyncAndRefresh) {
   if (ctx.mode !== "world" || !ctx.world) return false;
   const WT = ctx.World && ctx.World.TILES;
 
@@ -876,7 +876,11 @@ export function enterTownIfOnTile(ctx) {
                 size: ctx.townSize || null,
               },
             });
-            syncAfterMutation(ctx);
+            if (typeof applyCtxSyncAndRefresh === "function") {
+              try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+            } else {
+              syncAfterMutation(ctx);
+            }
             return true;
           }
         }
@@ -912,7 +916,11 @@ export function enterTownIfOnTile(ctx) {
                 size: ctx.townSize || null,
               },
             });
-            syncAfterMutation(ctx);
+            if (typeof applyCtxSyncAndRefresh === "function") {
+              try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+            } else {
+              syncAfterMutation(ctx);
+            }
             return true;
           }
         }
@@ -959,7 +967,7 @@ export function loadDungeonStateFor(ctx, x, y) {
   return false;
 }
 
-export function enterDungeonIfOnEntrance(ctx) {
+export function enterDungeonIfOnEntrance(ctx, applyCtxSyncAndRefresh) {
   if (ctx.mode !== "world" || !ctx.world) return false;
   const WT = ctx.World && ctx.World.TILES;
   const mapRef = (Array.isArray(ctx.map) ? ctx.map : (ctx.world && Array.isArray(ctx.world.map) ? ctx.world.map : null));
@@ -1021,7 +1029,11 @@ export function enterDungeonIfOnEntrance(ctx) {
               level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
             },
           });
-          syncAfterMutation(ctx);
+          if (typeof applyCtxSyncAndRefresh === "function") {
+            try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+          } else {
+            syncAfterMutation(ctx);
+          }
           return true;
         }
       }
@@ -1064,13 +1076,17 @@ export function enterDungeonIfOnEntrance(ctx) {
         level: (ctx.dungeonInfo && ctx.dungeonInfo.level) || null,
       },
     });
-    syncAfterMutation(ctx);
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
     return true;
   }
   return false;
 }
 
-export function enterRuinsIfOnTile(ctx) {
+export function enterRuinsIfOnTile(ctx, applyCtxSyncAndRefresh) {
   if (ctx.mode !== "world" || !ctx.world) return false;
   const WT = ctx.World && ctx.World.TILES;
   const mapRef = (Array.isArray(ctx.map) ? ctx.map : (ctx.world && Array.isArray(ctx.world.map) ? ctx.world.map : null));
@@ -1093,50 +1109,17 @@ export function enterRuinsIfOnTile(ctx) {
             interesting: true,
             interestTier: "medium",
           });
-          syncAfterMutation(ctx);
+          if (typeof applyCtxSyncAndRefresh === "function") {
+            try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+          } else {
+            syncAfterMutation(ctx);
+          }
           return true;
         }
       }
     } catch (_) {}
-    return false;
   }
-  return false;
-}
 
-export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) {
-  if (!ctx || !ctx.world || !ctx.world.map) return false;
-  try {
-    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-    if (!ER || typeof ER.enter !== "function") return false;
-    let diff = 1;
-    try {
-      if (typeof difficulty === "number") {
-        diff = Math.max(1, Math.min(5, difficulty | 0));
-      } else {
-        const ES = getMod(ctx, "EncounterService");
-        if (ES && typeof ES.computeDifficulty === "function") {
-          diff = ES.computeDifficulty(ctx, biome);
-        }
-      }
-    } catch (_) {}
-    const ok = !!ER.enter(ctx, { template, biome, difficulty: diff });
-    if (!ok) return false;
-    gmEvent(ctx, {
-      type: "encounter.enter",
-      scope: "encounter",
-      interesting: true,
-      interestTier: "medium",
-      payload: {
-        templateId: (template && template.id) || null,
-      },
-    });
-    if (typeof applyCtxSyncAndRefresh === "function") {
-      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
-    } else {
-      syncAfterMutation(ctx);
-    }
-    return true;
-  } catch (_) {}
   return false;
 }
 
