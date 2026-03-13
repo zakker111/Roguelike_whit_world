@@ -103,6 +103,15 @@ export function createDefaultState() {
     threads: {
       bottleMap: {
         active: false,
+        status: "claimed",
+        instanceId: null,
+        createdTurn: null,
+        claimedTurn: null,
+        attempts: 0,
+        target: null,
+        reward: null,
+        failureReason: null,
+        placementTries: null,
         fishing: {
           eligibleSuccesses: 0,
           totalSuccesses: 0,

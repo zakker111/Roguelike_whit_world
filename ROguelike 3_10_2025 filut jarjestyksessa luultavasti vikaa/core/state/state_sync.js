@@ -11,7 +11,7 @@
  *   setMode(v), setMap(v), setSeen(v), setVisible(v), setWorld(v),
  *   setEnemies(v), setCorpses(v), setDecals(v), setNpcs(v),
  *   setEncounterProps(v), setDungeonProps(v),
- *   setEncounterBiome(v), setEncounterObjective(v),
+ *   setEncounterBiome(v), setEncounterObjective(v), setEncounterInfo(v),
  *   setShops(v), setTownProps(v), setTownBuildings(v),
  *   setTownPlaza(v), setTavern(v),
  *   setWorldReturnPos(v), setRegion(v), setTownExitAt(v), setDungeonExitAt(v),
@@ -37,6 +37,9 @@ export function applyLocal(ctx, sink) {
   } } catch (_) {}
   try { if (typeof sink.setEncounterObjective === "function") {
     if (Object.prototype.hasOwnProperty.call(ctx, "encounterObjective")) sink.setEncounterObjective(ctx.encounterObjective);
+  } } catch (_) {}
+  try { if (typeof sink.setEncounterInfo === "function") {
+    if (Object.prototype.hasOwnProperty.call(ctx, "encounterInfo")) sink.setEncounterInfo(ctx.encounterInfo);
   } } catch (_) {}
   try { if (typeof sink.setShops === "function") sink.setShops(ctx.shops); } catch (_) {}
   try { if (typeof sink.setTownProps === "function") sink.setTownProps(ctx.townProps); } catch (_) {}

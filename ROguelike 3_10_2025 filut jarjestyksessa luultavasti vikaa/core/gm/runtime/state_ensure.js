@@ -192,15 +192,92 @@ export function ensureThreads(gm) {
 
   // Bottle Map: single active thread at a time.
   if (!gm.threads.bottleMap || typeof gm.threads.bottleMap !== "object") {
-    gm.threads.bottleMap = { active: false, fishing: { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 } };
+    gm.threads.bottleMap = {
+      active: false,
+      status: "claimed",
+      instanceId: null,
+      createdTurn: null,
+      claimedTurn: null,
+      attempts: 0,
+      target: null,
+      reward: null,
+      failureReason: null,
+      placementTries: null,
+      fishing: { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 },
+    };
   }
-  if (typeof gm.threads.bottleMap.active !== "boolean") {
-    gm.threads.bottleMap.active = !!gm.threads.bottleMap.active;
+
+  const bm = gm.threads.bottleMap;
+
+  if (typeof bm.active !== "boolean") bm.active = !!bm.active;
+
+  const allowedBottleStatus = new Set(["active", "inEncounter", "claimed", "expired"]);
+  const rawStatus = (typeof bm.status === "string" ? bm.status : "").trim();
+  const normStatus = rawStatus.toLowerCase();
+  let status = rawStatus;
+  if (normStatus === "inencounter") status = "inEncounter";
+  else if (normStatus === "active") status = "active";
+  else if (normStatus === "claimed") status = "claimed";
+  else if (normStatus === "expired") status = "expired";
+  if (!allowedBottleStatus.has(status)) status = bm.active === true ? "active" : "claimed";
+  bm.status = status;
+
+  // Ensure active/status consistency.
+  if (bm.status === "claimed" || bm.status === "expired") bm.active = false;
+  if (bm.active !== true && (bm.status === "active" || bm.status === "inEncounter")) bm.status = "claimed";
+
+  bm.instanceId = bm.instanceId == null ? null : String(bm.instanceId);
+  if (bm.instanceId === "") bm.instanceId = null;
+
+  function normalizeTurnOrNull(raw) {
+    if (raw == null) return null;
+    const v = (typeof raw === "number" && Number.isFinite(raw)) ? (raw | 0) : NaN;
+    return (Number.isFinite(v) && v >= 0) ? v : null;
   }
-  if (!gm.threads.bottleMap.fishing || typeof gm.threads.bottleMap.fishing !== "object") {
-    gm.threads.bottleMap.fishing = { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 };
+
+  bm.createdTurn = normalizeTurnOrNull(bm.createdTurn);
+  bm.claimedTurn = normalizeTurnOrNull(bm.claimedTurn);
+
+  bm.attempts = (bm.attempts | 0);
+  if (bm.attempts < 0) bm.attempts = 0;
+
+  // Normalize target coords if present.
+  if (bm.target == null) bm.target = null;
+  if (bm.target != null && typeof bm.target !== "object") bm.target = null;
+  if (bm.target && typeof bm.target === "object") {
+    const t = bm.target;
+    const ax = (typeof t.absX === "number" && Number.isFinite(t.absX)) ? (t.absX | 0) : null;
+    const ay = (typeof t.absY === "number" && Number.isFinite(t.absY)) ? (t.absY | 0) : null;
+    if (ax == null || ay == null) bm.target = null;
+    else {
+      t.absX = ax;
+      t.absY = ay;
+    }
   }
-  const bf = gm.threads.bottleMap.fishing;
+
+  // Reward snapshot is a plain object; keep flexible but ensure grants is an array when present.
+  if (bm.reward == null) bm.reward = null;
+  if (bm.reward != null && (typeof bm.reward !== "object" || Array.isArray(bm.reward))) bm.reward = null;
+  if (bm.reward && typeof bm.reward === "object") {
+    if (!Array.isArray(bm.reward.grants)) bm.reward.grants = [];
+  }
+
+  bm.failureReason = bm.failureReason == null ? null : String(bm.failureReason);
+  if (bm.failureReason === "") bm.failureReason = null;
+
+  const rawPlacement = bm.placementTries;
+  if (rawPlacement == null) {
+    bm.placementTries = null;
+  } else {
+    const pt = (typeof rawPlacement === "number" && Number.isFinite(rawPlacement)) ? (rawPlacement | 0) : NaN;
+    bm.placementTries = (Number.isFinite(pt) && pt >= 0) ? pt : null;
+  }
+
+  // Fishing pity timer / award bookkeeping.
+  if (!bm.fishing || typeof bm.fishing !== "object") {
+    bm.fishing = { eligibleSuccesses: 0, totalSuccesses: 0, lastAwardTurn: -9999, awardCount: 0 };
+  }
+  const bf = bm.fishing;
   bf.eligibleSuccesses = bf.eligibleSuccesses | 0;
   bf.totalSuccesses = bf.totalSuccesses | 0;
   bf.lastAwardTurn = (typeof bf.lastAwardTurn === "number" && Number.isFinite(bf.lastAwardTurn)) ? (bf.lastAwardTurn | 0) : -9999;

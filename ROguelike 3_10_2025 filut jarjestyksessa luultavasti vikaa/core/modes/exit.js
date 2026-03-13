@@ -135,9 +135,30 @@ export function isAtRegionEdgeExit(ctx) {
   try {
     if (!ctx || ctx.mode !== "region") return false;
     const region = ctx.region;
-    if (!region || !region.cursor || !Array.isArray(region.exitTiles)) return false;
-    const cur = region.cursor;
-    return region.exitTiles.some((e) => e && e.x === cur.x && e.y === cur.y);
+    if (!region || !Array.isArray(region.exitTiles)) return false;
+
+    // Prefer region cursor, but fall back to player coords if cursor is missing/out-of-sync.
+    const cx = (region.cursor && typeof region.cursor.x === "number")
+      ? (region.cursor.x | 0)
+      : (ctx.player && typeof ctx.player.x === "number")
+        ? (ctx.player.x | 0)
+        : 0;
+    const cy = (region.cursor && typeof region.cursor.y === "number")
+      ? (region.cursor.y | 0)
+      : (ctx.player && typeof ctx.player.y === "number")
+        ? (ctx.player.y | 0)
+        : 0;
+
+    if (region.exitTiles.some((e) => e && e.x === cx && e.y === cy)) return true;
+
+    // If cursor exists but didn't match, also allow player-based match.
+    if (region.cursor && ctx.player && (cx !== (ctx.player.x | 0) || cy !== (ctx.player.y | 0))) {
+      const px = ctx.player.x | 0;
+      const py = ctx.player.y | 0;
+      return region.exitTiles.some((e) => e && e.x === px && e.y === py);
+    }
+
+    return false;
   } catch (_) {}
   return false;
 }

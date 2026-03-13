@@ -58,6 +58,16 @@
   },
   "overrides": [
     {
+      "files": [
+        "server.js",
+        "vite.config.js",
+        "scripts/**/*.js"
+      ],
+      "env": {
+        "node": true
+      }
+    },
+    {
       "files": ["core/*.js"],
       "rules": {
         "no-restricted-syntax": [

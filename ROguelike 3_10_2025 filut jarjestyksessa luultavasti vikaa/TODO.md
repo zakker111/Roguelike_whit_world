@@ -4,7 +4,17 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
-### GM Merge Readiness (v1.50.32)
+### GM Merge Readiness (v1.50.33)
+
+Recent fixes to verify before merge:
+- [ ] No boot-time JS errors (DevTools console)
+  - No `Uncaught SyntaxError: Identifier '...' has already been declared`
+  - No `ReferenceError: enterEncounter is not defined`
+- [ ] Modes transition sanity
+  - `Modes.enterEncounter` exists and works (no crash)
+  - `Modes.openRegionMap`, `Modes.startRegionEncounter`, `Modes.completeEncounter` exist exactly once (no duplicates)
+- [ ] Repo hygiene
+  - No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
 
 Implemented (ready in GM branch):
 - [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)
@@ -570,10 +580,115 @@ Known issues / deferred (post-merge):
     - Show which tiles each enemy can currently see, based on the same LOS/FOV rules used in real gameplay.
     - Optionally highlight the player when they are inside or outside an enemy’s detection range.
   - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
-- [ ] Some files are really big; consider splitting into smaller modules when it makes sense (following existing patterns).
-  - [x] `region_map/region_map_runtime.js` has been split into smaller helpers (sampling/biomes, animals, persistence, input, RUINS):
-    - `region_map_sampling.js`, `region_map_persistence.js`, `region_map_animals.js`, `region_map_actions.js`, `region_map_ruins.js`, with `region_map_runtime.js` now acting as a thin orchestrator.
-  - [ ] `core/gm/runtime.js` has grown large; consider splitting into focused modules (state shape, traits/factions, travel events, hints) and adding more targeted tests.
+- [ ] Large-file hotspots: plan to split safely (keep entrypoints stable)
+  - Goal: keep most modules in the ~200–500 line range; allow a few thin “facade” files that mostly re-export.
+  - How to re-measure size snapshot (update section below):
+    - From repo root: `npm run analyze:phase1` (or `npm --workspace tiny-roguelike run analyze:phase1`)
+    - Or from the `tiny-roguelike` workspace folder: `node scripts/analyze.js`
+    - Update the “Snapshot date” + “Top offenders” list under “Size snapshot”.
+  - Refactor guardrails (to avoid regressions):
+    - Keep current import sites stable: big file becomes a facade that delegates to new modules.
+    - Extract **pure helpers** first (no DOM, no ctx mutation) → easiest to move.
+    - Avoid circular imports: do not import the facade from its children.
+    - After each PR: run `npm run ci` + `npm run analyze:imports` + smoketest subset (see below).
+
+  - Priority order (lowest risk → highest risk):
+    - (1) `worldgen/` + `ai/` extractions
+    - (2) `core/dungeon/runtime.js`
+    - (3) `core/modes/modes.js`
+    - (4) `core/game.js` (highest fan-in; do last)
+
+  - Target breakdowns (PR-sized steps)
+
+    - [ ] `worldgen/town_gen.js` (1011 lines): make it mostly a pipeline orchestrator
+      - Extract: `worldgen/town_gen_pipeline.js`, `worldgen/town_gen_validate.js`, `worldgen/town_gen_rng.js`
+      - Smoketests after each step: `town,town_flows,determinism`
+
+    - [ ] `ai/town_runtime.js` (1227) + `ai/town_ai_legacy.js` (1466): separate runtime vs policy
+      - Extract: `ai/town_policy.js` (pure scoring), `ai/town_planner.js`, `ai/town_executor.js`, `ai/town_runtime_tick.js`
+      - Add adapter: `ai/town_legacy_adapter.js` so call sites stop importing legacy directly
+      - Smoketests: `town,town_flows,town_diagnostics,determinism`
+
+    - [ ] `core/dungeon/runtime.js` (1310): split entry/exit vs tick vs selectors
+      - Extract: `core/dungeon/runtime_entry.js`, `core/dungeon/runtime_tick.js`, `core/dungeon/runtime_selectors.js`
+      - Keep `core/dungeon/runtime.js` as facade.
+      - Smoketests: `dungeon,dungeon_persistence,combat,determinism`
+
+    - [ ] `core/modes/modes.js` (1414): split per-mode + shared guards
+      - Extract: `core/modes/mode_ids.js`, `core/modes/mode_guards.js`, `core/modes/mode_router.js`
+      - Keep `modes.js` as facade (exports unchanged); `core/modes/transitions.js` should remain the stable wrapper.
+      - Smoketests: `world,region,dungeon,town,encounters,determinism`
+
+    - [ ] `core/game.js` (1319): split orchestration vs UI glue vs lifecycle
+      - Extract: `core/game/game_utils.js` (pure), `core/game/game_render_bridge.js` (UI-only boundary), `core/game/game_session.js` (new game/reset), `core/game/game_tick.js` (turn driver)
+      - Keep `core/game.js` as facade.
+      - Smoketests: `world,inventory,overlays,dungeon,combat,town,determinism`
+
+    - [ ] `core/bridge/gm_bridge.js` (1104): split into narrow bridge + effects
+      - Extract: `core/bridge/gm_bridge_markers.js`, `core/bridge/gm_bridge_travel.js`, `core/bridge/gm_bridge_quests.js`
+      - Keep `gm_bridge.js` as facade.
+      - Smoketests: `gm_seed_reset,gm_bridge_markers,gm_bridge_faction_travel,gm_bottle_map,gm_survey_cache`
+
+    - [ ] `core/followers_runtime.js` (981): split commands vs tick vs inventory
+      - Extract: `core/followers/runtime_commands.js`, `core/followers/runtime_tick.js`, `core/followers/runtime_inventory.js`
+      - Smoketests: `world,dungeon,combat,inventory,determinism`
+
+    - [ ] `ui/ui.js` (1133): split UI controller vs panels (keep `ui/ui.js` as facade)
+      - Extract: `ui/ui_state.js` (UI state + helpers), `ui/ui_modals.js` (modal open/close + ESC priority), and `ui/ui_actions.js` (high-level UI actions invoked by core)
+      - Move feature-specific logic into `ui/components/*` where possible (inventory/loot/god/gm/follower/etc.) so `ui/ui.js` mostly wires pieces together.
+      - Smoketests: `ui_layout,inventory,overlays,town,dungeon,combat`
+
+    - [ ] `core/game_api.js` (984): split API surface by domain (keep entrypoint stable)
+      - Extract: `core/game_api/world_api.js`, `core/game_api/dungeon_api.js`, `core/game_api/town_api.js`, `core/game_api/encounter_api.js`, `core/game_api/debug_api.js`
+      - `core/game_api.js` becomes a thin facade that composes and re-exports a stable `window.GameAPI` shape.
+      - Smoketests: `api,world,region,dungeon,town,encounters,determinism`
+
+    - [ ] `core/god/handlers.js` (955): split GOD actions into focused handler modules
+      - Extract: `core/god/handlers_spawn.js`, `core/god/handlers_teleport.js`, `core/god/handlers_overlays.js`, `core/god/handlers_debug.js`
+      - Keep `core/god/handlers.js` as a registry that wires buttons → handler functions.
+      - Smoketests: `overlays,inventory,dungeon,combat,town,determinism`
+
+    - [ ] `data/world/world_assets.json` (672): split large JSON for maintainability (data-only)
+      - Option A: split into multiple source JSON files (e.g. `data/world/world_assets_overworld.json`, `data/world/world_assets_town.json`) and load/merge them in `data/loader.js`.
+      - Option B: keep the existing file as the runtime artifact but generate it from smaller sources (script + CI check).
+
+  - Already partially split (still large; continue if needed)
+    - [ ] `region_map/region_map_runtime.js` (944): already has helper modules, but runtime is still big; continue splitting drawing/input vs state/persistence if it keeps growing.
+    - [ ] `core/gm/runtime.js` (1009): code exists under `core/gm/runtime/*`, but facade remains large; continue moving logic out (keep facade mostly as composition/exports).
+
+  - Size snapshot (by line count; update when refactoring)
+    - (Snapshot date: 2026-03-13; measured via `read_file file:1-1` headers)
+    - Top offenders (repo-wide):
+      - 1466 — `ai/town_ai_legacy.js`
+      - 1414 — `core/modes/modes.js`
+      - 1319 — `core/game.js`
+      - 1310 — `core/dungeon/runtime.js`
+      - 1133 — `ui/ui.js`
+      - 1104 — `core/bridge/gm_bridge.js`
+      - 1070 — `ai/ai.js`
+      - 1011 — `worldgen/town_gen.js`
+      - 1009 — `core/gm/runtime.js`
+      - 984  — `core/game_api.js`
+      - 981  — `core/followers_runtime.js`
+      - 970  — `worldgen/town/layout_core.js`
+      - 955  — `core/god/handlers.js`
+      - 944  — `region_map/region_map_runtime.js`
+      - 892  — `data/god.js`
+      - 868  — `src/tools/prefab_editor.js`
+      - 742  — `core/encounter/enter.js`
+      - 691  — `core/dungeon/tower_prefabs.js`
+      - 672  — `data/world/world_assets.json`
+      - 669  — `core/bridge/ui_bridge.js`
+      - 664  — `ai/town_population.js`
+      - 659  — `core/bridge/ui_orchestration.js`
+      - 607  — `dungeon/dungeon.js`
+      - 601  — `entities/loot.js`
+      - 593  — `entities/player.js`
+      - 568  — `core/validation_runner.js`
+      - 549  — `core/encounter_interactions.js`
+      - 548  — `world/world.js`
+      - 548  — `core/town/runtime.js`
+
 - [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
   - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
   - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
@@ -612,29 +727,3 @@ Known issues / deferred (post-merge):
   - `ctx.world.bridges` is no longer used by the main game; SHALLOW tiles are the single, consistent source of walkable river crossings.
 
 
-Biggest files needs to modulize/make less big list:
-Overall top (repo-wide, top 30 by lines)
-
-1466 — ai/town_ai_legacy.js
-1227 — ai/town_runtime.js
-1070 — ai/ai.js
-1011 — worldgen/town_gen.js
-970 — worldgen/town/layout_core.js
-889 — region_map/region_map_runtime.js
-881 — data/god.js
-672 — data/world/world_assets.json
-664 — ai/town_population.js
-548 — world/world.js
-… (I can paste the full top-30 list again if you want)
-Core top 30 (by lines)
-
-503 core/gm/runtime.js (refactored into smaller modules under core/gm/runtime/*)  <--- handled
-1381 core/modes/modes.js
-1310 core/game.js
-1310 core/dungeon/runtime.js
-981 core/followers_runtime.js
-955 core/god/handlers.js
-836 core/game_api.js
-738 core/encounter/enter.js
-691 core/dungeon/tower_prefabs.js
-669 core/bridge/ui_bridge.js

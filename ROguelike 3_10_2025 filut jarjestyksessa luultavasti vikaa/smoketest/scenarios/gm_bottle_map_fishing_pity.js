@@ -21,19 +21,39 @@
     }
   }
 
-  function removeBottleMapsFromInventory(gctx) {
+  function removeBottleMapsFromInventory(gctx, stash) {
     let removed = 0;
     try {
       const inv = (gctx && gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : null;
       if (!inv) return 0;
       for (let i = inv.length - 1; i >= 0; i--) {
         if (isBottleMapItem(inv[i])) {
+          const it = inv[i];
           inv.splice(i, 1);
+          if (Array.isArray(stash)) stash.push({ idx: i, it });
           removed++;
         }
       }
     } catch (_) {}
     return removed;
+  }
+
+  function restoreBottleMapsToInventory(gctx, stash) {
+    try {
+      const inv = (gctx && gctx.player && Array.isArray(gctx.player.inventory)) ? gctx.player.inventory : null;
+      if (!inv || !Array.isArray(stash) || !stash.length) return 0;
+
+      stash.sort((a, b) => (a.idx | 0) - (b.idx | 0));
+      for (let i = 0; i < stash.length; i++) {
+        const rec = stash[i];
+        if (!rec || !rec.it) continue;
+        const idx = Math.max(0, Math.min(inv.length, rec.idx | 0));
+        inv.splice(idx, 0, rec.it);
+      }
+      return stash.length;
+    } catch (_) {
+      return 0;
+    }
   }
 
   function hasBottleMapInInventory(gctx) {
@@ -112,8 +132,17 @@
     }
 
     // Snapshot state so we can restore it (avoid destabilizing later scenarios).
-    const oldEnabled = gm.enabled !== false;
-    const oldBoredom = (gm.boredom && typeof gm.boredom.level === "number" && Number.isFinite(gm.boredom.level)) ? gm.boredom.level : 0;
+    const hadEnabled = Object.prototype.hasOwnProperty.call(gm, "enabled");
+    const oldEnabled = gm.enabled;
+
+    const hadBoredom = Object.prototype.hasOwnProperty.call(gm, "boredom");
+    const oldBoredomObj = gm.boredom;
+    const hadBoredomLevel = !!(oldBoredomObj && Object.prototype.hasOwnProperty.call(oldBoredomObj, "level"));
+    const oldBoredomLevel = (oldBoredomObj && typeof oldBoredomObj.level === "number" && Number.isFinite(oldBoredomObj.level)) ? oldBoredomObj.level : 0;
+
+    const hadThreads = Object.prototype.hasOwnProperty.call(gm, "threads");
+    const oldThreadsObj = gm.threads;
+    const hadBottleMapThread = !!(oldThreadsObj && Object.prototype.hasOwnProperty.call(oldThreadsObj, "bottleMap"));
 
     // Ensure gm.threads.bottleMap exists.
     let bm = null;
@@ -139,6 +168,19 @@
     gm.boredom = (gm.boredom && typeof gm.boredom === "object") ? gm.boredom : (gm.boredom = {});
     gm.boredom.level = 1.0;
 
+    // --- Guard rails ---
+    // (A) Ensure "active" thread blocks awards.
+    bm.active = true;
+
+    const bottleMapInvStash = [];
+    const removedBefore = removeBottleMapsFromInventory(gctx, bottleMapInvStash);
+    record(true, `Bottle Map fishing pity: cleared bottle_map from inventory (removed=${removedBefore})`);
+    record(!hasBottleMapInInventory(gctx), "Bottle Map fishing pity: inventory has no bottle_map before active-thread check");
+
+    let blocked = false;
+    try { blocked = !GMB.maybeAwardBottleMapFromFishing(gctx) && !hasBottleMapInInventory(gctx); } catch (_) { blocked = true; }
+    record(blocked, "Bottle Map fishing pity: active thread blocks fishing award");
+
     // Ensure thread inactive so the award helper isn't blocked.
     bm.active = false;
 
@@ -149,8 +191,6 @@
     bm.fishing.lastAwardTurn = -999999;
     bm.fishing.awardCount = 0;
 
-    const removedBefore = removeBottleMapsFromInventory(gctx);
-    record(true, `Bottle Map fishing pity: cleared bottle_map from inventory (removed=${removedBefore})`);
     record(!hasBottleMapInInventory(gctx), "Bottle Map fishing pity: inventory has no bottle_map before loop");
 
     try { if (typeof gctx.updateUI === "function") gctx.updateUI(); } catch (_) {}
@@ -175,20 +215,73 @@
 
     record(got, `Bottle Map fishing pity: awarded within ${maxTries} calls (gotAt=${gotAt})`);
 
+    // (B) Cooldown gate: after award, if we remove the item and keep the same turn,
+    // the award helper should not immediately re-award.
+    try {
+      if (got) {
+        const fishing = bm && bm.fishing && typeof bm.fishing === "object" ? bm.fishing : null;
+        const turnNow = (gctx && gctx.time && typeof gctx.time.turnCounter === "number") ? (gctx.time.turnCounter | 0) : 0;
+
+        // Remove the awarded item so inventory check doesn't trivially block.
+        removeBottleMapsFromInventory(gctx);
+
+        const beforeEligible = fishing ? (fishing.eligibleSuccesses | 0) : 0;
+        const beforeTotal = fishing ? (fishing.totalSuccesses | 0) : 0;
+
+        let ok2 = false;
+        try { ok2 = !!GMB.maybeAwardBottleMapFromFishing(gctx); } catch (_) { ok2 = false; }
+
+        const afterEligible = fishing ? (fishing.eligibleSuccesses | 0) : 0;
+        const afterTotal = fishing ? (fishing.totalSuccesses | 0) : 0;
+
+        record(ok2 === false && !hasBottleMapInInventory(gctx), "Bottle Map fishing pity: cooldown prevents immediate re-award (same turn)");
+        record(afterTotal === beforeTotal + 1, `Bottle Map fishing pity: cooldown still counts total successes (before=${beforeTotal}, after=${afterTotal}, turn=${turnNow})`);
+        record(afterEligible === beforeEligible, `Bottle Map fishing pity: cooldown does not advance eligible successes (before=${beforeEligible}, after=${afterEligible})`);
+      }
+    } catch (_) {}
+
     // Cleanup: remove any awarded bottle map and restore state.
     const removedAfter = removeBottleMapsFromInventory(gctx);
     if (removedAfter) {
       record(true, `Bottle Map fishing pity: cleanup removed bottle_map (removedAfter=${removedAfter})`);
     }
 
+    const restoredBefore = restoreBottleMapsToInventory(gctx, bottleMapInvStash);
+    if (restoredBefore) {
+      record(true, `Bottle Map fishing pity: restored prior bottle_map items (restored=${restoredBefore})`);
+    }
+
     try { if (typeof gctx.updateUI === "function") gctx.updateUI(); } catch (_) {}
     try { if (typeof gctx.rerenderInventoryIfOpen === "function") gctx.rerenderInventoryIfOpen(); } catch (_) {}
 
     try {
-      gm.enabled = oldEnabled;
-      if (gm.boredom) gm.boredom.level = oldBoredom;
-      bm.active = oldActive;
-      if (oldFishing) bm.fishing = Object.assign({}, oldFishing);
+      if (hadEnabled) gm.enabled = oldEnabled;
+      else { try { delete gm.enabled; } catch (_) {} }
+
+      if (hadBoredom) {
+        gm.boredom = oldBoredomObj;
+        if (gm.boredom) {
+          if (hadBoredomLevel) gm.boredom.level = oldBoredomLevel;
+          else { try { delete gm.boredom.level; } catch (_) {} }
+        }
+      } else {
+        try { delete gm.boredom; } catch (_) {}
+      }
+
+      if (!hadThreads) {
+        try { delete gm.threads; } catch (_) {}
+      } else {
+        gm.threads = oldThreadsObj;
+        if (gm.threads && !hadBottleMapThread) {
+          try { delete gm.threads.bottleMap; } catch (_) {}
+        }
+      }
+
+      if (hadBottleMapThread) {
+        bm.active = oldActive;
+        if (oldFishing) bm.fishing = Object.assign({}, oldFishing);
+        else { try { delete bm.fishing; } catch (_) {} }
+      }
     } catch (_) {}
 
     return true;

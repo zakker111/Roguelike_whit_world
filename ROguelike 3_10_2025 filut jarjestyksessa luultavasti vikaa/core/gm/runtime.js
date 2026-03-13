@@ -16,6 +16,20 @@
  * - getMechanicHint(ctx)
  * - getFactionTravelEvent(ctx)
  * - forceFactionTravelEvent(ctx, id)
+ * - surveyCache_worldScanRect(ctx, rect)
+ * - surveyCache_ensureGuaranteed(ctx)
+ * - surveyCache_onMarkerPlaced(ctx)
+ * - surveyCache_isClaimed(ctx, instanceId)
+ * - surveyCache_onEncounterStart(ctx, meta)
+ * - surveyCache_onEncounterComplete(ctx, meta)
+ * - bottleMap_onFishingSuccess(ctx)
+ * - bottleMap_onUseItem(ctx, meta)
+ * - bottleMap_reconcileMarkers(ctx, meta)
+ * - bottleMap_onEncounterStart(ctx, meta)
+ * - bottleMap_onEncounterComplete(ctx, meta)
+ * - onWorldScanRect(ctx, rect)              // legacy wrappers (delegate to GMBridge)
+ * - onWorldScanTile(ctx, meta)              // legacy wrappers
+ * - ensureGuaranteedSurveyCache(ctx)        // legacy wrapper
  */
 
 import { attachGlobal } from "../../utils/global.js";
@@ -61,6 +75,17 @@ import {
   updateMechanicsUsage,
   applyGuardFineOutcome,
 } from "./runtime/events/updates.js";
+
+import {
+  surveyCacheComputeScanSpawn,
+  surveyCacheComputeGuaranteedSpawn,
+  surveyCacheIsClaimed,
+  surveyCacheSetNextSpawnTurn,
+  surveyCacheOnEncounterStart as surveyCacheOnEncounterStartImpl,
+  surveyCacheOnEncounterComplete as surveyCacheOnEncounterCompleteImpl,
+} from "./runtime/threads/survey_cache.js";
+
+import * as bottleMapThread from "./runtime/threads/bottle_map.js";
 
 // HealthCheck registration for GMRuntime is handled centrally in core/capabilities.js.
 
@@ -637,6 +662,268 @@ export function forceFactionTravelEvent(ctx, id) {
 }
 
 // ------------------------
+// Survey Cache (thread-owned; bridge applies effects)
+// ------------------------
+
+export function surveyCache_worldScanRect(ctx, rect) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { markers: [] };
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return { markers: [] };
+
+  const markers = surveyCacheComputeScanSpawn(ctx, gm, sc, rect);
+  return { markers: Array.isArray(markers) ? markers : [] };
+}
+
+export function surveyCache_ensureGuaranteed(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { marker: null };
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return { marker: null };
+
+  const marker = surveyCacheComputeGuaranteedSpawn(ctx, gm, sc);
+  return { marker: marker || null };
+}
+
+// NOTE: cooldown should only advance when a marker was actually placed.
+export function surveyCache_onMarkerPlaced(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return false;
+
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return false;
+
+  try {
+    surveyCacheSetNextSpawnTurn(ctx, gm, sc);
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function surveyCache_isClaimed(ctx, instanceId) {
+  const gm = _ensureState(ctx);
+  if (!gm || gm.enabled === false) return false;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return false;
+  return surveyCacheIsClaimed(sc, instanceId);
+}
+
+export function surveyCache_onEncounterStart(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return null;
+
+  const res = surveyCacheOnEncounterStartImpl(gm, sc, meta, ctx);
+  if (res) {
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+  }
+  return res;
+}
+
+export function surveyCache_onEncounterComplete(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+  const sc = gm.threads && gm.threads.surveyCache ? gm.threads.surveyCache : null;
+  if (!sc) return null;
+
+  const res = surveyCacheOnEncounterCompleteImpl(gm, sc, meta, ctx);
+  if (res) {
+    markDirty(gm);
+    writePersistedState(ctx, gm, { force: true });
+  }
+  return res;
+}
+
+// ------------------------
+// Bottle Map (fishing award; bridge applies effects)
+// ------------------------
+
+export function bottleMap_onFishingSuccess(ctx) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return { awarded: false };
+
+  ensureThreads(gm);
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return { awarded: false };
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
+  const res = (bottleMapThread && typeof bottleMapThread.bottleMapOnFishingSuccess === "function")
+    ? (bottleMapThread.bottleMapOnFishingSuccess(ctx, gm, thread, { onDirty: markDirty }) || { awarded: false, changed: false })
+    : { awarded: false, changed: false };
+
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
+
+  // Do not leak internal flag.
+  if (res && Object.prototype.hasOwnProperty.call(res, "changed")) {
+    const { changed, ...pub } = res;
+    return pub;
+  }
+
+  return res;
+}
+
+function stripChanged(res) {
+  if (!res || typeof res !== "object") return res;
+  if (!Object.prototype.hasOwnProperty.call(res, "changed")) return res;
+  const { changed, ...pub } = res;
+  return pub;
+}
+
+function bottleMapCallThread(ctx, gm, thread, fn, meta) {
+  if (typeof fn !== "function") return null;
+
+  // Contract: bottle map thread impls use GM RNG; pass onDirty so RNG calls mark state dirty.
+  const opts = { onDirty: markDirty };
+
+  // Preferred signature: (ctx, gm, thread, meta, opts)
+  if (meta !== undefined && fn.length >= 5) return fn(ctx, gm, thread, meta, opts);
+
+  // Fallback signatures.
+  if (meta === undefined) return fn(ctx, gm, thread, opts);
+  if (fn.length === 4) return fn(ctx, gm, thread, Object.assign({ meta }, opts));
+
+  return fn(ctx, gm, thread, meta, opts);
+}
+
+function bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore) {
+  const before = (typeof rngCallsBefore === "number" && Number.isFinite(rngCallsBefore)) ? (rngCallsBefore | 0) : null;
+
+  let after = null;
+  try {
+    after = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+  } catch (_) {
+    after = null;
+  }
+
+  const rngAdvanced = (before != null && after != null) ? (after !== before) : false;
+
+  if (!rngAdvanced && (!res || res.changed !== true)) return;
+
+  markDirty(gm);
+  writePersistedState(ctx, gm, { force: true });
+}
+
+export function bottleMap_onUseItem(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  ensureThreads(gm);
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnUseItem, meta);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
+  return stripChanged(res);
+}
+
+export function bottleMap_reconcileMarkers(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  ensureThreads(gm);
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapReconcileMarkers, meta);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
+  return stripChanged(res);
+}
+
+export function bottleMap_onEncounterStart(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  ensureThreads(gm);
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterStart, meta);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
+  return stripChanged(res);
+}
+
+export function bottleMap_onEncounterComplete(ctx, meta) {
+  const gm = _ensureState(ctx);
+  if (!ctx || !gm || gm.enabled === false) return null;
+
+  ensureThreads(gm);
+
+  const thread = gm.threads && gm.threads.bottleMap && typeof gm.threads.bottleMap === "object" ? gm.threads.bottleMap : null;
+  if (!thread) return null;
+
+  const rngCallsBefore = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
+
+  const res = bottleMapCallThread(ctx, gm, thread, bottleMapThread && bottleMapThread.bottleMapOnEncounterComplete, meta);
+  bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore);
+  return stripChanged(res);
+}
+
+export function bottleMap_activateFromItem(ctx, meta) {
+  return bottleMap_onUseItem(ctx, meta);
+}
+
+export function bottleMap_getReconcilePlan(ctx, meta) {
+  return bottleMap_reconcileMarkers(ctx, meta);
+}
+
+export function bottleMap_onEncounterAttempt(ctx, meta) {
+  return bottleMap_onEncounterStart(ctx, meta);
+}
+
+// ------------------------
+// Survey Cache marker helpers (bridge wrappers)
+// ------------------------
+
+// Back-compat: for older callers that still route scan-time spawns through GMBridge.
+export function onWorldScanRect(ctx, rect) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.onWorldScanRect === "function") {
+      return GB.onWorldScanRect(ctx, rect);
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function onWorldScanTile(ctx, meta) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.onWorldScanTile === "function") {
+      return GB.onWorldScanTile(ctx, meta);
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function ensureGuaranteedSurveyCache(ctx) {
+  try {
+    const GB = (typeof window !== "undefined") ? window.GMBridge : null;
+    if (GB && typeof GB.ensureGuaranteedSurveyCache === "function") {
+      return GB.ensureGuaranteedSurveyCache(ctx);
+    }
+  } catch (_) {}
+  return false;
+}
+
+// ------------------------
 // Event update helpers (traits/families/factions/mechanics)
 // ------------------------
 // Moved to ./runtime/events/updates.js
@@ -699,6 +986,23 @@ attachGlobal("GMRuntime", {
   recordIntervention,
   getFactionTravelEvent,
   forceFactionTravelEvent,
+  surveyCache_worldScanRect,
+  surveyCache_ensureGuaranteed,
+  surveyCache_onMarkerPlaced,
+  surveyCache_isClaimed,
+  surveyCache_onEncounterStart,
+  surveyCache_onEncounterComplete,
+  bottleMap_onFishingSuccess,
+  bottleMap_onUseItem,
+  bottleMap_activateFromItem,
+  bottleMap_reconcileMarkers,
+  bottleMap_getReconcilePlan,
+  bottleMap_onEncounterStart,
+  bottleMap_onEncounterAttempt,
+  bottleMap_onEncounterComplete,
+  onWorldScanRect,
+  onWorldScanTile,
+  ensureGuaranteedSurveyCache,
   __getRawState,
   __setRawState,
 });

@@ -21,7 +21,8 @@ This document translates the GM v0.3 contract (rare pacing, choices-only authori
 - Ensure scenarios that start encounters wait for encounter templates to be ready.
 
 **Acceptance checks**
-- Run: `?smoketest=1&dev=1&scenarios=gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache`
+- Run (explicit list): `?smoketest=1&dev=1&scenarios=gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache`
+- Run (shortcut): `?smoketest=1&dev=1&gmphase6=1`
 - No SKIPs due to missing mode/data unless intentionally gated.
 
 ---
@@ -91,3 +92,5 @@ This document translates the GM v0.3 contract (rare pacing, choices-only authori
 ## Suggested immediate next action
 
 Start with **Phase 6 then Phase 2** (test reliability + transition correctness), because pacing work is hard to validate until tests and transitions are stable.
+
+For merge readiness, follow: `analysis/gm_pre_merge_plan.md`.

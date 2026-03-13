@@ -7,6 +7,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { URL } from 'node:url';
 
 const ROOT = path.resolve(process.cwd());
 
@@ -38,23 +39,33 @@ function guessType(p) {
 
 const server = createServer((req, res) => {
   try {
-    let urlPath = req.url || '/';
+    const origin = `http://${req.headers.host || '127.0.0.1'}`;
+    const u = new URL(req.url || '/', origin);
+
+    let urlPath = u.pathname || '/';
     if (urlPath === '/' || urlPath === '/index.html') {
       return serveFile(res, path.join(ROOT, 'index.html'), 'text/html; charset=utf-8');
     }
-    if (urlPath.startsWith('/data/')) {
+
+    if (urlPath.startsWith('/')) urlPath = urlPath.slice(1);
+
+    if (urlPath.startsWith('data/')) {
       const full = path.join(ROOT, urlPath);
       return serveFile(res, full, guessType(full));
     }
+
     // Static assets
     const fullPath = path.join(ROOT, urlPath);
+
     // Security: ensure path stays within ROOT
     const norm = path.normalize(fullPath);
-    if (!norm.startsWith(ROOT)) {
+    const rootPrefix = ROOT.endsWith(path.sep) ? ROOT : (ROOT + path.sep);
+    if (!(norm === ROOT || norm.startsWith(rootPrefix))) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Forbidden');
       return;
     }
+
     // If path is a directory, try index.html inside it
     try {
       const stat = statSync(norm);
@@ -63,6 +74,7 @@ const server = createServer((req, res) => {
         return serveFile(res, idx, 'text/html; charset=utf-8');
       }
     } catch (_) {}
+
     // Else serve file
     serveFile(res, norm, guessType(norm));
   } catch (e) {

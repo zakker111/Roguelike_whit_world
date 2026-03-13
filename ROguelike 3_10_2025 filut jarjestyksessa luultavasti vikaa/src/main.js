@@ -201,10 +201,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const params = new URLSearchParams(location.search);
     if (params.get('smoketest') === '1') {
       try { if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') window.Logger.log('[SMOKE] loader: detected ?smoketest=1, dynamic importing runner', 'notice', { category: 'Smoketest' }); } catch (_) {}
+
+      // Vite build compatibility: use glob import so production builds can
+      // statically include smoketest modules. In non-bundled browser usage,
+      // import.meta.glob is undefined; the try/catch keeps that mode working.
+      let smokeModules = null;
+      try { smokeModules = import.meta.glob('/smoketest/**/*.js'); } catch (_) { smokeModules = null; }
+
       const legacy = params.get('legacy') === '1';
       const injectList = [
         // Helpers
         '/smoketest/helpers/dom.js',
+        '/smoketest/helpers/gamedata.js',
         '/smoketest/helpers/budget.js',
         '/smoketest/helpers/logging.js',
         '/smoketest/helpers/movement.js',
@@ -226,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/inventory.js',
         '/smoketest/scenarios/combat.js',
         '/smoketest/scenarios/overlays.js',
+        '/smoketest/scenarios/ui_layout.js',
         '/smoketest/scenarios/world.js',
         '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',
@@ -240,21 +249,30 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_intent_decisions.js',
         '/smoketest/scenarios/gm_seed_reset.js',
         '/smoketest/scenarios/gm_boredom_interest.js',
+        '/smoketest/scenarios/gm_boredom_milestones.js',
+        '/smoketest/scenarios/gm_disable_switch.js',
         '/smoketest/scenarios/gm_bridge_markers.js',
         '/smoketest/scenarios/gm_bridge_faction_travel.js',
         '/smoketest/scenarios/gm_bottle_map.js',
         '/smoketest/scenarios/gm_bottle_map_fishing_pity.js',
         '/smoketest/scenarios/gm_survey_cache.js',
         '/smoketest/scenarios/gm_survey_cache_spawn_gate.js',
+        '/smoketest/scenarios/gm_rng_persistence.js',
+        '/smoketest/scenarios/gm_scheduler_arbitration.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];
+
       if (legacy) {
         injectList.push('/smoketest/smoketest_runner.js');
       }
       for (const url of injectList) {
         try {
-          await import(url);
+          if (smokeModules && smokeModules[url]) {
+            await smokeModules[url]();
+          } else {
+            await import(url);
+          }
         } catch (e) {
           try {
             if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {

@@ -1,7 +1,7 @@
 (function () {
   // SmokeTest Scenario: Survey Cache spawn gate
   // Validates:
-  // - GMBridge.ensureGuaranteedSurveyCache does NOT spawn a marker when boredom is low.
+  // - ensureGuaranteedSurveyCache does NOT spawn a marker when boredom is low.
   // - It DOES spawn a marker when boredom is high and cooldown allows.
 
   window.SmokeTest = window.SmokeTest || {};
@@ -82,9 +82,16 @@
       return true;
     }
 
+    const GMRuntime = window.GMRuntime || null;
     const GMBridge = window.GMBridge || null;
-    if (!GMBridge || !has(GMBridge.ensureGuaranteedSurveyCache)) {
-      recordSkip("Survey Cache spawn gate skipped (GMBridge.ensureGuaranteedSurveyCache missing)");
+
+    const ensureGuaranteedSurveyCache =
+      (GMRuntime && has(GMRuntime.ensureGuaranteedSurveyCache)) ? GMRuntime.ensureGuaranteedSurveyCache
+      : (GMBridge && has(GMBridge.ensureGuaranteedSurveyCache)) ? GMBridge.ensureGuaranteedSurveyCache
+      : null;
+
+    if (!ensureGuaranteedSurveyCache) {
+      recordSkip("Survey Cache spawn gate skipped (ensureGuaranteedSurveyCache missing)");
       return true;
     }
 
@@ -143,7 +150,7 @@
     try { gm0.boredom.level = 0.0; } catch (_) {}
     try { sc0.nextSpawnTurn = 0; } catch (_) {}
 
-    try { GMBridge.ensureGuaranteedSurveyCache(gctx); } catch (_) {}
+    try { ensureGuaranteedSurveyCache(gctx); } catch (_) {}
     await sleep(120);
 
     record(!hasAnySurveyCacheMarker(), "ensureGuaranteedSurveyCache does not spawn when boredom is low");
@@ -152,7 +159,7 @@
     try { gm0.boredom.level = 1.0; } catch (_) {}
     try { sc0.nextSpawnTurn = 0; } catch (_) {}
 
-    try { GMBridge.ensureGuaranteedSurveyCache(gctx); } catch (_) {}
+    try { ensureGuaranteedSurveyCache(gctx); } catch (_) {}
     await sleep(120);
 
     record(hasAnySurveyCacheMarker(), "ensureGuaranteedSurveyCache spawns when boredom is high and cooldown is ready");

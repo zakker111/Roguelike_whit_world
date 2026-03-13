@@ -12,14 +12,29 @@
     try {
       const u = new URL(window.location.href);
       const p = (name, def) => u.searchParams.get(name) || def;
+
+      // Convenience selectors (avoid copying long scenario lists).
+      // gmphase6=1 maps to the GM v0.3 pipeline doc Phase-6 acceptance set.
+      const gmPhase6 = (p("gmphase6", "0") === "1");
+
       // Support both legacy "smoke" and new "scenarios" params
       const legacySel = (p("smoke", "") || "").trim();
-      const sel = legacySel ? legacySel : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
+
+      let sel = legacySel
+        ? legacySel
+        : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
+
+      if (gmPhase6) {
+        sel = "gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache";
+      }
+
       return {
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
         smokecount: Number(p("smokecount", "1")) || 1,
         legacy: p("legacy", "0") === "1",
+        // Optional: disable orchestrator auto-run so headless harnesses can call runSeries() explicitly.
+        autorun: p("autorun", "1") !== "0",
         scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
         // New: skip scenarios after they have passed a given number of runs (0 = disabled)
         skipokafter: Number(p("skipokafter", "0")) || 0,
@@ -264,6 +279,91 @@
     }
   }
 
+  async function settleFrames(count) {
+    const n = Math.max(1, count | 0);
+    for (let i = 0; i < n; i++) {
+      await new Promise(r => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; r(); } };
+        const t = setTimeout(finish, 50);
+        try {
+          if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+            window.requestAnimationFrame(() => { try { clearTimeout(t); } catch (_) {} finish(); });
+          }
+        } catch (_) {}
+      });
+    }
+  }
+
+  async function waitForModeStable(targetMode, timeoutMs) {
+    try {
+      const G = window.GameAPI || {};
+      const ok = await waitUntilTrue(() => {
+        try {
+          if (typeof G.getMode === "function" && G.getMode() !== targetMode) return false;
+          if (typeof G.getPlayer === "function") {
+            const p = G.getPlayer();
+            if (!p || typeof p.x !== "number" || typeof p.y !== "number") return false;
+          }
+          if (targetMode === "world" && typeof G.getWorld === "function") {
+            const w = G.getWorld();
+            if (!w || !Array.isArray(w.map) || !w.map.length) return false;
+          }
+          if (targetMode !== "world" && typeof G.getCtx === "function") {
+            const ctx = G.getCtx();
+            const map = (ctx && typeof ctx.getMap === "function") ? ctx.getMap() : (ctx ? ctx.map : null);
+            if (!Array.isArray(map) || !map.length) return false;
+          }
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }, Math.max(250, timeoutMs | 0), 80);
+      if (ok) await settleFrames(2);
+      return !!ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function resolveScenarioFn(name) {
+    try {
+      const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : null;
+      if (!S) return null;
+      if (name === "world") return S.World && S.World.run;
+      if (name === "region") return S.Region && S.Region.run;
+      if (name === "dungeon") return S.Dungeon && S.Dungeon.run;
+      if (name === "inventory") return S.Inventory && S.Inventory.run;
+      if (name === "combat") return S.Combat && S.Combat.run;
+      if (name === "dungeon_persistence") return S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run;
+      if (name === "dungeon_stairs_transitions") return S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run;
+      if (name === "town") return S.Town && S.Town.run;
+      if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
+      if (name === "overlays") return S.Overlays && S.Overlays.run;
+      if (name === "ui_layout") return S.UILayout && S.UILayout.run;
+      if (name === "determinism") return S.Determinism && S.Determinism.run;
+      if (name === "encounters") return (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run);
+      if (name === "api") return S.API && S.API.run;
+      if (name === "town_flows") return S.Town && S.Town.Flows && S.Town.Flows.run;
+      if (name === "skeleton_key_chest") return S.skeleton_key_chest && S.skeleton_key_chest.run;
+      if (name === "gm_mechanic_hints") return S.GMMechanicHints && S.GMMechanicHints.run;
+      if (name === "gm_intent_decisions") return S.GMIntentDecisions && S.GMIntentDecisions.run;
+      if (name === "gm_seed_reset") return S.gm_seed_reset && S.gm_seed_reset.run;
+      if (name === "gm_boredom_interest") return S.gm_boredom_interest && S.gm_boredom_interest.run;
+      if (name === "gm_boredom_milestones") return S.gm_boredom_milestones && S.gm_boredom_milestones.run;
+      if (name === "gm_bridge_markers") return S.gm_bridge_markers && S.gm_bridge_markers.run;
+      if (name === "gm_bridge_faction_travel") return S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run;
+      if (name === "gm_bottle_map") return S.gm_bottle_map && S.gm_bottle_map.run;
+      if (name === "gm_bottle_map_fishing_pity") return S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run;
+      if (name === "gm_survey_cache") return S.gm_survey_cache && S.gm_survey_cache.run;
+      if (name === "gm_survey_cache_spawn_gate") return S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run;
+      if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
+      if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
+      if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
+    } catch (_) {}
+    return null;
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -273,7 +373,7 @@
       // New: scenarios to skip (already stable OK in prior runs)
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
-      await waitUntilRunnerReady(6000);
+      await waitUntilRunnerReady(12000);
       // Ensure JSON registries (notably encounters) have finished loading before any scenario runs.
       await waitUntilGameDataReady(15000);
 
@@ -576,7 +676,8 @@
                 try { openGodPanel(); } catch (_) {}
                 await sleep(120);
                 try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
-                await sleep(300);
+                try { await waitForModeStable("world", 8000); } catch (_) {}
+                await sleep(200);
               }
             }
           }
@@ -770,7 +871,10 @@
             ok = (getMode() === "dungeon");
           }
 
-          if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
+          if (ok) {
+            try { await waitForModeStable("dungeon", 6000); } catch (_) {}
+            try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {}
+          }
           try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
         } catch (_) { return false; }
@@ -809,7 +913,8 @@
               try { openGodPanel(); } catch (_) {}
               await sleep(120);
               try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
-              await sleep(300);
+              try { await waitForModeStable("world", 8000); } catch (_) {}
+              await sleep(200);
             }
           }
 
@@ -1001,13 +1106,60 @@
             ok = (getMode() === "town");
           }
 
-          if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
+          if (ok) {
+            try { await waitForModeStable("town", 6000); } catch (_) {}
+            try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {}
+          }
           try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
         } catch (_) { return false; }
       }
 
-      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce, ensureTownOnce };
+      const waitForEncounterTemplate = async (id, opts) => {
+        try {
+          const H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.GameData;
+          if (H && typeof H.waitForEncounterTemplate === "function") {
+            return await H.waitForEncounterTemplate(id, opts);
+          }
+        } catch (_) {}
+
+        // Fallback: inline wait (runner already calls waitUntilGameDataReady before scenarios start).
+        try {
+          const to = (opts && typeof opts === "object" && opts.settleTimeoutMs != null) ? (opts.settleTimeoutMs | 0) : 15000;
+          await waitUntilGameDataReady(to);
+        } catch (_) {}
+
+        const want = String(id || "").trim().toLowerCase();
+        if (!want) return false;
+
+        const timeoutMs = (opts && typeof opts === "object" && opts.timeoutMs != null) ? (opts.timeoutMs | 0) : 12000;
+        const intervalMs = (opts && typeof opts === "object" && opts.intervalMs != null) ? (opts.intervalMs | 0) : 80;
+
+        return await waitUntilTrue(() => {
+          try {
+            const GD = (typeof window !== "undefined") ? window.GameData : null;
+            const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+            return !!reg.find(t => t && String(t.id || "").toLowerCase() === want);
+          } catch (_) {
+            return false;
+          }
+        }, timeoutMs, intervalMs);
+      };
+
+      const baseCtx = {
+        key,
+        sleep,
+        makeBudget,
+        ensureAllModalsClosed,
+        CONFIG,
+        caps,
+        record,
+        recordSkip,
+        ensureDungeonOnce,
+        ensureTownOnce,
+        waitForGameDataReady: waitUntilGameDataReady,
+        waitForEncounterTemplate
+      };
       // Collect per-scenario results to inform runSeries skipping strategy
       let scenarioResults = [];
 
@@ -1034,6 +1186,7 @@
         town: S.Town && S.Town.run,
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
+        ui_layout: S.UILayout && S.UILayout.run,
         determinism: S.Determinism && S.Determinism.run,
         encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
         api: S.API && S.API.run,
@@ -1049,13 +1202,16 @@
         gm_bottle_map_fishing_pity: S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run,
         gm_survey_cache: S.gm_survey_cache && S.gm_survey_cache.run,
         gm_survey_cache_spawn_gate: S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run,
+        gm_disable_switch: S.gm_disable_switch && S.gm_disable_switch.run,
+        gm_rng_persistence: S.gm_rng_persistence && S.gm_rng_persistence.run,
+        gm_scheduler_arbitration: S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run,
       };
       let pipeline = [];
       try {
         if (sel && sel.length) {
           for (const name of sel) {
-            const fn = avail[name];
-            if (typeof fn === "function") pipeline.push({ name, fn });
+            const fn = (typeof avail[name] === "function") ? avail[name] : resolveScenarioFn(name);
+            pipeline.push({ name, fn });
           }
         }
       } catch (_) {}
@@ -1139,7 +1295,17 @@
           continue;
         }
         // Availability check
-        if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
+        if (typeof step.fn !== "function") {
+          try {
+            await waitUntilTrue(() => (typeof resolveScenarioFn(step.name) === "function"), 2500, 80);
+            step.fn = resolveScenarioFn(step.name);
+          } catch (_) {}
+        }
+        if (typeof step.fn !== "function") {
+          recordSkip("Scenario '" + step.name + "' not available");
+          scenarioResults.push({ name: step.name, passed: false, skippedMissing: true });
+          continue;
+        }
         const beforeCount = steps.length;
         let __scenarioStartMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
         __curScenarioName = step.name;
@@ -1528,7 +1694,8 @@
 
   async function runSeries(count) {
     const params = parseParams();
-    // Ensure data registries are loaded before we start clicking "New Game" (more deterministic).
+    // Ensure data registries and runner/UI are loaded before we start clicking "New Game" (more deterministic).
+    await waitUntilRunnerReady(12000);
     await waitUntilGameDataReady(15000);
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
     const all = [];
@@ -1639,6 +1806,17 @@
           }
         } catch (_) {}
 
+        // Wait for GOD controls to exist (reduces seed/newgame races)
+        try {
+          await waitUntilTrue(() => {
+            try {
+              return !!(document.getElementById("god-seed-input") && document.getElementById("god-apply-seed-btn") && document.getElementById("god-newgame-btn"));
+            } catch (_) {
+              return false;
+            }
+          }, 4500, 80);
+        } catch (_) {}
+
         // Apply seed via GOD panel controls
         try {
           if (Dom && typeof Dom.safeSetInput === "function") {
@@ -1666,13 +1844,8 @@
           const nb = document.getElementById("god-newgame-btn");
           if (nb) nb.click();
         } catch (_) {}
-        // Wait until overworld is active
-        try {
-          await waitUntilTrue(() => {
-            try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch (_) { return false; }
-          }, 4000, 100);
-        } catch (_) {}
-        await sleep(160);
+        // Wait until overworld is active and stable
+        try { await waitForModeStable("world", 8000); } catch (_) {}
 
         // Close modals after regen to avoid input interception in scenarios
         try { await ensureAllModalsClosed(2); } catch (_) {}
@@ -2220,7 +2393,7 @@
   // Auto-run orchestrator when ?smoketest=1
   try {
     const params = parseParams();
-    const shouldAuto = params.smoketest && !params.legacy;
+    const shouldAuto = params.smoketest && !params.legacy && params.autorun !== false;
     const count = params.smokecount || 1;
     if (shouldAuto) {
       const start = async () => {
@@ -2234,7 +2407,7 @@
             return;
           }
         } catch (_) {}
-        await waitUntilRunnerReady(6000);
+        await waitUntilRunnerReady(12000);
         await runSeries(count);
       };
       if (document.readyState !== "loading") {

@@ -18,6 +18,12 @@ html, body {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Prevent centered canvas from shifting when the page becomes scrollable due to logs/UI growth. */
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 .ui {
   position: fixed;
   top: 10px;
@@ -88,6 +94,9 @@ html, body {
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden;
 }
 
 /* Right-side log mirror */

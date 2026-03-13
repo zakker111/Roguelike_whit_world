@@ -16,6 +16,7 @@ How to run
 What gets injected (in order) when `?smoketest=1`
 - Helpers:
   - `smoketest/helpers/dom.js` — DOM/event helpers (safeClick, setInput, key, sleep, waitUntilTrue)
+  - `smoketest/helpers/gamedata.js` — GameData readiness and registry polling helpers
   - `smoketest/helpers/budget.js` — shared `SmokeTest.Config` and time budget helpers
   - `smoketest/helpers/logging.js` — banner/status/log/panel helpers
   - `smoketest/helpers/movement.js` — routing helpers (routeTo, routeAdjTo, bumpToward)
@@ -72,7 +73,7 @@ Outputs
   - Storage: `localStorage["smoke-pass-token"]`, `localStorage["smoke-json-token"]`
 
 Index
-- Helpers: `smoketest/helpers/` (dom.js, budget.js, logging.js, movement.js)
+- Helpers: `smoketest/helpers/` (dom.js, gamedata.js, budget.js, logging.js, movement.js)
 - Capabilities: `smoketest/capabilities/` (detect.js, rng_audit.js)
 - Reporting: `smoketest/reporting/` (render.js, export.js)
 - Runner: `smoketest/runner/` (init.js, runner.js, banner.js)
@@ -80,7 +81,10 @@ Index
 - Legacy: `smoketest/smoketest_runner.js` (only injected with `&legacy=1`)
 
 Notes
-- Orchestrator is the default. Use `&legacy=1` only if you need the thin shim for specific legacy comparisons.
+- Orchestrator default: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.
+- Auto-run: open /index.html?smoketest=1 to run the orchestrator runner.
+- To disable auto-run (e.g. headless harness calls `SmokeTest.Run.runSeries()` manually): add `&autorun=0`.
+- Orchestrator runner is the default. Use `&legacy=1` only if you need the thin shim for specific legacy comparisons.
 - Scenario filtering via `&scenarios=` (or legacy `&smoke=`) lets you run a subset in CI or local checks.
 - The orchestrator skips auto‑run when `&legacy=1` is present; the legacy shim delegates to the orchestrator.
 

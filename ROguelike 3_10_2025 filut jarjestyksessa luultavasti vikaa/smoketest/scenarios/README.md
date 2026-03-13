@@ -13,7 +13,9 @@ Files
 - inventory.js — open/close behavior, equip/unequip flows, potions, two‑handed and hand chooser tests.
 - combat.js — spawn enemies, routing and bump‑attacks, decay snapshot.
 - overlays.js — grid/town overlays toggles and perf checks.
+- ui_layout.js — verifies canvas position is stable as log output grows.
 - determinism.js — seed re‑apply and anchor checks (nearest town/dungeon).
+- gm_disable_switch.js — verifies `gm.enabled=false` suppresses GMBridge side effects (no gm.* markers, no confirms/encounters).
 
 Notes
 - The orchestrator runs scenarios in a pipeline by default; you can filter with `&scenarios=world,dungeon,combat` (or legacy `&smoke=`).

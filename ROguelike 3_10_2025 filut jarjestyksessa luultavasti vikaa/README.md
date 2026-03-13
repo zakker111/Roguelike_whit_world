@@ -306,11 +306,12 @@ CI and Validation
 - Smoketest (browser-run):
   - Auto-run: open /index.html?smoketest=1 to run the orchestrator runner.
   - Filter: &scenarios=world,dungeon,overlays (reduced set for CI); &smokecount=N for multi-run.
+  - Headless harness: add `&autorun=0` so a harness can call `window.SmokeTest.Run.runSeries(N)` itself.
   - Outputs:
     - PASS/FAIL tokens in DOM (#smoke-pass-token) and localStorage ('smoke-pass-token').
     - JSON report in DOM (#smoke-json-token) and localStorage ('smoke-json-token').
     - Download buttons in the GOD panel (Report JSON, Summary TXT, Checklist TXT).
-  - Tip: for headless CI, launch a headless browser (Playwright/Puppeteer) against the deployed URL with ?smoketest=1&scenarios=world,dungeon,overlays, wait for #smoke-pass-token, and download #smoke-json-token payload.
+  - Tip: for headless CI, use the built-in runner: `npm run acceptance:phase6` (Playwright Chromium).
 
 Roadmap (Upcoming Phases)
 - Phase 4 — Theming completeness and validation

@@ -117,8 +117,19 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   } catch (_) {}
 
   let gmHandled = false;
+  const modeBeforeGm = ctx.mode;
   try {
     gmHandled = !!GMBridge.maybeHandleWorldStep(ctx);
+  } catch (_) {}
+
+  // Phase 2: if GMBridge changed mode synchronously, apply exactly one sync boundary here.
+  try {
+    if (modeBeforeGm && ctx.mode !== modeBeforeGm) {
+      const GA = getMod(ctx, "GameAPI");
+      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+        GA.applyCtxSyncAndRefresh(ctx);
+      }
+    }
   } catch (_) {}
 
   // Encounter roll before advancing time (modules may switch mode)
@@ -196,12 +207,22 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
 
     const biome = "GRASS";
     let ok = false;
+    let synced = false;
 
-    // Preferred path: GameAPI (same as EncounterService uses)
+    // Prefer ctx-first entry via Modes (no ctx reacquire).
+    let applyCtxSyncAndRefresh = null;
     try {
       const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
-      if (GA && typeof GA.enterEncounter === "function") {
-        ok = !!GA.enterEncounter(template, biome, template.difficulty || 4);
+      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+        applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
+      }
+    } catch (_) {}
+
+    try {
+      const M = ctx.Modes || getMod(ctx, "Modes");
+      if (M && typeof M.enterEncounter === "function") {
+        ok = !!M.enterEncounter(ctx, template, biome, template.difficulty || 4, applyCtxSyncAndRefresh || undefined);
+        if (ok) synced = true;
       }
     } catch (_) {}
 
@@ -211,6 +232,15 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
         const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
         if (ER && typeof ER.enter === "function") {
           ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
+        }
+      } catch (_) {}
+    }
+
+    if (ok && !synced) {
+      try {
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          applyCtxSyncAndRefresh(ctx);
+          synced = true;
         }
       } catch (_) {}
     }
