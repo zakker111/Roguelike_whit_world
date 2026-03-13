@@ -582,8 +582,10 @@ Known issues / deferred (post-merge):
   - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
 - [ ] Large-file hotspots: plan to split safely (keep entrypoints stable)
   - Goal: keep most modules in the ~200–500 line range; allow a few thin “facade” files that mostly re-export.
-  - How to measure sizes (update snapshot below):
-    - `npm --workspace tiny-roguelike run analyze:phase1` (or `node scripts/analyze.js`)
+  - How to re-measure size snapshot (update section below):
+    - From repo root: `npm run analyze:phase1` (or `npm --workspace tiny-roguelike run analyze:phase1`)
+    - Or from the `tiny-roguelike` workspace folder: `node scripts/analyze.js`
+    - Update the “Snapshot date” + “Top offenders” list under “Size snapshot”.
   - Refactor guardrails (to avoid regressions):
     - Keep current import sites stable: big file becomes a facade that delegates to new modules.
     - Extract **pure helpers** first (no DOM, no ctx mutation) → easiest to move.
