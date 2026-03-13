@@ -5,7 +5,11 @@ v1.50.33 — Hotfix: Modes boot errors + repo hygiene
   - Prevents runtime errors like:
     - `ReferenceError: enterEncounter is not defined`
     - `SyntaxError: Identifier 'startRegionEncounter' has already been declared`
+- `core/modes/transitions.js` now falls back to ESM imports (`import * as Modes from "./modes.js"`) when `window.Modes` is unavailable.
 - Repo hygiene: removed a stray duplicate folder created by a name typo (`...vikoa/`).
+- Repo-root scripts: added `npm run analyze:phase1` / `npm run analyze:imports` wrappers (proxying into the workspace) so TODO instructions are runnable from repo root.
+- Docs/notes: updated `TODO.md` with a short “how to re-measure size snapshot” snippet (using `scripts/analyze.js`).
+- Minor cleanup: removed an unused variable in `core/modes/actions.js` (inn rest).
 
 v1.50.32 — GM: Survey Cache spawn gate + cooldown
 
