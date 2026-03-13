@@ -17,7 +17,11 @@
  * Notes:
  * - This module provides a stable facade so orchestrators can depend on it,
  *   while leaving the heavy logic in core/modes.js.
+ * - Prefer direct ESM imports, but keep window.Modes support for older callers.
  */
+
+import * as Modes from "./modes.js";
+import { attachGlobal } from "../../utils/global.js";
 
 function handle(name) {
   try {
@@ -25,7 +29,9 @@ function handle(name) {
       return window.Modes[name];
     }
   } catch (_) {}
-  return null;
+
+  const fn = Modes && typeof Modes[name] === "function" ? Modes[name] : null;
+  return fn || null;
 }
 
 export function enterTownIfOnTile(ctx, applyCtxSyncAndRefresh) {
@@ -83,7 +89,6 @@ export function returnToWorldIfAtExit(ctx) {
   return fn ? !!fn(ctx) : false;
 }
 
-import { attachGlobal } from "../../utils/global.js";
 // Back-compat: attach to window via helper
 attachGlobal("ModesTransitions", {
   enterTownIfOnTile,

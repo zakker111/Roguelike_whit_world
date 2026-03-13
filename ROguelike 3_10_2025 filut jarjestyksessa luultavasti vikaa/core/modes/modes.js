@@ -15,6 +15,7 @@
 
 import { getMod } from "../../utils/access.js";
 import { log as fallbackLog } from "../../utils/fallback.js";
+import { attachGlobal } from "../../utils/global.js";
 import { spawnInTown, spawnInDungeon } from "../followers_runtime.js";
 
 const NPC_RUMOR_COOLDOWN_TURNS = 300;
@@ -1393,7 +1394,6 @@ export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers)
   return false;
 }
 
-import { attachGlobal } from "../../utils/global.js";
 // Back-compat: attach to window via helper
 attachGlobal("Modes", {
   enterTownIfOnTile,

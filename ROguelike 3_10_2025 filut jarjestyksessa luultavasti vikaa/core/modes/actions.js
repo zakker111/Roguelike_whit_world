@@ -114,7 +114,6 @@ function restAtInn(ctx) {
       }
     }
   } catch (_) {}
-  const prev = ctx.player.hp;
   ctx.player.hp = ctx.player.maxHp;
   ctx.log(`You spend the night at the inn. You wake up fully rested at ${(ctx.time && ctx.time.hhmm) || "06:00"}.`, "good");
   if (typeof ctx.updateUI === "function") ctx.updateUI();
