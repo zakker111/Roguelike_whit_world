@@ -4,7 +4,17 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Gameplay / Features
 
-### GM Merge Readiness (v1.50.32)
+### GM Merge Readiness (v1.50.33)
+
+Recent fixes to verify before merge:
+- [ ] No boot-time JS errors (DevTools console)
+  - No `Uncaught SyntaxError: Identifier '...' has already been declared`
+  - No `ReferenceError: enterEncounter is not defined`
+- [ ] Modes transition sanity
+  - `Modes.enterEncounter` exists and works (no crash)
+  - `Modes.openRegionMap`, `Modes.startRegionEncounter`, `Modes.completeEncounter` exist exactly once (no duplicates)
+- [ ] Repo hygiene
+  - No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
 
 Implemented (ready in GM branch):
 - [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)

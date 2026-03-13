@@ -1,3 +1,12 @@
+v1.50.33 — Hotfix: Modes boot errors + repo hygiene
+
+- Fixed hard boot errors in `core/modes/modes.js` caused by corrupted/duplicated function declarations.
+  - Ensures `enterEncounter`, `openRegionMap`, `startRegionEncounter`, `completeEncounter` are defined once and exported.
+  - Prevents runtime errors like:
+    - `ReferenceError: enterEncounter is not defined`
+    - `SyntaxError: Identifier 'startRegionEncounter' has already been declared`
+- Repo hygiene: removed a stray duplicate folder created by a name typo (`...vikoa/`).
+
 v1.50.32 — GM: Survey Cache spawn gate + cooldown
 
 - Survey Cache (`gm.surveyCache`) markers are now spawned only when GM boredom is high enough.
