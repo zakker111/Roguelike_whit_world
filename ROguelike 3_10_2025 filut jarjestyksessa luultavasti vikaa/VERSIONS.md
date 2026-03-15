@@ -2971,7 +2971,7 @@ v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and 
   - Changed: When upstairs overlay is active, downstairs props within inn footprint are suppressed to avoid clutter; NPCs inside inn footprint are hidden while upstairs is shown.
   - Changed: Overlay-aware FOV and LOS: upstairs WALL tiles block vision; upstairs FLOOR/STAIRS are transparent. Walkability respects upstairs tiles when overlay is active (core/ctx.js, core/game.js).
   - Changed: Upstairs overlay floor fill covers only the inn interior and draws perimeter walls explicitly; sanitized legacy upstairs DOOR/WINDOW tiles to FLOOR on load (core/town_state.js).
-  - Added: Fresh session mode via URL query (?fresh=1, ?reset=1, ?nolocalstorage=1) disables localStorage and clears in-memory town states for consistent testing (core/game.js, core/town_state.js).
+  - Added: Fresh session mode via URL query (?fresh=1, ?reset=1, ?nolocalstorage=1) disables localStorage and clears in-memory town states for consistent testing (core/engine/session_boot.js, core/game.js, core/town/state.js).
 - Town runtime
   - Changed: tryMoveTown ignores downstairs NPC blocking inside inn footprint while upstairs overlay is active; shop interactions are skipped upstairs.
   - Fixed: Renderer context now includes tavern, innUpstairs, innUpstairsActive, innStairsGround so upstairs overlay draws correctly (core/render_orchestration.js).

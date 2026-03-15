@@ -45,6 +45,8 @@ import {
 import { createGodBridge } from "./game_god_bridge.js";
 import { buildGameAPIImpl } from "./game_api_bootstrap.js";
 import { godSeedAndRestart } from "./engine/game_god.js";
+import { applySessionBootFlagsFromUrl } from "./engine/session_boot.js";
+import { createGameCanvasRuntime } from "./engine/canvas_boot.js";
 import {
   initGameTime,
   getClock as gameTimeGetClock,
@@ -55,6 +57,7 @@ import {
 import { runTurn } from "./engine/game_turn.js";
 import { recomputeWithGuard as gameFovRecomputeWithGuard } from "./engine/game_fov.js";
 import { updateCamera as fovCameraUpdate } from "./engine/fov_camera.js";
+import { createInitialModeState } from "./engine/mode_state.js";
 import {
   tickTimeAndWeather,
   getMinutesPerTurn,
@@ -110,17 +113,7 @@ import "./sandbox/runtime.js";
   const { MAP_COLS, MAP_ROWS } = getWorldDefaults(CFG);
 
   // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
-  try {
-    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
-    const url = href ? new URL(href) : null;
-    const params = url ? url.searchParams : null;
-    const fresh = !!(params && (params.get("fresh") === "1" || params.get("reset") === "1" || params.get("nolocalstorage") === "1"));
-    if (fresh) {
-      try { if (typeof window !== "undefined") window.NO_LOCALSTORAGE = true; } catch (_) {}
-      try { if (typeof localStorage !== "undefined") localStorage.clear(); } catch (_) {}
-      try { if (typeof window !== "undefined") window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
-    }
-  } catch (_) {}
+  applySessionBootFlagsFromUrl();
 
   const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
@@ -129,32 +122,32 @@ import "./sandbox/runtime.js";
   initGameTime(CFG);
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
-  let mode = "world";
-  let world = null;          // { map, width, height, towns, dungeons }
-  // Region map overlay state (fixed-size downscaled world view)
-  let region = null;         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
-  let npcs = [];             // simple NPCs for town mode: { x, y, name, lines:[] }
-  let shops = [];            // shops in town mode: [{x,y,type,name}]
-  let townProps = [];        // interactive town props: [{x,y,type,name}]
-  let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
-  let townPlaza = null;      // central plaza coordinates {x,y}
-  let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
-  // Inn upstairs overlay state
-  let innUpstairs = null;    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
-  let innUpstairsActive = false;
-  let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
-  
-  
+  let {
+    mode,
+    world,          // { map, width, height, towns, dungeons }
+    // Region map overlay state (fixed-size downscaled world view)
+    region,         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
+    npcs,           // simple NPCs for town mode: { x, y, name, lines:[] }
+    shops,          // shops in town mode: [{x,y,type,name}]
+    townProps,      // interactive town props: [{x,y,type,name}]
+    townBuildings,  // town buildings: [{x,y,w,h,door:{x,y}}]
+    townPlaza,      // central plaza coordinates {x,y}
+    tavern,         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
+    // Inn upstairs overlay state
+    innUpstairs,    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
+    innUpstairsActive,
+    innStairsGround, // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
 
-  // World/town/dungeon transition anchors
-  let townExitAt = null;     // gate position inside town used to exit back to overworld
-  let worldReturnPos = null; // overworld position to return to after leaving town/dungeon
-  let dungeonExitAt = null;  // dungeon tile to return to overworld
-  let cameFromWorld = false; // whether we entered dungeon from overworld
-  let currentDungeon = null; // info for current dungeon entrance: { x,y, level, size }
-  // Multi-floor tower runtime state (managed by DungeonRuntime).
-  // Stored here so it survives across getCtx() calls.
-  let towerRun = null;
+    // World/town/dungeon transition anchors
+    townExitAt,     // gate position inside town used to exit back to overworld
+    worldReturnPos, // overworld position to return to after leaving town/dungeon
+    dungeonExitAt,  // dungeon tile to return to overworld
+    cameFromWorld,  // whether we entered dungeon from overworld
+    currentDungeon, // info for current dungeon entrance: { x,y, level, size }
+    // Multi-floor tower runtime state (managed by DungeonRuntime).
+    // Stored here so it survives across getCtx() calls.
+    towerRun,
+  } = createInitialModeState();
   // Persist dungeon states by overworld entrance coordinate "x,y"
   const dungeonStates = Object.create(null);
 
@@ -169,20 +162,14 @@ import "./sandbox/runtime.js";
   }
 
   
-  const camera = {
-    x: 0,
-    y: 0,
-    width: COLS * TILE,
-    height: ROWS * TILE,
-  };
+  const { canvas, ctx, camera } = createGameCanvasRuntime({ COLS, ROWS, TILE });
 
   
   const TILES = TILES_CONST;
   const COLORS = getColorsConst();
 
   
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+  
 
   
   let map = [];
@@ -1293,7 +1280,8 @@ import "./sandbox/runtime.js";
       godSpawnEnemyNearby,
       godSpawnEnemyById,
       godSpawnItems,
- getClock,
+      generateLoot,
+      getClock,
       log,
       applyCtxSyncAndRefresh,
       enterSandboxRoom: () => enterSandboxRoom(),
