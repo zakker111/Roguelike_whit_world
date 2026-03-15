@@ -47,6 +47,23 @@ And convert the old file into a stable compatibility shim:
 core/bridge/gm_bridge.js    # re-export from gm_bridge/index.js ONLY
 ```
 
+Example shim implementation:
+
+```js
+// core/bridge/gm_bridge.js
+export {
+  maybeHandleWorldStep,
+  handleMarkerAction,
+  onEncounterComplete,
+  useInventoryItem,
+  maybeAwardBottleMapFromFishing,
+  onWorldScanRect,
+  onWorldScanTile,
+  ensureGuaranteedSurveyCache,
+  reconcileMarkers,
+} from "./gm_bridge/index.js";
+```
+
 ### Why this split works in this repo
 - `core/world/move.js` imports `../bridge/gm_bridge.js` directly. Keeping this file as the stable “entry” avoids touching high-risk movement code.
 - GMBridge is already conceptually split in the file by responsibility (scan hooks, world-step hooks, markers, inventory, encounter completion), so the separation matches existing boundaries.
@@ -68,7 +85,6 @@ Owns:
 
 Notes:
 - Must keep the “single sync boundary” rule respected (GMBridge itself calls `applySyncAfterGmTransition(ctx)` in some flows, and movement applies it if mode changed).
-- Must keep the “template readiness” gate (`hasEncounterTemplate`) for travel encounter intents.
 
 ### `markers.js`
 Owns:
