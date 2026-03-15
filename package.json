@@ -5,9 +5,9 @@
     "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa"
   ],
   "scripts": {
+    "ci": "npm --workspace tiny-roguelike run ci",
     "lint:strict": "npm --workspace tiny-roguelike run lint:strict",
     "build": "npm --workspace tiny-roguelike run build",
-    "ci": "npm --workspace tiny-roguelike run ci",
     "acceptance:phase6": "npm --workspace tiny-roguelike run acceptance:phase6",
     "acceptance:phase0": "npm --workspace tiny-roguelike run acceptance:phase0",
     "analyze:phase1": "npm --workspace tiny-roguelike run analyze:phase1",

@@ -1,5 +1,5 @@
 import { getMod } from "../../../utils/access.js";
-import { isGmEnabled, applySyncAfterGmTransition } from "./shared.js";
+import { isGmEnabled, applySyncAfterGmTransition, hasEncounterTemplate } from "./shared.js";
 import { startGmFactionEncounter } from "../gm_bridge_effects.js";
 import { reconcileMarkers } from "./bottle_map.js";
 
@@ -30,6 +30,12 @@ export function maybeHandleWorldStep(ctx) {
     if (intent.kind === "encounter") {
       const encId = intent.encounterId || intent.id || null;
       if (!encId) return false;
+
+      // No fallbacks: if the specific encounter template isn't loaded yet, defer cleanly.
+      if (!hasEncounterTemplate(ctx, encId)) {
+        try { if (typeof ctx.log === "function") ctx.log(`[GM] Travel encounter template '${String(encId)}' not ready yet; try again in a moment.`, "info"); } catch (_) {}
+        return false;
+      }
 
       const UIO = getMod(ctx, "UIOrchestration");
       if (!UIO || typeof UIO.showConfirm !== "function") {
@@ -96,7 +102,7 @@ function handleGuardFineTravelEvent(ctx, GM) {
     if (!GM || typeof GM.onEvent !== "function") return false;
 
     const inv = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : (ctx.player.inventory = []);
-    let goldObj = inv.find(it => it && String(it.kind || it.type || "").toLowerCase() === "gold");
+    let goldObj = inv.find((it) => it && String(it.kind || it.type || "").toLowerCase() === "gold");
     if (!goldObj) {
       goldObj = { kind: "gold", amount: 0, name: "gold" };
       inv.push(goldObj);
