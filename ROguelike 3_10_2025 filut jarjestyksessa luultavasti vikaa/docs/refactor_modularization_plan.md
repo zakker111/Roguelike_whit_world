@@ -51,16 +51,21 @@ In this repo, the biggest structural pressures come from:
      - `npm run acceptance:phase6`
      - `npm run acceptance:phase0`
 
-## Decisions required (choose one per row)
+## Decisions (locked so far)
 
-These choices affect how aggressive the refactor can be.
+These choices constrain the refactor approach.
+
+- **Module style:** keep current “globals + ctx” hybrid (Option A)
+- **Language:** keep JavaScript (Option A)
+- **Import paths:** keep absolute imports (`/core/...`) (Option A)
+
+### Still to choose
 
 | Decision | Option A | Option B | Option C |
 |---|---|---|---|
-| Module style | Keep current "globals + ctx" hybrid | Move toward "ctx-only" (globals only as dev facade) | Full DI container (explicit service registry)
-| Import paths | Keep absolute imports (`/core/...`) | Migrate to relative imports | Use Vite alias + base-safe paths
-| Language | JavaScript | Add JSDoc types + `@ts-check` | Migrate to TypeScript
-| Compatibility target | Works when served from repo root only | Must work under subpath hosting | Must work both in bundler and no-bundler modes
+| Compatibility target | Works when served from repo root only | Must work under subpath hosting | Must work both in bundler and no-bundler modes |
+
+**Important implication of Import paths = A:** serving under a subpath will keep being fragile unless we later change import strategy (relative imports or base-aware aliasing).
 
 ## Workstreams (recommended order)
 
