@@ -51,21 +51,19 @@ In this repo, the biggest structural pressures come from:
      - `npm run acceptance:phase6`
      - `npm run acceptance:phase0`
 
-## Decisions (locked so far)
+## Decisions / constraints (locked)
 
-These choices constrain the refactor approach.
+These constraints define the refactor approach.
 
-- **Module style:** keep current “globals + ctx” hybrid (Option A)
-- **Language:** keep JavaScript (Option A)
-- **Import paths:** keep absolute imports (`/core/...`) (Option A)
+- **Module style:** keep current “globals + ctx” hybrid
+- **Language:** JavaScript (no TS migration)
+- **Import paths:** keep absolute imports (`/core/...`)
 
-### Still to choose
+### Compatibility / hosting
+There is **no additional compatibility target** for this refactor effort.
 
-| Decision | Option A | Option B | Option C |
-|---|---|---|---|
-| Compatibility target | Works when served from repo root only | Must work under subpath hosting | Must work both in bundler and no-bundler modes |
-
-**Important implication of Import paths = A:** serving under a subpath will keep being fragile unless we later change import strategy (relative imports or base-aware aliasing).
+- We will **not** change hosting assumptions or import strategy as part of modularization.
+- Subpath hosting support remains a **separate** future project (it conflicts with “absolute import paths”).
 
 ## Workstreams (recommended order)
 
