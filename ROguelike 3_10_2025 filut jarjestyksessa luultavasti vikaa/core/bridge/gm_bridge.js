@@ -67,6 +67,19 @@ function areEncounterTemplatesReady(ctx) {
   }
 }
 
+function hasEncounterTemplate(ctx, id) {
+  try {
+    const want = String(id || "").trim().toLowerCase();
+    if (!want) return false;
+    const GD = getGameData(ctx);
+    const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
+    if (!reg || !reg.length) return false;
+    return !!reg.find((t) => t && String(t.id || "").toLowerCase() === want);
+  } catch (_) {
+    return false;
+  }
+}
+
 function removeSurveyCacheMarker(ctx, MS, { instanceId, absX, absY } = {}) {
   if (!MS || typeof MS.remove !== "function") return 0;
 
@@ -195,6 +208,11 @@ export function maybeHandleWorldStep(ctx) {
     if (intent.kind === "encounter") {
       const encId = intent.encounterId || intent.id || null;
       if (!encId) return false;
+
+      // No fallbacks: if the specific template isn't loaded yet, defer.
+      if (!hasEncounterTemplate(ctx, encId)) {
+        return false;
+      }
 
       const UIO = getMod(ctx, "UIOrchestration");
       if (!UIO || typeof UIO.showConfirm !== "function") {
@@ -362,6 +380,12 @@ function handleSurveyCacheMarker(ctx, marker) {
         return true;
       }
     } catch (_) {}
+
+    // No fallbacks: if the specific encounter template isn't loaded yet, defer cleanly.
+    if (!hasEncounterTemplate(ctx, "gm_survey_cache_scene")) {
+      try { if (typeof ctx.log === "function") ctx.log("[GM] Survey Cache encounter template not ready yet; try again in a moment.", "info"); } catch (_) {}
+      return true;
+    }
 
     const UIO = getMod(ctx, "UIOrchestration");
     if (!UIO || typeof UIO.showConfirm !== "function") {
@@ -589,6 +613,12 @@ function handleBottleMapMarker(ctx, marker) {
     } else {
       // GMRuntime does not expose bottle-map reconciliation; do not attempt legacy bridge-owned behavior.
       try { if (typeof ctx.log === "function") ctx.log("[GM] Bottle Map runtime not available; cannot use this marker.", "warn"); } catch (_) {}
+      return true;
+    }
+
+    // No fallbacks: if the specific encounter template isn't loaded yet, defer cleanly.
+    if (!hasEncounterTemplate(ctx, "gm_bottle_map_scene")) {
+      try { if (typeof ctx.log === "function") ctx.log("[GM] Bottle Map encounter template not ready yet; try again in a moment.", "info"); } catch (_) {}
       return true;
     }
 

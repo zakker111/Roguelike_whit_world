@@ -98,7 +98,8 @@ async function main() {
   base.searchParams.set('dev', '1');
   base.searchParams.set('scenarios', PHASE6_SCENARIOS);
   base.searchParams.set('smokecount', '3');
-  base.searchParams.set('skipokafter', '1');
+  // Run all scenarios on every run; Phase 6 acceptance is specifically looking for flakiness across runs.
+  base.searchParams.set('skipokafter', '0');
   // Prevent auto-run so we can call runSeries() and capture the multi-run summary object.
   base.searchParams.set('autorun', '0');
 
