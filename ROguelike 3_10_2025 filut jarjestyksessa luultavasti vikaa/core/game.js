@@ -47,6 +47,8 @@ import { buildGameAPIImpl } from "./game_api_bootstrap.js";
 import { godSeedAndRestart } from "./engine/game_god.js";
 import { applySessionBootFlagsFromUrl } from "./engine/session_boot.js";
 import { createGameCanvasRuntime } from "./engine/canvas_boot.js";
+import { createInitialPlayer } from "./engine/player_boot.js";
+import { initRngRuntime } from "./engine/rng_boot.js";
 import {
   initGameTime,
   getClock as gameTimeGetClock,
@@ -67,7 +69,7 @@ import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerf
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
-import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
+import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
 import {
   getPlayerAttack as combatGetPlayerAttack,
   getPlayerDefense as combatGetPlayerDefense,
@@ -175,9 +177,7 @@ import "./sandbox/runtime.js";
   let map = [];
   let seen = [];
   let visible = [];
-  let player = ((typeof window !== "undefined" && window.Player && typeof window.Player.createInitial === "function")
-    ? window.Player.createInitial()
-    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } });
+  let player = createInitialPlayer();
   let enemies = [];
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
@@ -195,19 +195,10 @@ import "./sandbox/runtime.js";
   
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
-  let currentSeed = null;
-  try {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
-      currentSeed = window.RNG.autoInit();
-    } else {
-      // If RNG service is unavailable, try to read persisted seed for diagnostics only
-      const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
-      const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
-      currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-    }
-  } catch (_) { currentSeed = null; }
-  // Single RNG function via RNG facade; deterministic (0.5) if RNG is unavailable
-  let rng = rngGetRng();
+  const rngRuntime = initRngRuntime();
+  const currentSeed = rngRuntime.currentSeed;
+  let rng = rngRuntime.rng;
+  void currentSeed;
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
