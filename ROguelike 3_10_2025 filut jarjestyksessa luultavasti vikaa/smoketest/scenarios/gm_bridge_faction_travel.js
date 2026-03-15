@@ -358,10 +358,45 @@
             if (r3) restores.push(r3);
           }
 
+          const getSchedulerActionStatus = (actionId) => {
+            try {
+              const c = has(G.getCtx) ? G.getCtx() : null;
+              const st = (GM && typeof GM.getState === "function") ? GM.getState(c) : null;
+              const a = st && st.scheduler && st.scheduler.actions && st.scheduler.actions[actionId] ? st.scheduler.actions[actionId] : null;
+              return a && typeof a.status === "string" ? a.status : null;
+            } catch (_) {
+              return null;
+            }
+          };
+
           // Force the encounter intent, then deliver it through a real world step.
           let forced2 = null;
           try { forced2 = GM.forceFactionTravelEvent(G.getCtx(), intent); } catch (_) { forced2 = null; }
           record(!!forced2, `GMRuntime.forceFactionTravelEvent returns an intent (${intent})`);
+
+          // Phase 6 regression gate: if encounter templates are temporarily unavailable,
+          // the forced travel encounter should *not* be consumed/lost; it should deliver once templates return.
+          const actionId = intent === "gm_bandit_bounty" ? "fe:banditBounty" : intent === "gm_troll_hunt" ? "fe:trollHunt" : null;
+          if (actionId) {
+            const s0 = getSchedulerActionStatus(actionId);
+            record(s0 === "scheduled" || s0 === "consumed", `Scheduler action present after force (${intent}) (status=${s0})`);
+
+            // Temporarily hide templates to simulate "not ready"; ensure we don't deliver nor consume.
+            let restored = false;
+            const GD = (typeof window !== "undefined") ? window.GameData : null;
+            const hadReg = !!(GD && GD.encounters && Array.isArray(GD.encounters.templates));
+            const origReg = hadReg ? GD.encounters.templates : null;
+            try {
+              if (hadReg) GD.encounters.templates = [];
+              const resMissing = await deliverTravelEventViaMoveStep(`travel encounter ${intent} (templates missing)`, 600, confirmProbe);
+              const s1 = getSchedulerActionStatus(actionId);
+              record(!resMissing.delivered, `No delivery while templates missing (${intent})`);
+              record(s1 === "scheduled", `Scheduler not consumed while templates missing (${intent}) (status=${s1})`);
+            } finally {
+              try { if (hadReg) { GD.encounters.templates = origReg; restored = true; } } catch (_) {}
+            }
+            record(restored || !hadReg, `Encounter templates registry restored after deferral check (${intent})`);
+          }
 
           const res = await deliverTravelEventViaMoveStep(`travel encounter ${intent}`, 2000, confirmProbe);
           worldStepCtx = res.worldStepCtx;

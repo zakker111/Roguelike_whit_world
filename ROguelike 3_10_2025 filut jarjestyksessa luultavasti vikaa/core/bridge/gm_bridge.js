@@ -57,16 +57,6 @@ function applySyncAfterGmTransition(ctx) {
   return false;
 }
 
-function areEncounterTemplatesReady(ctx) {
-  try {
-    const GD = getGameData(ctx);
-    const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
-    return !!(reg && reg.length);
-  } catch (_) {
-    return false;
-  }
-}
-
 function hasEncounterTemplate(ctx, id) {
   try {
     const want = String(id || "").trim().toLowerCase();
@@ -190,9 +180,7 @@ export function maybeHandleWorldStep(ctx) {
   // This is a cheap integrity pass (no RNG consumption).
   try { reconcileMarkers(ctx); } catch (_) {}
 
-  // No fallbacks: do not consume travel intents until encounter templates are loaded.
-  // (Otherwise we could consume an intent that cannot start.)
-  if (!areEncounterTemplatesReady(ctx)) return false;
+  
 
   try {
     const GM = getMod(ctx, "GMRuntime");
@@ -209,10 +197,7 @@ export function maybeHandleWorldStep(ctx) {
       const encId = intent.encounterId || intent.id || null;
       if (!encId) return false;
 
-      // No fallbacks: if the specific template isn't loaded yet, defer.
-      if (!hasEncounterTemplate(ctx, encId)) {
-        return false;
-      }
+      
 
       const UIO = getMod(ctx, "UIOrchestration");
       if (!UIO || typeof UIO.showConfirm !== "function") {
