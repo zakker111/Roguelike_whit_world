@@ -8,6 +8,11 @@ Completed work that should be considered “baseline” going forward:
   - Back-compat entrypoint preserved: `core/bridge/gm_bridge.js`
   - `window.GMBridge` attach happens in `core/bridge/gm_bridge/index.js`
 
+- **UIOrchestration modularization (Slice A)**
+  - Implementation lives in `core/bridge/ui_orchestration/*`
+  - Back-compat entrypoint preserved: `core/bridge/ui_orchestration.js`
+  - `window.UIOrchestration` attach happens in `core/bridge/ui_orchestration/index.js`
+
 - **Incremental `core/game.js` shrink (low risk)**
   - Extracted player creation into `core/engine/player_boot.js`
   - Extracted RNG init/seed read into `core/engine/rng_boot.js`
@@ -22,7 +27,7 @@ Completed work that should be considered “baseline” going forward:
 
 ## Next planned tasks (recommended order)
 
-### 1) Confirm quality gates are green
+### 1) Keep quality gates green
 Run the exact gates locally (or rely on CI for the authoritative signal):
 
 ```bash
@@ -37,26 +42,27 @@ Acceptance criteria:
 - No bundling/runtime import errors
 - Phase 6 + Phase 0 scenarios pass
 
-### 2) Lock down post-split invariants for GMBridge
+### 2) Lock down post-split invariants (GMBridge + UIOrchestration)
 Small hygiene items to prevent regressions:
 
-- **Import rule:** from outside `core/bridge/gm_bridge/*`, only import `core/bridge/gm_bridge.js`.
-- Ensure `window.GMBridge` is attached exactly once (only from `core/bridge/gm_bridge/index.js`).
+- **Import rule (GMBridge):** from outside `core/bridge/gm_bridge/*`, only import `core/bridge/gm_bridge.js`.
+- **Import rule (UIOrchestration):** from outside `core/bridge/ui_orchestration/*`, only import `core/bridge/ui_orchestration.js`.
+- Ensure each global attach occurs exactly once:
+  - `window.GMBridge` from `core/bridge/gm_bridge/index.js`
+  - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
 
-### 3) If CI fails: fix the failure with the smallest behavior-preserving change
-Common failure buckets to check first:
-- Playwright missing browser deps in CI (should be solved by `npx playwright install --with-deps chromium`)
-- Accidental double-sync on mode transition (Phase 6 is sensitive to this)
-- Missing export in the GMBridge shim (call sites expect named exports)
+### 3) Next slice choice
+Pick exactly one “next slice” (recommended order):
 
-### 4) Choose the next modularization slice
-After gates are green, pick exactly one “next slice”:
+- **A. UIBridge cleanup**: split `core/bridge/ui_bridge.js` (it contains large DOM-heavy panels like Sleep).
+- **B. Boot/load order cleanup**: reduce `src/main.js` import manifest by grouping into domain boot modules.
+- **C. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
 
-- **A. UI Bridge cleanup**: split `core/bridge/ui_orchestration.js` into focused submodules.
-- **B. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
-- **C. Boot/load order cleanup**: reduce `src/main.js` import manifest by grouping into domain boot modules.
+Recommended default if no preference: **A (UIBridge cleanup)**.
 
-Recommended default if no preference: **A (UI Bridge cleanup)**.
+### 4) Optional repo hygiene: add a lockfile
+If you want fully deterministic CI installs and faster caches:
+- commit a `package-lock.json` and switch CI back to `npm ci`
 
 ## Notes / constraints
 - This plan assumes we keep the current module style (**globals + ctx hybrid**) and do not change hosting/import strategy.
