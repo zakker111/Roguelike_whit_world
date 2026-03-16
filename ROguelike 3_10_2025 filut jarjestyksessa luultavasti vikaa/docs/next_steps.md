@@ -81,14 +81,29 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): folder barrels (Workstream 1.3)
-Now that the main `core/game.js` shrink slices are in place, the next low-risk cleanup is to reduce import noise by adding folder "barrel" modules.
+### 3) Folder barrels (Workstream 1.3)
+Status: **completed**
 
-Proposed:
-- Add `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
-- Rule: barrels export stable public surfaces only
+- Barrels are available:
+  - `core/engine/index.js`
+  - `core/bridge/index.js`
+  - `services/index.js`
+- Reference:
+  - `docs/folder_barrels.md`
 
-### 4) Optional repo hygiene: add a lockfile
+### 4) Next recommended task: adopt barrels + prevent regressions
+Pick one (or both):
+
+- **A) Adopt barrels in additional call sites (low risk, gradual)**
+  - Convert high-churn files to import from barrels (start with `core/*` and `src/boot/*`).
+  - Avoid touching modules that are known to be cycle-prone until later.
+
+- **B) Add a guardrail lint rule (medium risk, optional)**
+  - Add ESLint `no-restricted-imports` rules that enforce stable entrypoints:
+    - disallow deep imports into `core/bridge/gm_bridge/*`, `core/bridge/ui_bridge/*`, `core/bridge/ui_orchestration/*`
+    - optionally disallow direct imports of `core/engine/game_*_ops.js` outside `core/game.js` (keep helpers internal)
+
+### 5) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
 - commit a `package-lock.json`
 - switch CI to `npm ci`
