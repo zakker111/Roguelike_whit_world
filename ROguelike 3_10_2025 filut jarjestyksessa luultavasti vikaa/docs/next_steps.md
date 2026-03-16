@@ -28,6 +28,8 @@ Completed work that should be considered “baseline” going forward:
   - Extracted combat + inventory wrapper boilerplate into:
     - `core/engine/game_combat_ops.js`
     - `core/engine/game_inventory_ops.js`
+  - Extracted bounds + walkability policy into:
+    - `core/engine/game_map_ops.js`
 
 - **CI quality gates**
   - `.github/workflows/lint.yml` runs:
@@ -70,18 +72,16 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): extract bounds/walkability helpers
-`core/game.js` still contains substantial “map policy” logic (walkability, bounds, overlays).
+### 3) Next slice (recommended): extract render + draw scheduling helpers
+`core/game.js` still contains a block of “render driver plumbing” (render ctx assembly, draw batching, suppress-draw gating).
 
 Proposed low-risk slice:
-1. Create `core/engine/game_map_ops.js` exporting `createMapOps(getCtx)`.
-2. Move wrappers/policy helpers into it (keeping behavior identical):
-   - `inBounds(x,y)`
-   - `isWalkable(x,y)` (including inn-upstairs overlay logic)
-   - any tiny helpers those depend on (e.g. overlay tile accessors)
-3. In `core/game.js`, instantiate `const mapOps = createMapOps(getCtx);` and destructure `inBounds`/`isWalkable`.
-4. Ensure ctx base continues to expose `inBounds` + `isWalkable` (same names).
-5. Static QA: search for stale wrapper symbols and verify no external modules import `core/engine/game_map_ops.js`.
+1. Create `core/engine/game_render_ops.js` exporting `createRenderOps(getCtx)`.
+2. Move helpers into it (behavior-identical):
+   - `getRenderCtx()`
+   - `requestDraw()` (including batching/suppress logic)
+3. In `core/game.js`, instantiate once and delegate (keep ctx surface unchanged).
+4. Static QA: confirm no extra draws per turn (perf overlay) and no missing HUD refresh.
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
