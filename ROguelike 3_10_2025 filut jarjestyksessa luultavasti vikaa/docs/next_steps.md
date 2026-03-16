@@ -81,19 +81,12 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): core/game.js shrink — World Ops (Slice J)
-`core/game.js` still contains a couple of thin world wrappers that are ideal for extraction:
+### 3) Next slice (recommended): folder barrels (Workstream 1.3)
+Now that the main `core/game.js` shrink slices are in place, the next low-risk cleanup is to reduce import noise by adding folder "barrel" modules.
 
-- `initWorld()` (WorldRuntime.generate + refresh)
-- `startEscortAutoTravel()` (WorldRuntime.startEscortAutoTravel)
-
-Proposed low-risk slice:
-1. Create `core/engine/game_world_ops.js` exporting `createWorldOps({ getCtx, applyCtxSyncAndRefresh, modHandle, MAP_COLS, MAP_ROWS })`.
-2. Move wrappers into it (behavior-identical).
-3. In `core/game.js`, instantiate once and delegate (keep ctx/GameAPI surface unchanged).
-
-Reference doc:
-- `docs/game_js_shrink_slice_world_ops.md`
+Proposed:
+- Add `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
+- Rule: barrels export stable public surfaces only
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:

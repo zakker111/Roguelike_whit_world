@@ -74,6 +74,7 @@ import { createGameMapOps } from "./engine/game_map_ops.js";
 import { createGameRenderOps } from "./engine/game_render_ops.js";
 import { createGameTimeOps } from "./engine/game_time_ops.js";
 import { createGameShopOps } from "./engine/game_shop_ops.js";
+import { createGameWorldOps } from "./engine/game_world_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -370,6 +371,13 @@ import "./sandbox/runtime.js";
   });
 
   const shopOps = createGameShopOps({ getCtx, modHandle });
+  const worldOps = createGameWorldOps({
+    getCtx,
+    applyCtxSyncAndRefresh,
+    modHandle,
+    MAP_COLS,
+    MAP_ROWS,
+  });
 
   // RNG helpers via facade
 
@@ -474,18 +482,7 @@ import "./sandbox/runtime.js";
   
 
   function initWorld() {
-    // WorldRuntime is required for overworld generation; fail fast if missing
-    const WR = modHandle("WorldRuntime");
-    if (!WR || typeof WR.generate !== "function") {
-      throw new Error("WorldRuntime.generate missing; overworld generation cannot proceed");
-    }
-    const ctx = getCtx();
-    const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    if (!ok) {
-      throw new Error("WorldRuntime.generate returned falsy; overworld generation failed");
-    }
-    // Sync back mutated state and refresh camera/FOV/UI/draw via centralized helper
-    applyCtxSyncAndRefresh(ctx);
+    worldOps.initWorld();
   }
 
   // Enter a small sandbox dungeon-style room for focused testing (no persistence).
@@ -602,14 +599,7 @@ import "./sandbox/runtime.js";
    * WorldRuntime or a dedicated world/escort helper.
    */
   function startEscortAutoTravel() {
-    try {
-      const ctx = getCtx();
-      if (!ctx || !ctx.world) return;
-      const WR = modHandle("WorldRuntime");
-      if (WR && typeof WR.startEscortAutoTravel === "function") {
-        WR.startEscortAutoTravel(ctx);
-      }
-    } catch (_) {}
+    worldOps.startEscortAutoTravel();
   }
 
   
