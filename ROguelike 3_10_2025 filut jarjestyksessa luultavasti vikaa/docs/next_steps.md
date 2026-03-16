@@ -13,6 +13,11 @@ Completed work that should be considered “baseline” going forward:
   - Back-compat entrypoint preserved: `core/bridge/ui_orchestration.js`
   - `window.UIOrchestration` attach happens in `core/bridge/ui_orchestration/index.js`
 
+- **UIBridge modularization (Slice B)**
+  - Implementation lives in `core/bridge/ui_bridge/*`
+  - Back-compat entrypoint preserved: `core/bridge/ui_bridge.js`
+  - `window.UIBridge` attach happens in `core/bridge/ui_bridge/index.js`
+
 - **Incremental `core/game.js` shrink (low risk)**
   - Extracted player creation into `core/engine/player_boot.js`
   - Extracted RNG init/seed read into `core/engine/rng_boot.js`
@@ -42,23 +47,24 @@ Acceptance criteria:
 - No bundling/runtime import errors
 - Phase 6 + Phase 0 scenarios pass
 
-### 2) Lock down post-split invariants (GMBridge + UIOrchestration)
+### 2) Lock down post-split invariants (GMBridge + UIOrchestration + UIBridge)
 Small hygiene items to prevent regressions:
 
 - **Import rule (GMBridge):** from outside `core/bridge/gm_bridge/*`, only import `core/bridge/gm_bridge.js`.
 - **Import rule (UIOrchestration):** from outside `core/bridge/ui_orchestration/*`, only import `core/bridge/ui_orchestration.js`.
+- **Import rule (UIBridge):** from outside `core/bridge/ui_bridge/*`, only import `core/bridge/ui_bridge.js`.
 - Ensure each global attach occurs exactly once:
   - `window.GMBridge` from `core/bridge/gm_bridge/index.js`
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
+  - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
 ### 3) Next slice choice
 Pick exactly one “next slice” (recommended order):
 
-- **A. UIBridge cleanup**: split `core/bridge/ui_bridge.js` (it contains large DOM-heavy panels like Sleep).
-- **B. Boot/load order cleanup**: reduce `src/main.js` import manifest by grouping into domain boot modules.
-- **C. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
+- **A. Boot/load order cleanup**: reduce `src/main.js` import manifest by grouping into domain boot modules.
+- **B. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
 
-Recommended default if no preference: **A (UIBridge cleanup)**.
+Recommended default if no preference: **A (Boot/load order cleanup)**.
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
