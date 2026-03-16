@@ -16,7 +16,7 @@
  * - Failure: you fail to pick the lock this attempt; lockpick tool wears a bit more.
  */
 
-import { awardTownChestLoot } from "/services/town_chest_loot.js";
+import { awardTownChestLoot } from "/services/index.js";
 import { attachGlobal } from "/utils/global.js";
 
 let _overlay = null;

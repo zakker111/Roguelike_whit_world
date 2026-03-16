@@ -14,7 +14,7 @@ Recent fixes to verify before merge:
   - `Modes.enterEncounter` exists and works (no crash)
   - `Modes.openRegionMap`, `Modes.startRegionEncounter`, `Modes.completeEncounter` exist exactly once (no duplicates)
 - [ ] Repo hygiene
-  - No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
+  - [x] No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
 
 Implemented (ready in GM branch):
 - [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)

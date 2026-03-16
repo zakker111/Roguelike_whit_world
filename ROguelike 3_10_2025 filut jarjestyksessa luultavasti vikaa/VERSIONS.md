@@ -1,9 +1,10 @@
-v1.50.36 — Hotfix: restore missing Shop ops import
+v1.50.40 — Adopt barrels in low-risk modules
 
-- Fixed a runtime boot error: `ReferenceError: createGameShopOps is not defined`.
-- `core/game.js` now imports `createGameShopOps` from `core/engine/game_shop_ops.js`.
-
----
+- Barrel adoption (services):
+  - `ui/components/lockpick_modal.js` now imports `awardTownChestLoot` from `/services/index.js`.
+  - `worldgen/town_gen.js` and `worldgen/town/shops_core.js` now import `parseHHMM` from `services/index.js`.
+- Kept GMBridge import policy intact in world runtime (no `core/bridge/index.js` usage from world modules).
+- Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`).
 
 v1.50.39 — Adopt barrels in boot manifests
 
@@ -24,6 +25,13 @@ v1.50.37 — core/game.js shrink: World ops extraction
   - `initWorld()` (WorldRuntime.generate + refresh)
   - `startEscortAutoTravel()` (delegates to WorldRuntime)
 - `core/game.js` now delegates world wrappers to `worldOps`.
+
+v1.50.36 — Hotfix: restore missing Shop ops import
+
+- Fixed a runtime boot error: `ReferenceError: createGameShopOps is not defined`.
+- `core/game.js` now imports `createGameShopOps` from `core/engine/game_shop_ops.js`.
+
+---
 
 v1.50.35 — core/game.js shrink: Time ops extraction
 
