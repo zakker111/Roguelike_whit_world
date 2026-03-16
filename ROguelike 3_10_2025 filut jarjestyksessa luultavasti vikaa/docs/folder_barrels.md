@@ -2,7 +2,28 @@
 
 This repo uses ES modules and has several “entrypoint” files that are meant to be stable (e.g. `core/bridge/gm_bridge.js`), plus many internal modules.
 
-A **folder barrel** is an `index.js` file that re-exports a curated set of modules from a directory, so callers can import from one stable location.
+A **folder barrel** is an `index.js` file that **re-exports** a curated set of modules from a directory.
+
+## What “barrel” means in practice
+Instead of importing a bunch of files one-by-one, you import from the folder’s `index.js`:
+
+- Without barrel (many imports):
+  - `import '/services/time_service.js';`
+  - `import '/services/weather_service.js';`
+  - `import '/services/shop_service.js';`
+
+- With barrel (one import):
+  - `import '/services/index.js';`
+
+The barrel file contains exports like:
+```js
+export * from './time_service.js';
+export * from './weather_service.js';
+export * from './shop_service.js';
+```
+
+### Important note
+In a “boot manifest” context (files under `src/boot/*`), we’re using barrels mainly as an **import aggregator** (one import that pulls in a known set of side-effect modules). In feature modules, barrels are usually used to import **named exports**.
 
 ## Goals
 - Reduce import noise (fewer long import lists and fewer deep paths).
