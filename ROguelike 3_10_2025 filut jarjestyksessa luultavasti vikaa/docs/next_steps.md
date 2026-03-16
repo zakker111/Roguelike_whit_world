@@ -18,6 +18,10 @@ Completed work that should be considered “baseline” going forward:
   - Back-compat entrypoint preserved: `core/bridge/ui_bridge.js`
   - `window.UIBridge` attach happens in `core/bridge/ui_bridge/index.js`
 
+- **Boot / load-order cleanup (Slice C)**
+  - `src/main.js` now imports grouped boot manifests under `src/boot/*`
+  - Module evaluation order preserved (boot manifests contain imports only)
+
 - **Incremental `core/game.js` shrink (low risk)**
   - Extracted player creation into `core/engine/player_boot.js`
   - Extracted RNG init/seed read into `core/engine/rng_boot.js`
@@ -61,10 +65,10 @@ Small hygiene items to prevent regressions:
 ### 3) Next slice choice
 Pick exactly one “next slice” (recommended order):
 
-- **A. Boot/load order cleanup**: reduce `src/main.js` import manifest by grouping into domain boot modules.
-- **B. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
+- **A. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
+- **B. UI-level modularization**: if any UI modules remain huge (e.g. `ui/ui.js`), pick a thin refactor slice.
 
-Recommended default if no preference: **A (Boot/load order cleanup)**.
+Recommended default if no preference: **A (shrink `core/game.js`)**.
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
