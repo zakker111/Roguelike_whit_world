@@ -1,5 +1,8 @@
 # Next Engineering Steps
 
+For the day-to-day workflow for making changes in small, manageable phases (“slices”), see:
+- `docs/phase_workflow.md`
+
 ## Where we are now
 Completed work that should be considered “baseline” going forward:
 
@@ -54,6 +57,10 @@ Completed work that should be considered “baseline” going forward:
     - `npm run acceptance:phase0`
 
 ## Next planned tasks (recommended order)
+
+Work policy going forward:
+- Keep work in **small slices** (one boundary/invariant at a time).
+- Follow the default workflow in `docs/phase_workflow.md`.
 
 ### 1) Keep quality gates green
 Run the exact gates locally (or rely on CI for the authoritative signal):

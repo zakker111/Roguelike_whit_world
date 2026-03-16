@@ -1,3 +1,8 @@
+v1.50.41 — Engineering workflow: small slices
+
+- Added `docs/phase_workflow.md` describing how we ship changes in small, reversible slices.
+- Linked the workflow doc from `docs/index.html` and `docs/next_steps.md`.
+
 v1.50.40 — Adopt barrels in low-risk modules
 
 - Barrel adoption (services):
