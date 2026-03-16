@@ -25,14 +25,17 @@ Completed work that should be considered “baseline” going forward:
 - **Incremental `core/game.js` shrink (low risk)**
   - Extracted player creation into `core/engine/player_boot.js`
   - Extracted RNG init/seed read into `core/engine/rng_boot.js`
-  - `core/game.js` now uses those helpers (behavior-preserving refactor)
+  - Extracted combat + inventory wrapper boilerplate into:
+    - `core/engine/game_combat_ops.js`
+    - `core/engine/game_inventory_ops.js`
 
-- **CI now includes acceptance gates**
-  - `.github/workflows/ci.yml` runs:
+- **CI quality gates**
+  - `.github/workflows/lint.yml` runs:
     - `npm run lint:strict`
     - `npm run build`
-    - `npm run acceptance:phase6`
-    - `npm run acceptance:phase0`
+  - `.github/workflows/acceptance_phase6.yml` runs:
+    - `npm run ci` (lint:strict + build)
+    - `node scripts/run_phase6_acceptance.js`
 
 ## Next planned tasks (recommended order)
 
@@ -43,13 +46,18 @@ Run the exact gates locally (or rely on CI for the authoritative signal):
 npm run lint:strict
 npm run build
 npm run acceptance:phase6
+```
+
+Optional (script exists, but no GH workflow currently runs it):
+
+```bash
 npm run acceptance:phase0
 ```
 
 Acceptance criteria:
 - No new lint warnings/errors
 - No bundling/runtime import errors
-- Phase 6 + Phase 0 scenarios pass
+- Phase 6 acceptance harness passes
 
 ### 2) Lock down post-split invariants (GMBridge + UIOrchestration + UIBridge)
 Small hygiene items to prevent regressions:
@@ -62,17 +70,22 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice choice
-Pick exactly one “next slice” (recommended order):
+### 3) Next slice (recommended): extract bounds/walkability helpers
+`core/game.js` still contains substantial “map policy” logic (walkability, bounds, overlays).
 
-- **A. Continue shrinking `core/game.js`**: extract one policy block at a time into `core/engine/*`.
-- **B. UI-level modularization**: if any UI modules remain huge (e.g. `ui/ui.js`), pick a thin refactor slice.
-
-Recommended default if no preference: **A (shrink `core/game.js`)**.
+Proposed low-risk slice:
+1. Create `core/engine/game_map_ops.js` exporting `createMapOps(getCtx)`.
+2. Move wrappers/policy helpers into it (keeping behavior identical):
+   - `inBounds(x,y)`
+   - `isWalkable(x,y)` (including inn-upstairs overlay logic)
+   - any tiny helpers those depend on (e.g. overlay tile accessors)
+3. In `core/game.js`, instantiate `const mapOps = createMapOps(getCtx);` and destructure `inBounds`/`isWalkable`.
+4. Ensure ctx base continues to expose `inBounds` + `isWalkable` (same names).
+5. Static QA: search for stale wrapper symbols and verify no external modules import `core/engine/game_map_ops.js`.
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
-- commit a `package-lock.json` and switch CI back to `npm ci`
+- commit a `package-lock.json` and switch CI to `npm ci`
 
 ## Notes / constraints
 - This plan assumes we keep the current module style (**globals + ctx hybrid**) and do not change hosting/import strategy.

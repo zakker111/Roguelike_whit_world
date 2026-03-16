@@ -70,39 +70,8 @@ import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, ge
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
 import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
-import {
-  getPlayerAttack as combatGetPlayerAttack,
-  getPlayerDefense as combatGetPlayerDefense,
-  rollHitLocation as combatRollHitLocation,
-  critMultiplier as combatCritMultiplier,
-  getEnemyBlockChance as combatGetEnemyBlockChance,
-  getPlayerBlockChance as combatGetPlayerBlockChance,
-  enemyDamageAfterDefense as combatEnemyDamageAfterDefense,
-  enemyDamageMultiplier as combatEnemyDamageMultiplier,
-  enemyThreatLabel as combatEnemyThreatLabel
-} from "./facades/combat.js";
-import {
-  renderInventoryPanel as renderInventoryPanelFacade,
-  showInventoryPanel as showInventoryPanelFacade,
-  hideInventoryPanel as hideInventoryPanelFacade,
-  equipItemByIndex as equipItemByIndexFacade,
-  equipItemByIndexHand as equipItemByIndexHandFacade,
-  unequipSlot as unequipSlotFacade,
-  addPotionToInventory as addPotionToInventoryFacade,
-  drinkPotionByIndex as drinkPotionByIndexFacade,
-  eatFoodByIndex as eatFoodByIndexFacade,
-  useItemByIndex as useItemByIndexFacade
-} from "./facades/inventory.js";
-import {
-  initialDecay as invInitialDecay,
-  rerenderInventoryIfOpen as invRerenderInventoryIfOpen,
-  decayEquipped as invDecayEquipped,
-  usingTwoHanded as invUsingTwoHanded,
-  decayAttackHands as invDecayAttackHands,
-  decayBlockingHands as invDecayBlockingHands,
-  describeItem as invDescribeItem,
-  equipIfBetter as invEquipIfBetter
-} from "./facades/inventory_decay.js";
+import { createGameCombatOps } from "./engine/game_combat_ops.js";
+import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -267,18 +236,18 @@ import "./sandbox/runtime.js";
       isWalkable, inBounds,
       // Prefer modules to use ctx.utils.*; keep these for backward use and fallbacks.
       round1, randInt, chance, randFloat,
-       enemyColor, describeItem,
+      enemyColor, describeItem,
       setFovRadius,
       // expose recompute/update for modules like DungeonState
       recomputeFOV: () => recomputeFOV(),
       updateCamera: () => updateCamera(),
-      getPlayerAttack, getPlayerDefense, getPlayerBlockChance,
+      getPlayerAttack, getPlayerDefense, getPlayerBlockChance, getEnemyBlockChance,
       enemyThreatLabel,
       // Needed by loot and UI flows
       updateUI: () => updateUI(),
-      initialDecay: (tier) => initialDecay(tier),
-      equipIfBetter: (item) => equipIfBetter(item),
-      addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
+      initialDecay,
+      equipIfBetter,
+      addPotionToInventory,
       renderInventory: () => renderInventoryPanel(),
       showLoot: (list) => showLootPanel(list),
       hideLoot: () => hideLootPanel(),
@@ -296,6 +265,7 @@ import "./sandbox/runtime.js";
       // Visual decals
       addBloodDecal: (x, y, mult) => addBloodDecal(x, y, mult),
       // Decay and side effects
+      decayAttackHands,
       decayBlockingHands,
       decayEquipped,
       rerenderInventoryIfOpen,
@@ -344,6 +314,40 @@ import "./sandbox/runtime.js";
     return base;
   }
 
+  const combatOps = createGameCombatOps(getCtx);
+  const {
+    getPlayerAttack,
+    getPlayerDefense,
+    rollHitLocation,
+    critMultiplier,
+    getEnemyBlockChance,
+    getPlayerBlockChance,
+    enemyDamageAfterDefense,
+    enemyDamageMultiplier,
+    enemyThreatLabel,
+  } = combatOps;
+
+  const inventoryOps = createGameInventoryOps(getCtx);
+  const {
+    initialDecay,
+    rerenderInventoryIfOpen,
+    decayEquipped,
+    decayAttackHands,
+    decayBlockingHands,
+    describeItem,
+    equipIfBetter,
+    addPotionToInventory,
+    drinkPotionByIndex,
+    eatFoodByIndex,
+    useItemByIndex,
+    renderInventoryPanel,
+    showInventoryPanel,
+    hideInventoryPanel,
+    equipItemByIndex,
+    equipItemByIndexHand,
+    unequipSlot,
+  } = inventoryOps;
+
   // Prefer ctx module handles over window.* where possible
   function modHandle(name) {
     try {
@@ -370,66 +374,7 @@ import "./sandbox/runtime.js";
   const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
-  // Decay helpers delegated to inventory_decay facade
-  function initialDecay(tier) {
-    return invInitialDecay(getCtx(), tier);
-  }
-
-  function rerenderInventoryIfOpen() {
-    invRerenderInventoryIfOpen(getCtx());
-  }
-
-  function decayEquipped(slot, amount) {
-    invDecayEquipped(getCtx(), slot, amount);
-  }
-
   
-  function getPlayerAttack() {
-    return combatGetPlayerAttack(getCtx());
-  }
-
-  
-  function getPlayerDefense() {
-    return combatGetPlayerDefense(getCtx());
-  }
-
-  function describeItem(item) {
-    return invDescribeItem(getCtx(), item);
-  }
-
-  
-  function rollHitLocation() {
-    return combatRollHitLocation(getCtx());
-  }
-
-  function critMultiplier() {
-    return combatCritMultiplier(getCtx());
-  }
-
-  function getEnemyBlockChance(enemy, loc) {
-    return combatGetEnemyBlockChance(getCtx(), enemy, loc);
-  }
-
-  function getPlayerBlockChance(loc) {
-    return combatGetPlayerBlockChance(getCtx(), loc);
-  }
-
-  // Enemy damage after applying player's defense
-  function enemyDamageAfterDefense(raw) {
-    return combatEnemyDamageAfterDefense(getCtx(), raw);
-  }
-
-  
-  
-
-  function enemyDamageMultiplier(level) {
-    return combatEnemyDamageMultiplier(getCtx(), level);
-  }
-
-  // Classify enemy danger based on level difference vs player
-  function enemyThreatLabel(enemy) {
-    return combatEnemyThreatLabel(getCtx(), enemy);
-  }
 
   
   function setFovRadius(r) {
@@ -446,23 +391,7 @@ import "./sandbox/runtime.js";
   }
 
   
-  function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    addPotionToInventoryFacade(getCtx(), heal, name);
-  }
-
-  function drinkPotionByIndex(idx) {
-    drinkPotionByIndexFacade(getCtx(), idx);
-  }
-
-  // Eat edible materials using centralized inventory flow
-  function eatFoodByIndex(idx) {
-    eatFoodByIndexFacade(getCtx(), idx);
-  }
-
   
-  function equipIfBetter(item) {
-    return invEquipIfBetter(getCtx(), item);
-  }
 
   
   function log(msg, type = "info", details = null) {
@@ -1042,33 +971,7 @@ import "./sandbox/runtime.js";
   } = godBridge;
 
   
-  function renderInventoryPanel() {
-    try { renderInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function showInventoryPanel() {
-    try { showInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function hideInventoryPanel() {
-    try { hideInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function equipItemByIndex(idx) {
-    equipItemByIndexFacade(getCtx(), idx);
-  }
-
-  function equipItemByIndexHand(idx, hand) {
-    equipItemByIndexHandFacade(getCtx(), idx, hand);
-  }
-
-  function unequipSlot(slot) {
-    unequipSlotFacade(getCtx(), slot);
-  }
-
-  function useItemByIndex(idx) {
-    useItemByIndexFacade(getCtx(), idx);
-  }
+  
 
   
 
@@ -1169,18 +1072,7 @@ import "./sandbox/runtime.js";
     });
   }
 
-  // Hand decay helpers delegated to inventory_decay facade
-  function usingTwoHanded() {
-    return invUsingTwoHanded(getCtx());
-  }
-
-  function decayAttackHands(light = false) {
-    invDecayAttackHands(getCtx(), light);
-  }
-
-  function decayBlockingHands() {
-    invDecayBlockingHands(getCtx());
-  }
+  
 
   
   // Orchestrator-controlled boot: these actions are now exposed as functions and invoked from core/game_orchestrator.js
