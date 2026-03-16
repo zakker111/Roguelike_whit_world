@@ -65,6 +65,7 @@ Run these locally before merging (CI is the source of truth, but local runs shor
 
 ```bash
 npm run lint:strict
+npm run check:docs-catalog
 npm run build
 npm run acceptance:phase6
 npm run acceptance:phase0
@@ -72,6 +73,7 @@ npm run acceptance:phase0
 
 Pass criteria:
 - `lint:strict`: **0 warnings**, 0 errors
+- `check:docs-catalog`: no missing paths in `docs/index.html` catalog
 - `build`: no bundling errors (import cycles / missing exports surface here)
 - `acceptance:*`: both acceptance scripts pass
 

@@ -1,3 +1,8 @@
+v1.50.42 — CI guardrail: validate docs catalog
+
+- Added `scripts/check_docs_catalog.js` and `npm run check:docs-catalog`.
+- CI now runs the docs catalog validator to prevent broken docs links in `docs/index.html`.
+
 v1.50.41 — Engineering workflow: small slices
 
 - Added `docs/phase_workflow.md` describing how we ship changes in small, reversible slices.

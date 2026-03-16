@@ -40,6 +40,11 @@ jobs:
           set -euo pipefail
           npm run lint:strict 2>&1 | tee artifacts/qa/lint_strict.log
 
+      - name: Check docs catalog paths
+        run: |
+          set -euo pipefail
+          npm run check:docs-catalog 2>&1 | tee artifacts/qa/check_docs_catalog.log
+
       - name: Build
         run: |
           set -euo pipefail
