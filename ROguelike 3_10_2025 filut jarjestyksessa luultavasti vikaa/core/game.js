@@ -53,8 +53,6 @@ import {
   initGameTime,
   getClock as gameTimeGetClock,
   getWeatherSnapshot as gameTimeGetWeatherSnapshot,
-  minutesUntil as gameTimeMinutesUntil,
-  advanceTimeMinutes as gameTimeAdvanceTimeMinutes
 } from "./engine/game_time.js";
 import { runTurn } from "./engine/game_turn.js";
 import { recomputeWithGuard as gameFovRecomputeWithGuard } from "./engine/game_fov.js";
@@ -74,6 +72,7 @@ import { createGameCombatOps } from "./engine/game_combat_ops.js";
 import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
 import { createGameMapOps } from "./engine/game_map_ops.js";
 import { createGameRenderOps } from "./engine/game_render_ops.js";
+import { createGameTimeOps } from "./engine/game_time_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -362,6 +361,12 @@ import "./sandbox/runtime.js";
 
   const mapOps = createGameMapOps(getCtx);
   const renderOps = createGameRenderOps(getCtx);
+  const timeOps = createGameTimeOps({
+    getCtx,
+    log,
+    rng: () => (typeof rng === "function" ? rng() : Math.random()),
+    modHandle,
+  });
 
   const shopOps = createGameShopOps({ getCtx, modHandle });
 
@@ -528,26 +533,14 @@ import "./sandbox/runtime.js";
     return shopOps.shopScheduleStr(shop);
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return gameTimeMinutesUntil(hourTarget, minuteTarget);
+    return timeOps.minutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    gameTimeAdvanceTimeMinutes(mins, {
-      log,
-      rng: () => (typeof rng === "function" ? rng() : Math.random())
-    });
+    timeOps.advanceTimeMinutes(mins);
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
-    // Centralized Movement.fastForwardMinutes already handles per-turn calls,
-    // FOV recompute, and UI updates using ctx. Keep this as a thin wrapper
-    // so callers do not need to import Movement directly from core/game.js.
-    try {
-      const MV = modHandle("Movement");
-      if (MV && typeof MV.fastForwardMinutes === "function") {
-        return MV.fastForwardMinutes(getCtx(), mins);
-      }
-    } catch (_) {}
-    return 0;
+    return timeOps.fastForwardMinutes(mins);
   }
 
   

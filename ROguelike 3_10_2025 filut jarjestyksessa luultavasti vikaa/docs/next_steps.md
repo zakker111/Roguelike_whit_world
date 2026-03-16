@@ -34,6 +34,8 @@ Completed work that should be considered “baseline” going forward:
     - `core/engine/render_orchestration.js` (build render ctx)
     - `core/engine/game_loop.js` (RAF + draw batching)
     - `core/engine/game_render_ops.js` (core/game.js wrappers: getRenderCtx + requestDraw)
+  - Extracted time wrappers into:
+    - `core/engine/game_time_ops.js` (core/game.js wrappers: minutesUntil + advanceTimeMinutes + fastForwardMinutes)
   - **Extracted loot ops + panel routing (Slice F)** into:
     - `core/loot_flow.js` (exports + `window.LootFlow`)
     - `core/game.js` loot wrappers now delegate to `LootFlow.show/hide/loot`

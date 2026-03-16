@@ -1,3 +1,11 @@
+v1.50.35 — core/game.js shrink: Time ops extraction
+
+- Added `core/engine/game_time_ops.js` as a ctx-first wrapper for time helpers:
+  - `minutesUntil(hour, minute)` and `advanceTimeMinutes(mins)` delegate to `core/engine/game_time.js`.
+  - `fastForwardMinutes(mins)` delegates to `Movement.fastForwardMinutes(ctx, mins)`.
+- `core/game.js` now delegates `minutesUntil/advanceTimeMinutes/fastForwardMinutes` to `timeOps`.
+- Docs added: `docs/game_js_shrink_slice_time_ops.md`.
+
 v1.50.34 — core/game.js shrink: Render ops extraction
 
 - Added `core/engine/game_render_ops.js` as a ctx-first wrapper for render plumbing:
