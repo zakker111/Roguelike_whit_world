@@ -9,6 +9,7 @@ Key scripts
 - gen_smoke_manifest.js — generates smoke test scenario manifests and ensures index.html injection lists are consistent.
 - run_phase6_acceptance.js — headless Phase 6 smoketest harness (Playwright Chromium); see `npm run acceptance:phase6`.
 - run_phase0_acceptance.js — headless Phase 0 baseline smoketest harness (Playwright Chromium); see `npm run acceptance:phase0`.
+- check_docs_catalog.js — validates that every `docs/index.html` catalog entry points to a real file; see `npm run check:docs-catalog`.
 - qa_phase6.sh / qa_phase6.ps1 — local helper to run install + lint/build + phase6 acceptance and write logs to artifacts/qa.
 - qa_full.sh / qa_full.ps1 — local helper to run the full QA gates (including Playwright install + acceptance phase6 + phase0).
 

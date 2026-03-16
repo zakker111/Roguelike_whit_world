@@ -71,6 +71,9 @@ npm run acceptance:phase6
 npm run acceptance:phase0
 ```
 
+Shortcut:
+- `npm run ci` (runs `lint:strict`, `check:docs-catalog`, and `build`)
+
 Pass criteria:
 - `lint:strict`: **0 warnings**, 0 errors
 - `check:docs-catalog`: no missing paths in `docs/index.html` catalog

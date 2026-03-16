@@ -341,8 +341,6 @@ Roadmap (Upcoming Phases)
   - Merchant/encounter improvements: shopkeeper themes, Seppo inventory in encounters.
   - Theme packs: curated palettes in palettes.json for quick switching via GOD.
 
-To proceed on any phase, say “continue” and specify which items you want implemented next. Spot-check guides and deployments will follow each step.
-
 Cleanup and pre‑merge checklist (Phase 5)
 - Duplicate/dead code policy:
   - Prefer ctx.* handles over window.*; facades centralize UI (UIBridge) and mode lifecycles (WorldRuntime/TownRuntime/DungeonRuntime).

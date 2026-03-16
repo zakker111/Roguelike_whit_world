@@ -1,25 +1,33 @@
 v1.50.42 — CI guardrail: validate docs catalog
 
 - Added `scripts/check_docs_catalog.js` and `npm run check:docs-catalog`.
-- CI now runs the docs catalog validator to prevent broken docs links in `docs/index.html`.
+- Workspace CI now runs the docs catalog validator to prevent broken docs links in `docs/index.html`.
+- Repo-root scripts proxy `check:docs-catalog` / `ci` into the workspace for convenience.
+
+Deployment: https://a24ai4aqenp9.cosine.page
 
 v1.50.41 — Engineering workflow: small slices
 
 - Added `docs/phase_workflow.md` describing how we ship changes in small, reversible slices.
 - Linked the workflow doc from `docs/index.html` and `docs/next_steps.md`.
 
+Deployment: https://mm3u94i37f3a.cosine.page
+
 v1.50.40 — Adopt barrels in low-risk modules
 
 - Barrel adoption (services):
   - `ui/components/lockpick_modal.js` now imports `awardTownChestLoot` from `/services/index.js`.
-  - `worldgen/town_gen.js` and `worldgen/town/shops_core.js` now import `parseHHMM` from `services/index.js`.
+  - `worldgen/town_gen.js` and `worldgen/town/shops_core.js` now import `parseHHMM` from the services barrel.
 - Kept GMBridge import policy intact in world runtime (no `core/bridge/index.js` usage from world modules).
-- Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`).
+
+Deployment: https://10rawwv505uz.cosine.page
 
 v1.50.39 — Adopt barrels in boot manifests
 
 - `src/boot/06_services.js` now imports `'/services/index.js'`.
 - `src/boot/11_runtime_orchestration.js` now imports `'/core/bridge/index.js'`.
+
+Deployment: https://q8sfnu5f34g5.cosine.page
 
 v1.50.38 — Workstream 1.3: folder barrels
 
@@ -28,6 +36,9 @@ v1.50.38 — Workstream 1.3: folder barrels
   - `core/bridge/index.js`
   - `services/index.js`
 - Updated `core/game.js` to import engine helpers from `core/engine/index.js`.
+- Added docs: `docs/folder_barrels.md` (usage guidelines and rationale).
+
+Deployment: (see Cosine deploy history)
 
 v1.50.37 — core/game.js shrink: World ops extraction
 
@@ -232,7 +243,7 @@ v1.50.11 — GM Phase 2: travel encounter hardening
 
 v1.76.0 — Docs: GM ctx-first follow-up + subpath deploy caveat
 
-- TODO: Added Phase 2 follow-up: make non-marker GM encounter starts ctx-first where appropriate.
+- Follow-up note: some non-marker GM encounter starts may still need to be made ctx-first (tracked in TODO.md).
 - BUGS: Documented that absolute ESM imports like `/core/...` will 404 when hosting under a subpath unless you set a base path / rewrite / convert to relative imports.
 
 2026-03-02 — GM v0.2 hygiene: reset GM on seed changes

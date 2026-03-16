@@ -22,8 +22,11 @@ Completed work that should be considered “baseline” going forward:
   - `window.UIBridge` attach happens in `core/bridge/ui_bridge/index.js`
 
 - **Boot / load-order cleanup (Slice C)**
-  - `src/main.js` now imports grouped boot manifests under `src/boot/*`
+  - `src/main.js` imports grouped boot manifests under `src/boot/*`
   - Module evaluation order preserved (boot manifests contain imports only)
+  - Boot manifests use barrels as import aggregators where it helps keep lists short:
+    - `src/boot/06_services.js` imports `'/services/index.js'`
+    - `src/boot/11_runtime_orchestration.js` imports `'/core/bridge/index.js'`
 
 - **Incremental `core/game.js` shrink (low risk)**
   - Extracted player creation into `core/engine/player_boot.js`
@@ -52,9 +55,13 @@ Completed work that should be considered “baseline” going forward:
 - **CI quality gates**
   - `.github/workflows/ci.yml` runs:
     - `npm run lint:strict`
+    - `npm run check:docs-catalog`
     - `npm run build`
     - `npm run acceptance:phase6`
     - `npm run acceptance:phase0`
+
+- **Repo hygiene**
+  - Removed stray duplicate top-level folder typo variant (`... vikoa/`).
 
 ## Next planned tasks (recommended order)
 
@@ -67,6 +74,7 @@ Run the exact gates locally (or rely on CI for the authoritative signal):
 
 ```bash
 npm run lint:strict
+npm run check:docs-catalog
 npm run build
 npm run acceptance:phase6
 npm run acceptance:phase0
@@ -89,7 +97,7 @@ Small hygiene items to prevent regressions:
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
 ### 3) Folder barrels (Workstream 1.3)
-Status: **completed**
+Status: **completed (with initial adoption)**
 
 - Barrels are available:
   - `core/engine/index.js`
@@ -97,12 +105,17 @@ Status: **completed**
   - `services/index.js`
 - Reference:
   - `docs/folder_barrels.md`
+- Initial adoption shipped (examples):
+  - Boot manifests: `src/boot/06_services.js`, `src/boot/11_runtime_orchestration.js`
+  - Worldgen: `worldgen/town_gen.js`, `worldgen/town/shops_core.js`
+  - UI: `ui/components/lockpick_modal.js`
 
-### 4) Next recommended task: adopt barrels + prevent regressions
+### 4) Next recommended task: continue adopting barrels + prevent regressions
 Pick one (or both):
 
-- **A) Adopt barrels in additional call sites (low risk, gradual)**
-  - Convert high-churn files to import from barrels (start with `core/*` and `src/boot/*`).
+- **A) Continue adopting barrels in additional call sites (low risk, gradual)**
+  - Barrels are already used in boot and a few low-risk modules; continue expanding gradually.
+  - Prefer adopting in high-churn areas that are unlikely to create cycles.
   - Avoid touching modules that are known to be cycle-prone until later.
 
 - **B) Add a guardrail lint rule (medium risk, optional)**

@@ -2,6 +2,23 @@
 
 This file collects planned features, ideas, and technical cleanups that were previously scattered in `VERSIONS.md` and `todo.txt`.
 
+## Recently completed (v1.50.38–v1.50.42)
+
+- [x] Folder barrels: `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
+- [x] Boot manifests import barrels where helpful (`src/boot/06_services.js`, `src/boot/11_runtime_orchestration.js`)
+- [x] Initial barrel adoption in low-risk worldgen/UI modules (`worldgen/town_gen.js`, `worldgen/town/shops_core.js`, `ui/components/lockpick_modal.js`)
+- [x] Workflow doc for shipping small slices: `docs/phase_workflow.md`
+- [x] Docs catalog CI guardrail: `npm run check:docs-catalog` (also included in `npm run ci`)
+- [x] Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`)
+
+## Near-term engineering plan (small slices)
+
+- [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
+- [ ] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
+- [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
+- [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
+- [ ] **GM follow-up (medium risk):** ensure any remaining non-marker GM encounter starts are fully ctx-first (see note in `VERSIONS.md` v1.76.0).
+
 ## Gameplay / Features
 
 ### GM Merge Readiness (v1.50.33)
@@ -590,7 +607,7 @@ Known issues / deferred (post-merge):
     - Keep current import sites stable: big file becomes a facade that delegates to new modules.
     - Extract **pure helpers** first (no DOM, no ctx mutation) → easiest to move.
     - Avoid circular imports: do not import the facade from its children.
-    - After each PR: run `npm run ci` + `npm run analyze:imports` + smoketest subset (see below).
+    - After each PR: run `npm run ci` (includes `lint:strict`, `check:docs-catalog`, and `build`) + `npm run analyze:imports` + smoketest subset (see below).
 
   - Priority order (lowest risk → highest risk):
     - (1) `worldgen/` + `ai/` extractions

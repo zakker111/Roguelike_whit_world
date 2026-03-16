@@ -343,6 +343,13 @@ To keep the project’s history and docs useful:
   - For known issues that are not immediately fixed, add a brief bug description and repro steps.
 - **TODO.md:**
   - For future work or ideas, add items here instead of leaving many inline `TODO` comments in hot code.
+- **Workflow (small slices):**
+  - Follow `docs/phase_workflow.md`.
+  - Keep changes small and reversible; always ship with a deploy + quick smoke QA.
+  - Prefer running `npm run ci` (includes `lint:strict`, `check:docs-catalog`, `build`) before merging.
+- **Docs catalog (docs viewer):**
+  - If you add/remove docs that should appear in `/docs/`, update `docs/index.html`.
+  - Ensure `npm run check:docs-catalog` passes (CI enforces this).
 - **Style tools:**
   - Respect existing ESLint/Prettier settings and formatting patterns; don’t introduce ad-hoc style changes.
 
