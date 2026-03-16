@@ -73,6 +73,7 @@ import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
 import { createGameMapOps } from "./engine/game_map_ops.js";
 import { createGameRenderOps } from "./engine/game_render_ops.js";
 import { createGameTimeOps } from "./engine/game_time_ops.js";
+import { createGameShopOps } from "./engine/game_shop_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";

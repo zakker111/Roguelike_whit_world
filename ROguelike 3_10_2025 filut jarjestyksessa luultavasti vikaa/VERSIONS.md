@@ -1,3 +1,8 @@
+v1.50.36 — Hotfix: restore missing Shop ops import
+
+- Fixed a runtime boot error: `ReferenceError: createGameShopOps is not defined`.
+- `core/game.js` now imports `createGameShopOps` from `core/engine/game_shop_ops.js`.
+
 v1.50.35 — core/game.js shrink: Time ops extraction
 
 - Added `core/engine/game_time_ops.js` as a ctx-first wrapper for time helpers:
