@@ -78,7 +78,21 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): extract time helpers
+### 3) Next slice (recommended): core/game.js shrink — Render Ops (Slice E)
+`core/game.js` still contains a block of “render driver plumbing” (render ctx assembly, draw batching, suppress-draw gating).
+
+Proposed low-risk slice:
+1. Create `core/engine/game_render_ops.js` exporting `createRenderOps(getCtx)`.
+2. Move helpers into it (behavior-identical):
+   - `getRenderCtx()`
+   - `requestDraw()` (including batching/suppress logic)
+3. In `core/game.js`, instantiate once and delegate (keep ctx surface unchanged).
+4. QA: confirm no extra draws per turn (perf overlay) and no missing HUD refresh.
+
+Reference doc:
+- `docs/game_js_shrink_slice_render_ops.md`
+
+### 4) Optional next slice: core/game.js shrink — Time Ops
 `core/game.js` still contains a few thin time helpers that mostly route into the time/weather facade.
 
 Proposed low-risk slice:
@@ -90,7 +104,7 @@ Proposed low-risk slice:
 3. In `core/game.js`, instantiate once and delegate (keep GameAPI surface unchanged).
 4. Static QA: time passage effects and logging remain unchanged.
 
-### 4) Optional repo hygiene: add a lockfile
+### 5) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
 - commit a `package-lock.json` and switch CI to `npm ci`
 
