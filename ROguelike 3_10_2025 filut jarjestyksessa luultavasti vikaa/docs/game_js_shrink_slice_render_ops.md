@@ -4,7 +4,7 @@
 This slice reduces “render driver plumbing” inside `core/game.js` by extracting:
 
 - `getRenderCtx()` assembly (RenderOrchestration integration + perf hook)
-- `requestDraw()` scheduling (batching and suppress-draw gating)
+- `requestDraw()` scheduling (draw batching + suppress-draw gating)
 
 …into a dedicated engine helper module.
 
@@ -13,24 +13,39 @@ This slice reduces “render driver plumbing” inside `core/game.js` by extract
   - Primary export: `createRenderOps(getCtx)`
   - Back-compat export: `createGameRenderOps` (alias)
 
-## What will move out of core/game.js
-### 1) Render context assembly
-The current `getRenderCtx()` logic:
-- resolves `RenderOrchestration` via module handle
+## What changed
+### 1) Render context assembly moved out of core/game.js
+The logic that:
+- resolves `RenderOrchestration` via ctx-first module handle
 - builds the render ctx
 - attaches `onDrawMeasured(ms)` to feed `core/facades/perf.js`
 
-### 2) Draw scheduling
-The current draw batching / gating logic:
-- `_suppressDraw` flag used during fast-forward operations
-- `requestDraw()` that prefers `GameLoop.requestDraw()`
+…now lives in `core/engine/game_render_ops.js::getRenderCtx()`.
+
+### 2) Draw scheduling moved out of core/game.js
+The logic that:
+- checks an internal `suppressDraw` flag
+- calls `GameLoop.requestDraw()` (ctx-first; falls back to `window.GameLoop`)
+
+…now lives in `core/engine/game_render_ops.js::requestDraw()`.
+
+### 3) core/game.js now delegates
+`core/game.js` now instantiates once:
+
+```js
+const renderOps = createGameRenderOps(getCtx);
+```
+
+…and keeps the public API identical by delegating:
+- `getRenderCtx() => renderOps.getRenderCtx()`
+- `requestDraw() => renderOps.requestDraw()`
 
 ## Invariants (must remain true)
 - `ctx.getRenderCtx()` still works the same way for Render.
 - `ctx.requestDraw()` still works and respects suppress/batching rules.
 - No extra draws per turn:
   - the Perf overlay “Draw: Xms” remains stable
-  - modal open/close should still trigger a single redraw (UIOrchestration)
+  - modal open/close triggers a single redraw (UIOrchestration)
 
 ## QA gates
 Run:

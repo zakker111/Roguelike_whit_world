@@ -65,7 +65,7 @@ import {
   getMinutesPerTurn,
   getTurnCounter
 } from "./facades/time_weather.js";
-import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
+import { measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
@@ -73,7 +73,7 @@ import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades
 import { createGameCombatOps } from "./engine/game_combat_ops.js";
 import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
 import { createGameMapOps } from "./engine/game_map_ops.js";
-import { createGameShopOps } from "./engine/game_shop_ops.js";
+import { createGameRenderOps } from "./engine/game_render_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -361,6 +361,7 @@ import "./sandbox/runtime.js";
   }
 
   const mapOps = createGameMapOps(getCtx);
+  const renderOps = createGameRenderOps(getCtx);
 
   const shopOps = createGameShopOps({ getCtx, modHandle });
 
@@ -455,32 +456,11 @@ import "./sandbox/runtime.js";
 
   
   function getRenderCtx() {
-    const RO = modHandle("RenderOrchestration");
-    if (!RO || typeof RO.getRenderCtx !== "function") {
-      return null;
-    }
-    const base = RO.getRenderCtx(getCtx());
-    // Perf sink: delegate to core/perf.js
-    try {
-      base.onDrawMeasured = (ms) => {
-        try { perfMeasureDraw(ms); } catch (_) {}
-      };
-    } catch (_) {}
-    return base;
+    return renderOps.getRenderCtx();
   }
 
-  // Batch multiple draw requests within a frame to avoid redundant renders.
-  // Suppress draw flag used for fast-forward time (sleep/wait simulations)
-  let _suppressDraw = false;
-
-  
-
   function requestDraw() {
-    if (_suppressDraw) return;
-    const GL = modHandle("GameLoop");
-    if (GL && typeof GL.requestDraw === "function") {
-      GL.requestDraw();
-    }
+    renderOps.requestDraw();
   }
 
   

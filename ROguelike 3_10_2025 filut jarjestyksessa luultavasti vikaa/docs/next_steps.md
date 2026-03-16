@@ -28,11 +28,12 @@ Completed work that should be considered “baseline” going forward:
   - Extracted combat + inventory wrapper boilerplate into:
     - `core/engine/game_combat_ops.js`
     - `core/engine/game_inventory_ops.js`
-  - Extracted bounds + walkability policy (Slice D) into:
+  - Extracted bounds + walkability policy into:
     - `core/engine/game_map_ops.js`
-  - Extracted render ctx + draw scheduling (Slice E) into:
-    - `core/engine/render_orchestration.js`
-    - `core/engine/game_loop.js`
+  - Extracted render pipeline into:
+    - `core/engine/render_orchestration.js` (build render ctx)
+    - `core/engine/game_loop.js` (RAF + draw batching)
+    - `core/engine/game_render_ops.js` (core/game.js wrappers: getRenderCtx + requestDraw)
   - **Extracted loot ops + panel routing (Slice F)** into:
     - `core/loot_flow.js` (exports + `window.LootFlow`)
     - `core/game.js` loot wrappers now delegate to `LootFlow.show/hide/loot`
@@ -78,21 +79,7 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): core/game.js shrink — Render Ops (Slice E)
-`core/game.js` still contains a block of “render driver plumbing” (render ctx assembly, draw batching, suppress-draw gating).
-
-Proposed low-risk slice:
-1. Create `core/engine/game_render_ops.js` exporting `createRenderOps(getCtx)`.
-2. Move helpers into it (behavior-identical):
-   - `getRenderCtx()`
-   - `requestDraw()` (including batching/suppress logic)
-3. In `core/game.js`, instantiate once and delegate (keep ctx surface unchanged).
-4. QA: confirm no extra draws per turn (perf overlay) and no missing HUD refresh.
-
-Reference doc:
-- `docs/game_js_shrink_slice_render_ops.md`
-
-### 4) Optional next slice: core/game.js shrink — Time Ops
+### 3) Next slice (recommended): core/game.js shrink — Time Ops
 `core/game.js` still contains a few thin time helpers that mostly route into the time/weather facade.
 
 Proposed low-risk slice:
@@ -104,7 +91,7 @@ Proposed low-risk slice:
 3. In `core/game.js`, instantiate once and delegate (keep GameAPI surface unchanged).
 4. Static QA: time passage effects and logging remain unchanged.
 
-### 5) Optional repo hygiene: add a lockfile
+### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
 - commit a `package-lock.json` and switch CI to `npm ci`
 

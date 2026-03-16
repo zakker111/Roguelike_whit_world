@@ -1,3 +1,13 @@
+v1.50.34 — core/game.js shrink: Render ops extraction
+
+- Added `core/engine/game_render_ops.js` as a ctx-first wrapper for render plumbing:
+  - `getRenderCtx()` (delegates to `RenderOrchestration.getRenderCtx(ctx)` and attaches the Perf sink)
+  - `requestDraw()` (delegates to `GameLoop.requestDraw()` with a suppress-draw gate)
+- `core/game.js` now delegates `getRenderCtx()` and `requestDraw()` to `renderOps`.
+- Docs updated:
+  - `docs/game_js_shrink_slice_render_ops.md`
+  - `docs/next_steps.md`
+
 v1.50.33 — Hotfix: Modes boot errors + repo hygiene
 
 - Fixed hard boot errors in `core/modes/modes.js` caused by corrupted/duplicated function declarations.
