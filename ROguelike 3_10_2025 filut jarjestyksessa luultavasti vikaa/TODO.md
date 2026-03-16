@@ -636,12 +636,12 @@ Known issues / deferred (post-merge):
       - Keep `modes.js` as facade (exports unchanged); `core/modes/transitions.js` should remain the stable wrapper.
       - Smoketests: `world,region,dungeon,town,encounters,determinism`
 
-    - [ ] `core/game.js` (1319): split orchestration vs UI glue vs lifecycle
+    - [ ] `core/game.js` (1079): split orchestration vs UI glue vs lifecycle
       - Extract: `core/game/game_utils.js` (pure), `core/game/game_render_bridge.js` (UI-only boundary), `core/game/game_session.js` (new game/reset), `core/game/game_tick.js` (turn driver)
       - Keep `core/game.js` as facade.
       - Smoketests: `world,inventory,overlays,dungeon,combat,town,determinism`
 
-    - [ ] `core/bridge/gm_bridge.js` (1104): split into narrow bridge + effects
+    - [ ] `core/bridge/gm_bridge.js` (17): split into narrow bridge + effects
       - Extract: `core/bridge/gm_bridge_markers.js`, `core/bridge/gm_bridge_travel.js`, `core/bridge/gm_bridge_quests.js`
       - Keep `gm_bridge.js` as facade.
       - Smoketests: `gm_seed_reset,gm_bridge_markers,gm_bridge_faction_travel,gm_bottle_map,gm_survey_cache`
@@ -674,14 +674,14 @@ Known issues / deferred (post-merge):
     - [ ] `core/gm/runtime.js` (1009): code exists under `core/gm/runtime/*`, but facade remains large; continue moving logic out (keep facade mostly as composition/exports).
 
   - Size snapshot (by line count; update when refactoring)
-    - (Snapshot date: 2026-03-13; measured via `read_file file:1-1` headers)
+    - (Snapshot date: 2026-03-16; measured via file line totals (repo-wide); re-measure locally with `npm run analyze:phase1`)
     - Top offenders (repo-wide):
       - 1466 — `ai/town_ai_legacy.js`
       - 1414 — `core/modes/modes.js`
-      - 1319 — `core/game.js`
       - 1310 — `core/dungeon/runtime.js`
+      - 1227 — `ai/town_runtime.js`
       - 1133 — `ui/ui.js`
-      - 1104 — `core/bridge/gm_bridge.js`
+      - 1079 — `core/game.js`
       - 1070 — `ai/ai.js`
       - 1011 — `worldgen/town_gen.js`
       - 1009 — `core/gm/runtime.js`
@@ -695,9 +695,8 @@ Known issues / deferred (post-merge):
       - 742  — `core/encounter/enter.js`
       - 691  — `core/dungeon/tower_prefabs.js`
       - 672  — `data/world/world_assets.json`
-      - 669  — `core/bridge/ui_bridge.js`
+      - 669  — `core/bridge/ui_bridge_legacy.js`
       - 664  — `ai/town_population.js`
-      - 659  — `core/bridge/ui_orchestration.js`
       - 607  — `dungeon/dungeon.js`
       - 601  — `entities/loot.js`
       - 593  — `entities/player.js`
