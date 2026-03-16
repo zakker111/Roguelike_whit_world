@@ -81,21 +81,45 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): core/game.js shrink — Time Ops
-`core/game.js` still contains a few thin time helpers that mostly route into the time/weather facade.
+### 3) Next slice (recommended): core/game.js shrink — World Ops (Slice J)
+`core/game.js` still contains a couple of thin world wrappers that are ideal for extraction:
+
+- `initWorld()` (WorldRuntime.generate + refresh)
+- `startEscortAutoTravel()` (WorldRuntime.startEscortAutoTravel)
 
 Proposed low-risk slice:
-1. Create `core/engine/game_time_ops.js` exporting `createTimeOps({ log, rng, minutesUntil, advanceTimeMinutes, fastForwardMinutes })` (or accept `modHandle` if needed).
-2. Move wrappers into it (behavior-identical):
-   - `minutesUntil(hourTarget, minuteTarget)`
-   - `advanceTimeMinutes(mins)`
-   - `fastForwardMinutes(mins)`
-3. In `core/game.js`, instantiate once and delegate (keep GameAPI surface unchanged).
-4. Static QA: time passage effects and logging remain unchanged.
+1. Create `core/engine/game_world_ops.js` exporting `createWorldOps({ getCtx, applyCtxSyncAndRefresh, modHandle, MAP_COLS, MAP_ROWS })`.
+2. Move wrappers into it (behavior-identical).
+3. In `core/game.js`, instantiate once and delegate (keep ctx/GameAPI surface unchanged).
+
+Reference doc:
+- `docs/game_js_shrink_slice_world_ops.md`
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
-- commit a `package-lock.json` and switch CI to `npm ci`
+- commit a `package-lock.json` and switch CI to `npm ci`) Immediate: keep the latest hotfix green (v1.50.36)
+The most recent change was a low-risk refactor + follow-up hotfix:
+- Time wrappers moved behind `core/engine/game_time_ops.js`
+- Hotfix: restore missing `createGameShopOps` import in `core/game.js`
+
+Next action:
+- Re-run the standard gates (CI or local) and ensure **no boot-time ReferenceErrors**.
+
+### 4) Recommended repo hygiene: add a lockfile
+For deterministic CI installs and fewer “it works locally” surprises:
+- commit `package-lock.json`
+- switch CI to `npm ci`
+
+### 5) Next refactor slice (pick one)
+Default recommendation: **Workstream 1.3 (barrels)**, because it is low risk and reduces import noise.
+
+- **Option A (recommended): Workstream 1.3 — folder barrels**
+  - Add `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
+  - Rule: barrels export *stable public surfaces only*
+
+- **Option B: Workstream 2.1 — ctx service registry**
+  - Introduce `ctx.mods`/`ctx.services` as canonical lookup
+  - Make `getMod(ctx, name)` prefer `ctx.mods[name]`
 
 ## Notes / constraints
 - This plan assumes we keep the current module style (**globals + ctx hybrid**) and do not change hosting/import strategy.
