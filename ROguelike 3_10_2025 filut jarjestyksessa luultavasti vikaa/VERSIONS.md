@@ -5,6 +5,11 @@ v1.50.36 — Hotfix: restore missing Shop ops import
 
 ---
 
+v1.50.39 — Adopt barrels in boot manifests
+
+- `src/boot/06_services.js` now imports `'/services/index.js'`.
+- `src/boot/11_runtime_orchestration.js` now imports `'/core/bridge/index.js'`.
+
 v1.50.38 — Workstream 1.3: folder barrels
 
 - Added barrel exports:
