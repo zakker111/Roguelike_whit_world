@@ -3,6 +3,23 @@ v1.50.36 — Hotfix: restore missing Shop ops import
 - Fixed a runtime boot error: `ReferenceError: createGameShopOps is not defined`.
 - `core/game.js` now imports `createGameShopOps` from `core/engine/game_shop_ops.js`.
 
+---
+
+v1.50.38 — Workstream 1.3: folder barrels
+
+- Added barrel exports:
+  - `core/engine/index.js`
+  - `core/bridge/index.js`
+  - `services/index.js`
+- Updated `core/game.js` to import engine helpers from `core/engine/index.js`.
+
+v1.50.37 — core/game.js shrink: World ops extraction
+
+- Added `core/engine/game_world_ops.js`:
+  - `initWorld()` (WorldRuntime.generate + refresh)
+  - `startEscortAutoTravel()` (delegates to WorldRuntime)
+- `core/game.js` now delegates world wrappers to `worldOps`.
+
 v1.50.35 — core/game.js shrink: Time ops extraction
 
 - Added `core/engine/game_time_ops.js` as a ctx-first wrapper for time helpers:

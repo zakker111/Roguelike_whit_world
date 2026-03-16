@@ -36,7 +36,7 @@ import {
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
 import "./modes/transitions.js";
-import { createGameModeOps } from "./engine/game_mode_ops.js";
+import { createGameModeOps } from "./engine/index.js";
 import {
   initMouseSupportImpl,
   startLoopImpl,
@@ -68,13 +68,15 @@ import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, ge
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
 import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
-import { createGameCombatOps } from "./engine/game_combat_ops.js";
-import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
-import { createGameMapOps } from "./engine/game_map_ops.js";
-import { createGameRenderOps } from "./engine/game_render_ops.js";
-import { createGameTimeOps } from "./engine/game_time_ops.js";
-import { createGameShopOps } from "./engine/game_shop_ops.js";
-import { createGameWorldOps } from "./engine/game_world_ops.js";
+import {
+  createGameCombatOps,
+  createGameInventoryOps,
+  createGameMapOps,
+  createGameRenderOps,
+  createGameTimeOps,
+  createGameShopOps,
+  createGameWorldOps,
+} from "./engine/index.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
