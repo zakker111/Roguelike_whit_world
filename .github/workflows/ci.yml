@@ -21,24 +21,46 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
+      - name: Prepare QA artifacts dir
+        run: mkdir -p artifacts/qa
+
       # Repo does not include a package-lock.json, so use npm install instead of npm ci.
       - name: Install dependencies
-        run: npm install
+        run: |
+          set -euo pipefail
+          npm install 2>&1 | tee artifacts/qa/npm_install.log
 
       - name: Install Playwright (Chromium + OS deps)
-        run: npx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium 2>&1 | tee artifacts/qa/playwright_install.log
 
       - name: Lint (strict)
-        run: npm run lint:strict
+        run: |
+          set -euo pipefail
+          npm run lint:strict 2>&1 | tee artifacts/qa/lint_strict.log
 
       - name: Build
-        run: npm run build
+        run: |
+          set -euo pipefail
+          npm run build 2>&1 | tee artifacts/qa/build.log
 
       - name: Acceptance (phase6)
-        run: npm run acceptance:phase6
+        run: |
+          set -euo pipefail
+          npm run acceptance:phase6 2>&1 | tee artifacts/qa/acceptance_phase6.log
 
       - name: Acceptance (phase0)
-        run: npm run acceptance:phase0
+        run: |
+          set -euo pipefail
+          npm run acceptance:phase0 2>&1 | tee artifacts/qa/acceptance_phase0.log
+
+      - name: Upload QA logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiny-roguelike-qa-logs
+          path: ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/artifacts/qa
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

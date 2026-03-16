@@ -36,7 +36,7 @@ import {
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
 import "./modes/transitions.js";
-import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
+import { createGameModeOps } from "./engine/game_mode_ops.js";
 import {
   initMouseSupportImpl,
   startLoopImpl,
@@ -73,6 +73,7 @@ import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades
 import { createGameCombatOps } from "./engine/game_combat_ops.js";
 import { createGameInventoryOps } from "./engine/game_inventory_ops.js";
 import { createGameMapOps } from "./engine/game_map_ops.js";
+import { createGameShopOps } from "./engine/game_shop_ops.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -361,6 +362,8 @@ import "./sandbox/runtime.js";
 
   const mapOps = createGameMapOps(getCtx);
 
+  const shopOps = createGameShopOps({ getCtx, modHandle });
+
   // RNG helpers via facade
 
   const randInt = (min, max) => rngInt(min, max, rng);
@@ -539,18 +542,10 @@ import "./sandbox/runtime.js";
 
   // Town shops helpers routed via ShopService (delegated)
   function isShopOpenNow(shop = null) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.isShopOpenNow === "function") {
-      return SS.isShopOpenNow(getCtx(), shop || null);
-    }
-    return false;
+    return shopOps.isShopOpenNow(shop);
   }
   function shopScheduleStr(shop) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.shopScheduleStr === "function") {
-      return SS.shopScheduleStr(shop);
-    }
-    return "";
+    return shopOps.shopScheduleStr(shop);
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
     return gameTimeMinutesUntil(hourTarget, minuteTarget);
@@ -645,63 +640,35 @@ import "./sandbox/runtime.js";
 
   
 
+  const modeOps = createGameModeOps({
+    getCtx,
+    applyCtxSyncAndRefresh,
+    log,
+    modHandle
+  });
+
   function enterTownIfOnTile() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.enterTownIfOnTile === "function") {
-      return !!MT.enterTownIfOnTile(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return modeOps.enterTownIfOnTile();
   }
 
   function enterDungeonIfOnEntrance() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
-      return !!MT.enterDungeonIfOnEntrance(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return modeOps.enterDungeonIfOnEntrance();
   }
 
   function leaveTownNow() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.leaveTownNow === "function") {
-      MT.leaveTownNow(ctx, applyCtxSyncAndRefresh);
-    }
+    modeOps.leaveTownNow();
   }
 
   function requestLeaveTown() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.requestLeaveTown === "function") {
-      MT.requestLeaveTown(ctx);
-    }
+    modeOps.requestLeaveTown();
   }
 
   function returnToWorldFromTown() {
-    const ctx = getCtx();
-    const logExitHint = (c) => {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(c, "town.exitHint");
-      } else {
-        log("Return to the town gate to exit to the overworld.", "info");
-      }
-    };
-    return !!exitToWorldExt(ctx, {
-      reason: "gate",
-      applyCtxSyncAndRefresh,
-      logExitHint
-    });
+    return modeOps.returnToWorldFromTown();
   }
 
   function returnToWorldIfAtExit() {
-    const ctx = getCtx();
-    return !!exitToWorldExt(ctx, {
-      reason: "stairs",
-      applyCtxSyncAndRefresh
-    });
+    return modeOps.returnToWorldIfAtExit();
   }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state

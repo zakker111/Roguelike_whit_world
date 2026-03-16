@@ -28,16 +28,27 @@ Completed work that should be considered “baseline” going forward:
   - Extracted combat + inventory wrapper boilerplate into:
     - `core/engine/game_combat_ops.js`
     - `core/engine/game_inventory_ops.js`
-  - Extracted bounds + walkability policy into:
+  - Extracted bounds + walkability policy (Slice D) into:
     - `core/engine/game_map_ops.js`
+  - Extracted render ctx + draw scheduling (Slice E) into:
+    - `core/engine/render_orchestration.js`
+    - `core/engine/game_loop.js`
+  - **Extracted loot ops + panel routing (Slice F)** into:
+    - `core/loot_flow.js` (exports + `window.LootFlow`)
+    - `core/game.js` loot wrappers now delegate to `LootFlow.show/hide/loot`
+  - **Extracted mode transition + exit wrappers (Slice G)** into:
+    - `core/engine/game_mode_ops.js`
+    - `core/game.js` mode wrappers now delegate to `modeOps.*`
+  - **Extracted shop wrappers (Slice H)** into:
+    - `core/engine/game_shop_ops.js`
+    - `core/game.js` shop wrappers now delegate to `shopOps.*`
 
 - **CI quality gates**
-  - `.github/workflows/lint.yml` runs:
+  - `.github/workflows/ci.yml` runs:
     - `npm run lint:strict`
     - `npm run build`
-  - `.github/workflows/acceptance_phase6.yml` runs:
-    - `npm run ci` (lint:strict + build)
-    - `node scripts/run_phase6_acceptance.js`
+    - `npm run acceptance:phase6`
+    - `npm run acceptance:phase0`
 
 ## Next planned tasks (recommended order)
 
@@ -48,18 +59,13 @@ Run the exact gates locally (or rely on CI for the authoritative signal):
 npm run lint:strict
 npm run build
 npm run acceptance:phase6
-```
-
-Optional (script exists, but no GH workflow currently runs it):
-
-```bash
 npm run acceptance:phase0
 ```
 
 Acceptance criteria:
 - No new lint warnings/errors
 - No bundling/runtime import errors
-- Phase 6 acceptance harness passes
+- Phase 6 + Phase 0 acceptance harness pass
 
 ### 2) Lock down post-split invariants (GMBridge + UIOrchestration + UIBridge)
 Small hygiene items to prevent regressions:
@@ -72,16 +78,17 @@ Small hygiene items to prevent regressions:
   - `window.UIOrchestration` from `core/bridge/ui_orchestration/index.js`
   - `window.UIBridge` from `core/bridge/ui_bridge/index.js`
 
-### 3) Next slice (recommended): extract render + draw scheduling helpers
-`core/game.js` still contains a block of “render driver plumbing” (render ctx assembly, draw batching, suppress-draw gating).
+### 3) Next slice (recommended): extract time helpers
+`core/game.js` still contains a few thin time helpers that mostly route into the time/weather facade.
 
 Proposed low-risk slice:
-1. Create `core/engine/game_render_ops.js` exporting `createRenderOps(getCtx)`.
-2. Move helpers into it (behavior-identical):
-   - `getRenderCtx()`
-   - `requestDraw()` (including batching/suppress logic)
-3. In `core/game.js`, instantiate once and delegate (keep ctx surface unchanged).
-4. Static QA: confirm no extra draws per turn (perf overlay) and no missing HUD refresh.
+1. Create `core/engine/game_time_ops.js` exporting `createTimeOps({ log, rng, minutesUntil, advanceTimeMinutes, fastForwardMinutes })` (or accept `modHandle` if needed).
+2. Move wrappers into it (behavior-identical):
+   - `minutesUntil(hourTarget, minuteTarget)`
+   - `advanceTimeMinutes(mins)`
+   - `fastForwardMinutes(mins)`
+3. In `core/game.js`, instantiate once and delegate (keep GameAPI surface unchanged).
+4. Static QA: time passage effects and logging remain unchanged.
 
 ### 4) Optional repo hygiene: add a lockfile
 If you want fully deterministic CI installs and faster caches:
