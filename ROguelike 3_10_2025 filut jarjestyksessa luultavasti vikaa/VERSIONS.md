@@ -1,3 +1,10 @@
+v1.50.43 — Docs hygiene: refresh large-file size snapshot
+
+- Updated `TODO.md` large-file size counts (line totals) to reflect current refactors (notably `core/game.js` and the thin facade `core/bridge/gm_bridge.js`).
+- Refreshed the “Top offenders (repo-wide)” list to remove modules that are no longer large and to reflect current largest files.
+
+Deployment: https://kpym84gy3gs6.cosine.page
+
 v1.50.42 — CI guardrail: validate docs catalog
 
 - Added `scripts/check_docs_catalog.js` and `npm run check:docs-catalog`.
