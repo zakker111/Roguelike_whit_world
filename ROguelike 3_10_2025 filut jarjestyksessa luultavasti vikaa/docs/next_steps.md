@@ -80,6 +80,13 @@ npm run acceptance:phase6
 npm run acceptance:phase0
 ```
 
+Shortcuts:
+
+```bash
+npm run ci       # lint + docs catalog + build
+npm run ci:gm    # ci + Phase 6 + Phase 0 acceptance (GM baseline gate)
+```
+
 Acceptance criteria:
 - No new lint warnings/errors
 - No bundling/runtime import errors
