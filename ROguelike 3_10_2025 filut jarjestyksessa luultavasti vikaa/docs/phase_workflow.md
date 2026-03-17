@@ -73,6 +73,7 @@ npm run acceptance:phase0
 
 Shortcut:
 - `npm run ci` (runs `lint:strict`, `check:docs-catalog`, and `build`)
+- `npm run ci:gm` (runs `ci` + `acceptance:phase6` + `acceptance:phase0`)
 
 Pass criteria:
 - `lint:strict`: **0 warnings**, 0 errors
