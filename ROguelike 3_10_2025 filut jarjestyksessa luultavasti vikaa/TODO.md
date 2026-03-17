@@ -17,7 +17,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
 - [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
 - [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
-- [ ] **GM follow-up (medium risk):** ensure any remaining non-marker GM encounter starts are fully ctx-first (see note in `VERSIONS.md` v1.76.0).
+- [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
 
 ## Gameplay / Features
 
@@ -65,9 +65,9 @@ Merge checklist:
   - Seed reroll / apply seed clears `GM_STATE_V1` (and restarts GM pacing)
 
 Known issues / deferred (post-merge):
-- [ ] Persisted GM RNG stream + reload continuity gate — defer
-- [ ] General GM action scheduler + safety rails — defer
-- [ ] Reset semantics coverage for all entry points + APP_VERSION bump — defer
+- [x] Persisted GM RNG stream + reload continuity gate (`gm_rng_persistence`)
+- [x] Deterministic scheduler arbitration gate (`gm_scheduler_arbitration`)
+- [x] Reset semantics for seed/newgame/death restart + version invalidation (`gm_seed_reset`)
 
 - [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
   - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
@@ -87,8 +87,9 @@ Known issues / deferred (post-merge):
       - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
     - GM is **per new game** (no meta-progression): GM state resets on **death restart**, **Start New Game**, and **seed reroll**.
     - v0.2 delivery modes (agreed):
-      - `travel.banditBounty`: **auto** (special encounter)
+      - `travel.banditBounty`: **confirm** (special encounter)
       - `travel.guardFine`: **confirm** (pay/refuse)
+      - `travel.trollHunt`: **confirm** (special encounter)
       - `quest.bottleMap`: **marker** (player travels and presses `G`)
 
   - GM v0.2 ship roadmap (phases)
@@ -97,31 +98,31 @@ Known issues / deferred (post-merge):
       - Likely files: `core/gm/runtime.js`, `core/bridge/gm_bridge.js`, `smoketest/` runner.
       - Acceptance: 10x smoketest runs stable; no new console errors in normal play.
       - Smoketests (new/extend): extend existing determinism scenario + add a short “smoke suite” CI loop.
-    - [ ] Phase 1: GM RNG persistence gate
+    - [x] Phase 1: GM RNG persistence gate (`gm_rng_persistence`)
       - Scope: make GM RNG a first-class persisted stream; prove reload continuity.
       - Likely files: `core/gm/runtime.js` (RNG), `core/state/persistence.js`, `smoketest/scenarios/determinism*.js`.
       - Acceptance: save → reload → next N GM RNG draws identical; GM RNG draws never consume `ctx.rng`.
       - Smoketests (new/extend): add/extend a `gm_rng_persistence` scenario.
-    - [ ] Phase 2: Scheduler
+    - [x] Phase 2: Scheduler (`gm_scheduler_arbitration`)
       - Scope: implement action queue + deterministic arbitration (RNG-free winner selection).
       - Likely files: `core/gm/scheduler*.js` (new), `core/gm/runtime.js`.
       - Acceptance: stable sort `priority → earliestTurn → createdTurn → id`; lifecycle statuses behave as specified.
       - Smoketests (new/extend): add `gm_scheduler_arbitration` (assert 0 RNG calls during arbitration).
-    - [ ] Phase 3: Narrow GMBridge
+    - [x] Phase 3: Narrow GMBridge (`gm_bridge_markers`, `gm_bridge_faction_travel`)
       - Scope: route all GM→Game side effects through a minimal bridge API.
       - Likely files: `core/bridge/gm_bridge.js`, `core/bridge/ui_bridge.js`, `core/gm/runtime.js` call sites.
       - Acceptance: GM runtime does not directly mutate unrelated systems; bridge surface is reviewed + documented.
       - Smoketests (new/extend): extend bottle-map + survey-cache scenarios to assert bridge-only side effects.
-    - [ ] Phase 4: Reset semantics
+    - [x] Phase 4: Reset semantics (`gm_seed_reset`)
       - Scope: guarantee GM resets on death restart / Start New Game / seed reroll / APP_VERSION bump.
       - Likely files: `core/state/persistence.js`, any “new game / apply seed / death restart” handlers.
       - Acceptance: `GM_STATE_V1` reliably cleared on each reset path; no stale markers/threads after reset.
-      - Smoketests (new/extend): add `gm_reset_semantics` scenario (force each reset path).
-    - [ ] Phase 5: banditBounty via scheduler
-      - Scope: ship `travel.banditBounty` as an auto action scheduled + executed through the bridge.
-      - Likely files: `core/gm/runtime.js` (action defs), `core/bridge/gm_bridge.js`, encounter data `gm_bandit_bounty`.
-      - Acceptance: obeys safety rails + cooldowns; auto encounter entry is ctx-first; no interference with normal travel rolls.
-      - Smoketests (new/extend): add `gm_bandit_bounty` scenario (cooldown + ctx-first entry).
+      - Smoketests (new/extend): use `gm_seed_reset` (force each reset path).
+    - [x] Phase 5: travel encounters via scheduler (confirm-only in v0.3)
+      - Scope: scheduler-backed travel actions delivered via confirm (choices-only authority).
+      - Likely files: `core/gm/runtime/faction_travel.js`, `core/bridge/gm_bridge/world_step.js`, encounter templates (`gm_bandit_bounty`, `gm_troll_hunt`, `gm_guard_fine`).
+      - Acceptance: obeys safety rails + cooldowns; encounter entry is ctx-first; no interference with normal travel rolls.
+      - Smoketests (new/extend): `gm_bridge_faction_travel`.
     - [ ] Phase 6: GM panel surfacing
       - Scope: expose scheduler queue + RNG stream + active quest summaries in GM panel.
       - Likely files: `ui/` GM panel component(s), `ui/style.css`, `core/gm/runtime.js` snapshot/export.
@@ -139,36 +140,36 @@ Known issues / deferred (post-merge):
       - Ensure encounter entry and mode transitions use ctx-first facades (no `GameAPI` ctx reacquire / window-only entry)
 
   - Foundation (must ship in v0.2)
-    - [ ] General GM **Action Scheduler**
+    - [x] General GM **Action Scheduler**
       - Deterministic arbitration: `priority desc → earliestTurn asc → createdTurn asc → id asc` (no RNG calls during arbitration)
-      - Action lifecycle statuses: planned/scheduled/ready/consumed/expired/cancelled
+      - Action lifecycle statuses: scheduled/consumed (plus bookkeeping: lastActionTurn/lastAutoTurn/history)
       - Global safety rails:
-        - [ ] max actions per N turns
-        - [ ] min spacing between **auto** events
+        - [x] max actions per N turns
+        - [x] min spacing between **auto** events
         - [ ] max active quest threads (start with 1)
-        - [ ] "one GM action per turn" unless explicitly allowed
-    - [ ] GM→Game execution via a narrow **GMBridge**
+        - [x] "one GM action per turn" unless explicitly allowed
+    - [x] GM→Game execution via a narrow **GMBridge**
       - grant item, place/remove marker, start special encounter, show confirm, log narrative
       - GM runtime should not directly mutate unrelated systems
-    - [ ] Persisted GM RNG stream
+    - [x] Persisted GM RNG stream
       - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
       - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
-    - [ ] Persistence (mid-run continuity only)
+    - [x] Persistence (mid-run continuity only)
       - LocalStorage: [x] add `GM_STATE_V1`
       - Persist: scheduler queue + active quest threads + GM RNG state
       - Clear `GM_STATE_V1` on:
-        - [ ] death restart
-        - [ ] Start New Game
-        - [ ] seed reroll
-        - [ ] deploy version change (APP_VERSION)
+        - [x] death restart
+        - [x] Start New Game
+        - [x] seed reroll
+        - [x] deploy version change (APP_VERSION)
 
   - v0.2 shipping action catalog (minimum content)
     - [x] `travel.guardFine` (confirm)
       - Use confirm UI (pay/refuse)
       - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
       - Encounter template already exists: `gm_guard_fine` (data)
-    - [ ] `travel.banditBounty` (auto)
-      - Auto-start a **special** encounter (not the normal EncounterService roll)
+    - [x] `travel.banditBounty` (confirm)
+      - Confirm-start a **special** encounter (not the normal EncounterService roll)
       - Must obey safety rails + cooldowns
       - Encounter template already exists: `gm_bandit_bounty` (data)
     - [x] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
@@ -178,16 +179,16 @@ Known issues / deferred (post-merge):
       - Resolution: at the X tile, pressing `G` starts a small crime-scene encounter (corpse + chest)
       - Cleanup: after loot, quest completes and marker is removed
       - Hard placement constraints (no softlocks):
-        - [ ] target must be walkable
-        - [ ] deterministic retry loop with capped attempts
-        - [ ] graceful expiry if placement fails (log reason)
+        - [x] target must be walkable
+        - [x] deterministic retry loop with capped attempts
+        - [x] graceful expiry if placement fails (log reason)
 
   - v0.2 testing/merge gates (must-have)
-    - [ ] Determinism: GM RNG persistence gate (save → reload → next N draws identical)
-    - [ ] Determinism: scheduler arbitration gate (winner selection consumes zero RNG)
-    - [ ] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers
-    - [ ] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters)
-    - [ ] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
+    - [x] Determinism: GM RNG persistence gate (save → reload → next N draws identical) (`gm_rng_persistence`)
+    - [x] Determinism: scheduler arbitration gate (winner selection consumes zero RNG) (`gm_scheduler_arbitration`)
+    - [x] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers (`gm_bottle_map`)
+    - [x] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters) (`gm_disable_switch`)
+    - [x] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
 
   - GM panel (v0.2: beautify + orchestrator visibility)
     - Visual style + UX
@@ -226,14 +227,14 @@ Known issues / deferred (post-merge):
   - Phase list (1–4)
     - [x] Phase 1: Audit boredom + eligibility transitions
       - Report: `analysis/gm_phase1_audit.md`
-    - [ ] Phase 2: Ctx-first hardening (all GM entry/exit points)
-    - [ ] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
-    - [ ] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)
+    - [x] Phase 2: Ctx-first hardening (all GM entry/exit points)
+    - [x] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
+    - [x] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)
   - v0.3 testing/merge gates
-    - [ ] Determinism across reload (same seed + save/reload preserves `nextEligibleTurn` and eligibility)
-    - [ ] Boredom not stuck at 0 (partial recovery still allows boredom to accumulate)
-    - [ ] No forced negative events (choices only)
-    - [ ] Reset clears `GM_STATE_V1`
+    - [x] Determinism across reload (same seed + save/reload preserves `nextEligibleTurn` and eligibility) (`gm_rng_persistence`)
+    - [x] Boredom not stuck at 0 (partial recovery still allows boredom to accumulate) (`gm_boredom_interest`)
+    - [x] No forced negative events (choices only) (confirm/choice delivery)
+    - [x] Reset clears `GM_STATE_V1` (`gm_seed_reset`)
 
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
@@ -641,10 +642,10 @@ Known issues / deferred (post-merge):
       - Keep `core/game.js` as facade.
       - Smoketests: `world,inventory,overlays,dungeon,combat,town,determinism`
 
-    - [ ] `core/bridge/gm_bridge.js` (17): split into narrow bridge + effects
-      - Extract: `core/bridge/gm_bridge_markers.js`, `core/bridge/gm_bridge_travel.js`, `core/bridge/gm_bridge_quests.js`
-      - Keep `gm_bridge.js` as facade.
+    - [x] `core/bridge/gm_bridge.js` (17): split into narrow bridge + effects
+      - Implemented as `core/bridge/gm_bridge/*` (markers, world_step, bottle_map, survey_cache) with `core/bridge/gm_bridge.js` as facade.
       - Smoketests: `gm_seed_reset,gm_bridge_markers,gm_bridge_faction_travel,gm_bottle_map,gm_survey_cache`
+map,gm_survey_cache`
 
     - [ ] `core/followers_runtime.js` (981): split commands vs tick vs inventory
       - Extract: `core/followers/runtime_commands.js`, `core/followers/runtime_tick.js`, `core/followers/runtime_inventory.js`
