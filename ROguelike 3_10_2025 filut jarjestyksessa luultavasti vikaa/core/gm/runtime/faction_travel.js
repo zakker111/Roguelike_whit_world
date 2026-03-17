@@ -262,6 +262,19 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
 
   const turn = normalizeTurn(getCurrentTurn(ctx, gm));
 
+  const hasEncounterTemplate = (id) => {
+    try {
+      const want = String(id || "").trim().toLowerCase();
+      if (!want) return false;
+      const GD = (typeof window !== "undefined") ? window.GameData : null;
+      const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
+      if (!reg || !reg.length) return false;
+      return !!reg.find((t) => t && String(t.id || "").toLowerCase() === want);
+    } catch (_) {
+      return false;
+    }
+  };
+
   // Deterministic arbitration: priority > earliestTurn > createdTurn > id.
   const action = schedulerPickNext(gm, turn);
   if (!action) return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
@@ -287,6 +300,16 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
     intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
   } else {
     return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+  }
+
+  // Phase 6 / no-fallback guard:
+  // If the chosen action would start an encounter but the encounter template isn't loaded yet,
+  // do NOT consume the scheduler action. We'll retry on a future world step.
+  if (intent.kind === "encounter") {
+    const id = intent.encounterId || null;
+    if (!hasEncounterTemplate(id)) {
+      return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
+    }
   }
 
   // Consume scheduler + legacy slot.

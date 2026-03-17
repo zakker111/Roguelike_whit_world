@@ -1,5 +1,5 @@
 import { getGameData } from "../../utils/access.js";
-import { parseHHMM } from "../../services/time_service.js";
+import { parseHHMM } from "../../services/index.js";
 
 /**
  * Compute minutes-of-day for shop schedules, delegating to ShopService when available.

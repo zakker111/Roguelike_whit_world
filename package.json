@@ -6,7 +6,11 @@
   ],
   "scripts": {
     "ci": "npm --workspace tiny-roguelike run ci",
+    "lint:strict": "npm --workspace tiny-roguelike run lint:strict",
+    "check:docs-catalog": "npm --workspace tiny-roguelike run check:docs-catalog",
+    "build": "npm --workspace tiny-roguelike run build",
     "acceptance:phase6": "npm --workspace tiny-roguelike run acceptance:phase6",
+    "acceptance:phase0": "npm --workspace tiny-roguelike run acceptance:phase0",
     "analyze:phase1": "npm --workspace tiny-roguelike run analyze:phase1",
     "analyze:imports": "npm --workspace tiny-roguelike run analyze:imports"
   }

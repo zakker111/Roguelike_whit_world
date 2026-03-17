@@ -2,6 +2,23 @@
 
 This file collects planned features, ideas, and technical cleanups that were previously scattered in `VERSIONS.md` and `todo.txt`.
 
+## Recently completed (v1.50.38–v1.50.42)
+
+- [x] Folder barrels: `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
+- [x] Boot manifests import barrels where helpful (`src/boot/06_services.js`, `src/boot/11_runtime_orchestration.js`)
+- [x] Initial barrel adoption in low-risk worldgen/UI modules (`worldgen/town_gen.js`, `worldgen/town/shops_core.js`, `ui/components/lockpick_modal.js`)
+- [x] Workflow doc for shipping small slices: `docs/phase_workflow.md`
+- [x] Docs catalog CI guardrail: `npm run check:docs-catalog` (also included in `npm run ci`)
+- [x] Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`)
+
+## Near-term engineering plan (small slices)
+
+- [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
+- [ ] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
+- [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
+- [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
+- [ ] **GM follow-up (medium risk):** ensure any remaining non-marker GM encounter starts are fully ctx-first (see note in `VERSIONS.md` v1.76.0).
+
 ## Gameplay / Features
 
 ### GM Merge Readiness (v1.50.33)
@@ -14,7 +31,7 @@ Recent fixes to verify before merge:
   - `Modes.enterEncounter` exists and works (no crash)
   - `Modes.openRegionMap`, `Modes.startRegionEncounter`, `Modes.completeEncounter` exist exactly once (no duplicates)
 - [ ] Repo hygiene
-  - No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
+  - [x] No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
 
 Implemented (ready in GM branch):
 - [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)
@@ -590,7 +607,7 @@ Known issues / deferred (post-merge):
     - Keep current import sites stable: big file becomes a facade that delegates to new modules.
     - Extract **pure helpers** first (no DOM, no ctx mutation) → easiest to move.
     - Avoid circular imports: do not import the facade from its children.
-    - After each PR: run `npm run ci` + `npm run analyze:imports` + smoketest subset (see below).
+    - After each PR: run `npm run ci` (includes `lint:strict`, `check:docs-catalog`, and `build`) + `npm run analyze:imports` + smoketest subset (see below).
 
   - Priority order (lowest risk → highest risk):
     - (1) `worldgen/` + `ai/` extractions
@@ -619,12 +636,12 @@ Known issues / deferred (post-merge):
       - Keep `modes.js` as facade (exports unchanged); `core/modes/transitions.js` should remain the stable wrapper.
       - Smoketests: `world,region,dungeon,town,encounters,determinism`
 
-    - [ ] `core/game.js` (1319): split orchestration vs UI glue vs lifecycle
+    - [ ] `core/game.js` (1079): split orchestration vs UI glue vs lifecycle
       - Extract: `core/game/game_utils.js` (pure), `core/game/game_render_bridge.js` (UI-only boundary), `core/game/game_session.js` (new game/reset), `core/game/game_tick.js` (turn driver)
       - Keep `core/game.js` as facade.
       - Smoketests: `world,inventory,overlays,dungeon,combat,town,determinism`
 
-    - [ ] `core/bridge/gm_bridge.js` (1104): split into narrow bridge + effects
+    - [ ] `core/bridge/gm_bridge.js` (17): split into narrow bridge + effects
       - Extract: `core/bridge/gm_bridge_markers.js`, `core/bridge/gm_bridge_travel.js`, `core/bridge/gm_bridge_quests.js`
       - Keep `gm_bridge.js` as facade.
       - Smoketests: `gm_seed_reset,gm_bridge_markers,gm_bridge_faction_travel,gm_bottle_map,gm_survey_cache`
@@ -657,14 +674,14 @@ Known issues / deferred (post-merge):
     - [ ] `core/gm/runtime.js` (1009): code exists under `core/gm/runtime/*`, but facade remains large; continue moving logic out (keep facade mostly as composition/exports).
 
   - Size snapshot (by line count; update when refactoring)
-    - (Snapshot date: 2026-03-13; measured via `read_file file:1-1` headers)
+    - (Snapshot date: 2026-03-16; measured via file line totals (repo-wide); re-measure locally with `npm run analyze:phase1`)
     - Top offenders (repo-wide):
       - 1466 — `ai/town_ai_legacy.js`
       - 1414 — `core/modes/modes.js`
-      - 1319 — `core/game.js`
       - 1310 — `core/dungeon/runtime.js`
+      - 1227 — `ai/town_runtime.js`
       - 1133 — `ui/ui.js`
-      - 1104 — `core/bridge/gm_bridge.js`
+      - 1079 — `core/game.js`
       - 1070 — `ai/ai.js`
       - 1011 — `worldgen/town_gen.js`
       - 1009 — `core/gm/runtime.js`
@@ -678,9 +695,8 @@ Known issues / deferred (post-merge):
       - 742  — `core/encounter/enter.js`
       - 691  — `core/dungeon/tower_prefabs.js`
       - 672  — `data/world/world_assets.json`
-      - 669  — `core/bridge/ui_bridge.js`
+      - 669  — `core/bridge/ui_bridge_legacy.js`
       - 664  — `ai/town_population.js`
-      - 659  — `core/bridge/ui_orchestration.js`
       - 607  — `dungeon/dungeon.js`
       - 601  — `entities/loot.js`
       - 593  — `entities/player.js`

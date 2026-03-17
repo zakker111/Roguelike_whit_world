@@ -46,7 +46,7 @@ What gets injected (in order) when `?smoketest=1`
 
 Key assets expected by the page
 - Core/runtime and utilities:
-  - `core/ctx.js`, `core/rng_service.js`, `utils/utils.js`, `utils/rng_fallback.js`
+  - `core/ctx.js`, `core/rng_service.js`, `utils/utils.js`, `utils/rng.js`
 - Data registries and adapters:
   - `data/loader.js`, `data/flavor.js`, `data/god.js`
   - `entities/items.js`, `entities/enemies.js`, `entities/loot.js`, `dungeon/dungeon_items.js`

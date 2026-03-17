@@ -2,130 +2,19 @@
 // Fully browser-native (no bundler required). index.html should load this via:
 //   <script type="module" src="/src/main.js"></script>
 
-// Core context and deterministic RNG service
-import '/core/ctx.js';
-import '/core/rng_service.js';
-import '/core/state/state_sync.js';
-import '/core/engine/boot_monitor.js';
-
-// Core fallbacks: HealthCheck expects window.Fallbacks to exist (fallback combat/stat formulas).
-import '/core/fallbacks.js';
-
-// Optional: Harbor generation (experimental). Imported early so HealthCheck can
-// detect window.Harbor when the harbor worldgen modules are present.
-import '/core/facades/harbor_generation.js';
-
-// Utilities
-import '/utils/utils.js';
-import '/utils/bounds.js';
-import '/utils/item_describe.js';
-import '/utils/rng.js';
-import '/utils/tiles_validation.js';
-
-// World and LOS/FOV primitives
-import '/world/infinite_gen.js';
-import '/world/world.js';
-import '/world/los.js';
-import '/world/fov.js';
-
-// Data registries (ensure config/palette/tiles ready before consumers)
-import '/data/loader.js';
-import '/data/flavor.js';
-import '/data/god.js';
-import '/core/god/controls.js';
-import '/data/tile_lookup.js';
-
-// Entities and dungeon adapters
-import '/entities/items.js';
-import '/entities/enemies.js';
-import '/dungeon/dungeon_items.js';
-import '/entities/loot.js';
-
-// Dungeon core
-import '/dungeon/occupancy_grid.js';
-import '/dungeon/dungeon_state.js';
-import '/dungeon/dungeon.js';
-
-// Services
-import '/services/time_service.js';
-import '/services/weather_service.js';
-import '/services/shop_service.js';
-import '/services/props_service.js';
-import '/services/encounter_service.js';
-import '/services/messages.js';
-import '/services/flavor_service.js';
-import '/services/quest_service.js';
-import '/services/combat_service.js';
-
-// Combat modules
-import '/combat/combat_utils.js';
-import '/combat/combat.js';
-import '/combat/stats.js';
-import '/combat/status_effects.js';
-import '/combat/equipment_decay.js';
-
-// UI and rendering
-import '/ui/logger.js';
-import '/ui/tileset.js';
-import '/ui/render_core.js';
-import '/ui/render_overworld.js';
-import '/ui/render_town.js';
-import '/ui/render_dungeon.js';
-
-import '/ui/render_region.js';
-import '/ui/render.js';
-import '/ui/decals.js';
-import '/ui/ui.js';
-import '/ui/components/fishing_modal.js';
-import '/ui/components/lockpick_modal.js';
-import '/ui/shop_panel.js';
-import '/ui/quest_board.js';
-import '/ui/input_mouse.js';
-
-// Player and equipment
-import '/entities/player_utils.js';
-import '/entities/player_equip.js';
-import '/entities/player.js';
-
-// AI and worldgen
-import '/ai/ai.js';
-import '/ai/town_ai.js';
-import '/worldgen/town_gen.js';
-
-// Core runtime orchestration and facades
-import '/core/modes/actions.js';
-import '/core/town/state.js';
-import '/core/modes/modes.js';
-import '/core/engine/game_loop.js';
-import '/core/input.js';
-import '/core/game_api.js';
-import '/core/engine/fov_camera.js';
-import '/core/inventory_controller.js';
-import '/core/inventory_flow.js';
-import '/core/town/runtime.js';
-import '/core/dungeon/runtime.js';
-import '/core/encounter/runtime.js';
-// EncounterInteractions: G-based interactions inside encounters (campfires, captives, merchants)
-import '/core/encounter_interactions.js';
-import '/core/bridge/ui_bridge.js';
-import '/region_map/region_map_runtime.js';
-import '/core/facades/occupancy.js';
-import '/core/world_runtime.js';
-import '/core/gm/runtime.js';
-import '/core/state/game_state.js';
-import '/core/engine/turn_loop.js';
-import '/core/engine/game_fov.js';
-import '/core/modes/transitions.js';
-import '/core/bridge/ui_orchestration.js';
-import '/core/movement.js';
-import '/core/loot_flow.js';
-import '/core/engine/render_orchestration.js';
-import '/core/death_flow.js';
-import '/core/capabilities.js';
-import '/core/god/handlers.js';
-import '/core/validation_runner.js';
-import '/analysis/world_stats.js';
-import '/analysis/world_stats_bridges.js';
+// Import groups. These are pure side-effect import manifests and must preserve order.
+import '/src/boot/00_core.js';
+import '/src/boot/01_utils.js';
+import '/src/boot/02_world_primitives.js';
+import '/src/boot/03_data_registries.js';
+import '/src/boot/04_entities_and_adapters.js';
+import '/src/boot/05_dungeon_core.js';
+import '/src/boot/06_services.js';
+import '/src/boot/07_combat.js';
+import '/src/boot/08_ui_and_rendering.js';
+import '/src/boot/09_player.js';
+import '/src/boot/10_ai_and_worldgen.js';
+import '/src/boot/11_runtime_orchestration.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
 // Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.

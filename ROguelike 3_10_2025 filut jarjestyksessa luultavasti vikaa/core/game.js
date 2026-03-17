@@ -36,7 +36,7 @@ import {
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
 import "./modes/transitions.js";
-import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
+import { createGameModeOps } from "./engine/index.js";
 import {
   initMouseSupportImpl,
   startLoopImpl,
@@ -45,59 +45,38 @@ import {
 import { createGodBridge } from "./game_god_bridge.js";
 import { buildGameAPIImpl } from "./game_api_bootstrap.js";
 import { godSeedAndRestart } from "./engine/game_god.js";
+import { applySessionBootFlagsFromUrl } from "./engine/session_boot.js";
+import { createGameCanvasRuntime } from "./engine/canvas_boot.js";
+import { createInitialPlayer } from "./engine/player_boot.js";
+import { initRngRuntime } from "./engine/rng_boot.js";
 import {
   initGameTime,
   getClock as gameTimeGetClock,
   getWeatherSnapshot as gameTimeGetWeatherSnapshot,
-  minutesUntil as gameTimeMinutesUntil,
-  advanceTimeMinutes as gameTimeAdvanceTimeMinutes
 } from "./engine/game_time.js";
 import { runTurn } from "./engine/game_turn.js";
 import { recomputeWithGuard as gameFovRecomputeWithGuard } from "./engine/game_fov.js";
 import { updateCamera as fovCameraUpdate } from "./engine/fov_camera.js";
+import { createInitialModeState } from "./engine/mode_state.js";
 import {
   tickTimeAndWeather,
   getMinutesPerTurn,
   getTurnCounter
 } from "./facades/time_weather.js";
-import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
+import { measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
-import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
+import { int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
 import {
-  getPlayerAttack as combatGetPlayerAttack,
-  getPlayerDefense as combatGetPlayerDefense,
-  rollHitLocation as combatRollHitLocation,
-  critMultiplier as combatCritMultiplier,
-  getEnemyBlockChance as combatGetEnemyBlockChance,
-  getPlayerBlockChance as combatGetPlayerBlockChance,
-  enemyDamageAfterDefense as combatEnemyDamageAfterDefense,
-  enemyDamageMultiplier as combatEnemyDamageMultiplier,
-  enemyThreatLabel as combatEnemyThreatLabel
-} from "./facades/combat.js";
-import {
-  renderInventoryPanel as renderInventoryPanelFacade,
-  showInventoryPanel as showInventoryPanelFacade,
-  hideInventoryPanel as hideInventoryPanelFacade,
-  equipItemByIndex as equipItemByIndexFacade,
-  equipItemByIndexHand as equipItemByIndexHandFacade,
-  unequipSlot as unequipSlotFacade,
-  addPotionToInventory as addPotionToInventoryFacade,
-  drinkPotionByIndex as drinkPotionByIndexFacade,
-  eatFoodByIndex as eatFoodByIndexFacade,
-  useItemByIndex as useItemByIndexFacade
-} from "./facades/inventory.js";
-import {
-  initialDecay as invInitialDecay,
-  rerenderInventoryIfOpen as invRerenderInventoryIfOpen,
-  decayEquipped as invDecayEquipped,
-  usingTwoHanded as invUsingTwoHanded,
-  decayAttackHands as invDecayAttackHands,
-  decayBlockingHands as invDecayBlockingHands,
-  describeItem as invDescribeItem,
-  equipIfBetter as invEquipIfBetter
-} from "./facades/inventory_decay.js";
+  createGameCombatOps,
+  createGameInventoryOps,
+  createGameMapOps,
+  createGameRenderOps,
+  createGameTimeOps,
+  createGameShopOps,
+  createGameWorldOps,
+} from "./engine/index.js";
 import { setupInputBridge, initUIHandlersBridge } from "./engine/game_ui_bridge.js";
 // Side-effect import to ensure FollowersItems attaches itself to window.FollowersItems
 import "./followers_items.js";
@@ -110,17 +89,7 @@ import "./sandbox/runtime.js";
   const { MAP_COLS, MAP_ROWS } = getWorldDefaults(CFG);
 
   // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
-  try {
-    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
-    const url = href ? new URL(href) : null;
-    const params = url ? url.searchParams : null;
-    const fresh = !!(params && (params.get("fresh") === "1" || params.get("reset") === "1" || params.get("nolocalstorage") === "1"));
-    if (fresh) {
-      try { if (typeof window !== "undefined") window.NO_LOCALSTORAGE = true; } catch (_) {}
-      try { if (typeof localStorage !== "undefined") localStorage.clear(); } catch (_) {}
-      try { if (typeof window !== "undefined") window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
-    }
-  } catch (_) {}
+  applySessionBootFlagsFromUrl();
 
   const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
@@ -129,32 +98,32 @@ import "./sandbox/runtime.js";
   initGameTime(CFG);
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
-  let mode = "world";
-  let world = null;          // { map, width, height, towns, dungeons }
-  // Region map overlay state (fixed-size downscaled world view)
-  let region = null;         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
-  let npcs = [];             // simple NPCs for town mode: { x, y, name, lines:[] }
-  let shops = [];            // shops in town mode: [{x,y,type,name}]
-  let townProps = [];        // interactive town props: [{x,y,type,name}]
-  let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
-  let townPlaza = null;      // central plaza coordinates {x,y}
-  let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
-  // Inn upstairs overlay state
-  let innUpstairs = null;    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
-  let innUpstairsActive = false;
-  let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
-  
-  
+  let {
+    mode,
+    world,          // { map, width, height, towns, dungeons }
+    // Region map overlay state (fixed-size downscaled world view)
+    region,         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
+    npcs,           // simple NPCs for town mode: { x, y, name, lines:[] }
+    shops,          // shops in town mode: [{x,y,type,name}]
+    townProps,      // interactive town props: [{x,y,type,name}]
+    townBuildings,  // town buildings: [{x,y,w,h,door:{x,y}}]
+    townPlaza,      // central plaza coordinates {x,y}
+    tavern,         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
+    // Inn upstairs overlay state
+    innUpstairs,    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
+    innUpstairsActive,
+    innStairsGround, // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
 
-  // World/town/dungeon transition anchors
-  let townExitAt = null;     // gate position inside town used to exit back to overworld
-  let worldReturnPos = null; // overworld position to return to after leaving town/dungeon
-  let dungeonExitAt = null;  // dungeon tile to return to overworld
-  let cameFromWorld = false; // whether we entered dungeon from overworld
-  let currentDungeon = null; // info for current dungeon entrance: { x,y, level, size }
-  // Multi-floor tower runtime state (managed by DungeonRuntime).
-  // Stored here so it survives across getCtx() calls.
-  let towerRun = null;
+    // World/town/dungeon transition anchors
+    townExitAt,     // gate position inside town used to exit back to overworld
+    worldReturnPos, // overworld position to return to after leaving town/dungeon
+    dungeonExitAt,  // dungeon tile to return to overworld
+    cameFromWorld,  // whether we entered dungeon from overworld
+    currentDungeon, // info for current dungeon entrance: { x,y, level, size }
+    // Multi-floor tower runtime state (managed by DungeonRuntime).
+    // Stored here so it survives across getCtx() calls.
+    towerRun,
+  } = createInitialModeState();
   // Persist dungeon states by overworld entrance coordinate "x,y"
   const dungeonStates = Object.create(null);
 
@@ -169,28 +138,20 @@ import "./sandbox/runtime.js";
   }
 
   
-  const camera = {
-    x: 0,
-    y: 0,
-    width: COLS * TILE,
-    height: ROWS * TILE,
-  };
+  const { canvas, ctx, camera } = createGameCanvasRuntime({ COLS, ROWS, TILE });
 
   
   const TILES = TILES_CONST;
   const COLORS = getColorsConst();
 
   
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+  
 
   
   let map = [];
   let seen = [];
   let visible = [];
-  let player = ((typeof window !== "undefined" && window.Player && typeof window.Player.createInitial === "function")
-    ? window.Player.createInitial()
-    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } });
+  let player = createInitialPlayer();
   let enemies = [];
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
@@ -208,19 +169,10 @@ import "./sandbox/runtime.js";
   
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
-  let currentSeed = null;
-  try {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
-      currentSeed = window.RNG.autoInit();
-    } else {
-      // If RNG service is unavailable, try to read persisted seed for diagnostics only
-      const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
-      const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
-      currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-    }
-  } catch (_) { currentSeed = null; }
-  // Single RNG function via RNG facade; deterministic (0.5) if RNG is unavailable
-  let rng = rngGetRng();
+  const rngRuntime = initRngRuntime();
+  const currentSeed = rngRuntime.currentSeed;
+  let rng = rngRuntime.rng;
+  void currentSeed;
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
@@ -289,18 +241,18 @@ import "./sandbox/runtime.js";
       isWalkable, inBounds,
       // Prefer modules to use ctx.utils.*; keep these for backward use and fallbacks.
       round1, randInt, chance, randFloat,
-       enemyColor, describeItem,
+      enemyColor, describeItem,
       setFovRadius,
       // expose recompute/update for modules like DungeonState
       recomputeFOV: () => recomputeFOV(),
       updateCamera: () => updateCamera(),
-      getPlayerAttack, getPlayerDefense, getPlayerBlockChance,
+      getPlayerAttack, getPlayerDefense, getPlayerBlockChance, getEnemyBlockChance,
       enemyThreatLabel,
       // Needed by loot and UI flows
       updateUI: () => updateUI(),
-      initialDecay: (tier) => initialDecay(tier),
-      equipIfBetter: (item) => equipIfBetter(item),
-      addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
+      initialDecay,
+      equipIfBetter,
+      addPotionToInventory,
       renderInventory: () => renderInventoryPanel(),
       showLoot: (list) => showLootPanel(list),
       hideLoot: () => hideLootPanel(),
@@ -318,6 +270,7 @@ import "./sandbox/runtime.js";
       // Visual decals
       addBloodDecal: (x, y, mult) => addBloodDecal(x, y, mult),
       // Decay and side effects
+      decayAttackHands,
       decayBlockingHands,
       decayEquipped,
       rerenderInventoryIfOpen,
@@ -366,6 +319,40 @@ import "./sandbox/runtime.js";
     return base;
   }
 
+  const combatOps = createGameCombatOps(getCtx);
+  const {
+    getPlayerAttack,
+    getPlayerDefense,
+    rollHitLocation,
+    critMultiplier,
+    getEnemyBlockChance,
+    getPlayerBlockChance,
+    enemyDamageAfterDefense,
+    enemyDamageMultiplier,
+    enemyThreatLabel,
+  } = combatOps;
+
+  const inventoryOps = createGameInventoryOps(getCtx);
+  const {
+    initialDecay,
+    rerenderInventoryIfOpen,
+    decayEquipped,
+    decayAttackHands,
+    decayBlockingHands,
+    describeItem,
+    equipIfBetter,
+    addPotionToInventory,
+    drinkPotionByIndex,
+    eatFoodByIndex,
+    useItemByIndex,
+    renderInventoryPanel,
+    showInventoryPanel,
+    hideInventoryPanel,
+    equipItemByIndex,
+    equipItemByIndexHand,
+    unequipSlot,
+  } = inventoryOps;
+
   // Prefer ctx module handles over window.* where possible
   function modHandle(name) {
     try {
@@ -376,7 +363,26 @@ import "./sandbox/runtime.js";
     return null;
   }
 
+  const mapOps = createGameMapOps(getCtx);
+  const renderOps = createGameRenderOps(getCtx);
+  const timeOps = createGameTimeOps({
+    getCtx,
+    log,
+    rng: () => (typeof rng === "function" ? rng() : Math.random()),
+    modHandle,
+  });
+
+  const shopOps = createGameShopOps({ getCtx, modHandle });
+  const worldOps = createGameWorldOps({
+    getCtx,
+    applyCtxSyncAndRefresh,
+    modHandle,
+    MAP_COLS,
+    MAP_ROWS,
+  });
+
   // RNG helpers via facade
+
   const randInt = (min, max) => rngInt(min, max, rng);
   const chance = (p) => rngChance(p, rng);
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
@@ -392,66 +398,7 @@ import "./sandbox/runtime.js";
   const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
-  // Decay helpers delegated to inventory_decay facade
-  function initialDecay(tier) {
-    return invInitialDecay(getCtx(), tier);
-  }
-
-  function rerenderInventoryIfOpen() {
-    invRerenderInventoryIfOpen(getCtx());
-  }
-
-  function decayEquipped(slot, amount) {
-    invDecayEquipped(getCtx(), slot, amount);
-  }
-
   
-  function getPlayerAttack() {
-    return combatGetPlayerAttack(getCtx());
-  }
-
-  
-  function getPlayerDefense() {
-    return combatGetPlayerDefense(getCtx());
-  }
-
-  function describeItem(item) {
-    return invDescribeItem(getCtx(), item);
-  }
-
-  
-  function rollHitLocation() {
-    return combatRollHitLocation(getCtx());
-  }
-
-  function critMultiplier() {
-    return combatCritMultiplier(getCtx());
-  }
-
-  function getEnemyBlockChance(enemy, loc) {
-    return combatGetEnemyBlockChance(getCtx(), enemy, loc);
-  }
-
-  function getPlayerBlockChance(loc) {
-    return combatGetPlayerBlockChance(getCtx(), loc);
-  }
-
-  // Enemy damage after applying player's defense
-  function enemyDamageAfterDefense(raw) {
-    return combatEnemyDamageAfterDefense(getCtx(), raw);
-  }
-
-  
-  
-
-  function enemyDamageMultiplier(level) {
-    return combatEnemyDamageMultiplier(getCtx(), level);
-  }
-
-  // Classify enemy danger based on level difference vs player
-  function enemyThreatLabel(enemy) {
-    return combatEnemyThreatLabel(getCtx(), enemy);
-  }
 
   
   function setFovRadius(r) {
@@ -468,23 +415,7 @@ import "./sandbox/runtime.js";
   }
 
   
-  function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    addPotionToInventoryFacade(getCtx(), heal, name);
-  }
-
-  function drinkPotionByIndex(idx) {
-    drinkPotionByIndexFacade(getCtx(), idx);
-  }
-
-  // Eat edible materials using centralized inventory flow
-  function eatFoodByIndex(idx) {
-    eatFoodByIndexFacade(getCtx(), idx);
-  }
-
   
-  function equipIfBetter(item) {
-    return invEquipIfBetter(getCtx(), item);
-  }
 
   
   function log(msg, type = "info", details = null) {
@@ -509,64 +440,16 @@ import "./sandbox/runtime.js";
   }
 
   function inBounds(x, y) {
-    // Centralize via Utils.inBounds; fallback to local map bounds
-    const U = modHandle("Utils");
-    if (U && typeof U.inBounds === "function") {
-      return !!U.inBounds(getCtx(), x, y);
-    }
-    const rows = Array.isArray(map) ? map.length : 0;
-    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
-    return x >= 0 && y >= 0 && x < cols && y < rows;
+    return mapOps.inBounds(x, y);
   }
 
   
   
 
-  
+
 
   function isWalkable(x, y) {
-    // Upstairs overlay-aware walkability: when active and inside the inn interior, honor upstairs tiles.
-    try {
-      if (innUpstairsActive && tavern && innUpstairs) {
-        const b = tavern.building || null;
-        const up = innUpstairs;
-        if (b && up) {
-          const ox = up.offset ? up.offset.x : (b.x + 1);
-          const oy = up.offset ? up.offset.y : (b.y + 1);
-          const lx = x - ox, ly = y - oy;
-          const w = up.w | 0, h = up.h | 0;
-          if (lx >= 0 && ly >= 0 && lx < w && ly < h) {
-            const row = up.tiles && up.tiles[ly];
-            const t = row ? row[lx] : null;
-            if (t != null) {
-              // Treat WALL as not walkable; allow FLOOR and STAIRS; disallow DOOR upstairs to avoid "walkable doors" issue.
-              return t === TILES.FLOOR || t === TILES.STAIRS;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Centralize via Utils.isWalkableTile; fallback to tile-type check
-    const U = modHandle("Utils");
-    if (U && typeof U.isWalkableTile === "function") {
-      return !!U.isWalkableTile(getCtx(), x, y);
-    }
-    const rows = Array.isArray(map) ? map.length : 0;
-    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
-    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
-    const t = map[y][x];
-    // Fallback walkability when Utils.isWalkableTile is unavailable.
-    // Keep in sync with utils.isWalkableTile for town/dungeon maps.
-    return (
-      t === TILES.FLOOR ||
-      t === TILES.DOOR ||
-      t === TILES.STAIRS ||
-      t === TILES.ROAD ||
-      t === TILES.PIER ||
-      t === TILES.SHIP_DECK ||
-      t === TILES.SHIP_EDGE
-    );
+    return mapOps.isWalkable(x, y);
   }
 
   
@@ -589,32 +472,11 @@ import "./sandbox/runtime.js";
 
   
   function getRenderCtx() {
-    const RO = modHandle("RenderOrchestration");
-    if (!RO || typeof RO.getRenderCtx !== "function") {
-      return null;
-    }
-    const base = RO.getRenderCtx(getCtx());
-    // Perf sink: delegate to core/perf.js
-    try {
-      base.onDrawMeasured = (ms) => {
-        try { perfMeasureDraw(ms); } catch (_) {}
-      };
-    } catch (_) {}
-    return base;
+    return renderOps.getRenderCtx();
   }
 
-  // Batch multiple draw requests within a frame to avoid redundant renders.
-  // Suppress draw flag used for fast-forward time (sleep/wait simulations)
-  let _suppressDraw = false;
-
-  
-
   function requestDraw() {
-    if (_suppressDraw) return;
-    const GL = modHandle("GameLoop");
-    if (GL && typeof GL.requestDraw === "function") {
-      GL.requestDraw();
-    }
+    renderOps.requestDraw();
   }
 
   
@@ -622,18 +484,7 @@ import "./sandbox/runtime.js";
   
 
   function initWorld() {
-    // WorldRuntime is required for overworld generation; fail fast if missing
-    const WR = modHandle("WorldRuntime");
-    if (!WR || typeof WR.generate !== "function") {
-      throw new Error("WorldRuntime.generate missing; overworld generation cannot proceed");
-    }
-    const ctx = getCtx();
-    const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    if (!ok) {
-      throw new Error("WorldRuntime.generate returned falsy; overworld generation failed");
-    }
-    // Sync back mutated state and refresh camera/FOV/UI/draw via centralized helper
-    applyCtxSyncAndRefresh(ctx);
+    worldOps.initWorld();
   }
 
   // Enter a small sandbox dungeon-style room for focused testing (no persistence).
@@ -676,40 +527,20 @@ import "./sandbox/runtime.js";
 
   // Town shops helpers routed via ShopService (delegated)
   function isShopOpenNow(shop = null) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.isShopOpenNow === "function") {
-      return SS.isShopOpenNow(getCtx(), shop || null);
-    }
-    return false;
+    return shopOps.isShopOpenNow(shop);
   }
   function shopScheduleStr(shop) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.shopScheduleStr === "function") {
-      return SS.shopScheduleStr(shop);
-    }
-    return "";
+    return shopOps.shopScheduleStr(shop);
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return gameTimeMinutesUntil(hourTarget, minuteTarget);
+    return timeOps.minutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    gameTimeAdvanceTimeMinutes(mins, {
-      log,
-      rng: () => (typeof rng === "function" ? rng() : Math.random())
-    });
+    timeOps.advanceTimeMinutes(mins);
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
-    // Centralized Movement.fastForwardMinutes already handles per-turn calls,
-    // FOV recompute, and UI updates using ctx. Keep this as a thin wrapper
-    // so callers do not need to import Movement directly from core/game.js.
-    try {
-      const MV = modHandle("Movement");
-      if (MV && typeof MV.fastForwardMinutes === "function") {
-        return MV.fastForwardMinutes(getCtx(), mins);
-      }
-    } catch (_) {}
-    return 0;
+    return timeOps.fastForwardMinutes(mins);
   }
 
   
@@ -770,75 +601,40 @@ import "./sandbox/runtime.js";
    * WorldRuntime or a dedicated world/escort helper.
    */
   function startEscortAutoTravel() {
-    try {
-      const ctx = getCtx();
-      if (!ctx || !ctx.world) return;
-      const WR = modHandle("WorldRuntime");
-      if (WR && typeof WR.startEscortAutoTravel === "function") {
-        WR.startEscortAutoTravel(ctx);
-      }
-    } catch (_) {}
+    worldOps.startEscortAutoTravel();
   }
 
   
 
+  const modeOps = createGameModeOps({
+    getCtx,
+    applyCtxSyncAndRefresh,
+    log,
+    modHandle
+  });
+
   function enterTownIfOnTile() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.enterTownIfOnTile === "function") {
-      return !!MT.enterTownIfOnTile(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return modeOps.enterTownIfOnTile();
   }
 
   function enterDungeonIfOnEntrance() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
-      return !!MT.enterDungeonIfOnEntrance(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return modeOps.enterDungeonIfOnEntrance();
   }
 
   function leaveTownNow() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.leaveTownNow === "function") {
-      MT.leaveTownNow(ctx, applyCtxSyncAndRefresh);
-    }
+    modeOps.leaveTownNow();
   }
 
   function requestLeaveTown() {
-    const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.requestLeaveTown === "function") {
-      MT.requestLeaveTown(ctx);
-    }
+    modeOps.requestLeaveTown();
   }
 
   function returnToWorldFromTown() {
-    const ctx = getCtx();
-    const logExitHint = (c) => {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(c, "town.exitHint");
-      } else {
-        log("Return to the town gate to exit to the overworld.", "info");
-      }
-    };
-    return !!exitToWorldExt(ctx, {
-      reason: "gate",
-      applyCtxSyncAndRefresh,
-      logExitHint
-    });
+    return modeOps.returnToWorldFromTown();
   }
 
   function returnToWorldIfAtExit() {
-    const ctx = getCtx();
-    return !!exitToWorldExt(ctx, {
-      reason: "stairs",
-      applyCtxSyncAndRefresh
-    });
+    return modeOps.returnToWorldIfAtExit();
   }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
@@ -1064,33 +860,7 @@ import "./sandbox/runtime.js";
   } = godBridge;
 
   
-  function renderInventoryPanel() {
-    try { renderInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function showInventoryPanel() {
-    try { showInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function hideInventoryPanel() {
-    try { hideInventoryPanelFacade(getCtx()); } catch (_) {}
-  }
-
-  function equipItemByIndex(idx) {
-    equipItemByIndexFacade(getCtx(), idx);
-  }
-
-  function equipItemByIndexHand(idx, hand) {
-    equipItemByIndexHandFacade(getCtx(), idx, hand);
-  }
-
-  function unequipSlot(slot) {
-    unequipSlotFacade(getCtx(), slot);
-  }
-
-  function useItemByIndex(idx) {
-    useItemByIndexFacade(getCtx(), idx);
-  }
+  
 
   
 
@@ -1191,18 +961,7 @@ import "./sandbox/runtime.js";
     });
   }
 
-  // Hand decay helpers delegated to inventory_decay facade
-  function usingTwoHanded() {
-    return invUsingTwoHanded(getCtx());
-  }
-
-  function decayAttackHands(light = false) {
-    invDecayAttackHands(getCtx(), light);
-  }
-
-  function decayBlockingHands() {
-    invDecayBlockingHands(getCtx());
-  }
+  
 
   
   // Orchestrator-controlled boot: these actions are now exposed as functions and invoked from core/game_orchestrator.js
@@ -1293,7 +1052,8 @@ import "./sandbox/runtime.js";
       godSpawnEnemyNearby,
       godSpawnEnemyById,
       godSpawnItems,
- getClock,
+      generateLoot,
+      getClock,
       log,
       applyCtxSyncAndRefresh,
       enterSandboxRoom: () => enterSandboxRoom(),

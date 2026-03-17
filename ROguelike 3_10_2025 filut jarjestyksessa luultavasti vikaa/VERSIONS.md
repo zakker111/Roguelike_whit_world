@@ -1,3 +1,84 @@
+v1.50.43 — Docs hygiene: refresh large-file size snapshot
+
+- Updated `TODO.md` large-file size counts (line totals) to reflect current refactors (notably `core/game.js` and the thin facade `core/bridge/gm_bridge.js`).
+- Refreshed the “Top offenders (repo-wide)” list to remove modules that are no longer large and to reflect current largest files.
+
+Deployment: https://kpym84gy3gs6.cosine.page
+
+v1.50.42 — CI guardrail: validate docs catalog
+
+- Added `scripts/check_docs_catalog.js` and `npm run check:docs-catalog`.
+- Workspace CI now runs the docs catalog validator to prevent broken docs links in `docs/index.html`.
+- Repo-root scripts proxy `check:docs-catalog` / `ci` into the workspace for convenience.
+
+Deployment: https://a24ai4aqenp9.cosine.page
+
+v1.50.41 — Engineering workflow: small slices
+
+- Added `docs/phase_workflow.md` describing how we ship changes in small, reversible slices.
+- Linked the workflow doc from `docs/index.html` and `docs/next_steps.md`.
+
+Deployment: https://mm3u94i37f3a.cosine.page
+
+v1.50.40 — Adopt barrels in low-risk modules
+
+- Barrel adoption (services):
+  - `ui/components/lockpick_modal.js` now imports `awardTownChestLoot` from `/services/index.js`.
+  - `worldgen/town_gen.js` and `worldgen/town/shops_core.js` now import `parseHHMM` from the services barrel.
+- Kept GMBridge import policy intact in world runtime (no `core/bridge/index.js` usage from world modules).
+
+Deployment: https://10rawwv505uz.cosine.page
+
+v1.50.39 — Adopt barrels in boot manifests
+
+- `src/boot/06_services.js` now imports `'/services/index.js'`.
+- `src/boot/11_runtime_orchestration.js` now imports `'/core/bridge/index.js'`.
+
+Deployment: https://q8sfnu5f34g5.cosine.page
+
+v1.50.38 — Workstream 1.3: folder barrels
+
+- Added barrel exports:
+  - `core/engine/index.js`
+  - `core/bridge/index.js`
+  - `services/index.js`
+- Updated `core/game.js` to import engine helpers from `core/engine/index.js`.
+- Added docs: `docs/folder_barrels.md` (usage guidelines and rationale).
+
+Deployment: (see Cosine deploy history)
+
+v1.50.37 — core/game.js shrink: World ops extraction
+
+- Added `core/engine/game_world_ops.js`:
+  - `initWorld()` (WorldRuntime.generate + refresh)
+  - `startEscortAutoTravel()` (delegates to WorldRuntime)
+- `core/game.js` now delegates world wrappers to `worldOps`.
+
+v1.50.36 — Hotfix: restore missing Shop ops import
+
+- Fixed a runtime boot error: `ReferenceError: createGameShopOps is not defined`.
+- `core/game.js` now imports `createGameShopOps` from `core/engine/game_shop_ops.js`.
+
+---
+
+v1.50.35 — core/game.js shrink: Time ops extraction
+
+- Added `core/engine/game_time_ops.js` as a ctx-first wrapper for time helpers:
+  - `minutesUntil(hour, minute)` and `advanceTimeMinutes(mins)` delegate to `core/engine/game_time.js`.
+  - `fastForwardMinutes(mins)` delegates to `Movement.fastForwardMinutes(ctx, mins)`.
+- `core/game.js` now delegates `minutesUntil/advanceTimeMinutes/fastForwardMinutes` to `timeOps`.
+- Docs added: `docs/game_js_shrink_slice_time_ops.md`.
+
+v1.50.34 — core/game.js shrink: Render ops extraction
+
+- Added `core/engine/game_render_ops.js` as a ctx-first wrapper for render plumbing:
+  - `getRenderCtx()` (delegates to `RenderOrchestration.getRenderCtx(ctx)` and attaches the Perf sink)
+  - `requestDraw()` (delegates to `GameLoop.requestDraw()` with a suppress-draw gate)
+- `core/game.js` now delegates `getRenderCtx()` and `requestDraw()` to `renderOps`.
+- Docs updated:
+  - `docs/game_js_shrink_slice_render_ops.md`
+  - `docs/next_steps.md`
+
 v1.50.33 — Hotfix: Modes boot errors + repo hygiene
 
 - Fixed hard boot errors in `core/modes/modes.js` caused by corrupted/duplicated function declarations.
@@ -169,7 +250,7 @@ v1.50.11 — GM Phase 2: travel encounter hardening
 
 v1.76.0 — Docs: GM ctx-first follow-up + subpath deploy caveat
 
-- TODO: Added Phase 2 follow-up: make non-marker GM encounter starts ctx-first where appropriate.
+- Follow-up note: some non-marker GM encounter starts may still need to be made ctx-first (tracked in TODO.md).
 - BUGS: Documented that absolute ESM imports like `/core/...` will 404 when hosting under a subpath unless you set a base path / rewrite / convert to relative imports.
 
 2026-03-02 — GM v0.2 hygiene: reset GM on seed changes
@@ -2971,7 +3052,7 @@ v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and 
   - Changed: When upstairs overlay is active, downstairs props within inn footprint are suppressed to avoid clutter; NPCs inside inn footprint are hidden while upstairs is shown.
   - Changed: Overlay-aware FOV and LOS: upstairs WALL tiles block vision; upstairs FLOOR/STAIRS are transparent. Walkability respects upstairs tiles when overlay is active (core/ctx.js, core/game.js).
   - Changed: Upstairs overlay floor fill covers only the inn interior and draws perimeter walls explicitly; sanitized legacy upstairs DOOR/WINDOW tiles to FLOOR on load (core/town_state.js).
-  - Added: Fresh session mode via URL query (?fresh=1, ?reset=1, ?nolocalstorage=1) disables localStorage and clears in-memory town states for consistent testing (core/game.js, core/town_state.js).
+  - Added: Fresh session mode via URL query (?fresh=1, ?reset=1, ?nolocalstorage=1) disables localStorage and clears in-memory town states for consistent testing (core/engine/session_boot.js, core/game.js, core/town/state.js).
 - Town runtime
   - Changed: tryMoveTown ignores downstairs NPC blocking inside inn footprint while upstairs overlay is active; shop interactions are skipped upstairs.
   - Fixed: Renderer context now includes tavern, innUpstairs, innUpstairsActive, innStairsGround so upstairs overlay draws correctly (core/render_orchestration.js).

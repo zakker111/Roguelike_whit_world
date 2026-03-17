@@ -128,8 +128,9 @@
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
     key("g");
 
-    // Avoid a fixed short sleep here; mode transitions may land a few frames later.
-    await waitUntil(() => has(G.getMode) && G.getMode() !== "world", 600, 60);
+    // Poll for long enough to catch delayed mode transitions; if Region Map opened,
+    // we should observe mode !== world within this window.
+    await waitUntil(() => has(G.getMode) && G.getMode() !== "world", 1200, 60);
 
     const modeAfter = has(G.getMode) ? G.getMode() : "";
     record(modeAfter === "world", `Pressing 'g' on gm.* marker does not open Region Map (mode=${modeAfter})`);

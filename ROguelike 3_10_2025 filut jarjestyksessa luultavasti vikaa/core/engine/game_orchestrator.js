@@ -6,25 +6,8 @@
 
 import { scheduleHealthCheck } from "./health_check.js";
 
-function getAppVersion() {
-  try {
-    if (typeof window !== "undefined" && window.APP_VERSION) {
-      return String(window.APP_VERSION || "");
-    }
-  } catch (_) {}
-  try {
-    const meta = (typeof document !== "undefined") ? document.querySelector('meta[name="app-version"]') : null;
-    const ver = meta ? String(meta.getAttribute("content") || "") : "";
-    return ver;
-  } catch (_) {}
-  return "";
-}
-
-const APP_VERSION = getAppVersion();
-const CORE_GAME_URL = `/core/game.js${APP_VERSION ? `?v=${encodeURIComponent(APP_VERSION)}` : ""}`;
-
-// Ensure core/game.js is imported with a cache-busting version that matches the single app-version.
-const {
+// Static import so bundlers (Vite/Rollup) can include core/game.js in the module graph.
+import {
   initWorld,
   setupInput,
   initMouseSupport,
@@ -32,7 +15,7 @@ const {
   scheduleAssetsReadyDraw,
   buildGameAPI,
   getCtx,
-} = await import(CORE_GAME_URL);
+} from "../game.js";
 
 export function start() {
   try { buildGameAPI(); } catch (_) {}

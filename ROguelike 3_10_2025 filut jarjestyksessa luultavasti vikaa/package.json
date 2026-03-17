@@ -1,6 +1,6 @@
 {
   "name": "tiny-roguelike",
-  "version": "1.50.33",
+  "version": "1.50.43",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,8 +15,10 @@
     "gen:smoke": "node scripts/gen_smoke_manifest.js",
     "analyze:phase1": "node scripts/analyze.js",
     "analyze:imports": "node scripts/import_graph.js",
-    "ci": "npm run lint:strict && npm run build",
-    "acceptance:phase6": "node scripts/run_phase6_acceptance.js"
+    "check:docs-catalog": "node scripts/check_docs_catalog.js",
+    "ci": "npm run lint:strict && npm run check:docs-catalog && npm run build",
+    "acceptance:phase6": "node scripts/run_phase6_acceptance.js",
+    "acceptance:phase0": "node scripts/run_phase0_acceptance.js"
   },
   "devDependencies": {
     "vite": "^5.3.3",
