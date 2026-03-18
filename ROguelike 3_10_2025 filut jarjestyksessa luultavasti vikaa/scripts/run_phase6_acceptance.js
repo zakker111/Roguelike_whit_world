@@ -17,6 +17,53 @@ const PHASE6_SCENARIOS = [
   'gm_survey_cache'
 ].join(',');
 
+const TIMEOUTS = {
+  httpReadyMs: 60000,
+  pageGotoMs: 90000,
+  pageReadyMs: 90000,
+  serverShutdownMs: 1500
+};
+
+function isExited(child) {
+  return !!(child && (child.exitCode !== null || child.signalCode !== null));
+}
+
+async function waitForExit(child, timeoutMs) {
+  if (!child || isExited(child)) return true;
+
+  return await Promise.race([
+    new Promise((resolve) => {
+      child.once('exit', () => resolve(true));
+    }),
+    sleep(timeoutMs).then(() => false)
+  ]);
+}
+
+async function terminateChild(child, timeoutMs) {
+  if (!child || isExited(child)) return;
+
+  try {
+    child.kill('SIGTERM');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  const exited = await waitForExit(child, timeoutMs);
+  if (exited) return;
+
+  try {
+    child.kill('SIGKILL');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  await waitForExit(child, 500);
+}
+
 async function httpGetOk(urlStr) {
   const u = new URL(urlStr);
 
@@ -122,7 +169,7 @@ async function main() {
   server.stderr.on('data', onLog);
 
   try {
-    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, 30000);
+    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, TIMEOUTS.httpReadyMs);
 
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
@@ -142,11 +189,11 @@ async function main() {
         } catch (_) {}
       });
 
-      await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+      await page.goto(url, { waitUntil: 'load', timeout: TIMEOUTS.pageGotoMs });
 
       await page.waitForFunction(
         () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
-        { timeout: 60000 }
+        { timeout: TIMEOUTS.pageReadyMs }
       );
 
       const series = await page.evaluate(async () => {
@@ -204,9 +251,7 @@ async function main() {
       await browser.close();
     }
   } finally {
-    try { server.kill('SIGTERM'); } catch (_) {}
-    // Give server a moment to exit cleanly.
-    await sleep(200);
+    await terminateChild(server, TIMEOUTS.serverShutdownMs);
   }
 }
 

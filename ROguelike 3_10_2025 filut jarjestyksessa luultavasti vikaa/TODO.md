@@ -14,7 +14,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 ## Near-term engineering plan (small slices)
 
 - [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
-- [ ] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
+- [x] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
 - [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
 - [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
 - [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
@@ -118,8 +118,8 @@ Known issues / deferred (post-merge):
       - Likely files: `core/state/persistence.js`, any “new game / apply seed / death restart” handlers.
       - Acceptance: `GM_STATE_V1` reliably cleared on each reset path; no stale markers/threads after reset.
       - Smoketests (new/extend): use `gm_seed_reset` (force each reset path).
-    - [x] Phase 5: travel encounters via scheduler (confirm-only in v0.3)
-      - Scope: scheduler-backed travel actions delivered via confirm (choices-only authority).
+    - [x] Phase 5: travel encounters via scheduler (confirm delivery)
+      - Scope: scheduler-backed travel actions delivered via confirm (choices-only authority; aligns with v0.3 “choices only”).
       - Likely files: `core/gm/runtime/faction_travel.js`, `core/bridge/gm_bridge/world_step.js`, encounter templates (`gm_bandit_bounty`, `gm_troll_hunt`, `gm_guard_fine`).
       - Acceptance: obeys safety rails + cooldowns; encounter entry is ctx-first; no interference with normal travel rolls.
       - Smoketests (new/extend): `gm_bridge_faction_travel`.
@@ -145,7 +145,7 @@ Known issues / deferred (post-merge):
       - Action lifecycle statuses: scheduled/consumed (plus bookkeeping: lastActionTurn/lastAutoTurn/history)
       - Global safety rails:
         - [x] max actions per N turns
-        - [x] min spacing between **auto** events
+        - [x] min spacing between non-player-facing **auto** emissions (hints/logs)
         - [ ] max active quest threads (start with 1)
         - [x] "one GM action per turn" unless explicitly allowed
     - [x] GM→Game execution via a narrow **GMBridge**
@@ -187,7 +187,7 @@ Known issues / deferred (post-merge):
     - [x] Determinism: GM RNG persistence gate (save → reload → next N draws identical) (`gm_rng_persistence`)
     - [x] Determinism: scheduler arbitration gate (winner selection consumes zero RNG) (`gm_scheduler_arbitration`)
     - [x] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers (`gm_bottle_map`)
-    - [x] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including auto encounters) (`gm_disable_switch`)
+    - [x] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including prompts, markers, and non-player-facing emissions) (`gm_disable_switch`)
     - [x] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
 
   - GM panel (v0.2: beautify + orchestrator visibility)

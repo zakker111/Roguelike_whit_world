@@ -8,6 +8,53 @@ import { fileURLToPath, URL } from 'node:url';
 
 import { chromium } from 'playwright-chromium';
 
+const TIMEOUTS = {
+  httpReadyMs: 60000,
+  pageGotoMs: 90000,
+  pageReadyMs: 90000,
+  serverShutdownMs: 1500
+};
+
+function isExited(child) {
+  return !!(child && (child.exitCode !== null || child.signalCode !== null));
+}
+
+async function waitForExit(child, timeoutMs) {
+  if (!child || isExited(child)) return true;
+
+  return await Promise.race([
+    new Promise((resolve) => {
+      child.once('exit', () => resolve(true));
+    }),
+    sleep(timeoutMs).then(() => false)
+  ]);
+}
+
+async function terminateChild(child, timeoutMs) {
+  if (!child || isExited(child)) return;
+
+  try {
+    child.kill('SIGTERM');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  const exited = await waitForExit(child, timeoutMs);
+  if (exited) return;
+
+  try {
+    child.kill('SIGKILL');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  await waitForExit(child, 500);
+}
+
 // Phase 0 baseline QA gate: broader scenario set + hard failure on boot-time JS errors.
 const PHASE0_SCENARIOS = [
   'world',
@@ -237,10 +284,7 @@ async function main() {
       await browser.close();
     }
   } finally {
-    try {
-      server.kill('SIGTERM');
-    } catch (_) {}
-    await sleep(200);
+    await terminateChild(server, TIMEOUTS.serverShutdownMs);
   }
 }
 
