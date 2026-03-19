@@ -8,7 +8,7 @@
 ## Baseline execution evidence
 
 ### CI
-- CI run link: <https://github.com/<org>/<repo>/actions/runs/<run_id>>
+- CI run link: <paste the GitHub Actions run URL here>
   - Workflow: **Tiny Roguelike CI**
   - Job: **build-lint-acceptance**
   - Artifact (logs): **tiny-roguelike-qa-logs**

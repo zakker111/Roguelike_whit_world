@@ -175,7 +175,7 @@ async function main() {
   server.stderr.on('data', onLog);
 
   try {
-    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, 30000);
+    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, TIMEOUTS.httpReadyMs);
 
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
@@ -205,11 +205,11 @@ async function main() {
         } catch (_) {}
       });
 
-      await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+      await page.goto(url, { waitUntil: 'load', timeout: TIMEOUTS.pageGotoMs });
 
       await page.waitForFunction(
         () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
-        { timeout: 60000 }
+        { timeout: TIMEOUTS.pageReadyMs }
       );
 
       // Boot-time sanity: verify critical transition functions are present.
