@@ -48,13 +48,14 @@ export function maybeHandleWorldStep(ctx) {
       let prompt = "";
       try {
         if (MZ && typeof MZ.get === "function") {
-          const k = encId === "gm_bandit_bounty" ? "gm.travel.banditBounty.prompt" : encId === "gm_troll_hunt" ? "gm.travel.trollHunt.prompt" : "";
+          const k = encId === "gm_bandit_bounty" ? "gm.travel.banditBounty.prompt" : encId === "gm_troll_hunt" ? "gm.travel.trollHunt.prompt" : encId === "gm_survey_cache_scene" ? "gm.travel.surveyCache.prompt" : "";
           if (k) prompt = MZ.get(k, null) || "";
         }
       } catch (_) {}
       if (!prompt) {
         if (encId === "gm_bandit_bounty") prompt = "You spot signs of bandits nearby. Investigate?";
         else if (encId === "gm_troll_hunt") prompt = "You hear heavy tracks and guttural noises ahead. Hunt the troll?";
+        else if (encId === "gm_survey_cache_scene") prompt = "You spot a hidden survey cache nearby. Investigate?";
         else prompt = `A strange opportunity presents itself (${String(encId)}). Investigate?`;
       }
 

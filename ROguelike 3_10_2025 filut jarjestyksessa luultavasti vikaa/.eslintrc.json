@@ -71,7 +71,10 @@
           "core/bridge/ui_orchestration/*",
           "/core/bridge/gm_bridge/*",
           "/core/bridge/ui_bridge/*",
-          "/core/bridge/ui_orchestration/*"
+          "/core/bridge/ui_orchestration/*",
+          "**/bridge/gm_bridge/*",
+          "**/bridge/ui_bridge/*",
+          "**/bridge/ui_orchestration/*"
         ]
       }
     ],

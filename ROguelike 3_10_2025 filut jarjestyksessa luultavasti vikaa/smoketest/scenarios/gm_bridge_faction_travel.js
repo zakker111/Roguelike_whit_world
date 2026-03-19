@@ -302,7 +302,7 @@
         }
       };
 
-      const encounterIntents = ["gm_bandit_bounty", "gm_troll_hunt"];
+      const encounterIntents = ["gm_bandit_bounty", "gm_troll_hunt", "gm_survey_cache_scene"];
       for (const intent of encounterIntents) {
         await ensureWorld();
 
@@ -376,7 +376,7 @@
 
           // Phase 6 regression gate: if encounter templates are temporarily unavailable,
           // the forced travel encounter should *not* be consumed/lost; it should deliver once templates return.
-          const actionId = intent === "gm_bandit_bounty" ? "fe:banditBounty" : intent === "gm_troll_hunt" ? "fe:trollHunt" : null;
+          const actionId = intent === "gm_bandit_bounty" ? "fe:banditBounty" : intent === "gm_troll_hunt" ? "fe:trollHunt" : intent === "gm_survey_cache_scene" ? "fe:surveyCache" : null;
           if (actionId) {
             const s0 = getSchedulerActionStatus(actionId);
             record(s0 === "scheduled" || s0 === "consumed", `Scheduler action present after force (${intent}) (status=${s0})`);
