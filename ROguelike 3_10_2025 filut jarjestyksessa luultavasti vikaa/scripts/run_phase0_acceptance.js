@@ -69,6 +69,7 @@ const PHASE0_SCENARIOS = [
   'gm_boredom_interest',
   'gm_bridge_faction_travel',
   'gm_bridge_markers',
+  'quest_board_gm_markers',
   'gm_bottle_map',
   'gm_survey_cache'
 ].join(',');

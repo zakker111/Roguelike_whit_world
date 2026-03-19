@@ -90,6 +90,29 @@ function fmtTimeLeft(ctx, expiresAtTurn) {
   } catch (_) { return ""; }
 }
 
+function gmMarkerLabel(kind) {
+  try {
+    const k = kind ? String(kind) : "";
+    const known = {
+      "gm.bottleMap": "Bottle Map",
+      "gm.surveyCache": "Survey Cache",
+    };
+    if (known[k]) return known[k];
+
+    let s = k;
+    if (s.startsWith("gm.")) s = s.slice(3);
+    s = s.replace(/[._-]+/g, " ");
+    s = s.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+    s = s.trim();
+    if (!s) return k || "GM Marker";
+
+    const parts = s.split(/\s+/g).filter(Boolean);
+    return parts.map(p => p[0].toUpperCase() + p.slice(1)).join(" ");
+  } catch (_) {
+    try { return String(kind || "GM Marker"); } catch (_) { return "GM Marker"; }
+  }
+}
+
 function render(ctx) {
   const el = ensurePanel();
   if (!el) return;
@@ -105,6 +128,25 @@ function render(ctx) {
     }
 
     let html = "";
+
+    // GM Markers
+    const allMarkers = (ctx && ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
+    const gmMarkers = allMarkers.filter(m => m && typeof m.kind === "string" && m.kind.startsWith("gm."));
+    html += '<div id="questboard-gm-markers" style="margin-bottom:10px;">';
+    html += '<div style="margin:4px 0 6px 0;color:#e2e8f0;font-weight:600;">GM Markers</div>';
+    if (!gmMarkers.length) {
+      html += '<div style="color:#94a3b8;margin-bottom:8px;">No active GM markers.</div>';
+    } else {
+      html += '<div style="color:#94a3b8;margin-bottom:6px;">Stand on a marker tile in the overworld and press G.</div>';
+      html += gmMarkers.map((marker) => {
+        const kind = String(marker.kind || "");
+        const glyph = (marker && marker.glyph) ? String(marker.glyph) : "?";
+        const label = gmMarkerLabel(kind);
+        const text = `<div style="color:#e5e7eb;">${glyph} ${label}</div>`;
+        return '<div data-gm-marker-kind="' + kind + '" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' + text + '</div>';
+      }).join("");
+    }
+    html += '</div>';
 
     // Available
     const av = Array.isArray(qs.available) ? qs.available : [];

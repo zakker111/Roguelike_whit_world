@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_survey_cache_spawn_gate.js',
         '/smoketest/scenarios/gm_rng_persistence.js',
         '/smoketest/scenarios/gm_scheduler_arbitration.js',
+        '/smoketest/scenarios/quest_board_gm_markers.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

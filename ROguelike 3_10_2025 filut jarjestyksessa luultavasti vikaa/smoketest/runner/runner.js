@@ -360,6 +360,7 @@
       if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
       if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
       if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
+      if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
     } catch (_) {}
     return null;
   }
