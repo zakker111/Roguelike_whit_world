@@ -54,14 +54,27 @@ Completed work that should be considered “baseline” going forward:
 
 - **CI quality gates**
   - `.github/workflows/ci.yml` runs:
+    - `npm install`
     - `npm run lint:strict`
     - `npm run check:docs-catalog`
     - `npm run build`
     - `npm run acceptance:phase6`
     - `npm run acceptance:phase0`
 
+### Manually triggering CI via `workflow_dispatch`
+
+To run CI on a branch without pushing a new commit (or to stress-test for flakiness):
+
+1. Go to **GitHub → Actions**.
+2. Select workflow: **Tiny Roguelike CI**.
+3. Click **Run workflow**.
+4. Choose the branch/ref to test.
+5. Set:
+   - `phase6_repeats` (number of full Phase 6 runs) — typical: `1` (quick), `3` (default), `10+` (flake hunting)
+   - `run_phase0` (toggle Phase 0) — leave `true` for the full baseline gate
+
 - **Repo hygiene**
-  - Removed stray duplicate top-level folder typo variant (`... vikoa/`).
+  - Note: Git does not track empty directories; if you see a local empty typo folder (`... vikoa/`), it can be deleted safely.
 
 ## Next planned tasks (recommended order)
 
