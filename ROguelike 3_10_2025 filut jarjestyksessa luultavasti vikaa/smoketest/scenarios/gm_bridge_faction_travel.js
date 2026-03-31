@@ -321,6 +321,7 @@
         const { probe: confirmProbe, restore: restoreConfirmProbe } = installConfirmProbe();
         let worldStepCtx = null;
         let applySyncCalls = 0;
+        let applySyncCtxOk = true;
         let gameApiEnterCalls = 0;
         let modesEnterCalls = 0;
         let modesCtxOk = true;
@@ -328,9 +329,12 @@
         const restores = [];
 
         try {
-          // Patch GameAPI.applyCtxSyncAndRefresh to ensure exactly 1 call on entry.
+          // Patch GameAPI.applyCtxSyncAndRefresh to ensure exactly 1 call on entry,
+          // and that it is invoked with the exact world-step ctx (ctx-first).
           const r1 = patchMethod(G, "applyCtxSyncAndRefresh", (orig) => function () {
             applySyncCalls++;
+            const c0 = arguments && arguments.length ? arguments[0] : null;
+            if (worldStepCtx && c0 !== worldStepCtx) applySyncCtxOk = false;
             return orig.apply(this, arguments);
           });
           if (r1) restores.push(r1);
@@ -411,6 +415,7 @@
 
           // Reset counts for the accept-confirm -> encounter transition window.
           applySyncCalls = 0;
+          applySyncCtxOk = true;
           gameApiEnterCalls = 0;
           modesEnterCalls = 0;
           modesCtxOk = true;
@@ -424,6 +429,7 @@
           record(entered && modeNow === "encounter", `Mode enters encounter (${intent}) (mode=${modeNow})`);
 
           record(applySyncCalls === 1, `GameAPI.applyCtxSyncAndRefresh called exactly once during encounter entry (${intent}) (calls=${applySyncCalls})`);
+          record(applySyncCalls === 1 && applySyncCtxOk, `GameAPI.applyCtxSyncAndRefresh called with the exact world-step ctx (${intent})`);
           record(gameApiEnterCalls === 0, `GameAPI.enterEncounter not called during travel encounter entry (${intent}) (calls=${gameApiEnterCalls})`);
           record(modesEnterCalls > 0, `Modes.enterEncounter called during travel encounter entry (${intent}) (calls=${modesEnterCalls})`);
           record(modesEnterCalls > 0 && modesCtxOk, `Modes.enterEncounter called with the exact world-step ctx (${intent})`);
