@@ -84,6 +84,20 @@ export function create(ctx) {
               const p = ctx.getPlayer();
               p.x = nx; p.y = ny;
               try {
+                // Mirror core/world/move.js ordering: poll GMBridge world-step intents
+                // before advancing the turn counter.
+                try {
+                  const c0 = (typeof ctx.getCtx === "function") ? ctx.getCtx() : null;
+                  const GB = c0 ? getMod(c0, "GMBridge") : (typeof window !== "undefined" ? window.GMBridge : null);
+                  if (c0 && GB && typeof GB.maybeHandleWorldStep === "function") {
+                    const modeBeforeGm = c0.mode;
+                    GB.maybeHandleWorldStep(c0);
+                    if (modeBeforeGm && c0.mode !== modeBeforeGm && typeof ctx.applyCtxSyncAndRefresh === "function") {
+                      ctx.applyCtxSyncAndRefresh(c0);
+                    }
+                  }
+                } catch (_) {}
+
                 // Advance a turn to keep time/FOV/UI consistent with normal movement flows
                 if (typeof ctx.turn === "function") ctx.turn();
                 const SS = ctx.StateSync || getMod(ctx, "StateSync");
