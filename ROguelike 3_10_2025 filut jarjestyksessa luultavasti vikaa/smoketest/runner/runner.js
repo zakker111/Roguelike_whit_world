@@ -344,6 +344,7 @@
       if (name === "determinism") return S.Determinism && S.Determinism.run;
       if (name === "encounters") return (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run);
       if (name === "api") return S.API && S.API.run;
+      if (name === "gamedata_retry") return S.gamedata_retry && S.gamedata_retry.run;
       if (name === "town_flows") return S.Town && S.Town.Flows && S.Town.Flows.run;
       if (name === "skeleton_key_chest") return S.skeleton_key_chest && S.skeleton_key_chest.run;
       if (name === "gm_mechanic_hints") return S.GMMechanicHints && S.GMMechanicHints.run;
@@ -1190,6 +1191,7 @@
         determinism: S.Determinism && S.Determinism.run,
         encounters: (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run),
         api: S.API && S.API.run,
+        gamedata_retry: S.gamedata_retry && S.gamedata_retry.run,
         town_flows: S.Town && S.Town.Flows && S.Town.Flows.run,
         skeleton_key_chest: S.skeleton_key_chest && S.skeleton_key_chest.run,
         gm_mechanic_hints: S.GMMechanicHints && S.GMMechanicHints.run,

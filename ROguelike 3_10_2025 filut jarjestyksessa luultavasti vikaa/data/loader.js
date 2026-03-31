@@ -70,7 +70,11 @@ const DATA_FILES = {
   towerThemes: "data/worldgen/tower_themes.json"
 };
 
-function fetchJson(url) {
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
+}
+
+async function fetchJson(url) {
   // Append version query param to avoid CDN caching stale JSON across deploys
   function withVer(u) {
     try {
@@ -81,46 +85,87 @@ function fetchJson(url) {
       return u + (hasQuery ? "&" : "?") + "v=" + encodeURIComponent(ver);
     } catch (_) { return u; }
   }
+
+  function isRetryable(err) {
+    const st = err && typeof err.status === "number" ? err.status : null;
+    if (st === 408 || st === 425 || st === 429) return true;
+    if (st != null && st >= 500 && st <= 599) return true;
+    try {
+      if (err && err.name === "AbortError") return true;
+    } catch (_) {}
+    try {
+      // Browsers throw TypeError for network errors (CORS, offline, DNS, etc.)
+      if (err instanceof TypeError) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function backoffMs(attempt) {
+    // Exponential backoff with small jitter, capped.
+    const base = 250;
+    const cap = 2500;
+    const exp = Math.min(cap, base * Math.pow(2, attempt));
+    const jitter = Math.floor(Math.random() * 120);
+    return Math.min(cap, exp + jitter);
+  }
+
   const url2 = withVer(url);
+  const RETRIES = 2;
 
-  // Guard against pathological network stalls by applying a per-request timeout.
-  // Use a generous timeout so slow connections still load full data; this mainly
-  // protects against truly hung requests.
-  let controller = null;
-  let timeoutId = null;
-  try {
-    if (typeof AbortController !== "undefined") {
-      controller = new AbortController();
-      const TIMEOUT_MS = 30000; // 30s to avoid false timeouts on slow networks
-      timeoutId = setTimeout(() => {
-        try { controller.abort(); } catch (_) {}
-      }, TIMEOUT_MS);
-    }
-  } catch (_) {}
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    // Guard against pathological network stalls by applying a per-attempt timeout.
+    // Use a generous timeout so slow connections still load full data; this mainly
+    // protects against truly hung requests.
+    let controller = null;
+    let timeoutId = null;
+    try {
+      if (typeof AbortController !== "undefined") {
+        controller = new AbortController();
+        const TIMEOUT_MS = 30000; // 30s to avoid false timeouts on slow networks
+        timeoutId = setTimeout(() => {
+          try { controller.abort(); } catch (_) {}
+        }, TIMEOUT_MS);
+      }
+    } catch (_) {}
 
-  const opts = controller ? { cache: "no-cache", signal: controller.signal } : { cache: "no-cache" };
-  return fetch(url2, opts)
-    .then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url2);
-      return r.json();
-    })
-    .catch(e => {
-      // Log a lightweight warning but let callers decide how to handle the failure.
+    const opts = controller ? { cache: "no-cache", signal: controller.signal } : { cache: "no-cache" };
+
+    try {
+      const r = await fetch(url2, opts);
+      if (!r.ok) {
+        const err = new Error("HTTP " + r.status + " for " + url2);
+        err.status = r.status;
+        throw err;
+      }
+      return await r.json();
+    } catch (e) {
+      const willRetry = (attempt < RETRIES) && isRetryable(e);
+      const delay = willRetry ? backoffMs(attempt) : 0;
+
       try {
-        const msg = "[GameData] fetch failed for " + url2 + ": " + (e && e.message ? e.message : String(e));
+        const detail = (e && e.message) ? e.message : String(e);
+        const suffix = willRetry
+          ? ` (retry ${attempt + 1}/${RETRIES} in ${delay}ms)`
+          : "";
+        const msg = "[GameData] fetch failed for " + url2 + ": " + detail + suffix;
         if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
           window.Logger.log(msg, "warn");
         } else if (typeof console !== "undefined" && console.warn) {
           console.warn(msg);
         }
       } catch (_) {}
-      throw e;
-    })
-    .finally(() => {
+
+      if (!willRetry) throw e;
+      await sleep(delay);
+    } finally {
       if (timeoutId != null) {
         try { clearTimeout(timeoutId); } catch (_) {}
       }
-    });
+    }
+  }
+
+  // Unreachable, but keeps flow explicit.
+  throw new Error("[GameData] fetchJson exhausted retries for " + url2);
 }
 
 export const GameData = {
@@ -459,9 +504,20 @@ GameData.ready = (async function loadAll() {
     } catch (_) {}
 
     // If any registry failed to load, modules will use internal fallbacks.
-    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
-      logNotice("Some registries failed to load; modules will use internal fallbacks.");
-    }
+    (function logMissingRegistries() {
+      const missing = [];
+      if (!GameData.items) missing.push("items");
+      if (!GameData.enemies) missing.push("enemies");
+      if (!GameData.npcs) missing.push("npcs");
+      if (!GameData.consumables) missing.push("consumables");
+      if (!GameData.town) missing.push("town");
+      if (!GameData.flavor) missing.push("flavor");
+      if (!GameData.tiles) missing.push("tiles");
+      if (!GameData.encounters) missing.push("encounters");
+      if (missing.length) {
+        logNotice("Some registries failed to load: " + missing.join(", ") + "; modules will use internal fallbacks.");
+      }
+    })();
 
     // Notify BootMonitor (if present) that data loading has finished.
     try {

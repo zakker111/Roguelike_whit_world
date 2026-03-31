@@ -14,6 +14,7 @@
     { "id": "determinism", "label": "Determinism" },
     { "id": "encounters", "label": "Encounters" },
     { "id": "api", "label": "API" },
+    { "id": "gamedata_retry", "label": "GameData: Fetch retry/backoff" },
     { "id": "town_flows", "label": "Town Flows" },
     { "id": "skeleton_key_chest", "label": "Skeleton Key + Locked Chest" },
     { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },

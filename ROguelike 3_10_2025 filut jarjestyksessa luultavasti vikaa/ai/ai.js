@@ -64,6 +64,28 @@ export function enemiesAct(ctx) {
       return;
     }
   } catch (_) {}
+
+  // Validate required ctx shape early so failures are actionable.
+  if (!ctx || typeof ctx !== "object") return;
+  const missing = [];
+  if (!ctx.player || typeof ctx.player !== "object") missing.push("player");
+  if (!Array.isArray(ctx.enemies)) missing.push("enemies[]");
+  if (!Array.isArray(ctx.map) || !Array.isArray(ctx.map[0])) missing.push("map[][]");
+  if (!ctx.TILES || typeof ctx.TILES !== "object") missing.push("TILES");
+  if (typeof ctx.inBounds !== "function") missing.push("inBounds(x,y)");
+  if (typeof ctx.isWalkable !== "function") missing.push("isWalkable(x,y)");
+  if (missing.length) {
+    try {
+      if (!ctx._aiMissingCtxWarned) {
+        ctx._aiMissingCtxWarned = true;
+        const msg = "[AI] enemiesAct: missing required ctx fields: " + missing.join(", ");
+        if (typeof ctx.log === "function") ctx.log(msg, "warn");
+        else if (typeof console !== "undefined" && console.warn) console.warn(msg);
+      }
+    } catch (_) {}
+    return;
+  }
+
   const { player, enemies } = ctx;
   const U = (ctx && ctx.utils) ? ctx.utils : null;
   // Local RNG value helper: RNGUtils or ctx.rng; deterministic 0.5 when unavailable

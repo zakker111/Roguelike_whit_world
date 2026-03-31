@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/town_diagnostics.js',
         '/smoketest/scenarios/api.js',
         '/smoketest/scenarios/encounters.js',
+        '/smoketest/scenarios/gamedata_retry.js',
         '/smoketest/scenarios/gm_mechanic_hints.js',
         '/smoketest/scenarios/gm_intent_decisions.js',
         '/smoketest/scenarios/gm_seed_reset.js',
