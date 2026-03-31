@@ -11,6 +11,14 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] Docs catalog CI guardrail: `npm run check:docs-catalog` (also included in `npm run ci`)
 - [x] Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`)
 
+## Recently completed (this session)
+
+- [x] GM panel smoketest scenario exists and is included in Phase 0 acceptance (`gm_panel_smoke`)
+- [x] Quest board GM markers smoketest exists and is included in Phase 0 acceptance (`quest_board_gm_markers`)
+- [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
+- [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
+- [x] Logging convention documented (`docs/phase_workflow.md`)
+
 ## Near-term engineering plan (small slices)
 
 - [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
@@ -18,6 +26,19 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
 - [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
 - [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
+
+## Next slices (plan)
+
+- [ ] **Ctx-first audit for remaining GM encounter starts (non-marker):** identify any remaining `GameAPI` / window-only entry points and migrate to ctx-first facades.
+  - Acceptance: no GM code path starts an encounter via a ctx reacquire; add/extend a smoketest that triggers at least one non-marker GM encounter start and asserts stable mode/position.
+- [ ] **GM panel surfacing: action queue + quests (incremental):** add a small “orchestrator snapshot” section to the GM panel.
+  - Acceptance: GM panel shows next scheduled actions (id/status/delivery) and active quest thread count/summary; update `gm_panel_smoke` to assert these fields render.
+- [ ] **Acceptance flake detection loop (Phase 0):** run `acceptance:phase0` in a short series loop and fail the job if any scenario both passes and fails (flake).
+  - Acceptance: produces a JSON summary including `flake=true/false`; CI uses it as a required gate.
+- [ ] **Docs catalog hygiene check (ongoing):** keep `docs/index.html` in sync with docs; run `npm run check:docs-catalog` as a pre-merge habit.
+  - Acceptance: `npm run check:docs-catalog` passes locally and in CI; new docs are added to the catalog in the same slice.
+- [ ] **Logging levels audit (targeted):** ensure debug toggles (trace logs) use non-`info` levels and are gated behind explicit flags.
+  - Acceptance: default play sessions stay mostly `info`/gameplay logs; enabling trace toggles yields `notice`/`warn` without polluting default output.
 
 ## Gameplay / Features
 

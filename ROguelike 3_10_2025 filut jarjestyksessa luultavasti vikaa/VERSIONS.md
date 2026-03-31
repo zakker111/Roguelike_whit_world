@@ -1,3 +1,12 @@
+v1.50.44 — Logging hygiene: trace levels + workflow guidance
+
+- Encounter trace/debug logs now use `"notice"` (instead of `"info"`) so they are filtered out at the default log level (`services/encounter_service.js`).
+- Minor lint hygiene: encounter preview text no longer uses `var` (keeps `lint:strict` warning-free).
+- Added explicit logging convention guidance to `docs/phase_workflow.md`.
+- Smoketest availability: `gm_panel_smoke` (GM panel) and `quest_board_gm_markers` (Quest Board GM markers) scenarios.
+
+Deployment: https://w30vruamjg6k.cosine.page
+
 v1.50.43 — Docs hygiene: refresh large-file size snapshot
 
 - Updated `TODO.md` large-file size counts (line totals) to reflect current refactors (notably `core/game.js` and the thin facade `core/bridge/gm_bridge.js`).

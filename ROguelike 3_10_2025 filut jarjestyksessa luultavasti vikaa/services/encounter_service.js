@@ -379,6 +379,7 @@ export function maybeTryEncounter(ctx) {
       }
     })();
     // Build enemy preview from template groups
+    let text = "";
     try {
       const groups = Array.isArray(tmpl.groups) ? tmpl.groups : [];
       let minTotal = 0, maxTotal = 0;
@@ -392,10 +393,9 @@ export function maybeTryEncounter(ctx) {
       }
       const typeList = types.size ? Array.from(types).join(", ") : "mixed";
       const rangeStr = (minTotal && maxTotal && minTotal !== maxTotal) ? `${minTotal}-${maxTotal}` : `${Math.max(1, maxTotal || minTotal || 1)}`;
-      var text = `${tmpl.name || "Encounter"}\nDifficulty: ${difficulty}\nEnemies: ${rangeStr}${types.size ? ` (types: ${typeList})` : ""}\nBiome: ${String(biome || "").toLowerCase()}\n\nEnter?`;
-      // eslint-disable-next-line no-var
+      text = `${tmpl.name || "Encounter"}\nDifficulty: ${difficulty}\nEnemies: ${rangeStr}${types.size ? ` (types: ${typeList})` : ""}\nBiome: ${String(biome || "").toLowerCase()}\n\nEnter?`;
     } catch (_) {
-      var text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${String(biome || "").toLowerCase()} — Enter?`;
+      text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${String(biome || "").toLowerCase()} — Enter?`;
     }
     const enter = () => {
       if (tryEnter(ctx, tmpl, biome, difficulty)) {
