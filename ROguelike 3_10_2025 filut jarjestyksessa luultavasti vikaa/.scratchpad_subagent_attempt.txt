@@ -1,1 +1,0 @@
-Attempted to use subagent tools in this environment; start_subagent tool not present in current toolset.

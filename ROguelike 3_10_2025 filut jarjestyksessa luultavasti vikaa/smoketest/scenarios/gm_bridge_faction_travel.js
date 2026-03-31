@@ -326,12 +326,28 @@
         let modesEnterCalls = 0;
         let modesCtxOk = true;
 
+        let guardActive = false;
+        let getCtxDuringEntryCalls = 0;
+        let getCtxDuringEntryStack = null;
+
         const restores = [];
 
         try {
+          const r0 = patchMethod(G, "getCtx", (orig) => function () {
+            if (guardActive) {
+              getCtxDuringEntryCalls++;
+              if (!getCtxDuringEntryStack) {
+                try { getCtxDuringEntryStack = (new Error("getCtxDuringEntry")).stack || ""; } catch (_) { getCtxDuringEntryStack = ""; }
+              }
+            }
+            return orig.apply(this, arguments);
+          });
+          if (r0) restores.push(r0);
+
           // Patch GameAPI.applyCtxSyncAndRefresh to ensure exactly 1 call on entry,
           // and that it is invoked with the exact world-step ctx (ctx-first).
           const r1 = patchMethod(G, "applyCtxSyncAndRefresh", (orig) => function () {
+            guardActive = false;
             applySyncCalls++;
             const c0 = arguments && arguments.length ? arguments[0] : null;
             if (worldStepCtx && c0 !== worldStepCtx) applySyncCtxOk = false;
@@ -419,8 +435,12 @@
           gameApiEnterCalls = 0;
           modesEnterCalls = 0;
           modesCtxOk = true;
+          getCtxDuringEntryCalls = 0;
+          getCtxDuringEntryStack = null;
+          guardActive = false;
 
           if (res.opened) {
+            guardActive = true;
             await acceptConfirmOk();
           }
 
@@ -434,6 +454,12 @@
           record(modesEnterCalls > 0, `Modes.enterEncounter called during travel encounter entry (${intent}) (calls=${modesEnterCalls})`);
           record(modesEnterCalls > 0 && modesCtxOk, `Modes.enterEncounter called with the exact world-step ctx (${intent})`);
 
+          record(getCtxDuringEntryCalls === 0, `GameAPI.getCtx not called between confirm and first applyCtxSyncAndRefresh (${intent}) (calls=${getCtxDuringEntryCalls})`);
+          if (getCtxDuringEntryCalls !== 0 && getCtxDuringEntryStack) {
+            const stackLines = String(getCtxDuringEntryStack).split("\n").slice(0, 5).join("\n");
+            record(true, `getCtx during entry stack (${intent}):\n${stackLines}`);
+          }
+
           let withdrew = false;
           try { withdrew = !!G.completeEncounter("withdraw"); } catch (_) { withdrew = false; }
           record(withdrew, `CompleteEncounter(withdraw) exits encounter (${intent})`);
@@ -445,6 +471,7 @@
           const absPost = absWorldPosNow();
           record(absWorldPosEq(absPre, absPost), `Abs world pos unchanged after withdraw (${intent}) (before=(${absPre.x},${absPre.y}) after=(${absPost.x},${absPost.y}))`);
         } finally {
+          guardActive = false;
           try { restoreConfirmProbe(); } catch (_) {}
           for (const r of restores) {
             try { r(); } catch (_) {}
