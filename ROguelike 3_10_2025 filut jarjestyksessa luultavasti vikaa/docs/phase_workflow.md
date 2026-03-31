@@ -91,6 +91,11 @@ If a slice changes any of:
 run the in-browser smoke runner:
 - `index.html?smoketest=1` (see `smoketest.md`)
 
+### Logging convention
+
+- **Player-facing logs:** use `"info"` (and gameplay outcomes like `"good"` / `"bad"`).
+- **Debug/diagnostic logs:** use non-`"info"` levels (e.g. `"notice"`, `"warn"`, `"error"`) and prefix with a tag like `[Encounter]`, `[GM]`, etc.
+
 ---
 
 ## 4) Versioning + changelog rules

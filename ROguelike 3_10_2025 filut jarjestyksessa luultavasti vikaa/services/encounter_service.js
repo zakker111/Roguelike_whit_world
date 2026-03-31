@@ -234,7 +234,7 @@ export function maybeTryEncounter(ctx) {
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] cooldown active", "info", { category: "Encounter", cooldownMoves: STATE.cooldownMoves, movesSinceLast: STATE.movesSinceLast });
+            window.Logger.log("[Encounter] cooldown active", "notice", { category: "Encounter", cooldownMoves: STATE.cooldownMoves, movesSinceLast: STATE.movesSinceLast });
           }
         } catch (_) {}
       }
@@ -263,7 +263,7 @@ export function maybeTryEncounter(ctx) {
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] chance computed", "info", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
+            window.Logger.log("[Encounter] chance computed", "notice", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
           }
         } catch (_) {}
       }
@@ -287,7 +287,7 @@ export function maybeTryEncounter(ctx) {
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] skipped roll", "info", { category: "Encounter", biome, chance });
+            window.Logger.log("[Encounter] skipped roll", "notice", { category: "Encounter", biome, chance });
           }
         } catch (_) {}
       }
@@ -373,7 +373,7 @@ export function maybeTryEncounter(ctx) {
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] template selected", "info", { category: "Encounter", id: String(tmpl.id || ""), name: tmpl.name || "", biome, difficulty });
+            window.Logger.log("[Encounter] template selected", "notice", { category: "Encounter", id: String(tmpl.id || ""), name: tmpl.name || "", biome, difficulty });
           }
         } catch (_) {}
       }
