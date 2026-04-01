@@ -16,7 +16,7 @@ function serveFile(res, filePath, contentType = 'text/plain; charset=utf-8') {
     const data = readFileSync(filePath);
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
-  } catch (e) {
+  } catch (_) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not Found');
   }

@@ -59,7 +59,8 @@ export function migrateFactionEventSlotsToScheduler(gm, onDirty) {
       id: FE_ACTION_ID_BANDIT,
       kind: "travel.banditBounty",
       priority: 200,
-      delivery: "auto",
+      // Phase 5/v0.3: encounters are choice-first, so treat as confirm delivery.
+      delivery: "confirm",
       payload: { encounterId: "gm_bandit_bounty" },
     },
     {
@@ -67,7 +68,8 @@ export function migrateFactionEventSlotsToScheduler(gm, onDirty) {
       id: FE_ACTION_ID_TROLL,
       kind: "travel.trollHunt",
       priority: 100,
-      delivery: "auto",
+      // Phase 5/v0.3: encounters are choice-first, so treat as confirm delivery.
+      delivery: "confirm",
       payload: { encounterId: "gm_troll_hunt" },
     },
   ];
@@ -164,7 +166,7 @@ export function maybeScheduleFactionEvents(ctx, gm, turn, onDirty) {
         kind: "travel.banditBounty",
         status: "scheduled",
         priority: 200,
-        delivery: "auto",
+        delivery: "confirm",
         allowMultiplePerTurn: false,
         createdTurn: safeTurn,
         earliestTurn: banditSlot.earliestTurn | 0,
@@ -404,7 +406,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       kind: "travel.banditBounty",
       status: "scheduled",
       priority: 200,
-      delivery: "auto",
+      delivery: "confirm",
       allowMultiplePerTurn: true,
       bypassCadence: true,
       bypassPacing: true,
@@ -420,7 +422,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       kind: "travel.trollHunt",
       status: "scheduled",
       priority: 100,
-      delivery: "auto",
+      delivery: "confirm",
       allowMultiplePerTurn: true,
       bypassCadence: true,
       bypassPacing: true,

@@ -1,96 +1,52 @@
-# GM v0.3 Pipeline (Next Steps)
+# GM v0.3 Pipeline (Status + Remaining Work)
 
-This document translates the GM v0.3 contract (rare pacing, choices-only authority, reset-on-run-boundary persistence) into a practical implementation pipeline.
+This document tracks GM v0.3 progress against the contract in `analysis/gm_v0_3_contract.md`.
 
-## Current baseline (already in place)
+## v0.3 status (already implemented)
 
-- GMRuntime exists and is ticked every turn; state persists to `GM_STATE_V1`.
-- Two marker threads exist (Bottle Map, Survey Cache) + guard fine confirm travel event.
-- Seed/apply/restart flows clear GM state.
-- A boredom/interest smoketest exists: `gm_boredom_interest`.
-- Seed reset smoketest exists: `gm_seed_reset`.
+The repo already contains the core v0.3 pillars:
 
-## Next in pipeline (recommended order)
+- **Persistence (per-run):** GM state persists to `GM_STATE_V1` and is treated as per-run.
+- **Reset semantics:** GM state resets on Apply Seed / Start New Game / Death restart.
+- **Boredom model + hygiene:** boredom is smoothed and high-frequency telemetry is prevented from pinning it at 0.
+- **Rare pacing gate:** interventions are boredom-gated and cooldown-gated via `gm.pacing.nextEligibleTurn` with cooldown draws consuming **GM RNG only**.
+- **Choices-first authority:** interventions that affect the player are delivered via confirm prompts (decline-safe).
+- **Ctx-first transitions:** GM-driven mode transitions are ctx-first and apply a single sync boundary after mode changes.
 
-### 1) Phase 6 — Smoketest stability + false-negative removal (fast confidence)
-**Goal:** make the GM smoketest suite reliable so later behavior work doesn’t regress silently.
+Fast deployment-level sanity checks (no full bootstrap):
+- `gm_sim.html` (unit-style GM assertions)
+- `gm_emission_sim.html` (deterministic emission-rate simulation)
 
-**Work items**
-- Ensure GM scenarios are all in `smoketest/scenarios.json` (now includes `gm_seed_reset` + `gm_boredom_interest`).
-- Fix any brittle assertions (e.g., intentHistory length checks if capped).
-- Ensure scenarios that start encounters wait for encounter templates to be ready.
+## What remains (recommended order)
+
+### Phase 6 — Smoketest stability hardening (flake + false-negative removal)
+
+**Goal:** Phase 6 should fail when GM regressions happen, and should not pass due to SKIPs or timing luck.
+
+**Work items (keep PRs small):**
+- Standardize per-scenario waits (prefer shared helpers over ad-hoc sleeps).
+- Reduce brittle assertions that fail on tuning changes (e.g., fixed gold ranges).
+- Convert “silent SKIP” paths in Phase 6 scenarios into either retries or real FAILs.
 
 **Acceptance checks**
-- Run (explicit list): `?smoketest=1&dev=1&scenarios=gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache`
-- Run (shortcut): `?smoketest=1&dev=1&gmphase6=1`
-- No SKIPs due to missing mode/data unless intentionally gated.
+- Headless (preferred): `npm run acceptance:phase6`
+- Browser: `index.html?smoketest=1&dev=1&gmphase6=1&smokecount=3&skipokafter=0`
 
 ---
 
-### 2) Phase 2 — Ctx-first + sync-boundary closure for non-marker GM starts
-**Goal:** eliminate mode/position desync by enforcing a single rule:
-- GM-driven mode transitions are ctx-first, and callers sync exactly once after mode changes.
+### Phase 6+ (optional) — Broader nightly GM suite
 
-**Work items**
-- Audit travel-event encounter start paths (`travel.banditBounty`, `travel.trollHunt`, `travel.guardFine`).
-- Ensure they do not reacquire ctx mid-action.
-- Ensure world-step callers apply the sync boundary after `GMBridge.maybeHandleWorldStep(ctx)` when it changes `ctx.mode`.
+**Goal:** keep the Phase 6 gate tight, but have an easy “run more GM tests” selector for nightly/flake-hunting.
 
-**Acceptance checks**
-- Manual: force each travel event via GOD, take one world step, confirm the intended prompt/encounter happens with no “teleport” artifacts.
-- Smoketest: `gm_bridge_faction_travel` passes reliably.
+**Suggested suite:**
+- `gm_disable_switch,gm_rng_persistence,gm_scheduler_arbitration,gm_panel_smoke,gm_survey_cache_spawn_gate,gm_bottle_map_fishing_pity`
 
 ---
 
-### 3) Phase 3 — Emitter hygiene + interest tier defaults (make boredom usable)
-**Goal:** support the v0.3 pacing rule “rare only when bored” by preventing boredom from hard-resetting during routine play.
+### UX/QA ergonomics (optional)
 
-**Work items**
-- Mark routine, high-frequency emitters as NOT major-interest by default.
-  - Example: `combat.kill` should not hard reset boredom per kill.
-  - Example: `type:"mechanic"` telemetry should not hard reset boredom.
-- Decide one default rule for events that omit interest fields:
-  - recommended: treat as `interestTier:"minor"` (or `interesting:false`) rather than full reset.
+- Add a small non-dev “smoke status” page that renders the last `smoke-json-token` summary without opening DevTools.
 
-**Acceptance checks**
-- `gm_boredom_interest` stays green.
-- Manual: boredom level is not pinned near 0 during normal combat/menus.
+## Merge readiness checklist
 
----
-
-### 4) Phase 4 — Rare pacing gate (boredom + deterministic random cooldown)
-**Goal:** implement the v0.3 pacing budget.
-
-**Work items**
-- Add pacing fields to GM state:
-  - `lastInterventionTurn`
-  - `nextEligibleTurn`
-- When a choice prompt is shown (an intervention), compute next cooldown:
-  - `cooldownTurns = uniformInt(400, 600)` using GM RNG
-  - `nextEligibleTurn = turn + cooldownTurns`
-- Require boredom threshold gate before proposing any intervention.
-
-**Acceptance checks**
-- Reload determinism: the next eligible turn is stable after reload.
-- Interventions do not trigger when boredom is below threshold.
-
----
-
-### 5) Phase 5 — Choices-first UX alignment
-**Goal:** convert GM content into explicit opt-in prompts (choices), and ensure only those prompts spend pacing budget.
-
-**Work items**
-- Convert marker interactions to prompts:
-  - `G` on `gm.surveyCache` → confirm “Investigate?”
-  - `G` on `gm.bottleMap` marker → confirm “Investigate?”
-- Convert auto travel encounters to prompts (or disable them until prompt-based).
-
-**Acceptance checks**
-- Decline path produces no punishment and no forced encounter.
-- Accept path enters encounter cleanly.
-
-## Suggested immediate next action
-
-Start with **Phase 6 then Phase 2** (test reliability + transition correctness), because pacing work is hard to validate until tests and transitions are stable.
-
-For merge readiness, follow: `analysis/gm_pre_merge_plan.md`.
+Use `analysis/gm_pre_merge_plan.md` as the authoritative merge gate list.
