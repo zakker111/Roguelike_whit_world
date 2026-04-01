@@ -1,6 +1,12 @@
+v1.50.45 — Logging: fix LOG_LEVEL=all threshold
+
+- Fixed `LogConfig` threshold value lookup so selecting `LOG_LEVEL="all"` shows all log levels (previously behaved like `info` due to a falsy-0 bug).
+
+Deployment: https://n3gxljfg61ps.cosine.page
+
 v1.50.44 — Logging hygiene: trace levels + workflow guidance
 
-- Encounter trace/debug logs now use `"notice"` (instead of `"info"`) so they are filtered out at the default log level (`services/encounter_service.js`).
+- Encounter trace/debug logs now use "notice" (instead of "info") so they are filtered out at the default log level (services/encounter_service.js).
 - Minor lint hygiene: encounter preview text no longer uses `var` (keeps `lint:strict` warning-free).
 - Added explicit logging convention guidance to `docs/phase_workflow.md`.
 - Smoketest availability: `gm_panel_smoke` (GM panel) and `quest_board_gm_markers` (Quest Board GM markers) scenarios.

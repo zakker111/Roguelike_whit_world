@@ -4,7 +4,7 @@
  *
  * API (ESM + window.LogConfig):
  * - init()
- * - setThreshold(name)            // name: "info"|"notice"|"warn"|"error"|"fatal"
+ * - setThreshold(name)            // name: "all"|"info"|"notice"|"warn"|"error"|"fatal"
  * - getThresholdName()
  * - isCategoryEnabled(cat)
  * - setCategory(cat, enabled)
@@ -59,7 +59,8 @@ export const LogConfig = {
   },
 
   getThresholdValue() {
-    return this._levels[this._thresholdName] || this._levels.info;
+    const v = this._levels[this._thresholdName];
+    return (typeof v === "number") ? v : this._levels.info;
   },
 
   setThreshold(name) {
