@@ -180,11 +180,18 @@ export const Logger = {
   log(msg, type = "info", details = null) {
     if (!this._el) this.init();
     if (!this._el) return;
+
+    // IMPORTANT: we record *all* logs into history even if the current filter
+    // would hide them. This allows switching LOG_LEVEL to "all" to reveal
+    // previously filtered-out logs.
+    let allowed = true;
     try {
       if (LogConfig && typeof LogConfig.canEmit === "function") {
-        if (!LogConfig.canEmit(type, msg, details)) return;
+        allowed = !!LogConfig.canEmit(type, msg, details);
       }
-    } catch (_) {}
+    } catch (_) {
+      allowed = true;
+    }
 
     const now = Date.now();
     let cat = "General";
@@ -196,36 +203,55 @@ export const Logger = {
     const catLower = String(cat || "General").toLowerCase();
 
     let sig = `${String(type).toLowerCase()}:${catLower}:${String(msg)}`;
-    try {
-      if (details != null) sig += ":" + JSON.stringify(details);
-    } catch (_) {
-      sig += ":" + String(details);
+
+    // Best-effort details capture (avoid circular JSON breaking downloads).
+    // Also share the same stringify attempt with the signature builder to avoid doing it twice.
+    let detailsSafe = null;
+    if (details != null) {
+      let json = null;
+      try { json = JSON.stringify(details); } catch (_) { json = null; }
+
+      if (json != null) {
+        sig += ":" + json;
+        detailsSafe = details;
+      } else {
+        sig += ":" + String(details);
+        if (details && typeof details === "object") {
+          // Preserve category hints if present.
+          let catHint = null;
+          try { catHint = details.category || details.cat || null; } catch (_) { catHint = null; }
+          detailsSafe = { _unserializable: true, category: catHint, text: String(details) };
+        } else {
+          detailsSafe = details;
+        }
+      }
     }
 
-    // Dedup contiguous entries within window
+    // 1) Always update history (even if currently filtered out)
+    try {
+      const lastH = this._history.length ? this._history[this._history.length - 1] : null;
+      if (this._dedupEnabled && lastH && lastH._sig === sig && (now - (lastH.time || 0)) <= this._dedupWindowMs) {
+        lastH.count = (lastH.count | 0) + 1;
+        lastH.time = now;
+      } else {
+        const entry = { time: now, type, category: catLower, msg: String(msg), count: 1, _sig: sig };
+        if (detailsSafe != null) entry.details = detailsSafe;
+        this._history.push(entry);
+        if (this._history.length > this._historyMax) this._history.splice(0, this._history.length - this._historyMax);
+      }
+    } catch (_) {}
+
+    // 2) Only render immediately if the current filter allows it
+    if (!allowed) return;
+
+    // Dedup contiguous visible entries within window
     const lastQ = this._queue.length ? this._queue[this._queue.length - 1] : null;
     if (this._dedupEnabled && lastQ && lastQ.sig === sig && (now - (lastQ.time || 0)) <= this._dedupWindowMs) {
       lastQ.count = (lastQ.count | 0) + 1;
       lastQ.time = now;
-      // Update last history entry too
-      try {
-        const lastH = this._history.length ? this._history[this._history.length - 1] : null;
-        if (lastH && lastH._sig === sig && (now - (lastH.time || 0)) <= this._dedupWindowMs) {
-          lastH.count = (lastH.count | 0) + 1;
-          lastH.time = now;
-        }
-      } catch (_) {}
     } else {
-      const payload = { msg, type, details, sig, time: now, count: 1, category: catLower };
+      const payload = { msg, type, details: detailsSafe, sig, time: now, count: 1, category: catLower };
       this._queue.push(payload);
-
-      // Add to history for export
-      try {
-        const entry = { time: now, type, category: catLower, msg: String(msg), count: 1, _sig: sig };
-        if (details != null) entry.details = details;
-        this._history.push(entry);
-        if (this._history.length > this._historyMax) this._history.splice(0, this._history.length - this._historyMax);
-      } catch (_) {}
     }
 
     this._scheduleFlush();
@@ -307,6 +333,61 @@ export const Logger = {
         while (er.firstChild) er.removeChild(er.firstChild);
       }
       this._lastFlush = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    } catch (_) {}
+  },
+
+  // Re-apply current LogConfig filters to the in-memory history and rebuild the on-screen log.
+  // Used when changing log level/categories so previously filtered-out logs can be revealed.
+  refresh() {
+    try {
+      if (!this._el) this.init();
+      const el = this._el || document.getElementById("log");
+      if (!el) return;
+
+      // Stop any pending flush; we'll rebuild synchronously.
+      if (this._timer) {
+        clearTimeout(this._timer);
+        this._timer = null;
+      }
+      this._queue.length = 0;
+
+      // Clear DOM without clearing history.
+      while (el.firstChild) el.removeChild(el.firstChild);
+      const er = this._elRight || document.getElementById("log-right");
+      if (er) {
+        while (er.firstChild) er.removeChild(er.firstChild);
+      }
+
+      const selected = [];
+      for (let i = this._history.length - 1; i >= 0 && selected.length < this._max; i--) {
+        const h = this._history[i];
+        if (!h) continue;
+
+        let ok = true;
+        try {
+          if (LogConfig && typeof LogConfig.canEmit === "function") {
+            ok = !!LogConfig.canEmit(h.type, h.msg, h.details || null);
+          }
+        } catch (_) {
+          ok = true;
+        }
+        if (!ok) continue;
+
+        selected.push({
+          msg: h.msg,
+          type: h.type,
+          details: h.details || null,
+          sig: h._sig || "",
+          time: h.time,
+          count: (typeof h.count === "number") ? h.count : 1,
+          category: h.category || "general"
+        });
+      }
+
+      // _flush expects chronological order (newest at end)
+      selected.reverse();
+      this._queue.push(...selected);
+      this._flush();
     } catch (_) {}
   },
 

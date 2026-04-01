@@ -150,6 +150,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/gm_scheduler_arbitration.js',
         '/smoketest/scenarios/quest_board_gm_markers.js',
         '/smoketest/scenarios/gm_panel_smoke.js',
+        '/smoketest/scenarios/logging_filters.js',
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

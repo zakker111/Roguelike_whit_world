@@ -1,3 +1,11 @@
+v1.50.46 — Logging: "all" reveals previously filtered logs
+
+- Logger now records logs to history even when they are currently filtered out by `LogConfig`.
+- Changing log level/categories re-applies filters to the on-screen log (so switching to `LOG_LEVEL="all"` actually shows everything from recent history).
+- Added smoketest scenario `logging_filters` to prevent regressions.
+
+Deployment: https://e8hwy5czhzy3.cosine.page
+
 v1.50.45 — Logging: fix LOG_LEVEL=all threshold
 
 - Fixed `LogConfig` threshold value lookup so selecting `LOG_LEVEL="all"` shows all log levels (previously behaved like `info` due to a falsy-0 bug).
