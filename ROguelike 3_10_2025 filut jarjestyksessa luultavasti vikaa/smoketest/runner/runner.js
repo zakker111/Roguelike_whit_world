@@ -360,6 +360,9 @@
       if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
       if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
       if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
+      if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
+      if (name === "gm_panel_smoke") return S.gm_panel_smoke && S.gm_panel_smoke.run;
+      if (name === "logging_filters") return S.logging_filters && S.logging_filters.run;
     } catch (_) {}
     return null;
   }
@@ -1205,6 +1208,7 @@
         gm_disable_switch: S.gm_disable_switch && S.gm_disable_switch.run,
         gm_rng_persistence: S.gm_rng_persistence && S.gm_rng_persistence.run,
         gm_scheduler_arbitration: S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run,
+        logging_filters: S.logging_filters && S.logging_filters.run,
       };
       let pipeline = [];
       try {
@@ -2410,10 +2414,11 @@
         await waitUntilRunnerReady(12000);
         await runSeries(count);
       };
+      // Start immediately; start() already waits for runner readiness.
       if (document.readyState !== "loading") {
-        setTimeout(() => { start(); }, 400);
+        setTimeout(() => { start(); }, 0);
       } else {
-        window.addEventListener("load", () => { setTimeout(() => { start(); }, 800); });
+        window.addEventListener("load", () => { setTimeout(() => { start(); }, 0); });
       }
     }
   } catch (_) {}

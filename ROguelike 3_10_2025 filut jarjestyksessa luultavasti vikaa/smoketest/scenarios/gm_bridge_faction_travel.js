@@ -302,7 +302,7 @@
         }
       };
 
-      const encounterIntents = ["gm_bandit_bounty", "gm_troll_hunt"];
+      const encounterIntents = ["gm_bandit_bounty", "gm_troll_hunt", "gm_survey_cache_scene"];
       for (const intent of encounterIntents) {
         await ensureWorld();
 
@@ -321,16 +321,36 @@
         const { probe: confirmProbe, restore: restoreConfirmProbe } = installConfirmProbe();
         let worldStepCtx = null;
         let applySyncCalls = 0;
+        let applySyncCtxOk = true;
         let gameApiEnterCalls = 0;
         let modesEnterCalls = 0;
         let modesCtxOk = true;
 
+        let guardActive = false;
+        let getCtxDuringEntryCalls = 0;
+        let getCtxDuringEntryStack = null;
+
         const restores = [];
 
         try {
-          // Patch GameAPI.applyCtxSyncAndRefresh to ensure exactly 1 call on entry.
+          const r0 = patchMethod(G, "getCtx", (orig) => function () {
+            if (guardActive) {
+              getCtxDuringEntryCalls++;
+              if (!getCtxDuringEntryStack) {
+                try { getCtxDuringEntryStack = (new Error("getCtxDuringEntry")).stack || ""; } catch (_) { getCtxDuringEntryStack = ""; }
+              }
+            }
+            return orig.apply(this, arguments);
+          });
+          if (r0) restores.push(r0);
+
+          // Patch GameAPI.applyCtxSyncAndRefresh to ensure exactly 1 call on entry,
+          // and that it is invoked with the exact world-step ctx (ctx-first).
           const r1 = patchMethod(G, "applyCtxSyncAndRefresh", (orig) => function () {
+            guardActive = false;
             applySyncCalls++;
+            const c0 = arguments && arguments.length ? arguments[0] : null;
+            if (worldStepCtx && c0 !== worldStepCtx) applySyncCtxOk = false;
             return orig.apply(this, arguments);
           });
           if (r1) restores.push(r1);
@@ -376,7 +396,7 @@
 
           // Phase 6 regression gate: if encounter templates are temporarily unavailable,
           // the forced travel encounter should *not* be consumed/lost; it should deliver once templates return.
-          const actionId = intent === "gm_bandit_bounty" ? "fe:banditBounty" : intent === "gm_troll_hunt" ? "fe:trollHunt" : null;
+          const actionId = intent === "gm_bandit_bounty" ? "fe:banditBounty" : intent === "gm_troll_hunt" ? "fe:trollHunt" : intent === "gm_survey_cache_scene" ? "fe:surveyCache" : null;
           if (actionId) {
             const s0 = getSchedulerActionStatus(actionId);
             record(s0 === "scheduled" || s0 === "consumed", `Scheduler action present after force (${intent}) (status=${s0})`);
@@ -411,11 +431,16 @@
 
           // Reset counts for the accept-confirm -> encounter transition window.
           applySyncCalls = 0;
+          applySyncCtxOk = true;
           gameApiEnterCalls = 0;
           modesEnterCalls = 0;
           modesCtxOk = true;
+          getCtxDuringEntryCalls = 0;
+          getCtxDuringEntryStack = null;
+          guardActive = false;
 
           if (res.opened) {
+            guardActive = true;
             await acceptConfirmOk();
           }
 
@@ -424,9 +449,16 @@
           record(entered && modeNow === "encounter", `Mode enters encounter (${intent}) (mode=${modeNow})`);
 
           record(applySyncCalls === 1, `GameAPI.applyCtxSyncAndRefresh called exactly once during encounter entry (${intent}) (calls=${applySyncCalls})`);
+          record(applySyncCalls === 1 && applySyncCtxOk, `GameAPI.applyCtxSyncAndRefresh called with the exact world-step ctx (${intent})`);
           record(gameApiEnterCalls === 0, `GameAPI.enterEncounter not called during travel encounter entry (${intent}) (calls=${gameApiEnterCalls})`);
           record(modesEnterCalls > 0, `Modes.enterEncounter called during travel encounter entry (${intent}) (calls=${modesEnterCalls})`);
           record(modesEnterCalls > 0 && modesCtxOk, `Modes.enterEncounter called with the exact world-step ctx (${intent})`);
+
+          record(getCtxDuringEntryCalls === 0, `GameAPI.getCtx not called between confirm and first applyCtxSyncAndRefresh (${intent}) (calls=${getCtxDuringEntryCalls})`);
+          if (getCtxDuringEntryCalls !== 0 && getCtxDuringEntryStack) {
+            const stackLines = String(getCtxDuringEntryStack).split("\n").slice(0, 5).join("\n");
+            record(true, `getCtx during entry stack (${intent}):\n${stackLines}`);
+          }
 
           let withdrew = false;
           try { withdrew = !!G.completeEncounter("withdraw"); } catch (_) { withdrew = false; }
@@ -439,6 +471,7 @@
           const absPost = absWorldPosNow();
           record(absWorldPosEq(absPre, absPost), `Abs world pos unchanged after withdraw (${intent}) (before=(${absPre.x},${absPre.y}) after=(${absPost.x},${absPost.y}))`);
         } finally {
+          guardActive = false;
           try { restoreConfirmProbe(); } catch (_) {}
           for (const r of restores) {
             try { r(); } catch (_) {}

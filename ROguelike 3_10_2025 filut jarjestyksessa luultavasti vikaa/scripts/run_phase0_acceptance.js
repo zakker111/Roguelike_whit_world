@@ -8,6 +8,53 @@ import { fileURLToPath, URL } from 'node:url';
 
 import { chromium } from 'playwright-chromium';
 
+const TIMEOUTS = {
+  httpReadyMs: 60000,
+  pageGotoMs: 90000,
+  pageReadyMs: 90000,
+  serverShutdownMs: 1500
+};
+
+function isExited(child) {
+  return !!(child && (child.exitCode !== null || child.signalCode !== null));
+}
+
+async function waitForExit(child, timeoutMs) {
+  if (!child || isExited(child)) return true;
+
+  return await Promise.race([
+    new Promise((resolve) => {
+      child.once('exit', () => resolve(true));
+    }),
+    sleep(timeoutMs).then(() => false)
+  ]);
+}
+
+async function terminateChild(child, timeoutMs) {
+  if (!child || isExited(child)) return;
+
+  try {
+    child.kill('SIGTERM');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  const exited = await waitForExit(child, timeoutMs);
+  if (exited) return;
+
+  try {
+    child.kill('SIGKILL');
+  } catch (_) {
+    try {
+      child.kill();
+    } catch (_) {}
+  }
+
+  await waitForExit(child, 500);
+}
+
 // Phase 0 baseline QA gate: broader scenario set + hard failure on boot-time JS errors.
 const PHASE0_SCENARIOS = [
   'world',
@@ -22,6 +69,8 @@ const PHASE0_SCENARIOS = [
   'gm_boredom_interest',
   'gm_bridge_faction_travel',
   'gm_bridge_markers',
+  'quest_board_gm_markers',
+  'gm_panel_smoke',
   'gm_bottle_map',
   'gm_survey_cache'
 ].join(',');
@@ -51,11 +100,21 @@ async function httpGetOk(urlStr) {
   });
 }
 
-async function waitForHttpOk(url, timeoutMs) {
+async function waitForHttpOk(url, timeoutMs, shouldAbort = null) {
   const deadline = Date.now() + timeoutMs;
   let lastErr = null;
 
   while (Date.now() < deadline) {
+    if (typeof shouldAbort === 'function') {
+      try {
+        if (shouldAbort()) {
+          throw new Error(`Aborted waiting for ${url}`);
+        }
+      } catch (e) {
+        throw e;
+      }
+    }
+
     try {
       await httpGetOk(url);
       return;
@@ -96,7 +155,11 @@ async function findFreePort(preferredPort) {
 
 async function main() {
   const preferredPort = Number(process.env.PORT || 8080);
-  const port = process.env.PORT ? preferredPort : await findFreePort(preferredPort);
+  // Some environments set PORT globally (e.g. Codespaces/preview tooling). If that port is already
+  // in use, the server child will fail to bind and the harness can accidentally talk to whatever
+  // is already listening there (often resulting in redirect loops). Always probe for a free port
+  // starting from the preferred value.
+  const port = await findFreePort(preferredPort);
 
   const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(scriptsDir, '..');
@@ -128,7 +191,11 @@ async function main() {
   server.stderr.on('data', onLog);
 
   try {
-    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, 30000);
+    await waitForHttpOk(`http://127.0.0.1:${port}/index.html`, TIMEOUTS.httpReadyMs, () => isExited(server));
+
+    if (isExited(server)) {
+      throw new Error('Server exited before becoming ready');
+    }
 
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
@@ -158,11 +225,11 @@ async function main() {
         } catch (_) {}
       });
 
-      await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+      await page.goto(url, { waitUntil: 'load', timeout: TIMEOUTS.pageGotoMs });
 
       await page.waitForFunction(
         () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
-        { timeout: 60000 }
+        { timeout: TIMEOUTS.pageReadyMs }
       );
 
       // Boot-time sanity: verify critical transition functions are present.
@@ -237,10 +304,7 @@ async function main() {
       await browser.close();
     }
   } finally {
-    try {
-      server.kill('SIGTERM');
-    } catch (_) {}
-    await sleep(200);
+    await terminateChild(server, TIMEOUTS.serverShutdownMs);
   }
 }
 

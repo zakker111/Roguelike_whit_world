@@ -41,6 +41,8 @@ What gets injected (in order) when `?smoketest=1`
   - `smoketest/scenarios/town_diagnostics.js`
   - `smoketest/scenarios/overlays.js`
   - `smoketest/scenarios/determinism.js`
+  - `smoketest/scenarios/gm_panel_smoke.js`
+  - `smoketest/scenarios/quest_board_gm_markers.js`
 - Legacy runner:
   - `smoketest/smoketest_runner.js` — thin shim; injected only when `&legacy=1` is present (delegates to orchestrator)
 
@@ -77,7 +79,7 @@ Index
 - Capabilities: `smoketest/capabilities/` (detect.js, rng_audit.js)
 - Reporting: `smoketest/reporting/` (render.js, export.js)
 - Runner: `smoketest/runner/` (init.js, runner.js, banner.js)
-- Scenarios: `smoketest/scenarios/` (world.js, dungeon.js, dungeon_persistence.js, town.js, town_flows.js, town_diagnostics.js, inventory.js, combat.js, overlays.js, determinism.js)
+- Scenarios: `smoketest/scenarios/` (see `smoketest/scenarios/README.md`; full list in `smoketest/scenarios.json`)
 - Legacy: `smoketest/smoketest_runner.js` (only injected with `&legacy=1`)
 
 Notes
@@ -90,11 +92,6 @@ Notes
 
 Known
 - If you still see only one run with `&smokecount=N`, ensure you are on the orchestrator (no `&legacy=1`) and that `?smoketest=1` is present on the URL. The orchestrator’s `runSeries()` honors `smokecount`.
-
-Bug/issues/things to do
-- if smoke test is runned many times game should log all passes and make one mashup log what went wrong what skipped and what went right ewen if one thing went right it should log that it went right 
-- there is some broblem starting runner but it works almost ewery time
-- there is known bugs in dungeon entering and fightning etc almost all dungeon related is bugged in dungeons
 
 Updates (Oct 2025)
 - Live Matchup scoreboard:

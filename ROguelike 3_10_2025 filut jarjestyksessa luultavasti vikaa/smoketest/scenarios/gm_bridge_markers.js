@@ -4,6 +4,7 @@
   // - MarkerService exists and can add/remove markers safely.
   // - QuestService.triggerAtMarkerIfHere does NOT delete gm.* markers.
   // - Pressing 'g' on a gm.* marker is consumed by GMBridge (so Region Map does not open).
+  // - Phase-2 guard: GMBridge consumes the input ctx-first and does not cross a sync boundary for inert markers.
 
   window.SmokeTest = window.SmokeTest || {};
   window.SmokeTest.Scenarios = window.SmokeTest.Scenarios || {};
@@ -53,6 +54,17 @@
 
     const GMBridge = window.GMBridge || null;
     record(!!GMBridge, "GMBridge is available on window");
+
+    const patchMethod = (obj, key, wrap) => {
+      try {
+        if (!obj || !key || typeof obj[key] !== "function") return null;
+        const orig = obj[key];
+        obj[key] = wrap(orig);
+        return () => { obj[key] = orig; };
+      } catch (_) {
+        return null;
+      }
+    };
 
     // Pick a safe walkable tile near the current player, avoiding POIs + existing markers.
     const p0 = has(G.getPlayer) ? G.getPlayer() : { x: 0, y: 0 };
@@ -126,11 +138,44 @@
 
     // Press 'g' and confirm we did NOT enter the Region Map.
     try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
-    key("g");
 
-    // Poll for long enough to catch delayed mode transitions; if Region Map opened,
-    // we should observe mode !== world within this window.
-    await waitUntil(() => has(G.getMode) && G.getMode() !== "world", 1200, 60);
+    const restores = [];
+    let applySyncCalls = 0;
+    let modesEnterCalls = 0;
+
+    // Note: Actions imports GMBridge via ESM, so patching window.GMBridge.handleMarkerAction
+    // won't reliably intercept the call. Instead we validate the externally visible behavior
+    // (doesn't open Region Map; doesn't enter encounter) + that we don't cross the GM sync boundary.
+
+    const restoreApplySync = patchMethod(G, "applyCtxSyncAndRefresh", (orig) => function () {
+      applySyncCalls++;
+      return orig.apply(this, arguments);
+    });
+    if (restoreApplySync) restores.push(restoreApplySync);
+
+    const Modes = (typeof window !== "undefined") ? window.Modes : null;
+    const restoreModesEnter = (Modes && typeof Modes.enterEncounter === "function")
+      ? patchMethod(Modes, "enterEncounter", (orig) => function () {
+        modesEnterCalls++;
+        return orig.apply(this, arguments);
+      })
+      : null;
+    if (restoreModesEnter) restores.push(restoreModesEnter);
+
+    try {
+      key("g");
+
+      // Poll for long enough to catch delayed mode transitions; if Region Map opened,
+      // we should observe mode !== world within this window.
+      await waitUntil(() => has(G.getMode) && G.getMode() !== "world", 1200, 60);
+    } finally {
+      for (const r of restores) {
+        try { r(); } catch (_) {}
+      }
+    }
+
+    record(applySyncCalls === 0, `No GM sync boundary applied for inert gm.* marker (GameAPI.applyCtxSyncAndRefresh calls=${applySyncCalls})`);
+    record(modesEnterCalls === 0, `Inert gm.* marker does not enter encounter (Modes.enterEncounter calls=${modesEnterCalls})`);
 
     const modeAfter = has(G.getMode) ? G.getMode() : "";
     record(modeAfter === "world", `Pressing 'g' on gm.* marker does not open Region Map (mode=${modeAfter})`);

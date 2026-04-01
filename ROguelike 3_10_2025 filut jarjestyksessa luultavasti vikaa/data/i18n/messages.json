@@ -56,6 +56,17 @@
       "familySlayer": "Someone mentions trouble for the {family} in recent days.",
       "familyAlly": "An idle rumor suggests the {family} have a friend in town."
     },
+    "travel": {
+      "banditBounty": {
+        "prompt": "You spot signs of bandits nearby. Investigate?"
+      },
+      "trollHunt": {
+        "prompt": "You hear heavy tracks and guttural noises ahead. Hunt the troll?"
+      },
+      "surveyCache": {
+        "prompt": "You notice a weathered survey marker off the road. Investigate the cache?"
+      }
+    },
     "guardFine": {
       "prompt": "A patrol of guards stops you on the road.\nThey demand a fine of {amount} gold for your crimes.\n\nPay the fine?",
       "noMoney": "A patrol of guards stops you on the road, but you cannot afford their fine. They will remember this.",

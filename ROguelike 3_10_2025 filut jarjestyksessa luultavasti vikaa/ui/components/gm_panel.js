@@ -743,6 +743,62 @@ function renderSnapshot(gm) {
     const pCd = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns)) ? (p.lastCooldownTurns | 0) : 0;
     linesProfile.push(`  pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
 
+    // Phase 6-style GM stream visibility: RNG + scheduler.
+    const rng = gm.rng && typeof gm.rng === "object" ? gm.rng : null;
+    if (!rng) {
+      linesProfile.push("  gm.rng: (no data)");
+    } else {
+      const algo = (typeof rng.algo === "string" && rng.algo) ? rng.algo : "?";
+      const calls = (typeof rng.calls === "number" && Number.isFinite(rng.calls)) ? (rng.calls | 0) : 0;
+      const rawState = rng.state;
+      const state = (typeof rawState === "number" && Number.isFinite(rawState)) ? (rawState >>> 0) : null;
+      const stateHex = state == null ? "-" : "0x" + state.toString(16).padStart(8, "0");
+      linesProfile.push(`  gm.rng: algo=${algo} state=${stateHex} calls=${calls}`);
+    }
+
+    const sched = gm.scheduler && typeof gm.scheduler === "object" ? gm.scheduler : null;
+    if (!sched) {
+      linesProfile.push("  gm.scheduler: (no data)");
+    } else {
+      const lastAutoTurn = (typeof sched.lastAutoTurn === "number" && Number.isFinite(sched.lastAutoTurn)) ? (sched.lastAutoTurn | 0) : -9999;
+      const rawLastAction = (typeof gm.lastActionTurn === "number" && Number.isFinite(gm.lastActionTurn))
+        ? (gm.lastActionTurn | 0)
+        : (typeof sched.lastActionTurn === "number" && Number.isFinite(sched.lastActionTurn))
+        ? (sched.lastActionTurn | 0)
+        : null;
+      const q = Array.isArray(sched.queue) ? sched.queue : [];
+      const h = Array.isArray(sched.history) ? sched.history : [];
+      const nextId = (typeof sched.nextId === "number" && Number.isFinite(sched.nextId)) ? (sched.nextId | 0) : 0;
+      const lastActionPart = rawLastAction == null ? "" : ` lastActionTurn=${rawLastAction}`;
+      linesProfile.push(`  gm.scheduler: lastAutoTurn=${lastAutoTurn}${lastActionPart} queue=${q.length} history=${h.length} nextId=${nextId}`);
+
+      const actions = (sched.actions && typeof sched.actions === "object") ? sched.actions : {};
+      const showN = Math.min(q.length, 5);
+      linesProfile.push(`  gm.scheduler.queue (next ${showN}${q.length > showN ? "/" + q.length : ""}):`);
+      if (showN === 0) {
+        linesProfile.push("    (empty)");
+      }
+      for (let i = 0; i < showN; i++) {
+        const id = (typeof q[i] === "string" && q[i]) ? q[i] : String(q[i] || "");
+        const a = id && actions && typeof actions === "object" ? actions[id] : null;
+        if (!a || typeof a !== "object") {
+          linesProfile.push(`    - ${id || "?"}: (missing action record)`);
+          continue;
+        }
+
+        const kind = (typeof a.kind === "string" && a.kind) ? a.kind : "";
+        const status = (typeof a.status === "string" && a.status) ? a.status : "?";
+        const delivery = (typeof a.delivery === "string" && a.delivery) ? a.delivery : "?";
+        const priority = (typeof a.priority === "number" && Number.isFinite(a.priority)) ? (a.priority | 0) : (a.priority | 0);
+        const earliestTurn = (typeof a.earliestTurn === "number" && Number.isFinite(a.earliestTurn)) ? (a.earliestTurn | 0) : (a.earliestTurn | 0);
+        const latestTurn = (typeof a.latestTurn === "number" && Number.isFinite(a.latestTurn)) ? (a.latestTurn | 0) : (a.latestTurn | 0);
+
+        linesProfile.push(
+          `    - ${String(a.id || id || "?")}: kind=${kind || "-"} status=${status} delivery=${delivery} priority=${priority} earliestTurn=${earliestTurn} latestTurn=${latestTurn}`
+        );
+      }
+    }
+
     const threads = gm.threads && typeof gm.threads === "object" ? gm.threads : {};
     const bottleMap = threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
     const fishing = bottleMap && bottleMap.fishing && typeof bottleMap.fishing === "object" ? bottleMap.fishing : null;

@@ -24,6 +24,7 @@ import { checkPacingGate, getPacingConfig } from "./pacing.js";
 const FE_ACTION_ID_GUARD = "fe:guardFine";
 const FE_ACTION_ID_BANDIT = "fe:banditBounty";
 const FE_ACTION_ID_TROLL = "fe:trollHunt";
+const FE_ACTION_ID_SURVEY_CACHE = "fe:surveyCache";
 
 /**
  * Migrates legacy faction travel event slots under `gm.storyFlags.factionEvents`
@@ -298,6 +299,8 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
     intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
   } else if (action.id === FE_ACTION_ID_TROLL) {
     intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
+  } else if (action.id === FE_ACTION_ID_SURVEY_CACHE) {
+    intent = { kind: "encounter", encounterId: "gm_survey_cache_scene" };
   } else {
     return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
   }
@@ -319,9 +322,11 @@ export function getFactionTravelEventImpl(ctx, gm, helpers) {
     const flags = gm.storyFlags && typeof gm.storyFlags === "object" ? gm.storyFlags : null;
     const fe = flags && flags.factionEvents && typeof flags.factionEvents === "object" ? flags.factionEvents : null;
     if (fe) {
-      const slotName = (action.id === FE_ACTION_ID_GUARD) ? "guardFine" : (action.id === FE_ACTION_ID_BANDIT) ? "banditBounty" : "trollHunt";
-      const slot = fe[slotName];
-      if (slot && typeof slot === "object") slot.status = "consumed";
+      const slotName = (action.id === FE_ACTION_ID_GUARD) ? "guardFine" : (action.id === FE_ACTION_ID_BANDIT) ? "banditBounty" : (action.id === FE_ACTION_ID_TROLL) ? "trollHunt" : null;
+      if (slotName) {
+        const slot = fe[slotName];
+        if (slot && typeof slot === "object") slot.status = "consumed";
+      }
     }
   } catch (_) {}
 
@@ -425,6 +430,21 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       payload: { encounterId: "gm_troll_hunt" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
+  } else if (key === "survey_cache" || key === "survey_cache_scene" || key === "gm_survey_cache_scene") {
+    schedulerUpsertAction(gm, FE_ACTION_ID_SURVEY_CACHE, {
+      kind: "travel.surveyCache",
+      status: "scheduled",
+      priority: 150,
+      delivery: "confirm",
+      allowMultiplePerTurn: true,
+      bypassCadence: true,
+      bypassPacing: true,
+      createdTurn: turn,
+      earliestTurn: turn,
+      latestTurn: turn,
+      payload: { encounterId: "gm_survey_cache_scene" },
+    }, markDirty);
+    intent = { kind: "encounter", encounterId: "gm_survey_cache_scene" };
   } else {
     return { intent: { kind: "none" }, shouldWrite: false, writeOptions: { force: true } };
   }

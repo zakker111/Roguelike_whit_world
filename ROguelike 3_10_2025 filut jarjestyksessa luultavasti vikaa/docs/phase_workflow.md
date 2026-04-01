@@ -73,6 +73,7 @@ npm run acceptance:phase0
 
 Shortcut:
 - `npm run ci` (runs `lint:strict`, `check:docs-catalog`, and `build`)
+- `npm run ci:gm` (runs `ci` + `acceptance:phase6` + `acceptance:phase0`)
 
 Pass criteria:
 - `lint:strict`: **0 warnings**, 0 errors
@@ -89,6 +90,11 @@ If a slice changes any of:
 
 run the in-browser smoke runner:
 - `index.html?smoketest=1` (see `smoketest.md`)
+
+### Logging convention
+
+- **Player-facing logs:** use `"info"` (and gameplay outcomes like `"good"` / `"bad"`).
+- **Debug/diagnostic logs:** use non-`"info"` levels (e.g. `"notice"`, `"warn"`, `"error"`) and prefix with a tag like `[Encounter]`, `[GM]`, etc.
 
 ---
 

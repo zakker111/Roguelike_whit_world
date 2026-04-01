@@ -195,6 +195,7 @@ HUD visibility (dev toggles)
 Logging system (UI + Dev API)
 - Overview
   - In-DOM log overlay with optional right-side mirror.
+  - Convention: player-facing messages should use "info" (and gameplay outcomes like "good"/"bad"/"block"/"flavor"); debug/diagnostic logs should use "notice"/"warn"/"error".
   - Severity filtering and category filtering at runtime (persisted to localStorage).
   - Structured payloads with inline “details” toggles.
   - Export logs to text or JSON; clear overlay/history; dedup repeated lines.
@@ -260,11 +261,9 @@ Logging system (UI + Dev API)
   - Prefab/Town/Dungeon state notices and errors under their respective categories.
 
 - Gameplay-specific logging refinements
--  - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
--  - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
--  - Status effect messages (dazed, bleeding, burning) now log at info level so players always see them at the default threshold.meplay-specific logging refinements
   - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
   - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
+  - Status effect messages (dazed, bleeding, burning) now log at info level so players always see them at the default threshold.
 
 Notes
 - Most runtime modules log via ctx.log(...), which the engine routes to window.Logger.log(...) when available.

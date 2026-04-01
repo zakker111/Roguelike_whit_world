@@ -16,6 +16,9 @@ Files
 - ui_layout.js — verifies canvas position is stable as log output grows.
 - determinism.js — seed re‑apply and anchor checks (nearest town/dungeon).
 - gm_disable_switch.js — verifies `gm.enabled=false` suppresses GMBridge side effects (no gm.* markers, no confirms/encounters).
+- gm_panel_smoke.js — basic GM panel open + output sanity checks.
+- quest_board_gm_markers.js — verifies gm.* markers render in the Quest Board UI.
+- See `smoketest/scenarios.json` for the full scenario list.
 
 Notes
 - The orchestrator runs scenarios in a pipeline by default; you can filter with `&scenarios=world,dungeon,combat` (or legacy `&smoke=`).

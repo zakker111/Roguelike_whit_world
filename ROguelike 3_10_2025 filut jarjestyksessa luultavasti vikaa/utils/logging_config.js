@@ -4,7 +4,7 @@
  *
  * API (ESM + window.LogConfig):
  * - init()
- * - setThreshold(name)            // name: "info"|"notice"|"warn"|"error"|"fatal"
+ * - setThreshold(name)            // name: "all"|"info"|"notice"|"warn"|"error"|"fatal"
  * - getThresholdName()
  * - isCategoryEnabled(cat)
  * - setCategory(cat, enabled)
@@ -59,7 +59,8 @@ export const LogConfig = {
   },
 
   getThresholdValue() {
-    return this._levels[this._thresholdName] || this._levels.info;
+    const v = this._levels[this._thresholdName];
+    return (typeof v === "number") ? v : this._levels.info;
   },
 
   setThreshold(name) {
@@ -68,6 +69,13 @@ export const LogConfig = {
     if (this._levels[n] != null) {
       this._thresholdName = n;
       try { localStorage.setItem("LOG_LEVEL", n); } catch (_) {}
+
+      // Re-apply filters so switching to a more permissive threshold (e.g. "all")
+      // can reveal logs that were previously filtered out.
+      try {
+        const L = (typeof window !== "undefined") ? window.Logger : null;
+        if (L && typeof L.refresh === "function") L.refresh();
+      } catch (_) {}
     }
   },
 
@@ -92,6 +100,12 @@ export const LogConfig = {
     const k = this.normalizeCategory(cat || "General");
     this._cats[k] = !!enabled;
     try { localStorage.setItem("LOG_CATEGORIES", JSON.stringify(this._cats)); } catch (_) {}
+
+    // Re-apply filters immediately so toggling categories updates the on-screen log.
+    try {
+      const L = (typeof window !== "undefined") ? window.Logger : null;
+      if (L && typeof L.refresh === "function") L.refresh();
+    } catch (_) {}
   },
 
   registerCategory(cat) {
@@ -202,6 +216,11 @@ export const LogConfig = {
     try {
       localStorage.removeItem("LOG_LEVEL");
       localStorage.removeItem("LOG_CATEGORIES");
+    } catch (_) {}
+
+    try {
+      const L = (typeof window !== "undefined") ? window.Logger : null;
+      if (L && typeof L.refresh === "function") L.refresh();
     } catch (_) {}
   }
 };

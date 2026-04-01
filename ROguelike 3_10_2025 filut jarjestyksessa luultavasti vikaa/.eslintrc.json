@@ -54,6 +54,30 @@
     "prefer-const": ["warn", { "destructuring": "all" }],
     "curly": ["warn", "multi-line"],
     "no-debugger": "warn",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          "core/bridge/gm_bridge",
+          "core/bridge/ui_bridge",
+          "core/bridge/ui_orchestration",
+          "/core/bridge/gm_bridge",
+          "/core/bridge/ui_bridge",
+          "/core/bridge/ui_orchestration"
+        ],
+        "patterns": [
+          "core/bridge/gm_bridge/*",
+          "core/bridge/ui_bridge/*",
+          "core/bridge/ui_orchestration/*",
+          "/core/bridge/gm_bridge/*",
+          "/core/bridge/ui_bridge/*",
+          "/core/bridge/ui_orchestration/*",
+          "**/bridge/gm_bridge/*",
+          "**/bridge/ui_bridge/*",
+          "**/bridge/ui_orchestration/*"
+        ]
+      }
+    ],
     "max-lines": ["warn", { "max": 4000, "skipBlankLines": true, "skipComments": true }]
   },
   "overrides": [

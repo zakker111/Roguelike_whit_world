@@ -1,6 +1,6 @@
 {
   "name": "tiny-roguelike",
-  "version": "1.50.43",
+  "version": "1.50.46",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,9 @@
     "check:docs-catalog": "node scripts/check_docs_catalog.js",
     "ci": "npm run lint:strict && npm run check:docs-catalog && npm run build",
     "acceptance:phase6": "node scripts/run_phase6_acceptance.js",
-    "acceptance:phase0": "node scripts/run_phase0_acceptance.js"
+    "acceptance:phase0": "node scripts/run_phase0_acceptance.js",
+    "acceptance:gm": "npm run acceptance:phase6 && npm run acceptance:phase0",
+    "ci:gm": "npm run ci && npm run acceptance:gm"
   },
   "devDependencies": {
     "vite": "^5.3.3",
