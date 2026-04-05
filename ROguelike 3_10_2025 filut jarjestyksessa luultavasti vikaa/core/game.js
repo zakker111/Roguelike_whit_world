@@ -293,6 +293,13 @@ import "./sandbox/runtime.js";
       onEnemyDied: (enemy) => killEnemy(enemy),
     };
 
+    try {
+      const GM = (typeof window !== "undefined") ? window.GMRuntime : null;
+      if (GM && typeof GM.getState === "function") {
+        base.gm = GM.getState(base);
+      }
+    } catch (_) {}
+
     if (typeof window !== "undefined" && window.Ctx && typeof window.Ctx.create === "function") {
       const ctx = window.Ctx.create(base);
       // enemy factory prefers ctx.Enemies handle, falling back gracefully

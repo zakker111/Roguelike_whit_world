@@ -376,7 +376,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
     }
     slot.status = "scheduled";
     slot.earliestTurn = turn;
-    slot.latestTurn = turn;
+    slot.latestTurn = 0;
     return slot;
   }
 
@@ -394,7 +394,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
-      latestTurn: turn,
+      latestTurn: 0,
       payload: { kind: "guard_fine" },
     }, markDirty);
     intent = { kind: "guard_fine" };
@@ -410,7 +410,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
-      latestTurn: turn,
+      latestTurn: 0,
       payload: { encounterId: "gm_bandit_bounty" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_bandit_bounty" };
@@ -426,7 +426,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
-      latestTurn: turn,
+      latestTurn: 0,
       payload: { encounterId: "gm_troll_hunt" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_troll_hunt" };
@@ -441,7 +441,7 @@ export function forceFactionTravelEventImpl(ctx, gm, id, helpers) {
       bypassPacing: true,
       createdTurn: turn,
       earliestTurn: turn,
-      latestTurn: turn,
+      latestTurn: 0,
       payload: { encounterId: "gm_survey_cache_scene" },
     }, markDirty);
     intent = { kind: "encounter", encounterId: "gm_survey_cache_scene" };

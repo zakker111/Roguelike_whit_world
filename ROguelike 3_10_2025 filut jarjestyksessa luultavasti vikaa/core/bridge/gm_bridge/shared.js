@@ -16,11 +16,26 @@ export function isGmEnabled(ctx) {
   }
 }
 
+export function mirrorGmState(ctx) {
+  try {
+    const GM = getMod(ctx, "GMRuntime");
+    if (!GM || typeof GM.getState !== "function") return null;
+    const gm = GM.getState(ctx);
+    if (ctx) ctx.gm = gm;
+    return gm;
+  } catch (_) {
+    return null;
+  }
+}
+
 export function applySyncAfterGmTransition(ctx) {
+  mirrorGmState(ctx);
+
   try {
     const GA = getMod(ctx, "GameAPI");
     if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
       GA.applyCtxSyncAndRefresh(ctx);
+      mirrorGmState(ctx);
       return true;
     }
   } catch (_) {}
@@ -29,10 +44,12 @@ export function applySyncAfterGmTransition(ctx) {
     const SS = getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
+      mirrorGmState(ctx);
       return true;
     }
   } catch (_) {}
 
+  mirrorGmState(ctx);
   return false;
 }
 

@@ -1,8 +1,31 @@
 import { getMod } from "../../../utils/access.js";
-import { isGmEnabled } from "./shared.js";
+import { isGmEnabled, mirrorGmState } from "./shared.js";
 import { grantBottleMapRewards } from "../gm_bridge_effects.js";
 import { removeSurveyCacheMarker } from "./survey_cache.js";
 import { normalizeBottleMapInstanceId, getBottleMapOnEncounterCompleteFn } from "./bottle_map.js";
+
+function getBottleMapThreadState(GM, ctx) {
+  try {
+    const gm = mirrorGmState(ctx) || (GM && typeof GM.getState === "function" ? GM.getState(ctx) : null);
+    const threads = gm && gm.threads && typeof gm.threads === "object" ? gm.threads : null;
+    const thread = threads && threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
+    return thread || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getSurveyCacheActiveState(GM, ctx) {
+  try {
+    const gm = mirrorGmState(ctx) || (GM && typeof GM.getState === "function" ? GM.getState(ctx) : null);
+    const threads = gm && gm.threads && typeof gm.threads === "object" ? gm.threads : null;
+    const sc = threads && threads.surveyCache && typeof threads.surveyCache === "object" ? threads.surveyCache : null;
+    const active = sc && sc.active && typeof sc.active === "object" ? sc.active : null;
+    return active || null;
+  } catch (_) {
+    return null;
+  }
+}
 
 /**
  * GMBridge hook: called by encounter completion flow.
@@ -10,13 +33,25 @@ import { normalizeBottleMapInstanceId, getBottleMapOnEncounterCompleteFn } from 
 export function onEncounterComplete(ctx, info) {
   try {
     const id = info && info.encounterId != null ? String(info.encounterId).trim().toLowerCase() : "";
-    if (!id) return;
 
     // If GM is disabled, don't apply any GM side effects.
     if (!isGmEnabled(ctx)) return;
 
-    if (id === "gm_bottle_map_scene") {
-      const GM = getMod(ctx, "GMRuntime");
+    const GM = getMod(ctx, "GMRuntime");
+    const bottleThreadBefore = getBottleMapThreadState(GM, ctx);
+    const bottleStatusBefore = bottleThreadBefore && bottleThreadBefore.status != null ? String(bottleThreadBefore.status).trim().toLowerCase() : "";
+    const bottleTargetBefore = bottleThreadBefore && bottleThreadBefore.target && typeof bottleThreadBefore.target === "object" ? bottleThreadBefore.target : null;
+    const worldReturnPos = ctx && ctx.worldReturnPos && typeof ctx.worldReturnPos === "object" ? ctx.worldReturnPos : null;
+    const bottleMatchesWorldReturn = !!(bottleTargetBefore && worldReturnPos
+      && typeof bottleTargetBefore.absX === "number"
+      && typeof bottleTargetBefore.absY === "number"
+      && typeof worldReturnPos.x === "number"
+      && typeof worldReturnPos.y === "number"
+      && (bottleTargetBefore.absX | 0) === (worldReturnPos.x | 0)
+      && (bottleTargetBefore.absY | 0) === (worldReturnPos.y | 0));
+    const surveyActiveBefore = getSurveyCacheActiveState(GM, ctx);
+
+    if (id === "gm_bottle_map_scene" || bottleStatusBefore === "inencounter" || bottleMatchesWorldReturn) {
       const MS = getMod(ctx, "MarkerService");
       if (!GM || !MS) return;
 
@@ -32,14 +67,18 @@ export function onEncounterComplete(ctx, info) {
         res = null;
       }
 
+      const bottleThreadAfter = getBottleMapThreadState(GM, ctx);
+
       const instanceId = normalizeBottleMapInstanceId(res && (res.instanceId || res.activeInstanceId || res.threadInstanceId || res.removeMarkerInstanceId));
 
       if (outcome !== "victory") {
+        mirrorGmState(ctx);
         try { GM.onEvent(ctx, { type: "gm.bottleMap.encounterExit", interesting: false, payload: { outcome } }); } catch (_) {}
         return;
       }
 
-      const reward = res && (res.reward || res.rewardSpec || res.payout || res.rewardGrant || null);
+      const reward = (res && (res.reward || res.rewardSpec || res.payout || res.rewardGrant || null))
+        || (bottleThreadAfter && bottleThreadAfter.reward ? bottleThreadAfter.reward : null);
 
       let shouldGrant = !!reward;
       try {
@@ -54,6 +93,8 @@ export function onEncounterComplete(ctx, info) {
       try {
         if (!removeId && res && res.removeMarker === true) removeId = instanceId;
       } catch (_) {}
+      if (!removeId) removeId = normalizeBottleMapInstanceId(bottleThreadAfter && bottleThreadAfter.instanceId);
+      if (!removeId) removeId = normalizeBottleMapInstanceId(bottleThreadBefore && bottleThreadBefore.instanceId);
 
       if (removeId) {
         try {
@@ -64,6 +105,7 @@ export function onEncounterComplete(ctx, info) {
         } catch (_) {}
       }
 
+      mirrorGmState(ctx);
       try { if (typeof ctx.log === "function") ctx.log("You unearth a hidden cache from the Bottle Map.", "good"); } catch (_) {}
       if (instanceId) {
         try { GM.onEvent(ctx, { type: "gm.bottleMap.claimed", interesting: true, payload: { instanceId } }); } catch (_) {}
@@ -78,8 +120,7 @@ export function onEncounterComplete(ctx, info) {
       return;
     }
 
-    if (id === "gm_survey_cache_scene") {
-      const GM = getMod(ctx, "GMRuntime");
+    if (id === "gm_survey_cache_scene" || !!surveyActiveBefore) {
       const MS = getMod(ctx, "MarkerService");
       if (!GM || !MS) return;
 
@@ -94,9 +135,17 @@ export function onEncounterComplete(ctx, info) {
         res = null;
       }
 
+      mirrorGmState(ctx);
+
       let instanceId = res && res.instanceId != null ? String(res.instanceId) : null;
       let absX = res && typeof res.absX === "number" && Number.isFinite(res.absX) ? (res.absX | 0) : null;
       let absY = res && typeof res.absY === "number" && Number.isFinite(res.absY) ? (res.absY | 0) : null;
+
+      if ((!instanceId || absX == null || absY == null) && surveyActiveBefore) {
+        instanceId = surveyActiveBefore.instanceId != null ? String(surveyActiveBefore.instanceId) : instanceId;
+        absX = absX == null && typeof surveyActiveBefore.absX === "number" ? (surveyActiveBefore.absX | 0) : absX;
+        absY = absY == null && typeof surveyActiveBefore.absY === "number" ? (surveyActiveBefore.absY | 0) : absY;
+      }
 
       if (!instanceId || absX == null || absY == null) {
         // Fallback: best-effort derive from worldReturnPos.

@@ -561,12 +561,17 @@ export function bottleMapOnEncounterComplete(ctx, gm, thread, meta, opts) {
   const iid = thread.instanceId != null ? String(thread.instanceId) : "";
 
   if (outcome !== "victory") {
-    // Keep thread active; marker remains.
-    if (isThreadActive(thread)) {
-      thread.status = "active";
-      return { changed: true, payoutReward: false, instanceId: iid };
+    // Keep thread retryable after withdraw/cancel; marker remains.
+    let changed = false;
+    if (thread.active !== true) {
+      thread.active = true;
+      changed = true;
     }
-    return { changed: false, payoutReward: false, instanceId: iid };
+    if (normalizeBottleStatus(thread.status, !!thread.active) !== "active") {
+      thread.status = "active";
+      changed = true;
+    }
+    return { changed, payoutReward: false, instanceId: iid };
   }
 
   // Victory: pay out and close.
