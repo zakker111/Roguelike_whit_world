@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Docs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Use a relative base so docs work both at site root and under a subpath deployment. -->
+  <base href="../" />
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", "Liberation Mono", "Courier New", monospace;
+      background: #0f1117;
+      color: #cbd5e1;
+    }
+    header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #253047;
+      background: #0b0d13;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    main {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+    .card {
+      border: 1px solid #253047;
+      border-radius: 8px;
+      background: #0f1117;
+      padding: 12px;
+    }
+    .card h2 {
+      margin-top: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2:hover {
+      color: #7aa2f7;
+      text-decoration: underline;
+    }
+    .caret {
+      display: inline-block;
+      color: #7aa2f7;
+      transition: transform 0.18s ease;
+    }
+    .card[data-expanded="true"] .caret {
+      transform: rotate(90deg);
+    }
+    .card .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .card .actions .status {
+      margin-left: auto;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      tab-size: 2;
+      line-height: 1.45;
+      margin: 8px 0 0 0;
+    }
+    code { font-family: inherit; }
+    a { color: #7aa2f7; }
+    .status { font-size: 13px; color: #a1a1aa; }
+    .btn {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #253047;
+      background: #0b0d13;
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .btn:hover { border-color: #3b4b6a; background: #0f1320; }
+    .toolbar {
+      display:flex; align-items:center; gap:8px;
+      flex-wrap: wrap;
+    }
+    input[type="search"] {
+      padding: 6px 8px;
+      background:#0f0f12; color:#e5e7eb;
+      border:1px solid #334155; border-radius:6px;
+      min-width: 220px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0; font-size:16px;">ROguelike Docs</h1>
+    <span class="status" id="status">Ready</span>
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter docs by title…" />
+      <button id="expand-all" class="btn">Expand All</button>
+      <button id="collapse-all" class="btn">Collapse All</button>
+    </div>
+    <a class="btn" href="./">Back to game</a>
+  </header>
+  <main id="docs"></main>
+  <script>
+    (function(){
+      const catalog = [
+        { title: 'Top-level README', path: 'README.md' },
+        { title: 'Changelog (VERSIONS.md)', path: 'VERSIONS.md' },
+        { title: 'Features (FEATURES.md)', path: 'FEATURES.md' },
+        { title: 'TODO / Planned Work', path: 'TODO.md' },
+        { title: 'Known Bugs (BUGS.md)', path: 'BUGS.md' },
+        { title: 'Checklist', path: 'CHECKLIST.md' },
+        { title: 'Smoke Test Guide', path: 'smoketest.md' },
+        { title: 'Engineering: Refactor & Modularization Plan', path: 'docs/refactor_modularization_plan.md' },
+        { title: 'Engineering: Phased Slice Workflow', path: 'docs/phase_workflow.md' },
+        { title: 'Engineering: GMBridge Modularization (Slice 1)', path: 'docs/gm_bridge_modularization.md' },
+        { title: 'Engineering: Next Steps', path: 'docs/next_steps.md' },
+        { title: 'Engineering: Folder Barrels (Workstream 1.3)', path: 'docs/folder_barrels.md' },
+        { title: 'Engineering: UIOrchestration Modularization (Slice A)', path: 'docs/ui_orchestration_modularization.md' },
+        { title: 'Engineering: UIBridge Modularization (Slice B)', path: 'docs/ui_bridge_modularization.md' },
+        { title: 'Engineering: Boot / Load-Order Modularization (Slice C)', path: 'docs/boot_load_order_modularization.md' },
+        { title: 'Engineering: core/game.js Shrink — Combat + Inventory Ops', path: 'docs/game_js_shrink_slice_combat_inventory_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Map Ops (Slice D)', path: 'docs/game_js_shrink_slice_map_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Render Ops (Slice E)', path: 'docs/game_js_shrink_slice_render_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Time Ops (Slice I)', path: 'docs/game_js_shrink_slice_time_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — World Ops (Slice J)', path: 'docs/game_js_shrink_slice_world_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Loot Ops (Slice F)', path: 'docs/game_js_shrink_slice_loot_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Mode Ops (Slice G)', path: 'docs/game_js_shrink_slice_mode_ops.md' },
+        { title: 'Engineering: core/game.js Shrink — Shop Ops (Slice H)', path: 'docs/game_js_shrink_slice_shop_ops.md' },
+
+        { title: 'Data Docs: Index', path: 'data/docs/README.md' },
+        { title: 'Data Docs: Palette Schema', path: 'data/docs/palette_schema.md' },
+        { title: 'Data Docs: Palette Theming', path: 'data/docs/palette_theming.md' },
+        { title: 'Data Docs: Tiles Coverage', path: 'data/docs/tiles_coverage.md' },
+
+        { title: 'Core', path: 'core/README.md' },
+        { title: 'Core State', path: 'core/state/README.md' },
+        { title: 'UI', path: 'ui/README.md' },
+        { title: 'World', path: 'world/README.md' },
+        { title: 'Dungeon', path: 'dungeon/README.md' },
+        { title: 'Services', path: 'services/README.md' },
+        { title: 'Entities', path: 'entities/README.md' },
+        { title: 'Combat', path: 'combat/README.md' },
+        { title: 'AI', path: 'ai/README.md' },
+        { title: 'Region Map', path: 'region_map/README.md' },
+        { title: 'Utils', path: 'utils/README.md' },
+        { title: 'Tools', path: 'tools/README.md' },
+        { title: 'Scripts', path: 'scripts/README.md' },
+        { title: 'Worldgen', path: 'worldgen/README.md' },
+
+        { title: 'Smoketest (Overview)', path: 'smoketest/README.md' },
+        { title: 'Smoketest: Runner', path: 'smoketest/runner/README.md' },
+        { title: 'Smoketest: Helpers', path: 'smoketest/helpers/README.md' },
+        { title: 'Smoketest: Reporting', path: 'smoketest/reporting/README.md' },
+        { title: 'Smoketest: Scenarios', path: 'smoketest/scenarios/README.md' },
+      ];
+
+      const descriptions = {
+        'README.md': 'Top-level overview, controls, and quick start.',
+        'VERSIONS.md': 'Detailed changelog of versions and deployments.',
+        'FEATURES.md': 'Current feature set: what exists now, including controls and systems.',
+        'TODO.md': 'Planned features, refactors, and technical cleanup tasks.',
+        'BUGS.md': 'Known issues and broken/experimental systems.',
+        'CHECKLIST.md': 'Developer/testing checklist and verification items.',
+        'smoketest.md': 'Smoke test documentation and scenario notes.',
+        'docs/refactor_modularization_plan.md': 'Engineering plan for modularizing/refactoring the runtime safely (guardrails + workstreams).',
+        'docs/phase_workflow.md': 'How to plan, QA, deploy, and rollback small, end-to-end slices.',
+        'docs/gm_bridge_modularization.md': 'Concrete file-split plan for core/bridge/gm_bridge.js (Slice 1).',
+        'docs/next_steps.md': 'What to do next: keep CI green, invariants, and the next recommended slice.',
+        'docs/folder_barrels.md': 'Workstream 1.3: why barrels exist, what is exported, and usage rules.',
+        'docs/ui_orchestration_modularization.md': 'UIOrchestration file split: new module layout + invariants.',
+        'docs/ui_bridge_modularization.md': 'UIBridge file split: new module layout + invariants.',
+        'docs/boot_load_order_modularization.md': 'Boot sequence refactor: src/main.js now imports grouped boot manifests.',
+        'docs/game_js_shrink_slice_combat_inventory_ops.md': 'core/game.js shrink: extract combat/inventory ctx-first wrappers into core/engine/game_combat_ops.js + core/engine/game_inventory_ops.js.',
+        'docs/game_js_shrink_slice_map_ops.md': 'core/game.js shrink: extract inBounds/isWalkable policy into core/engine/game_map_ops.js.',
+        'docs/game_js_shrink_slice_render_ops.md': 'core/game.js shrink: extract render ctx assembly + draw scheduling into core/engine/game_render_ops.js (wrapping RenderOrchestration + GameLoop).',
+        'docs/game_js_shrink_slice_time_ops.md': 'core/game.js shrink: extract time wrappers (minutesUntil/advanceTime/fastForward) into core/engine/game_time_ops.js.',
+        'docs/game_js_shrink_slice_world_ops.md': 'core/game.js shrink: extract world generation + escort travel wrappers into core/engine/game_world_ops.js.',
+        'docs/game_js_shrink_slice_loot_ops.md': 'core/game.js shrink: extract loot panel routing + loot action wrappers into core/loot_flow.js (LootFlow).',
+        'docs/game_js_shrink_slice_mode_ops.md': 'core/game.js shrink: extract mode transition + exit wrappers into core/engine/game_mode_ops.js (ModesTransitions + exitToWorld).',
+        'docs/game_js_shrink_slice_shop_ops.md': 'core/game.js shrink: extract ShopService wrappers into core/engine/game_shop_ops.js.',
+
+        'data/docs/README.md': 'Index of data documentation and palette guides.',
+        'data/docs/palette_schema.md': 'Schema for palette JSON: keys, sections, and constraints.',
+        'data/docs/palette_theming.md': 'Theming guidance: how colors drive tiles, overlays, and UI.',
+        'data/docs/tiles_coverage.md': 'Tiles coverage report: which modes use which tiles.',
+
+        'core/README.md': 'Core engine: game loop, modes, FOV, camera, orchestration.',
+        'core/state/README.md': 'Core state modules: visibility, persistence, and StateSync refresh.',
+        'ui/README.md': 'UI modules: HUD, panels, renderer wiring.',
+        'world/README.md': 'World generation/runtime and overworld helpers.',
+        'dungeon/README.md': 'Dungeon generation, state persistence, and runtime.',
+        'services/README.md': 'Shared services: time, shop, capabilities.',
+        'entities/README.md': 'Items, enemies, player, loot registries.',
+        'combat/README.md': 'Combat engine, stats, status effects, decay.',
+        'ai/README.md': 'AI behavior and movement (town/dungeon).',
+        'region_map/README.md': 'Region Map overlay: sampling, persistence, encounters.',
+        'utils/README.md': 'Utilities and helpers (bounds, RNG, numbers).',
+        'tools/README.md': 'Tools (e.g., Prefab Editor, analyzers).',
+        'scripts/README.md': 'Node scripts for manifests and analysis.',
+        'worldgen/README.md': 'Prefabs and town/world generation assets.',
+
+        'smoketest/README.md': 'Smoketest overview: goals and flows.',
+        'smoketest/runner/README.md': 'Runner orchestrator and controls.',
+        'smoketest/helpers/README.md': 'Runner helper modules (movement, logging).',
+        'smoketest/reporting/README.md': 'Rendering/export of per-run and aggregated reports.',
+        'smoketest/scenarios/README.md': 'Scenario definitions and expectations.',
+      };
+      const root = document.getElementById('docs');
+      const st = document.getElementById('status');
+
+      function makeCard(entry) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.title = (entry.title || '').toLowerCase();
+
+        const h2 = document.createElement('h2');
+        h2.setAttribute('role', 'button');
+        h2.setAttribute('aria-expanded', 'false');
+        h2.title = descriptions[entry.path] || 'Click to expand/collapse';
+        const caret = document.createElement('span'); caret.className = 'caret'; caret.textContent = '▶';
+        const label = document.createElement('span'); label.textContent = entry.title || entry.path;
+        h2.appendChild(caret);
+        h2.appendChild(label);
+        card.appendChild(h2);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const src = document.createElement('span');
+        src.className = 'status';
+        src.innerHTML = 'Source: <code>' + entry.path + '</code>';
+        actions.appendChild(src);
+        const raw = document.createElement('a');
+        raw.className = 'btn';
+        raw.href = entry.path;
+        raw.target = '_blank';
+        raw.textContent = 'Open raw';
+        actions.appendChild(raw);
+        const status = document.createElement('span');
+        status.className = 'status';
+        status.textContent = 'Collapsed';
+        actions.appendChild(status);
+        card.appendChild(actions);
+
+        const pre = document.createElement('pre');
+        pre.hidden = true;
+        const code = document.createElement('code');
+        code.textContent = '';
+        pre.appendChild(code);
+        card.appendChild(pre);
+
+        let loaded = false;
+        function load() {
+          // cache-bust to avoid stale content; keep server validation via no-cache
+          const url = entry.path + (entry.path.indexOf('?') === -1 ? ('?ts=' + Date.now()) : ('&ts=' + Date.now()));
+          return fetch(url, { cache: 'no-cache' })
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(txt => { code.textContent = txt; loaded = true; })
+            .catch(err => { code.textContent = 'Unable to load ' + entry.path + ' (' + err.message + ').'; loaded = true; });
+        }
+        function toggle() {
+          if (pre.hidden) {
+            pre.hidden = false;
+            h2.setAttribute('aria-expanded', 'true');
+            card.dataset.expanded = 'true';
+            status.textContent = 'Loading…';
+            load()
+              .then(() => { status.textContent = 'Expanded'; })
+              .catch(() => { status.textContent = 'Loaded with warnings'; });
+          } else {
+            pre.hidden = true;
+            status.textContent = 'Collapsed';
+            h2.setAttribute('aria-expanded', 'false');
+            card.dataset.expanded = 'false';
+          }
+        }
+        h2.addEventListener('click', toggle);
+        return {
+          card,
+          toggle,
+          expand: () => { if (pre.hidden) h2.click(); },
+          collapse: () => { if (!pre.hidden) h2.click(); },
+          isExpanded: () => !pre.hidden
+        };
+      }
+
+      const cards = catalog.map(makeCard);
+      cards.forEach(c => root.appendChild(c.card));
+
+      function expandAll() { cards.forEach(c => c.expand()); st.textContent = 'Expanded ' + cards.length; }
+      function collapseAll() { cards.forEach(c => c.collapse()); st.textContent = 'Collapsed'; }
+      
+
+      document.getElementById('expand-all').addEventListener('click', expandAll);
+      document.getElementById('collapse-all').addEventListener('click', collapseAll);
+
+      const filter = document.getElementById('filter');
+      filter.addEventListener('input', function() {
+        const q = (filter.value || '').toLowerCase();
+        let vis = 0;
+        cards.forEach(c => {
+          const t = c.card.dataset.title || '';
+          const show = !q || t.indexOf(q) !== -1;
+          c.card.style.display = show ? '' : 'none';
+          if (show) vis++;
+        });
+        st.textContent = q ? ('Showing ' + vis + ' / ' + cards.length) : ('Ready (' + cards.length + ' docs)');
+      });
+
+      
+
+      st.textContent = 'Ready (' + cards.length + ' docs)';
+    })();
+  </script>
+</body>
+</html>

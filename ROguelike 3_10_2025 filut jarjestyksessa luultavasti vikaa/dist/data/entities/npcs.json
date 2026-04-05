@@ -1,0 +1,67 @@
+{
+  "residentNames": [
+    "Resident",
+    "Villager",
+    "Traveler",
+    "Merchant",
+    "Guard",
+    "Scholar",
+    "Carpenter",
+    "Mason",
+    "Tailor",
+    "Baker"
+  ],
+  "residentLines": [
+    "Home sweet home.",
+    "A quiet day indoors.",
+    "Just tidying up.",
+    "Lovely day on the plaza.",
+    "How's the dungeon?",
+    "Warm fire, warm hearts.",
+    "Morning chores never end.",
+    "Heading to the plaza.",
+    "I might visit the shop later."
+  ],
+  "guardLines": [
+    "Stay out of trouble.",
+    "We keep the town safe.",
+    "Eyes open, blade sharp.",
+    "The gate is watched day and night.",
+    "If you're headed to the dungeon, be prepared.",
+    "Seen anything suspicious?",
+    "Night watch is the quiet kind of dangerous.",
+    "Steel on my belt, stone under my feet. Just another shift."
+  ],
+  "shopkeeperNames": [
+    "Shopkeeper",
+    "Trader",
+    "Smith",
+    "Armorer",
+    "Apothecary",
+    "Innkeeper"
+  ],
+  "shopkeeperLines": [
+    "We open on schedule.",
+    "Welcome in!",
+    "Back soon.",
+    "Best prices in town!",
+    "Everything is freshly stocked.",
+    "Open by dawn, closed by dusk."
+  ],
+  "petCats": [
+    "Cat",
+    "Mittens",
+    "Whiskers",
+    "Shadow",
+    "Pumpkin",
+    "Neko"
+  ],
+  "petDogs": [
+    "Dog",
+    "Rover",
+    "Buddy",
+    "Spot",
+    "Luna",
+    "Bruno"
+  ]
+}

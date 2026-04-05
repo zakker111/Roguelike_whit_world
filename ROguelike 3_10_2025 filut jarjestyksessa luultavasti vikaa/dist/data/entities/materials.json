@@ -1,0 +1,61 @@
+{
+  "materials": [
+    {
+      "id": "meat",
+      "name": "meat",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "food", "raw"]
+    },
+    {
+      "id": "meat_cooked",
+      "name": "meat (cooked)",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["food", "cooked"],
+      "edible": { "heal": 2 }
+    },
+    {
+      "id": "fish",
+      "name": "fish",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "food", "raw"]
+    },
+    {
+      "id": "fish_cooked",
+      "name": "fish (cooked)",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["food", "cooked"]
+    },
+    {
+      "id": "leather",
+      "name": "leather",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "craft"]
+    },
+    {
+      "id": "berries",
+      "name": "berries",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["forage", "food", "raw"]
+    },
+    {
+      "id": "wood",
+      "name": "wood",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["craft", "resource"]
+    },
+    {
+      "id": "wood_planks",
+      "name": "wood planks",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["craft", "resource"]
+    }
+  ]
+}

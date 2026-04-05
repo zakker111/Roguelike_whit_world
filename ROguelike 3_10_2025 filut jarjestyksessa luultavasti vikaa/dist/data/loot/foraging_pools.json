@@ -1,0 +1,12 @@
+{
+  "biomes": {
+    "FOREST": [
+      { "id": "berries", "min": 1, "max": 2, "chance": 0.25 }
+    ],
+    "GRASS": [
+      { "id": "berries", "min": 1, "max": 1, "chance": 0.12 }
+    ],
+    "SWAMP": [],
+    "BEACH": []
+  }
+}

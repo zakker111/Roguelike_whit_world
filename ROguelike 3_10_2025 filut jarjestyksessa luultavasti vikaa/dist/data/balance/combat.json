@@ -1,0 +1,7 @@
+{
+  "enemyDamageMultiplier": {
+    "base": 1.0,
+    "perLevel": 0.15,
+    "min": 0.1
+  }
+}
