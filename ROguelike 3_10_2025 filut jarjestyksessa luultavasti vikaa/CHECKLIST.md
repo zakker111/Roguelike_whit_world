@@ -67,9 +67,10 @@ This document lists what the automated Smoke Test runner attempts on each run an
   - Details: full step-by-step with OK/ERR/SKIP
 - Series summary (after multi-run)
   - Runs pass/fail; total checks passed/failed/skipped
+  - Authoritative series PASS/FAIL and flaky scenario count
   - Performance averages (turn/draw) + soft budget warnings
   - Runner version and capability list
-  - Aggregated report (union of success across runs)
+  - Aggregated report (union of success across runs; informational only)
 - Export
   - JSON: complete machine-readable report
   - TXT: single-file summary (GOOD/PROBLEMS/SKIPPED + top console/browser issues)
@@ -82,6 +83,7 @@ This document lists what the automated Smoke Test runner attempts on each run an
   - NPC|prop sample in town
 - Performance budgets
   - Warns if average turn > 6 ms or average draw > 12 ms (configurable).
+  - Overlay toggles record cold draw and settled draw; only sustained settled draw over budget is a hard failure.
 
 ## Future-Proofing Behaviors
 
@@ -96,5 +98,5 @@ This document lists what the automated Smoke Test runner attempts on each run an
 
 - No ERR steps.
 - Town and dungeon sequences show multiple PASS lines (e.g., Entered town, Bumped into NPC, Chest looted, Decay increased).
-- Series summary: failed checks = 0; performance warnings are acceptable or absent.
+- Series summary: no hard-fail runs and no flaky scenarios; performance warnings are acceptable or absent.
 - Issues (console/browser) are empty or minimal.

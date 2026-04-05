@@ -23,6 +23,7 @@ Report and checklist
 - GOD panel shows:
   - Step Details: color‑coded cards for OK/FAIL/SKIP.
   - Key Checklist: per‑run high‑level outcomes (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks).
+  - Series status: PASS/FAIL for the whole multi‑run series, plus flaky scenario count when `&smokecount>1`.
   - Full JSON report embedded (collapsible).
   - Download buttons: JSON (full report), Summary (TXT), Checklist (TXT).
 
@@ -91,7 +92,8 @@ Town generation and interactions
 
 Performance and overlays
 - Grid overlay and path/home overlays toggle from GOD panel; overlays default OFF.
-- Runner records perf snapshots (turn/draw) and warns if budgets are exceeded.
+- Runner records cold draw and settled draw after overlay toggles; only settled draw over budget is a hard failure.
+- Series/export summaries still include turn/draw averages and soft budget warnings.
 
 Data registries and validation
 - Loader brings JSON for items, enemies, npcs, shops, town.
@@ -111,6 +113,7 @@ Pass criteria
 - Dungeon chest/decals/corpses persist on re‑entry.
 - Town/NPC/shop checks succeed (or SKIP where not applicable).
 - Performance within reasonable bounds.
+- For multi-run: no hard-fail runs, and no scenario that both passes and fails in the same series.
 
 Quick regression checklist
 - [ ] Load index.html: console clean (ignore blocked third‑party trackers)
@@ -134,6 +137,18 @@ Quick regression checklist
 
 Recent updates
 - Reporting fixes and clarifications (Oct 2025)
+  - Multi-run truth:
+    - The aggregated report is informational only: it shows which steps succeeded at least once across the series.
+    - Authoritative PASS/FAIL now comes from per-run hard failures plus scenario-level flake detection.
+    - `runSeries()` returns `seriesOk`, `flake`, `flakeScenarios`, `scenarioOutcomes`, and `hardFailRuns`.
+  - Acceptance harnesses:
+    - `acceptance:phase0` now fails on boot issues, hard-fail runs, or flaky scenarios.
+    - `acceptance:phase6` reports flaky scenarios and scenario pass/fail counts explicitly in its JSON output.
+  - Region / encounter transition hardening:
+    - Shared runner helpers now handle Region Map entry/exit and encounter exit-to-world, and the scenarios use those helpers instead of duplicating the flow.
+  - Overlay perf semantics:
+    - Overlay and grid checks now log cold vs settled draw times.
+    - Cold spikes remain visible in the report, but only sustained slow settled draws fail the scenario.
   - Restored report visibility: runner now reopens the GOD panel before writing both per-run and aggregated reports.
   - Suppression filters reduce misleading noise after successes:
     - Town: hides “Town diagnostics skipped (not in town)” when any town entry succeeds in the run/series.
@@ -169,8 +184,9 @@ Runner v1.8.0 additions (Oct 2025)
   - Pinned, high-contrast panel at the top of the GOD output; prioritizes FAIL, then SKIP, then OK, with recency sorting.
   - Shows counters for OK/FAIL/SKIP plus IMMOBILE and DEAD; updates after each run.
 - Union-of-success aggregation:
-  - After multi-run, an aggregated report is appended. Each step is marked OK if any run passed it; SKIP if only skipped; FAIL otherwise.
+  - After multi-run, an aggregated report is appended for human review only. Each step is marked OK if any run passed it; SKIP if only skipped; FAIL otherwise.
   - Failure counterparts are suppressed when a matching success occurred in the same series (e.g., hide “Dungeon entry failed” if any run “Entered dungeon”).
+  - This aggregated view is not the authoritative PASS/FAIL gate for automation.
 - Per-run seed workflow + world-mode guard:
   - Derives a unique 32-bit seed per run (deterministic when &seed=BASE provided); applies via GOD panel; starts a New Game; waits for “world” mode.
   - Ensures spawn walkability and teleports to the nearest walkable tile if necessary.

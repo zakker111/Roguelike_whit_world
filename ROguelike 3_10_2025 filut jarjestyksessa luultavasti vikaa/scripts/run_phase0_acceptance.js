@@ -262,6 +262,11 @@ async function main() {
       const runs = seriesRes && Array.isArray(seriesRes.results) ? seriesRes.results : [];
       const pass = seriesRes && typeof seriesRes.pass === 'number' ? seriesRes.pass : null;
       const fail = seriesRes && typeof seriesRes.fail === 'number' ? seriesRes.fail : null;
+      const flakeScenarios = (seriesRes && Array.isArray(seriesRes.flakeScenarios)) ? seriesRes.flakeScenarios : [];
+      const scenarioOutcomes = (seriesRes && seriesRes.scenarioOutcomes && typeof seriesRes.scenarioOutcomes === 'object') ? seriesRes.scenarioOutcomes : {};
+      const seriesOk = (seriesRes && typeof seriesRes.seriesOk === 'boolean')
+        ? seriesRes.seriesOk
+        : (fail === 0 && flakeScenarios.length === 0);
 
       const failingRuns = runs.map((r, idx) => ({ r, idx })).filter(({ r }) => r && !r.ok);
 
@@ -278,7 +283,7 @@ async function main() {
       const bootOk = fnsOk && pageErrors.length === 0 && consoleErrors.length === 0;
 
       const report = {
-        ok: fail === 0 && bootOk,
+        ok: seriesOk && bootOk,
         passToken,
         checks: {
           modeFns: modeFns || null,
@@ -287,6 +292,9 @@ async function main() {
           consoleErrorCount: consoleErrors.length
         },
         runs: { total: runs.length, pass, fail },
+        flake: flakeScenarios.length > 0,
+        flakeScenarios,
+        scenarioOutcomes,
         failures,
         bootErrors: { pageErrors, consoleErrors },
         lastRunJsonToken: jsonParsed

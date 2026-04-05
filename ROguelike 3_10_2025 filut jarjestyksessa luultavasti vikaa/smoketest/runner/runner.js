@@ -1118,6 +1118,307 @@
         } catch (_) { return false; }
       }
 
+      async function ensureRegionOnce() {
+        try {
+          const G = window.GameAPI || {};
+          const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const getWorld = (typeof G.getWorld === "function") ? () => G.getWorld() : () => null;
+          const getPlayer = (typeof G.getPlayer === "function") ? () => G.getPlayer() : () => ({ x: 0, y: 0 });
+          const moveKey = async (code, waitMs) => {
+            try { key(code); } catch (_) {}
+            await sleep(waitMs | 0);
+          };
+          let act = { type: "regionEnter", startMode: getMode(), target: null, fallback: null, nudged: false, endMode: null, success: false };
+
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
+
+          if (getMode() === "region") {
+            try { act.endMode = "region"; act.success = true; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return true;
+          }
+
+          if (getMode() === "encounter") {
+            try { await exitEncounterToWorld({ allowForceWorld: true }); } catch (_) {}
+          }
+          if (getMode() === "town" || getMode() === "dungeon") {
+            try {
+              if (typeof G.forceWorld === "function") G.forceWorld();
+            } catch (_) {}
+            try { await waitForModeStable("world", 4000); } catch (_) {}
+          }
+          if (getMode() !== "world") {
+            try { act.endMode = getMode(); if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return false;
+          }
+
+          const W = (typeof window !== "undefined") ? (window.World || {}) : {};
+          const WT = W.TILES || {};
+          const world = getWorld();
+          const inBounds = (x, y) => {
+            const h = world && world.map ? world.map.length : 0;
+            const w = h ? ((world.map[0] && world.map[0].length) || 0) : 0;
+            return x >= 0 && y >= 0 && x < w && y < h;
+          };
+          const tileAt = (x, y) => inBounds(x, y) ? world.map[y][x] : null;
+          const isWalkable = (tile) => {
+            try { return typeof W.isWalkable === "function" ? !!W.isWalkable(tile) : true; } catch (_) { return true; }
+          };
+          const isAllowedForRegion = (tile) => {
+            if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
+            return isWalkable(tile);
+          };
+
+          let player = getPlayer();
+          let here = tileAt(player.x, player.y);
+          if (!isAllowedForRegion(here)) {
+            const dirs = [
+              { key: "ArrowLeft", dx: -1, dy: 0 },
+              { key: "ArrowRight", dx: 1, dy: 0 },
+              { key: "ArrowUp", dx: 0, dy: -1 },
+              { key: "ArrowDown", dx: 0, dy: 1 }
+            ];
+            let nudged = false;
+            for (const dir of dirs) {
+              const nx = player.x + dir.dx;
+              const ny = player.y + dir.dy;
+              if (!inBounds(nx, ny) || !isAllowedForRegion(tileAt(nx, ny))) continue;
+              await moveKey(dir.key, 140);
+              player = getPlayer();
+              if (player.x === nx && player.y === ny) {
+                nudged = true;
+                try { act.nudged = true; } catch (_) {}
+                break;
+              }
+            }
+            if (!nudged) {
+              try { act.endMode = getMode(); if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+              return false;
+            }
+          }
+
+          let opened = false;
+          try {
+            if (typeof G.openRegionMap === "function") {
+              opened = !!G.openRegionMap();
+              if (opened) act.fallback = "gameapi";
+            }
+          } catch (_) {}
+          await sleep(220);
+
+          if (getMode() !== "region") {
+            try {
+              const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+              if (Modes && typeof Modes.openRegionMap === "function" && ctxG) {
+                opened = !!Modes.openRegionMap(ctxG);
+                if (opened) act.fallback = "modes";
+              }
+            } catch (_) {}
+            await sleep(220);
+          }
+
+          if (getMode() !== "region") {
+            try { await moveKey("g", 260); act.fallback = act.fallback || "keypress"; } catch (_) {}
+          }
+
+          let ok = (getMode() === "region") || opened;
+          if (ok) {
+            try { await waitForModeStable("region", 4000); } catch (_) {}
+            ok = (getMode() === "region");
+          }
+          try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      async function exitRegionToWorld() {
+        try {
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const getPlayer = (typeof G.getPlayer === "function") ? () => G.getPlayer() : () => ({ x: 0, y: 0 });
+          const moveKey = async (code, waitMs) => {
+            try { key(code); } catch (_) {}
+            await sleep(waitMs | 0);
+          };
+          let act = { type: "regionExit", startMode: getMode(), target: null, usedFallback: null, endMode: null, success: false };
+
+          if (getMode() === "world") {
+            try { act.endMode = "world"; act.success = true; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return true;
+          }
+          if (getMode() !== "region") {
+            try { act.endMode = getMode(); if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return false;
+          }
+
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
+
+          const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+          const region = ctxG && ctxG.region ? ctxG.region : null;
+          const exits = (region && Array.isArray(region.exitTiles) && region.exitTiles.length)
+            ? region.exitTiles
+            : (() => {
+                const width = (region && typeof region.width === "number") ? (region.width | 0) : 0;
+                const height = (region && typeof region.height === "number") ? (region.height | 0) : 0;
+                return [
+                  { x: (width / 2) | 0, y: 0 },
+                  { x: (width / 2) | 0, y: Math.max(0, height - 1) },
+                  { x: 0, y: (height / 2) | 0 },
+                  { x: Math.max(0, width - 1), y: (height / 2) | 0 }
+                ];
+              })();
+
+          if (!exits.length) {
+            try { act.endMode = getMode(); if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return false;
+          }
+
+          const player = getPlayer();
+          let target = exits[0];
+          let bestD = Infinity;
+          for (const ex of exits) {
+            const d = Math.abs((ex.x | 0) - (player.x | 0)) + Math.abs((ex.y | 0) - (player.y | 0));
+            if (d < bestD) {
+              bestD = d;
+              target = ex;
+            }
+          }
+          try { act.target = target ? { x: target.x | 0, y: target.y | 0 } : null; } catch (_) {}
+
+          const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+          const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+          let routed = false;
+          try {
+            if (target && MV && typeof MV.routeTo === "function") {
+              routed = !!(await MV.routeTo(target.x, target.y, { timeoutMs: 7000, stepMs: 70 }));
+            }
+          } catch (_) {}
+          if (!routed && target && TP && typeof TP.teleportTo === "function") {
+            try {
+              routed = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+              if (routed) act.usedFallback = "teleport";
+            } catch (_) {}
+          }
+
+          const deadline = Date.now() + 6000;
+          while (getMode() === "region" && Date.now() < deadline) {
+            const cur = getPlayer();
+            if ((cur.x | 0) === (target.x | 0) && (cur.y | 0) === (target.y | 0)) break;
+            if (cur.x > target.x) await moveKey("ArrowLeft", 60);
+            else if (cur.x < target.x) await moveKey("ArrowRight", 60);
+            else if (cur.y > target.y) await moveKey("ArrowUp", 60);
+            else if (cur.y < target.y) await moveKey("ArrowDown", 60);
+            else break;
+          }
+
+          await moveKey("g", 260);
+          if (getMode() !== "world") await moveKey("g", 320);
+
+          let ok = (getMode() === "world");
+          if (ok) {
+            try { await waitForModeStable("world", 4000); } catch (_) {}
+            ok = (getMode() === "world");
+          }
+          try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      async function exitEncounterToWorld(opts) {
+        try {
+          const options = opts || {};
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const moveKey = async (code, waitMs) => {
+            try { key(code); } catch (_) {}
+            await sleep(waitMs | 0);
+          };
+          let act = { type: "encounterExit", startMode: getMode(), method: null, forcedWorld: false, endMode: null, success: false };
+
+          if (getMode() === "world") {
+            try { act.endMode = "world"; act.success = true; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return true;
+          }
+          if (getMode() !== "encounter") {
+            try { act.endMode = getMode(); if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+            return false;
+          }
+
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(2); } catch (_) {}
+
+          let ok = false;
+          try {
+            if (typeof G.completeEncounter === "function") {
+              ok = !!G.completeEncounter("withdraw");
+              if (ok) act.method = "completeEncounter";
+            }
+          } catch (_) {}
+          await sleep(240);
+          if (getMode() !== "world") {
+            try { await waitForModeStable("world", 2500); } catch (_) {}
+          }
+          ok = (getMode() === "world");
+
+          if (!ok) {
+            try {
+              const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+              const map = (ctxG && typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG ? ctxG.map : null);
+              const tiles = (typeof G.getTiles === "function") ? G.getTiles() : { STAIRS: 3 };
+              let exitTile = null;
+              const h = Array.isArray(map) ? map.length : 0;
+              const w = (h && map[0]) ? map[0].length : 0;
+              for (let y = 0; y < h && !exitTile; y++) {
+                for (let x = 0; x < w; x++) {
+                  if (map[y][x] === tiles.STAIRS) {
+                    exitTile = { x, y };
+                    break;
+                  }
+                }
+              }
+              if (exitTile) {
+                const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+                if (TP && typeof TP.teleportTo === "function") {
+                  const okTp = !!(await TP.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+                  if (!okTp) {
+                    await TP.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+                  }
+                } else if (typeof G.teleportTo === "function") {
+                  try { G.teleportTo(exitTile.x, exitTile.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+                }
+                await sleep(140);
+                try {
+                  const p = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: exitTile.x, y: exitTile.y };
+                  if (!(p.x === exitTile.x && p.y === exitTile.y)) {
+                    const dx = Math.sign(exitTile.x - p.x);
+                    const dy = Math.sign(exitTile.y - p.y);
+                    await moveKey(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"), 140);
+                  }
+                } catch (_) {}
+                await moveKey("g", 240);
+                act.method = "stairs";
+                try { await waitForModeStable("world", 2500); } catch (_) {}
+                ok = (getMode() === "world");
+              }
+            } catch (_) {}
+          }
+
+          if (!ok && options.allowForceWorld && typeof G.forceWorld === "function") {
+            try {
+              ok = !!G.forceWorld();
+              act.method = act.method || "forceWorld";
+              act.forcedWorld = !!ok;
+            } catch (_) {}
+            if (ok) {
+              try { await waitForModeStable("world", 2500); } catch (_) {}
+              ok = (getMode() === "world");
+            }
+          }
+
+          try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+          return ok;
+        } catch (_) { return false; }
+      }
+
       const waitForEncounterTemplate = async (id, opts) => {
         try {
           const H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.GameData;
@@ -1160,6 +1461,9 @@
         recordSkip,
         ensureDungeonOnce,
         ensureTownOnce,
+        ensureRegionOnce,
+        exitRegionToWorld,
+        exitEncounterToWorld,
         waitForGameDataReady: waitUntilGameDataReady,
         waitForEncounterTemplate
       };
@@ -1295,7 +1599,7 @@
         // Skip scenarios that have reached the stable OK threshold in prior runs
         if (skipSet && skipSet.has(step.name)) {
           recordSkip("Scenario '" + step.name + "' skipped (stable OK threshold reached)");
-          scenarioResults.push({ name: step.name, passed: true, skippedStable: true });
+          scenarioResults.push({ name: step.name, rawPassed: true, passed: true, normalizedByHeuristic: false, hardFailMessages: [], skippedMessages: ["Scenario '" + step.name + "' skipped (stable OK threshold reached)"], skippedStable: true });
           continue;
         }
         // Availability check
@@ -1307,7 +1611,7 @@
         }
         if (typeof step.fn !== "function") {
           recordSkip("Scenario '" + step.name + "' not available");
-          scenarioResults.push({ name: step.name, passed: false, skippedMissing: true });
+          scenarioResults.push({ name: step.name, rawPassed: false, passed: false, normalizedByHeuristic: false, hardFailMessages: [], skippedMessages: ["Scenario '" + step.name + "' not available"], skippedMissing: true });
           continue;
         }
         const beforeCount = steps.length;
@@ -1376,7 +1680,16 @@
         try {
           const during = steps.slice(beforeCount);
           const hasFail = during.some(s => !s.ok && !s.skipped);
-          scenarioResults.push({ name: step.name, passed: !hasFail });
+          const hardFailMessages = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
+          const skippedMessages = during.filter(s => s.skipped).map(s => String(s.msg || ""));
+          scenarioResults.push({
+            name: step.name,
+            rawPassed: !hasFail,
+            passed: !hasFail,
+            normalizedByHeuristic: false,
+            hardFailMessages,
+            skippedMessages
+          });
 
           // Structured scenario trace for JSON export
           try {
@@ -1472,39 +1785,39 @@
           const name = sr.name;
 
           if (name === "dungeon" && !sr.passed && sawDungeonOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "town" && !sr.passed && sawTownOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "world" && !sr.passed && sawWorldOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "inventory" && !sr.passed && sawInventoryOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "combat" && !sr.passed && sawCombatOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "overlays" && !sr.passed && sawOverlaysOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "determinism" && !sr.passed && sawDeterminismOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "dungeon_persistence" && !sr.passed && sawDungeonPersistenceOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
           if (name === "town_diagnostics" && !sr.passed && sawTownDiagnosticsOk) {
-            scenarioResults[i] = { ...sr, passed: true };
+            scenarioResults[i] = { ...sr, passed: true, normalizedByHeuristic: true };
             continue;
           }
         }
@@ -2111,6 +2424,68 @@
 
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
+    const hardFailRuns = all
+      .map((res, idx) => {
+        const steps = (res && Array.isArray(res.steps)) ? res.steps : [];
+        const hardFails = steps.filter(s => s && s.ok === false && !s.skipped).map(s => String(s.msg || ""));
+        return {
+          run: idx + 1,
+          ok: !!(res && res.ok),
+          hardFailCount: hardFails.length,
+          hardFailMessages: hardFails
+        };
+      })
+      .filter(run => !run.ok);
+    const scenarioOutcomes = (() => {
+      const out = {};
+      try {
+        for (const res of all) {
+          if (!res || !Array.isArray(res.scenarioResults)) continue;
+          for (const sr of res.scenarioResults) {
+            if (!sr || !sr.name) continue;
+            const name = String(sr.name);
+            if (!out[name]) {
+              out[name] = {
+                runs: 0,
+                passRuns: 0,
+                failRuns: 0,
+                rawPassRuns: 0,
+                rawFailRuns: 0,
+                heuristicPassRuns: 0,
+                skippedStableRuns: 0,
+                skippedMissingRuns: 0,
+                hardFailMessages: []
+              };
+            }
+            const cur = out[name];
+            cur.runs += 1;
+            if (sr.skippedStable) {
+              cur.skippedStableRuns += 1;
+              continue;
+            }
+            if (sr.skippedMissing) {
+              cur.skippedMissingRuns += 1;
+              continue;
+            }
+            if (sr.rawPassed) cur.rawPassRuns += 1;
+            else cur.rawFailRuns += 1;
+            if (sr.passed) cur.passRuns += 1;
+            else cur.failRuns += 1;
+            if (sr.normalizedByHeuristic) cur.heuristicPassRuns += 1;
+            const msgs = Array.isArray(sr.hardFailMessages) ? sr.hardFailMessages : [];
+            for (const msg of msgs) {
+              if (cur.hardFailMessages.indexOf(msg) === -1) cur.hardFailMessages.push(msg);
+            }
+          }
+        }
+      } catch (_) {}
+      return out;
+    })();
+    const flakeScenarios = Object.entries(scenarioOutcomes)
+      .filter(([, outcome]) => outcome && outcome.passRuns > 0 && outcome.failRuns > 0)
+      .map(([name, outcome]) => ({ name, ...outcome }));
+    const flake = flakeScenarios.length > 0;
+    const seriesOk = hardFailRuns.length === 0 && !flake;
 
     // Summary via reporting module and full aggregated report
       try {
@@ -2145,8 +2520,7 @@
       const failedAgg = aggregatedSteps.filter(s => !s.ok && !s.skipped);
       const passedAgg = aggregatedSteps.filter(s => s.ok && !s.skipped);
       const skippedAgg = aggregatedSteps.filter(s => s.skipped);
-      // Aggregated OK: if any aggregated step passed across runs, mark the aggregated report OK (union-of successes)
-      const okAll = aggregatedSteps.some(s => s.ok);
+      const okAll = seriesOk;
 
       const headerHtmlAgg = R && typeof R.renderHeader === "function"
         ? R.renderHeader({ ok: okAll, stepCount: aggregatedSteps.length, totalIssues: failedAgg.length, runnerVersion: RUNNER_VERSION, caps: [] })
@@ -2196,9 +2570,11 @@
       } catch (_) {}
 
       const failColorSum = fail ? '#ef4444' : '#86efac';
+      const flakeColor = flake ? '#f59e0b' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
         `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
+        `<div>Series status: <span style="color:${seriesOk ? '#86efac' : '#ef4444'};">${seriesOk ? 'PASS' : 'FAIL'}</span>  •  Flaky scenarios: <span style="color:${flakeColor};">${flakeScenarios.length}</span></div>`,
         `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
@@ -2210,7 +2586,7 @@
         const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         if (Bsum && typeof Bsum.appendToPanel === "function") {
           Bsum.appendToPanel(summary);
-          Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (Union of Success Across Runs)</strong></div>` + mainAgg);
+          Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (informational: union of success across runs)</strong></div>` + mainAgg);
         } else {
           panelReport(summary + mainAgg);
         }
@@ -2352,6 +2728,11 @@
             runnerVersion: RUNNER_VERSION,
             runs: n,
             pass, fail,
+            seriesOk,
+            flake,
+            flakeScenarios,
+            scenarioOutcomes,
+            hardFailRuns,
             skipped: skippedRuns,
             avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
             avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
@@ -2385,7 +2766,19 @@
     // Release run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
+    return {
+      pass,
+      fail,
+      seriesOk,
+      flake,
+      flakeScenarios,
+      scenarioOutcomes,
+      hardFailRuns,
+      results: all,
+      avgTurnMs: Number(avgTurn),
+      avgDrawMs: Number(avgDraw),
+      runnerVersion: RUNNER_VERSION
+    };
   }
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
   // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)

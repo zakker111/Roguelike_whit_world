@@ -494,7 +494,7 @@ export function create(ctx) {
     getInventory: () => {
       try {
         const p = ctx.getPlayer();
-        return Array.isArray(p.inventory) ? p.inventory.map((it, i) => ({ i, kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : [];
+        return Array.isArray(p.inventory) ? p.inventory.map((it, i) => ({ i, kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count, twoHanded: !!(it && it.twoHanded) })) : [];
       } catch (_) { return []; }
     },
     getEquipment: () => {

@@ -164,48 +164,127 @@
       }
 
       // Hand chooser branch coverage
-      // Important: unequipping can push items back into inventory, shifting indices.
-      // Always re-find the target item by scanning the current inventory after unequip.
-      var inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
-      var findHandItemIndex = function () {
-        var cur = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
-        return cur.findIndex(function (it) { return it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded; });
+      var getInventoryList = function () {
+        return (typeof window.GameAPI.getInventory === "function") ? (window.GameAPI.getInventory() || []) : [];
       };
-      var idxHand = inv3.findIndex(function (it) { return it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded; });
-      if (idxHand !== -1) {
+      var buildItemSignature = function (it) {
+        if (!it) return null;
+        return {
+          kind: it.kind || "",
+          slot: it.slot || "",
+          name: it.name || "",
+          atk: Number(it.atk || 0),
+          def: Number(it.def || 0),
+          decay: Number(it.decay || 0),
+          count: Number(it.count || 0),
+          twoHanded: !!it.twoHanded
+        };
+      };
+      var sameItemSignature = function (a, b) {
+        return !!(a && b &&
+          a.kind === b.kind &&
+          a.slot === b.slot &&
+          a.name === b.name &&
+          Number(a.atk || 0) === Number(b.atk || 0) &&
+          Number(a.def || 0) === Number(b.def || 0) &&
+          Number(a.decay || 0) === Number(b.decay || 0) &&
+          Number(a.count || 0) === Number(b.count || 0) &&
+          !!a.twoHanded === !!b.twoHanded);
+      };
+      var findIndicesBySignature = function (sig) {
+        var cur = getInventoryList();
+        var matches = [];
+        for (var ii = 0; ii < cur.length; ii++) {
+          if (sameItemSignature(buildItemSignature(cur[ii]), sig)) matches.push(ii);
+        }
+        return matches;
+      };
+      var resolveUniqueIndex = function (sig, label) {
+        var matches = findIndicesBySignature(sig);
+        if (!matches.length) return { ok: false, ambiguous: false, idx: -1 };
+        if (matches.length > 1) {
+          recordSkip("Skipped " + label + " (ambiguous inventory match for " + (sig && sig.name ? sig.name : "hand item") + ")");
+          return { ok: false, ambiguous: true, idx: -1 };
+        }
+        return { ok: true, ambiguous: false, idx: matches[0] };
+      };
+      var equipmentMatches = function (eqIt, sig) {
+        return !!(eqIt && sig &&
+          (eqIt.slot || "") === (sig.slot || "") &&
+          (eqIt.name || "") === (sig.name || "") &&
+          Number(eqIt.atk || 0) === Number(sig.atk || 0) &&
+          Number(eqIt.def || 0) === Number(sig.def || 0) &&
+          Number(eqIt.decay || 0) === Number(sig.decay || 0) &&
+          !!eqIt.twoHanded === !!sig.twoHanded);
+      };
+      var collectOneHandSignatures = function () {
+        var cur = getInventoryList();
+        var sigs = [];
+        for (var ii = 0; ii < cur.length; ii++) {
+          var it = cur[ii];
+          if (!(it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded)) continue;
+          var sig = buildItemSignature(it);
+          var seen = sigs.some(function (existing) { return sameItemSignature(existing, sig); });
+          if (!seen) sigs.push(sig);
+        }
+        return sigs;
+      };
+
+      var handSigs = collectOneHandSignatures();
+      if (handSigs.length) {
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
         await sleep(120);
 
-        idxHand = findHandItemIndex();
-        if (idxHand === -1) {
-          recordSkip("Skipped hand chooser test (no 1-hand item after unequip)");
-          return true;
-        }
-
-        var okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "left") : (!!window.GameAPI.equipItemAtIndex(idxHand));
-        await sleep(140);
-        var eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-        var leftOk = !!(eqInfoA.left && (!eqInfoA.right || eqInfoA.right.name !== eqInfoA.left.name));
-        record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
-
-        if (!(eqInfoA.right)) {
-          (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
-          await sleep(100);
-          var okRight = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "right") : (!!window.GameAPI.equipItemAtIndex(idxHand));
+        var leftSig = handSigs[0];
+        var leftIndex = resolveUniqueIndex(leftSig, "hand chooser test");
+        if (!leftIndex.ok) {
+          recordSkip("Skipped hand chooser test (unable to resolve unique 1-hand item)");
+        } else {
+          var okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function")
+            ? !!window.GameAPI.equipItemAtIndexHand(leftIndex.idx, "left")
+            : (!!window.GameAPI.equipItemAtIndex(leftIndex.idx));
           await sleep(140);
-          eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-          if (!eqInfoA.right) {
-            record(true, "Skipped auto equip test (unable to occupy right hand)");
+          var eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+          var leftOk = equipmentMatches(eqInfoA.left, leftSig) && !equipmentMatches(eqInfoA.right, leftSig);
+          record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
+
+          if (handSigs.length > 1 && typeof window.GameAPI.equipItemAtIndexHand === "function" && typeof window.GameAPI.equipItemAtIndex === "function") {
+            (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+            (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
+            await sleep(120);
+
+            var rightSig = handSigs[0];
+            var autoSig = handSigs[1];
+            var rightIndex = resolveUniqueIndex(rightSig, "right-hand setup");
+
+            if (!rightIndex.ok) {
+              recordSkip("Skipped hand chooser auto-equip test (unable to resolve right-hand setup item)");
+            } else {
+              var okRightSetup = !!window.GameAPI.equipItemAtIndexHand(rightIndex.idx, "right");
+              await sleep(140);
+              var eqInfoRight = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              var rightOccupied = okRightSetup && equipmentMatches(eqInfoRight.right, rightSig) && !eqInfoRight.left;
+
+              if (!rightOccupied) {
+                recordSkip("Skipped hand chooser auto-equip test (unable to occupy right hand)");
+              } else {
+                var autoIndex = resolveUniqueIndex(autoSig, "auto hand chooser test");
+                if (!autoIndex.ok) {
+                  recordSkip("Skipped hand chooser auto-equip test (unable to resolve auto-equip item)");
+                } else {
+                  var okAuto = !!window.GameAPI.equipItemAtIndex(autoIndex.idx);
+                  await sleep(140);
+                  var eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                  var autoLeft = equipmentMatches(eqInfoB.left, autoSig) && equipmentMatches(eqInfoB.right, rightSig);
+                  record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
+                }
+              }
+            }
+          } else {
+            recordSkip("Skipped hand chooser auto-equip test (need two distinct 1-hand items and hand API)");
           }
         }
-        (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
-        await sleep(120);
-        var okAuto = (typeof window.GameAPI.equipItemAtIndex === "function") ? !!window.GameAPI.equipItemAtIndex(idxHand) : false;
-        await sleep(140);
-        var eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-        var autoLeft = !!(eqInfoB.left);
-        record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
       } else {
         recordSkip("Skipped hand chooser test (no 1-hand item available)");
       }

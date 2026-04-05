@@ -232,12 +232,17 @@ async function main() {
       const runs = (seriesRes && Array.isArray(seriesRes.results)) ? seriesRes.results : [];
       const pass = (seriesRes && typeof seriesRes.pass === 'number') ? seriesRes.pass : null;
       const fail = (seriesRes && typeof seriesRes.fail === 'number') ? seriesRes.fail : null;
+      const flakeScenarios = (seriesRes && Array.isArray(seriesRes.flakeScenarios)) ? seriesRes.flakeScenarios : [];
+      const scenarioOutcomes = (seriesRes && seriesRes.scenarioOutcomes && typeof seriesRes.scenarioOutcomes === 'object') ? seriesRes.scenarioOutcomes : {};
+      const seriesOk = (seriesRes && typeof seriesRes.seriesOk === 'boolean') ? seriesRes.seriesOk : null;
 
       const failingRuns = runs
         .map((r, idx) => ({ r, idx }))
         .filter(({ r }) => r && !r.ok);
 
-      const flake = (typeof pass === 'number' && typeof fail === 'number') ? (pass > 0 && fail > 0) : null;
+      const flake = (typeof seriesRes?.flake === 'boolean')
+        ? seriesRes.flake
+        : ((typeof pass === 'number' && typeof fail === 'number') ? (pass > 0 && fail > 0) : null);
 
       const failures = failingRuns.map(({ r, idx }) => {
         const steps = Array.isArray(r.steps) ? r.steps : [];
@@ -251,9 +256,12 @@ async function main() {
 
       const report = {
         ok: fail === 0,
+        seriesOk,
         flake,
+        flakeScenarios,
         passToken,
         runs: { total: runs.length, pass, fail },
+        scenarioOutcomes,
         failures,
         lastRunJsonToken: jsonParsed
       };

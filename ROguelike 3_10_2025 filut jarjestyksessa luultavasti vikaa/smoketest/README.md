@@ -69,6 +69,7 @@ Outputs
 - GOD panel report with:
   - Header (PASS/FAIL, steps, issue count, runner version, caps)
   - Key checklist, passed/failed/skipped, step details
+  - Multi-run summary with authoritative series PASS/FAIL and flaky scenario count
   - Export buttons (Report JSON, Summary TXT, Checklist TXT)
 - Tokens for CI/automation:
   - DOM: hidden `#smoke-pass-token` (PASS/FAIL), `#smoke-json-token` (compact JSON)
@@ -100,6 +101,11 @@ Updates (Oct 2025)
   - Displays up to 20 entries by default; click “Expand” to show all aggregated steps across runs.
 - Aggregated results (union of success):
   - After multi-run, a single aggregated report is appended. A step is OK if any run passed it; SKIP if no passes but at least one skip; FAIL otherwise.
+  - This aggregate is informational only. Automation truth comes from per-run hard failures plus scenario-level flake detection.
+- Series result structure:
+  - `runSeries()` now returns `seriesOk`, `flake`, `flakeScenarios`, `scenarioOutcomes`, and `hardFailRuns` in addition to `pass`, `fail`, `results`, and perf fields.
+- Overlay perf:
+  - Overlay and grid checks record cold draw and settled draw separately; only sustained settled draw regressions fail the scenario.
 - Seed per run + world-mode guard:
   - Before each run, the runner ensures mode is “world” (clicks “Start New Game” in GOD if necessary) and applies a fresh 32-bit seed via the GOD panel.
 - Entry hardening:

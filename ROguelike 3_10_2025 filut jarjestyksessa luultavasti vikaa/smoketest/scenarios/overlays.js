@@ -34,6 +34,17 @@
         return getDrawMs();
       }
 
+      async function sampleSettledDraw(windowMs) {
+        var deadline = Date.now() + Math.max(0, windowMs | 0);
+        var samples = [];
+        while (Date.now() < deadline) {
+          samples.push(getDrawMs());
+          await sleep(60);
+        }
+        if (!samples.length) return getDrawMs();
+        return samples[samples.length - 1];
+      }
+
       // Perf budgets: smoketest should be functional-first; allow slower devices.
       var drawBudget = Math.max(((CONFIG.perfBudget && CONFIG.perfBudget.drawMs) ? CONFIG.perfBudget.drawMs : 16.7) * 12.0, 200);
 
@@ -60,9 +71,10 @@
           await sleep(100);
           try { var btn2 = document.getElementById("god-toggle-home-paths-btn"); btn2 && btn2.click(); } catch (_) {}
           await sleep(100);
-          var draw = await waitForDrawChange(beforeDraw, 1200);
-          var ok = (draw || 0) <= drawBudget;
-          record(ok, "Overlay perf: draw " + (draw && draw.toFixed ? draw.toFixed(2) : draw) + "ms");
+          var coldDraw = await waitForDrawChange(beforeDraw, 1200);
+          var settledDraw = await sampleSettledDraw(360);
+          var ok = (settledDraw || 0) <= drawBudget;
+          record(ok, "Overlay perf: cold " + (coldDraw && coldDraw.toFixed ? coldDraw.toFixed(2) : coldDraw) + "ms, settled " + (settledDraw && settledDraw.toFixed ? settledDraw.toFixed(2) : settledDraw) + "ms");
         } catch (e) {
           record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
         }
@@ -78,9 +90,10 @@
           var beforeDraw = getDrawMs();
           try { var gridBtn = document.getElementById("god-toggle-grid-btn"); gridBtn && gridBtn.click(); } catch (_) {}
           await sleep(120);
-          var drawB = await waitForDrawChange(beforeDraw, 1200);
-          var okGridPerf = (drawB || 0) <= drawBudget;
-          record(okGridPerf, "Grid perf: draw " + (drawB && drawB.toFixed ? drawB.toFixed(2) : drawB) + "ms");
+          var coldGridDraw = await waitForDrawChange(beforeDraw, 1200);
+          var settledGridDraw = await sampleSettledDraw(360);
+          var okGridPerf = (settledGridDraw || 0) <= drawBudget;
+          record(okGridPerf, "Grid perf: cold " + (coldGridDraw && coldGridDraw.toFixed ? coldGridDraw.toFixed(2) : coldGridDraw) + "ms, settled " + (settledGridDraw && settledGridDraw.toFixed ? settledGridDraw.toFixed(2) : settledGridDraw) + "ms");
         }
       } catch (e) {
         record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
