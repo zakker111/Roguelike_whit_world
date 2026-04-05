@@ -313,7 +313,8 @@ export function assignShopsToBuildings(ctx, {
   // Safety: deduplicate Inn entries if any logic created more than one
   try {
     if (Array.isArray(ctx.shops)) {
-      const out = [], seenInn = false;
+      const out = [];
+      let seenInn = false;
       for (let i = 0; i < ctx.shops.length; i++) {
         const s = ctx.shops[i];
         const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn"));
