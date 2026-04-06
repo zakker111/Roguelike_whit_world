@@ -1,3 +1,5 @@
+import { getMod } from "../../utils/access.js";
+
 /**
  * World tick (Phase 3 extraction): optional per-turn hook for overworld mode.
  * Currently:
@@ -376,11 +378,22 @@ function maybeEscortAmbush(ctx) {
     const biome = "GRASS";
 
     let ok = false;
-    // Preferred: GameAPI
+    let synced = false;
+
+    let applyCtxSyncAndRefresh = null;
     try {
-      const GA = ctx.GameAPI || (typeof window !== "undefined" ? window.GameAPI : null);
-      if (GA && typeof GA.enterEncounter === "function") {
-        ok = !!GA.enterEncounter(template, biome, template.difficulty || 4);
+      const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
+      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+        applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
+      }
+    } catch (_) {}
+
+    // Prefer ctx-first entry via Modes (no ctx reacquire).
+    try {
+      const M = ctx.Modes || getMod(ctx, "Modes");
+      if (M && typeof M.enterEncounter === "function") {
+        ok = !!M.enterEncounter(ctx, template, biome, template.difficulty || 4, applyCtxSyncAndRefresh || undefined);
+        if (ok) synced = true;
       }
     } catch (_) {}
 
@@ -390,6 +403,15 @@ function maybeEscortAmbush(ctx) {
         const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
         if (ER && typeof ER.enter === "function") {
           ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
+        }
+      } catch (_) {}
+    }
+
+    if (ok && !synced) {
+      try {
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          applyCtxSyncAndRefresh(ctx);
+          synced = true;
         }
       } catch (_) {}
     }
