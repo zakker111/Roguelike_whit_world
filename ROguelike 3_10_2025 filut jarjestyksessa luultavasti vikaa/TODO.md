@@ -144,7 +144,7 @@ Known issues / deferred (post-merge):
       - Likely files: `core/gm/runtime/faction_travel.js`, `core/bridge/gm_bridge/world_step.js`, encounter templates (`gm_bandit_bounty`, `gm_troll_hunt`, `gm_guard_fine`).
       - Acceptance: obeys safety rails + cooldowns; encounter entry is ctx-first; no interference with normal travel rolls.
       - Smoketests (new/extend): `gm_bridge_faction_travel`.
-    - [ ] Phase 6: GM panel surfacing
+    - [x] Phase 6: GM panel surfacing
       - Scope: expose scheduler queue + RNG stream + active quest summaries in GM panel.
       - Likely files: `ui/` GM panel component(s), `ui/style.css`, `core/gm/runtime.js` snapshot/export.
       - Acceptance: panel shows next actions + statuses; RNG stream (algo/state/calls) visible; no perf regressions.
@@ -153,12 +153,22 @@ Known issues / deferred (post-merge):
       - Scope: run full v0.2 gates; document known limitations; freeze merge.
       - Likely files: `TODO.md` gates, `smoketest/` scenarios, `VERSIONS.md` notes.
       - Acceptance: all v0.2 “testing/merge gates” checked; disable switch verified; no regressions in travel/fishing/markers.
+      - Current verification:
+        - [x] `npm run build`
+        - [x] `node scripts/run_phase0_acceptance.js`
+        - [x] `node scripts/run_phase6_acceptance.js`
+        - [x] Manual Gate B/C verified in Playwright against the dev server:
+          - guard fine decline/accept remain stable in overworld
+          - bandit bounty + troll hunt decline/accept/withdraw remain stable
+          - boredom relief verified on town, dungeon, ruins, encounter enter/exit
+        - [ ] `npm run lint:strict` (repo-wide pre-existing blocker: 3369 errors, 5419 warnings)
       - Smoketests (new/extend): run full smoke suite ≥ 10 iterations; require 100% pass.
 
   - Phase 2 (post-fix follow-ups)
-    - [ ] Make non-marker GM encounter starts ctx-first where appropriate
+    - [x] Make non-marker GM encounter starts ctx-first where appropriate
       - Audit travel events and other non-marker flows (`travel.banditBounty`, `travel.guardFine`, etc.)
       - Ensure encounter entry and mode transitions use ctx-first facades (no `GameAPI` ctx reacquire / window-only entry)
+      - Completed for the remaining caravan ambush encounter-entry paths in `core/world/tick.js` and `core/town/runtime.js`
 
   - Foundation (must ship in v0.2)
     - [x] General GM **Action Scheduler**
