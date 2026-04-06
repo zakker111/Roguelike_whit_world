@@ -12,6 +12,7 @@ const TIMEOUTS = {
   httpReadyMs: 60000,
   pageGotoMs: 90000,
   pageReadyMs: 90000,
+  seriesRunMs: 120000,
   serverShutdownMs: 1500
 };
 
@@ -53,6 +54,17 @@ async function terminateChild(child, timeoutMs) {
   }
 
   await waitForExit(child, 500);
+}
+
+async function withTimeout(work, timeoutMs, label) {
+  return await Promise.race([
+    Promise.resolve().then(() => work()),
+    sleep(timeoutMs).then(() => {
+      const err = new Error(`${label} timed out after ${timeoutMs}ms`);
+      err.code = 'HARNESS_TIMEOUT';
+      throw err;
+    })
+  ]);
 }
 
 // Phase 0 baseline QA gate: broader scenario set + hard failure on boot-time JS errors.
@@ -245,12 +257,17 @@ async function main() {
 
       const fnsOk = !!(modeFns && modeFns.enterEncounter && modeFns.openRegionMap && modeFns.startRegionEncounter && modeFns.completeEncounter);
 
-      const series = await page.evaluate(async () => {
-        const res = await window.SmokeTest.Run.runSeries(2);
-        const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
-        const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
-        return { series: res, passToken, jsonToken };
-      });
+      const series = await withTimeout(
+        () =>
+          page.evaluate(async () => {
+            const res = await window.SmokeTest.Run.runSeries(2);
+            const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
+            const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
+            return { series: res, passToken, jsonToken };
+          }),
+        TIMEOUTS.seriesRunMs,
+        'SmokeTest.Run.runSeries(2)'
+      );
 
       const { series: seriesRes, passToken, jsonToken } = series || {};
 

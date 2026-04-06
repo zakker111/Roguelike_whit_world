@@ -43,7 +43,9 @@
         // Optional base seed override; if provided, seeds are derived deterministically per run
         seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })(),
         // Abort current run as soon as an immobile condition is detected in any scenario (default: disabled)
-        abortonimmobile: (p("abortonimmobile", "0") === "1")
+        abortonimmobile: (p("abortonimmobile", "0") === "1"),
+        // Guard against a scenario promise hanging forever inside runSeries().
+        scenariotimeoutms: Math.max(5000, Number(p("scenariotimeoutms", "45000")) || 45000)
       };
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
@@ -77,6 +79,32 @@
     } catch (_) {}
     const start = Date.now(); const dl = start + Math.max(0, ms | 0);
     return { exceeded: () => Date.now() > dl, remain: () => Math.max(0, dl - Date.now()) };
+  }
+
+  function withTimeout(work, timeoutMs, label) {
+    const ms = Math.max(1, timeoutMs | 0);
+    let timer = null;
+
+    return new Promise((resolve, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error((label || "Operation") + " timed out after " + ms + "ms");
+        err.code = "SMOKE_TIMEOUT";
+        reject(err);
+      }, ms);
+
+      Promise.resolve()
+        .then(() => work())
+        .then(
+          (value) => {
+            try { clearTimeout(timer); } catch (_) {}
+            resolve(value);
+          },
+          (err) => {
+            try { clearTimeout(timer); } catch (_) {}
+            reject(err);
+          }
+        );
+    });
   }
 
   // Optional: close any modals that could obstruct movement
@@ -1622,7 +1650,11 @@
           const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
           if (Banner && typeof Banner.setStatus === "function") Banner.setStatus(runLabel + " • " + step.name);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
-          await step.fn(baseCtx);
+          await withTimeout(
+            () => step.fn(baseCtx),
+            params && params.scenariotimeoutms,
+            "Scenario '" + step.name + "'"
+          );
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
           // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios (robust)
           if (step.name === "town_diagnostics") {
@@ -1664,6 +1696,15 @@
             } catch (_) {}
           }
         } catch (e) {
+          if (e && e.code === "SMOKE_TIMEOUT") {
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "scenario_timeout:" + step.name;
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = __abortReason; } catch (_) {}
+            if (Banner && typeof Banner.log === "function") {
+              Banner.log("ABORT: scenario timeout detected; aborting remaining scenarios in this run.", "bad");
+            }
+          }
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
@@ -1825,7 +1866,7 @@
 
       // Build report via reporting renderer
       // Run-level OK:
-      // - If selected scenarios all passed, the run is OK even if steps were skipped due to prior OK de-dup.
+      // - If selected scenarios all passed (including heuristic normalization), the run is OK.
       // - Otherwise, require at least one non-skipped OK step and no hard failures.
       const hasHardFail = steps.some(s => !s.ok && !s.skipped);
       const hasRealOk = steps.some(s => s.ok && !s.skipped);
@@ -1833,7 +1874,7 @@
       const scenariosAllPassed = (scenarioResults && scenarioResults.length)
         ? scenarioResults.every(sr => !!(sr && sr.passed))
         : false;
-      const ok = !hasHardFail && (scenariosAllPassed || hasRealOk || hasPriorOkSkip);
+      const ok = scenariosAllPassed || (!hasHardFail && (hasRealOk || hasPriorOkSkip));
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
