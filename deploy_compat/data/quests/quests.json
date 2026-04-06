@@ -1,0 +1,45 @@
+{
+  "templates": [
+    {
+      "id": "gather_planks_10",
+      "kind": "gather",
+      "title": "Deliver wood planks",
+      "desc": "Bring 10 planks to the innkeeper.",
+      "material": { "type": "wood", "name": "planks" },
+      "amount": 10,
+      "rewardGoldMin": 6,
+      "rewardGoldMax": 12,
+      "expiresTurns": 360
+    },
+    {
+      "id": "gather_berries_10",
+      "kind": "gather",
+      "title": "Deliver berries",
+      "desc": "Bring 10 berries to the innkeeper.",
+      "material": { "type": "berries", "name": "berries" },
+      "amount": 10,
+      "rewardGoldMin": 5,
+      "rewardGoldMax": 10,
+      "expiresTurns": 360
+    },
+    {
+      "id": "bandits_farm",
+      "kind": "encounter",
+      "title": "Bandits near the farm",
+      "desc": "A bandit group is harassing a nearby farm. Drive them off.",
+      "encounter": {
+        "map": { "generator": "camp", "w": 26, "h": 18 },
+        "groups": [
+          { "type": "bandit", "count": { "min": 3, "max": 5 }, "faction": "bandit" }
+        ],
+        "difficulty": 2
+      },
+      "markerGlyph": "E",
+      "rewardGoldMin": 12,
+      "rewardGoldMax": 20,
+      "expiresTurns": 360,
+      "radiusMin": 6,
+      "radiusMax": 14
+    }
+  ]
+}

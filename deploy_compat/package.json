@@ -1,0 +1,31 @@
+{
+  "name": "tiny-roguelike",
+  "version": "1.50.46",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 8080",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
+    "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --fix",
+    "lint:strict": "ESLINT_USE_FLAT_CONFIG=false eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "gen:manifest": "node scripts/gen_manifest.js",
+    "gen:smoke": "node scripts/gen_smoke_manifest.js",
+    "analyze:phase1": "node scripts/analyze.js",
+    "analyze:imports": "node scripts/import_graph.js",
+    "check:docs-catalog": "node scripts/check_docs_catalog.js",
+    "ci": "npm run lint:strict && npm run check:docs-catalog && npm run build",
+    "acceptance:phase6": "node scripts/run_phase6_acceptance.js",
+    "acceptance:phase0": "node scripts/run_phase0_acceptance.js",
+    "acceptance:gm": "npm run acceptance:phase6 && npm run acceptance:phase0",
+    "ci:gm": "npm run ci && npm run acceptance:gm"
+  },
+  "devDependencies": {
+    "vite": "^5.3.3",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
+    "playwright-chromium": "^1.58.2"
+  }
+}

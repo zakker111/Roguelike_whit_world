@@ -1,0 +1,521 @@
+/**
+ * Combat module: shared calculations for block chance and damage after defense,
+ * plus a standardized playerAttackEnemy to unify attacks across modes.
+ *
+ * Exports (ESM + window.Combat augmentation):
+ * - getPlayerBlockChance(ctx, loc)
+ * - getEnemyBlockChance(ctx, enemy, loc)
+ * - enemyDamageAfterDefense(ctx, raw)
+ * - enemyDamageMultiplier(level)  // small helper for consistency
+ * - playerAttackEnemy(ctx, enemy) // full bump-attack flow used by dungeon/encounter/region
+ *
+ * Notes:
+ * - Prefers helpers available on ctx (e.g., ctx.getPlayerAttack/Defense, ctx.utils.round1).
+ * - Keeps logic aligned with existing game.js/dungeon flow for consistency.
+ */
+
+import { getRNGUtils, getMod } from "../utils/access.js";
+import { trackHitAndMaybeApplySeenLife } from "../entities/item_buffs.js";
+
+function round1(ctx, n) {
+  if (ctx && ctx.utils && typeof ctx.utils.round1 === "function") return ctx.utils.round1(n);
+  return Math.round(n * 10) / 10;
+}
+
+function getPlayerDefenseFromCtx(ctx) {
+  if (ctx && typeof ctx.getPlayerDefense === "function") {
+    return ctx.getPlayerDefense();
+  }
+  // fallback: compute from equipment as in game.js
+  const p = ctx.player || {};
+  const eq = p.equipment || {};
+  let def = 0;
+  if (eq.left && typeof eq.left.def === "number") def += eq.left.def;
+  if (eq.right && typeof eq.right.def === "number") def += eq.right.def;
+  if (eq.head && typeof eq.head.def === "number") def += eq.head.def;
+  if (eq.torso && typeof eq.torso.def === "number") def += eq.torso.def;
+  if (eq.legs && typeof eq.legs.def === "number") def += eq.legs.def;
+  if (eq.hands && typeof eq.hands.def === "number") def += eq.hands.def;
+  return round1(ctx, def);
+}
+
+export function getPlayerBlockChance(ctx, loc) {
+  const p = ctx.player || {};
+  const eq = p.equipment || {};
+  const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
+  const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
+  const handDef = Math.max(leftDef, rightDef);
+  const base = 0.08 + handDef * 0.06;
+  const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
+  // Brace stance: if active, increase block chance for this turn.
+  const braceBonus = (p && typeof p.braceTurns === "number" && p.braceTurns > 0) ? 1.5 : 1.0;
+  // Slightly higher clamp while bracing.
+  const clampMax = (braceBonus > 1.0) ? 0.75 : 0.6;
+  return Math.max(0, Math.min(clampMax, base * mod * braceBonus));
+}
+
+export function getEnemyBlockChance(ctx, enemy, loc) {
+  const type = enemy && enemy.type ? String(enemy.type) : "";
+  let base;
+  if (type === "ogre") base = 0.10;
+  else if (type === "troll") base = 0.08;
+  else if (type === "guard") base = 0.13;
+  else base = 0.06;
+  const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
+  return Math.max(0, Math.min(0.35, base * mod));
+}
+
+export function enemyDamageAfterDefense(ctx, raw) {
+  const def = getPlayerDefenseFromCtx(ctx);
+  const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
+
+  // DEX: small additional damage reduction on top of armor.
+  let dexBonus = 0;
+  try {
+    const p = ctx && ctx.player ? ctx.player : null;
+    const attrs = p && p.attributes ? p.attributes : null;
+    const dex = attrs && typeof attrs.dex === "number" ? attrs.dex : 0;
+    const n = dex | 0;
+    const nonNeg = n < 0 ? 0 : n;
+    dexBonus = Math.min(0.10, nonNeg * 0.004); // up to +10% extra DR
+  } catch (_) {}
+
+  let reduced = raw * (1 - DR) * (1 - dexBonus);
+  return Math.max(0.1, round1(ctx, reduced));
+}
+
+export function enemyDamageMultiplier(level) {
+  try {
+    const CR = getMod(null, "CombatRules");
+    if (CR && typeof CR.enemyDamageMultiplier === "function") {
+      return CR.enemyDamageMultiplier(level);
+    }
+  } catch (_) {
+    // fall through to default curve
+  }
+  return 1 + 0.15 * Math.max(0, (level || 1) - 1);
+}
+
+/**
+ * Standardized player attack against an enemy:
+ * - Computes hit location (ctx.rollHitLocation or profiles.torso)
+ * - Computes block chance via ctx.getEnemyBlockChance
+ * - Applies crit chance/multiplier when available
+ * - Damages enemy; logs; applies status on crit; blood decal
+ * - Calls ctx.onEnemyDied(enemy) when hp <= 0
+ * - Applies equipment decay for attack hands
+ */
+export function playerAttackEnemy(ctx, enemy) {
+  if (!ctx || !enemy) return;
+
+  function getDexFromCtx() {
+    try {
+      const p = ctx && ctx.player ? ctx.player : null;
+      const attrs = p && p.attributes ? p.attributes : null;
+      const dex = attrs && typeof attrs.dex === "number" ? attrs.dex : 0;
+      const n = dex | 0;
+      return n < 0 ? 0 : n;
+    } catch (_) {
+      return 0;
+    }
+  }
+  const _dex = getDexFromCtx();
+
+  // Guard attack confirmation: prevent accidental guard aggression.
+  try {
+    const fac = String(enemy.faction || "").toLowerCase();
+    const alreadyHostile = enemy._ignorePlayer === false;
+    const needsConfirm = (fac === "guard") && !alreadyHostile && !enemy._guardConfirmDone;
+    if (needsConfirm) {
+      const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.showConfirm === "function") {
+        const prompt = "Do you really want to attack the guard? This will make all guards hostile to you.";
+        const title = "Attack Guard?";
+        const onOk = () => {
+          try {
+            enemy._guardConfirmDone = true;
+          } catch (_) {}
+          // Re-invoke the attack now that confirmation is granted.
+          try {
+            playerAttackEnemy(ctx, enemy);
+          } catch (_) {}
+        };
+        const onCancel = () => {
+          try {
+            if (ctx.log) ctx.log("You lower your weapon and decide not to attack the guard.", "info");
+          } catch (_) {}
+        };
+        UIO.showConfirm(ctx, prompt, title, onOk, onCancel);
+        return;
+      }
+    }
+  } catch (_) {}
+
+  const RU = (function(){ try { return getRNGUtils(ctx); } catch(_) { return null; } })();
+  const rng = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
+
+  const randFloatForBuff = (min, max, decimals = 1) => {
+    if (RU && typeof RU.float === "function") {
+      try { return RU.float(min, max, decimals, rng); } catch (_) {}
+    }
+    try {
+      if (ctx && ctx.utils && typeof ctx.utils.randFloat === "function") {
+        return ctx.utils.randFloat(min, max, decimals);
+      }
+    } catch (_) {}
+    const r = (typeof rng === "function") ? rng() : 0.5;
+    const v = min + r * (max - min);
+    const p = Math.pow(10, decimals);
+    return Math.round(v * p) / p;
+  };
+
+  // Helper: classify equipped weapon for skill tracking
+  function classifyWeapon(p) {
+    const eq = (p && p.equipment) ? p.equipment : {};
+    const left = eq.left || null;
+    const right = eq.right || null;
+    const twoHanded = !!(left && right && left === right && left.twoHanded) || !!(left && left.twoHanded) || !!(right && right.twoHanded);
+    // crude blunt detection by name; extend when mace/club types are added
+    const name = (left && left.name) || (right && right.name) || "";
+    const blunt = /mace|club|hammer|stick/i.test(name);
+    return { twoHanded, blunt, oneHand: !twoHanded };
+  }
+
+  function primaryWeaponItem(p) {
+    const eq = (p && p.equipment) ? p.equipment : {};
+    const left = eq.left || null;
+    const right = eq.right || null;
+    if (left && right && left === right && left.twoHanded) return left;
+    if (right && right.slot === "hand") return right;
+    if (left && left.slot === "hand") return left;
+    return null;
+  }
+
+  function maybeApplySeenLifeOnWeaponHit() {
+    try {
+      const p = ctx.player || null;
+      if (!p || !p.equipment) return;
+      const weapon = primaryWeaponItem(p);
+      if (!weapon) return;
+      trackHitAndMaybeApplySeenLife(ctx, weapon, {
+        kind: "weapon",
+        randFloat: randFloatForBuff,
+      });
+    } catch (_) {}
+  }
+
+  // Hit location
+  let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
+  try {
+    if (typeof ctx.rollHitLocation === "function") loc = ctx.rollHitLocation();
+  } catch (_) {}
+
+  // GOD forced part (best-effort)
+  try {
+    const forcedPart = (typeof ctx.forcedCritPart === "string" && ctx.forcedCritPart)
+      ? ctx.forcedCritPart
+      : ((typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+        ? window.ALWAYS_CRIT_PART
+        : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : ""));
+    if (forcedPart && (ctx.Combat && ctx.Combat.profiles && ctx.Combat.profiles[forcedPart])) {
+      loc = ctx.Combat.profiles[forcedPart];
+    }
+  } catch (_) {}
+
+  // Block check
+  let blockChance = 0;
+  try {
+    if (typeof ctx.getEnemyBlockChance === "function") blockChance = ctx.getEnemyBlockChance(enemy, loc);
+    else blockChance = getEnemyBlockChance(ctx, enemy, loc);
+  } catch (_) { blockChance = 0; }
+  // DEX: slightly reduces enemy block chance (better accuracy for the player).
+  try {
+    const d = _dex;
+    if (d > 0 && blockChance > 0) {
+      const capped = d > 30 ? 30 : d;
+      const reduction = Math.min(0.20, capped * 0.006); // up to -20% relative
+      blockChance = blockChance * (1 - reduction);
+      if (blockChance < 0) blockChance = 0;
+    }
+  } catch (_) {}
+  // Prefer RNGUtils.chance when available for determinism; fallback to raw rng comparison
+  const didBlock = (function () {
+    try {
+      if (RU && typeof RU.chance === "function") {
+        return RU.chance(blockChance, rng);
+      }
+    } catch (_) {}
+    if (typeof rng === "function") return rng() < blockChance;
+    return false;
+  })();
+
+  if (didBlock) {
+    try {
+      const name = (enemy.type || "enemy");
+      if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block", { category: "Combat", side: "player" });
+    } catch (_) {}
+    // Small passive skill gain even on block (half)
+    try {
+      const p = ctx.player || null;
+      const cat = classifyWeapon(p);
+      p.skills = p.skills || { oneHand: 0, twoHand: 0, blunt: 0 };
+      if (cat.twoHanded) p.skills.twoHand += 0.5;
+      else p.skills.oneHand += 0.5;
+      if (cat.blunt) p.skills.blunt += 0.5;
+    } catch (_) {}
+    // Decay hands (light) on block
+    try {
+      if (typeof ctx.decayBlockingHands === "function") ctx.decayBlockingHands();
+      else if (typeof ctx.decayEquipped === "function") {
+        const rf = (min, max) =>
+          (RU && typeof RU.float === "function")
+            ? RU.float(min, max, 1, rng)
+            : (min + ((typeof rng === "function" ? rng() : Math.random()) * (max - min)));
+        ctx.decayEquipped("hands", rf(0.2, 0.7));
+      }
+    } catch (_) {}
+    return;
+  }
+
+  // Damage calculation
+  let atk = 1;
+  try { if (typeof ctx.getPlayerAttack === "function") atk = ctx.getPlayerAttack(); } catch (_) {}
+  let dmg = (atk || 1) * (loc.mult || 1.0);
+
+  // Passive skills: apply small buff based on weapon category
+  try {
+    const p = ctx.player || null;
+    const s = (p && p.skills) ? p.skills : null;
+    if (p && s) {
+      const cat = classifyWeapon(p);
+      const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
+      // Buffs scale slowly with usage (every ~20 attacks gives +1%), cap low
+      const oneHandBuff = clamp(Math.floor((s.oneHand || 0) / 20) * 0.01, 0, 0.05);
+      const twoHandBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
+      const bluntBuff   = clamp(Math.floor((s.blunt   || 0) / 25) * 0.01, 0, 0.04);
+      let mult = 1.0;
+      if (cat.twoHanded) mult *= (1 + twoHandBuff);
+      else mult *= (1 + oneHandBuff);
+      if (cat.blunt) mult *= (1 + bluntBuff);
+      dmg *= mult;
+    }
+  } catch (_) {}
+
+  let isCrit = false;
+  const alwaysCrit = !!(((typeof ctx.alwaysCrit === "boolean") ? ctx.alwaysCrit : ((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false)));
+  let critChance = 0.12 + (loc.critBonus || 0);
+  // DEX: small crit chance bonus, capped.
+  try {
+    if (_dex > 0) {
+      const capped = _dex > 40 ? 40 : _dex;
+      const dexBonus = Math.min(0.15, capped * 0.003); // up to +15% absolute
+      critChance += dexBonus;
+    }
+  } catch (_) {}
+  critChance = Math.max(0, Math.min(0.6, critChance));
+  let critMult = 1.8;
+  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(rng); } catch (_) {}
+  const didCrit = (function () {
+    if (alwaysCrit) return true;
+    try {
+      if (RU && typeof RU.chance === "function") {
+        return RU.chance(critChance, rng);
+      }
+    } catch (_) {}
+    const r = (typeof rng === "function") ? rng() : Math.random();
+    return r < critChance;
+  })();
+  if (didCrit) {
+    isCrit = true;
+    dmg *= critMult;
+  }
+  dmg = Math.max(0, round1(ctx, dmg));
+  enemy.hp = (typeof enemy.hp === "number" ? enemy.hp : 0) - dmg;
+
+  // Visual: blood decal (skip ethereal/undead foes)
+  try {
+    const t = String(enemy.type || "");
+    const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
+    if (!ethereal && typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
+  } catch (_) {}
+
+  // Log
+  try {
+    const name = (enemy.type || "enemy");
+    if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "player" });
+    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "player" });
+    if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    // Record last hit for death flavor/meta
+    try {
+      const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
+      const weaponName = (eq.right && eq.right.name) ? eq.right.name : (eq.left && eq.left.name) ? eq.left.name : null;
+      enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
+      // If the player attacks a guard, all guards in the encounter become hostile to the player.
+      try {
+        if (enemy && String(enemy.faction || "").toLowerCase() === "guard" && Array.isArray(ctx.enemies)) {
+          for (const other of ctx.enemies) {
+            if (other && String(other.faction || "").toLowerCase() === "guard") {
+              other._ignorePlayer = false;
+            }
+          }
+        }
+      } catch (_) {}
+    } catch (_) {}
+  } catch (_) {}
+
+  // Status effects on hit
+  try {
+    const ST = (ctx.Status || getMod(ctx, "Status") || (typeof window !== "undefined" ? window.Status : null));
+    if (ST && enemy.hp > 0) {
+      if (isCrit && loc.part === "legs") {
+        if (typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
+        else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); if (ctx.log) ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
+      }
+      if (isCrit) {
+        const t = String(enemy.type || "");
+        const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
+        if (!ethereal && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+      }
+
+      // Torch: moderate chance to set enemies on fire when a torch is held in either hand.
+      try {
+        const p = ctx.player || null;
+        const eq = p && p.equipment ? p.equipment : null;
+        const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
+        const holdingTorch = !!(eq && (hasTorch(eq.left) || hasTorch(eq.right)));
+        if (holdingTorch && enemy.hp > 0 && typeof ST.applyInFlamesToEnemy === "function") {
+          const RU = getRNGUtils(ctx);
+          const pTorch = 0.35;
+          let ignite = false;
+          if (RU && typeof RU.chance === "function") ignite = RU.chance(pTorch, rng);
+          else if (typeof rng === "function") ignite = rng() < pTorch;
+          else ignite = Math.random() < pTorch;
+          if (ignite) {
+            ST.applyInFlamesToEnemy(ctx, enemy, 3);
+          }
+        }
+      } catch (_) {}
+
+      // Seppo's True Blade: very rare "love" effect that holds enemies in place for 1 turn.
+      try {
+        const p = ctx.player || null;
+        const eq = p && p.equipment ? p.equipment : null;
+        const hasSeppoBlade = !!(eq && (
+          (eq.left && (eq.left.id === "seppos_true_blade" || /seppo's true blade/i.test(String(eq.left.name || "")))) ||
+          (eq.right && (eq.right.id === "seppos_true_blade" || /seppo's true blade/i.test(String(eq.right.name || ""))))
+        ));
+        if (hasSeppoBlade && enemy.hp > 0) {
+          const RU2 = getRNGUtils(ctx);
+          const pLove = 0.04; // ~4% chance per hit
+          let charm = false;
+          if (RU2 && typeof RU2.chance === "function") charm = RU2.chance(pLove, rng);
+          else if (typeof rng === "function") charm = rng() < pLove;
+          else charm = Math.random() < pLove;
+          if (charm) {
+            enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 1);
+            if (ctx.log) ctx.log("Your strike with Seppo's True Blade leaves the foe lovestruck and unable to move for a moment.", "flavor", { category: "Combat" });
+          }
+        }
+      } catch (_) {}
+
+      // GOD panel: apply one-off status effect on first hit when armed.
+      try {
+        const p = ctx.player || {};
+        let eff = ctx._godStatusOnNextHit
+          || p.godNextStatusEffect
+          || p._godStatusOnNextHit
+          || null;
+        if (!eff) {
+          try {
+            if (typeof window !== "undefined" && window.GOD_NEXT_STATUS_EFFECT) {
+              eff = window.GOD_NEXT_STATUS_EFFECT;
+            }
+          } catch (_) {}
+        }
+        if (eff && enemy.hp > 0) {
+          const id = String(eff).toLowerCase();
+          let label = "";
+          if ((id === "fire" || id === "inflames") && typeof ST.applyInFlamesToEnemy === "function") {
+            ST.applyInFlamesToEnemy(ctx, enemy, 3);
+            label = "Burning";
+          } else if (id === "bleed" && typeof ST.applyBleedToEnemy === "function") {
+            ST.applyBleedToEnemy(ctx, enemy, 3);
+            label = "Bleeding";
+          } else if (id === "limp" && typeof ST.applyLimpToEnemy === "function") {
+            ST.applyLimpToEnemy(ctx, enemy, 2);
+            label = "Limp";
+          }
+          ctx._godStatusOnNextHit = null;
+          if (p) {
+            try {
+              p.godNextStatusEffect = null;
+              p._godStatusOnNextHit = null;
+            } catch (_) {}
+          }
+          try {
+            if (typeof window !== "undefined") {
+              window.GOD_NEXT_STATUS_EFFECT = null;
+            }
+          } catch (_) {}
+          if (label && ctx.log) ctx.log(`GOD: Applied ${label} status effect to target on hit.`, "notice");
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Death
+  try {
+    if (enemy.hp <= 0) {
+      try {
+        if (ctx.Flavor && typeof ctx.Flavor.logDeath === "function") {
+          ctx.Flavor.logDeath(ctx, { target: enemy, loc, crit: isCrit });
+        }
+      } catch (_) {}
+      if (typeof ctx.onEnemyDied === "function") {
+        ctx.onEnemyDied(enemy);
+      }
+    }
+  } catch (_) {}
+
+  // Permanent equipment buff: Seen Life for weapons based on usage.
+  // Tracking and application are handled by ItemBuffs; this call is cheap once
+  // the item has already rolled/received the buff.
+  maybeApplySeenLifeOnWeaponHit();
+
+  // Passive skill gain on successful hit
+  try {
+    const p = ctx.player || null;
+    const cat = classifyWeapon(p);
+    p.skills = p.skills || { oneHand: 0, twoHand: 0, blunt: 0 };
+    if (cat.twoHanded) p.skills.twoHand += 1;
+    else p.skills.oneHand += 1;
+    if (cat.blunt) p.skills.blunt += 1;
+  } catch (_) {}
+
+  // Decay hands after attack
+  try {
+    if (typeof ctx.decayAttackHands === "function") ctx.decayAttackHands(false);
+    else if (typeof ctx.decayEquipped === "function") {
+      const rf = (min, max) =>
+        (RU && typeof RU.float === "function")
+          ? RU.float(min, max, 1, rng)
+          : ((min + max) / 2);
+      ctx.decayEquipped("hands", rf(0.3, 1.0));
+    }
+  } catch (_) {}
+}
+
+// Back-compat: attach/augment window.Combat
+if (typeof window !== "undefined") {
+  const base = window.Combat || {};
+  const augmented = Object.assign({}, base, {
+    getPlayerBlockChance,
+    getEnemyBlockChance,
+    enemyDamageAfterDefense,
+    enemyDamageMultiplier,
+    playerAttackEnemy,
+  });
+  window.Combat = augmented;
+}
