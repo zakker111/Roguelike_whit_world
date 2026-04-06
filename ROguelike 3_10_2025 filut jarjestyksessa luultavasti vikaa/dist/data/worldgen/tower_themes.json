@@ -1,0 +1,42 @@
+{
+  "jcdocs": {
+    "description": "Tower enemy/loot themes by id. Linked from towers.json via types[*].themeId.",
+    "howToUse": [
+      "Each key under this object is a tower theme id, e.g. 'bandit_tower'.",
+      "towers.json.types[...].themeId should reference one of these ids.",
+      "Enemies listed under 'enemies' are used as the main spawn pool for that tower type.",
+      "Bosses listed under 'bosses' are candidates for the dedicated top-floor boss, unless towers.json.types[...].boss.typeId explicitly overrides it.",
+      "lootBias can be used to bias chest tiers or item categories for that tower type; it is optional and advisory."
+    ],
+    "howToAddTheme": [
+      "1) Add a new top-level key (e.g., 'undead_tower').",
+      "2) Under that key, define an 'enemies' array with { id, weight } entries. 'id' must match an enemy id in data/entities/enemies.json.",
+      "3) (Optional) Define a 'bosses' array with { id, weight } entries for boss candidates.",
+      "4) (Optional) Define 'lootBias' with whatever fields your loot system understands (tiers, weaponTypes, tags).",
+      "5) Reference this theme from towers.json via types[...].themeId."
+    ],
+    "notes": [
+      "The runtime currently still has hard-coded bandit tower behavior; theme data is introduced first for configuration and future use.",
+      "When theme-driven spawning is wired in, the code will read these weights but will keep hard-coded fallbacks if data is missing.",
+      "Weights are relative; only their ratios matter (e.g., 5/3/1)."
+    ]
+  },
+
+  "bandit_tower": {
+    "enemies": [
+      { "id": "bandit",       "weight": 5 },
+      { "id": "bandit_guard", "weight": 3 },
+      { "id": "bandit_elite", "weight": 1 }
+    ],
+    "bosses": [
+      { "id": "bandit_captain", "weight": 1 }
+    ],
+    "lootBias": {
+      "tiers": {
+        "2": 0.7,
+        "3": 0.3
+      },
+      "weaponTypes": ["sword", "axe", "bow"]
+    }
+  }
+}

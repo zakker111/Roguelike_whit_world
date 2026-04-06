@@ -1,0 +1,6 @@
+{
+  "palettes": [
+    { "id": "default", "name": "Default", "path": "data/world/palette.json" },
+    { "id": "alt", "name": "Alt", "path": "data/world/palette_alt.json" }
+  ]
+}

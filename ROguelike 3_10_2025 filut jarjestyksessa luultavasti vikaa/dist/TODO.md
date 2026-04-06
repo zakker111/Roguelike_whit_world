@@ -1,0 +1,766 @@
+# TODO / Planned Work
+
+This file collects planned features, ideas, and technical cleanups that were previously scattered in `VERSIONS.md` and `todo.txt`.
+
+## Recently completed (v1.50.38–v1.50.42)
+
+- [x] Folder barrels: `core/engine/index.js`, `core/bridge/index.js`, `services/index.js`
+- [x] Boot manifests import barrels where helpful (`src/boot/06_services.js`, `src/boot/11_runtime_orchestration.js`)
+- [x] Initial barrel adoption in low-risk worldgen/UI modules (`worldgen/town_gen.js`, `worldgen/town/shops_core.js`, `ui/components/lockpick_modal.js`)
+- [x] Workflow doc for shipping small slices: `docs/phase_workflow.md`
+- [x] Docs catalog CI guardrail: `npm run check:docs-catalog` (also included in `npm run ci`)
+- [x] Repo hygiene: removed stray duplicate top-level folder typo variant (`... vikoa/`)
+
+## Recently completed (this session)
+
+- [x] GM panel smoketest scenario exists and is included in Phase 0 acceptance (`gm_panel_smoke`)
+- [x] Quest board GM markers smoketest exists and is included in Phase 0 acceptance (`quest_board_gm_markers`)
+- [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
+- [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
+- [x] Logging convention documented (`docs/phase_workflow.md`)
+
+## Near-term engineering plan (small slices)
+
+- [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
+- [x] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
+- [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
+- [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
+- [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
+
+## Next slices (plan)
+
+- [ ] **Ctx-first audit for remaining GM encounter starts (non-marker):** identify any remaining `GameAPI` / window-only entry points and migrate to ctx-first facades.
+  - Acceptance: no GM code path starts an encounter via a ctx reacquire; add/extend a smoketest that triggers at least one non-marker GM encounter start and asserts stable mode/position.
+- [ ] **GM panel surfacing: action queue + quests (incremental):** add a small “orchestrator snapshot” section to the GM panel.
+  - Acceptance: GM panel shows next scheduled actions (id/status/delivery) and active quest thread count/summary; update `gm_panel_smoke` to assert these fields render.
+- [ ] **Acceptance flake detection loop (Phase 0):** run `acceptance:phase0` in a short series loop and fail the job if any scenario both passes and fails (flake).
+  - Acceptance: produces a JSON summary including `flake=true/false`; CI uses it as a required gate.
+- [ ] **Docs catalog hygiene check (ongoing):** keep `docs/index.html` in sync with docs; run `npm run check:docs-catalog` as a pre-merge habit.
+  - Acceptance: `npm run check:docs-catalog` passes locally and in CI; new docs are added to the catalog in the same slice.
+- [ ] **Logging levels audit (targeted):** ensure debug toggles (trace logs) use non-`info` levels and are gated behind explicit flags.
+  - Acceptance: default play sessions stay mostly `info`/gameplay logs; enabling trace toggles yields `notice`/`warn` without polluting default output.
+
+## Gameplay / Features
+
+### GM Merge Readiness (v1.50.33)
+
+Recent fixes to verify before merge:
+- [ ] No boot-time JS errors (DevTools console)
+  - No `Uncaught SyntaxError: Identifier '...' has already been declared`
+  - No `ReferenceError: enterEncounter is not defined`
+- [ ] Modes transition sanity
+  - `Modes.enterEncounter` exists and works (no crash)
+  - `Modes.openRegionMap`, `Modes.startRegionEncounter`, `Modes.completeEncounter` exist exactly once (no duplicates)
+- [ ] Repo hygiene
+  - [x] No stray duplicate top-level folder `...vikoa/` tracked in git (typo variant)
+
+Implemented (ready in GM branch):
+- [x] Bottle Map quest thread (fishing → item → X marker → encounter → cleanup)
+- [x] Surveyor’s Cache marker + encounter + claimed state
+- [x] Travel events (guard fine confirm + bandit bounty)
+- [x] Pacing: deterministic low-frequency hints / intent eval (no RNG consumption)
+- [x] Confirm prompts (pay/refuse)
+- [x] Marker integrity: ctx-first marker encounter entry (no teleport/mode desync)
+- [x] Fishing pity (special fishing drops ramp after misses; tuneable)
+
+Merge checklist:
+- Smoketest scenarios (IDs):
+  - `gm_mechanic_hints`
+  - `gm_intent_decisions`
+  - `gm_boredom_interest`
+  - `determinism`
+  - `gm_seed_reset`
+  - `gm_bridge_markers`
+  - `gm_bridge_faction_travel`
+  - `gm_bottle_map`
+  - `gm_bottle_map_fishing_pity`
+  - `gm_survey_cache`
+  - `gm_survey_cache_spawn_gate`
+- Manual checks:
+  - Survey Cache: cache is **consumed on encounter start** (cannot double-claim)
+  - Bottle Map: withdrawing from the marker encounter keeps the `X` marker + quest thread intact
+  - Bandit bounty: victory pays the bounty (and does not pay on withdraw/defeat)
+- State/seed reset checks:
+  - Start New Game clears `GM_STATE_V1` (no stale `X`/`?` markers)
+  - Death restart clears `GM_STATE_V1`
+  - Seed reroll / apply seed clears `GM_STATE_V1` (and restarts GM pacing)
+
+Known issues / deferred (post-merge):
+- [x] Persisted GM RNG stream + reload continuity gate (`gm_rng_persistence`)
+- [x] Deterministic scheduler arbitration gate (`gm_scheduler_arbitration`)
+- [x] Reset semantics for seed/newgame/death restart + version invalidation (`gm_seed_reset`)
+
+- [x] GM v0.1: Observability + deterministic low-frequency hints (implemented)
+  - GM runtime state bag (`ctx.gm`) and deterministic per-turn evaluation (no RNG consumption).
+  - GM panel toggle (`O`): non-modal, draggable/scrollable; shows boredom + last event + intent history with reason codes.
+  - GM Emission Sim in GOD panel (deterministic eligibility checks) and smoketest scenarios (`gm_mechanic_hints`, `gm_intent_decisions`, plus `determinism`).
+
+- [ ] GM v0.2: Orchestrating GM (feature-rich skeleton; expandable)
+  - Current status (already implemented)
+    - [x] GMRuntime persistence key `GM_STATE_V1` (`core/gm/runtime.js`, `core/state/persistence.js`)
+    - [x] Bottle Map end-to-end: fishing → item → marker → encounter → cleanup; smoketest (`ui/components/fishing_modal.js`, `core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bottle_map.js`)
+    - [x] Surveyor’s Cache: `gm.surveyCache` marker + encounter + claimed; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_survey_cache.js`)
+    - [x] Guard fine confirm flow emits `gm.guardFine.pay/refuse`; smoketest (`core/bridge/gm_bridge.js`, `smoketest/scenarios/gm_bridge_faction_travel.js`)
+    - [x] Marker encounter entry is ctx-first (teleport bug fix) (`core/bridge/gm_bridge.js`)
+
+  - Frozen scope (agreed)
+    - GM uses its own **persisted RNG stream** (separate from `ctx.rng` / global RNG).
+      - Scheduler arbitration is deterministic and RNG-free (stable sort); RNG is used only inside actions (placement/reward).
+    - GM is **per new game** (no meta-progression): GM state resets on **death restart**, **Start New Game**, and **seed reroll**.
+    - v0.2 delivery modes (agreed):
+      - `travel.banditBounty`: **confirm** (special encounter)
+      - `travel.guardFine`: **confirm** (pay/refuse)
+      - `travel.trollHunt`: **confirm** (special encounter)
+      - `quest.bottleMap`: **marker** (player travels and presses `G`)
+
+  - GM v0.2 ship roadmap (phases)
+    - [ ] Phase 0: Baseline QA gate
+      - Scope: lock current behavior; tighten determinism + crash hygiene.
+      - Likely files: `core/gm/runtime.js`, `core/bridge/gm_bridge.js`, `smoketest/` runner.
+      - Acceptance: 10x smoketest runs stable; no new console errors in normal play.
+      - Smoketests (new/extend): extend existing determinism scenario + add a short “smoke suite” CI loop.
+    - [x] Phase 1: GM RNG persistence gate (`gm_rng_persistence`)
+      - Scope: make GM RNG a first-class persisted stream; prove reload continuity.
+      - Likely files: `core/gm/runtime.js` (RNG), `core/state/persistence.js`, `smoketest/scenarios/determinism*.js`.
+      - Acceptance: save → reload → next N GM RNG draws identical; GM RNG draws never consume `ctx.rng`.
+      - Smoketests (new/extend): add/extend a `gm_rng_persistence` scenario.
+    - [x] Phase 2: Scheduler (`gm_scheduler_arbitration`)
+      - Scope: implement action queue + deterministic arbitration (RNG-free winner selection).
+      - Likely files: `core/gm/scheduler*.js` (new), `core/gm/runtime.js`.
+      - Acceptance: stable sort `priority → earliestTurn → createdTurn → id`; lifecycle statuses behave as specified.
+      - Smoketests (new/extend): add `gm_scheduler_arbitration` (assert 0 RNG calls during arbitration).
+    - [x] Phase 3: Narrow GMBridge (`gm_bridge_markers`, `gm_bridge_faction_travel`)
+      - Scope: route all GM→Game side effects through a minimal bridge API.
+      - Likely files: `core/bridge/gm_bridge.js`, `core/bridge/ui_bridge.js`, `core/gm/runtime.js` call sites.
+      - Acceptance: GM runtime does not directly mutate unrelated systems; bridge surface is reviewed + documented.
+      - Smoketests (new/extend): extend bottle-map + survey-cache scenarios to assert bridge-only side effects.
+    - [x] Phase 4: Reset semantics (`gm_seed_reset`)
+      - Scope: guarantee GM resets on death restart / Start New Game / seed reroll / APP_VERSION bump.
+      - Likely files: `core/state/persistence.js`, any “new game / apply seed / death restart” handlers.
+      - Acceptance: `GM_STATE_V1` reliably cleared on each reset path; no stale markers/threads after reset.
+      - Smoketests (new/extend): use `gm_seed_reset` (force each reset path).
+    - [x] Phase 5: travel encounters via scheduler (confirm delivery)
+      - Scope: scheduler-backed travel actions delivered via confirm (choices-only authority; aligns with v0.3 “choices only”).
+      - Likely files: `core/gm/runtime/faction_travel.js`, `core/bridge/gm_bridge/world_step.js`, encounter templates (`gm_bandit_bounty`, `gm_troll_hunt`, `gm_guard_fine`).
+      - Acceptance: obeys safety rails + cooldowns; encounter entry is ctx-first; no interference with normal travel rolls.
+      - Smoketests (new/extend): `gm_bridge_faction_travel`.
+    - [ ] Phase 6: GM panel surfacing
+      - Scope: expose scheduler queue + RNG stream + active quest summaries in GM panel.
+      - Likely files: `ui/` GM panel component(s), `ui/style.css`, `core/gm/runtime.js` snapshot/export.
+      - Acceptance: panel shows next actions + statuses; RNG stream (algo/state/calls) visible; no perf regressions.
+      - Smoketests (new/extend): extend UI smoketests to open panel and assert key fields render.
+    - [ ] Phase 7: Final ship gate
+      - Scope: run full v0.2 gates; document known limitations; freeze merge.
+      - Likely files: `TODO.md` gates, `smoketest/` scenarios, `VERSIONS.md` notes.
+      - Acceptance: all v0.2 “testing/merge gates” checked; disable switch verified; no regressions in travel/fishing/markers.
+      - Smoketests (new/extend): run full smoke suite ≥ 10 iterations; require 100% pass.
+
+  - Phase 2 (post-fix follow-ups)
+    - [ ] Make non-marker GM encounter starts ctx-first where appropriate
+      - Audit travel events and other non-marker flows (`travel.banditBounty`, `travel.guardFine`, etc.)
+      - Ensure encounter entry and mode transitions use ctx-first facades (no `GameAPI` ctx reacquire / window-only entry)
+
+  - Foundation (must ship in v0.2)
+    - [x] General GM **Action Scheduler**
+      - Deterministic arbitration: `priority desc → earliestTurn asc → createdTurn asc → id asc` (no RNG calls during arbitration)
+      - Action lifecycle statuses: scheduled/consumed (plus bookkeeping: lastActionTurn/lastAutoTurn/history)
+      - Global safety rails:
+        - [x] max actions per N turns
+        - [x] min spacing between non-player-facing **auto** emissions (hints/logs)
+        - [ ] max active quest threads (start with 1)
+        - [x] "one GM action per turn" unless explicitly allowed
+    - [x] GM→Game execution via a narrow **GMBridge**
+      - grant item, place/remove marker, start special encounter, show confirm, log narrative
+      - GM runtime should not directly mutate unrelated systems
+    - [x] Persisted GM RNG stream
+      - Explicit RNG state stored in GM state: `algo`, `state:uint32`, `calls`
+      - Seed GM RNG deterministically from run seed, without consuming `ctx.rng`
+    - [x] Persistence (mid-run continuity only)
+      - LocalStorage: [x] add `GM_STATE_V1`
+      - Persist: scheduler queue + active quest threads + GM RNG state
+      - Clear `GM_STATE_V1` on:
+        - [x] death restart
+        - [x] Start New Game
+        - [x] seed reroll
+        - [x] deploy version change (APP_VERSION)
+
+  - v0.2 shipping action catalog (minimum content)
+    - [x] `travel.guardFine` (confirm)
+      - Use confirm UI (pay/refuse)
+      - Emit outcomes back to GM (`gm.guardFine.pay/refuse`)
+      - Encounter template already exists: `gm_guard_fine` (data)
+    - [x] `travel.banditBounty` (confirm)
+      - Confirm-start a **special** encounter (not the normal EncounterService roll)
+      - Must obey safety rails + cooldowns
+      - Encounter template already exists: `gm_bandit_bounty` (data)
+    - [x] `quest.bottleMap` (marker quest thread v1 — lifecycle complete)
+      - Acquisition: on fishing success, sometimes grant a "Bottle with a Map" (only if no active quest thread)
+      - Activation: on first use/inspect, bind a target overworld tile via GM RNG + placement constraints
+      - Marker: place an X marker; show a short clue (near town/region)
+      - Resolution: at the X tile, pressing `G` starts a small crime-scene encounter (corpse + chest)
+      - Cleanup: after loot, quest completes and marker is removed
+      - Hard placement constraints (no softlocks):
+        - [x] target must be walkable
+        - [x] deterministic retry loop with capped attempts
+        - [x] graceful expiry if placement fails (log reason)
+
+  - v0.2 testing/merge gates (must-have)
+    - [x] Determinism: GM RNG persistence gate (save → reload → next N draws identical) (`gm_rng_persistence`)
+    - [x] Determinism: scheduler arbitration gate (winner selection consumes zero RNG) (`gm_scheduler_arbitration`)
+    - [x] Bottle Map lifecycle gate: acquire → activate → marker → resolve → cleanup; no duplicate rewards; no orphan markers (`gm_bottle_map`)
+    - [x] Disable switch gate: `gm.enabled=false` suppresses all GM side effects (including prompts, markers, and non-player-facing emissions) (`gm_disable_switch`)
+    - [x] Regression gate: GM actions cannot crash world movement, mode transitions, or fishing/questboard/follower flows
+
+  - GM panel (v0.2: beautify + orchestrator visibility)
+    - Visual style + UX
+      - [x] Diegetic "GM ledger / parchment" theme (still readable/debuggable)
+      - [x] Dashboard ordering (narrative-first): Mood+Boredom → Next action/cooldowns → Active quest
+      - [x] Collapsible sections remember open/closed state per session (localStorage, e.g. `GM_PANEL_PREFS_V1`)
+      - [x] Move most inline styles to CSS classes (`ui/style.css`) for easier iteration
+    - v0.2 data surfaced
+      - [x] Show GM RNG stream status (algo + state hex + call count)
+      - [x] Show active actions (top 5) with status + delivery mode (auto/confirm/marker) + eligibility
+      - [x] Show active Bottle Map quest summary (status + target + attempts + failure reason)
+    - Debug affordances
+      - [x] Timeline-style intents/events list (newest-first) with channel + reason visible
+      - [x] Raw GM JSON section (collapsed by default; stringify only when expanded)
+      - [x] "Show all" toggles for traits/mechanics vs only-active filtering
+
+- [ ] GM v0.3: Rare, choice-driven pacing (boredom-gated; deterministic randomness)
+  - Phase 0: Contract (locked)
+    - [x] Contract doc: `analysis/gm_v0_3_contract.md`
+    - Pacing: rare (only when bored)
+    - Authority: choices (no forced outcomes)
+    - Persistence: reset on apply seed / restart / death restart
+  - Frozen scope (agreed)
+    - Rare only when bored (boredom threshold gate; tuneable)
+    - Intervention budget counts **only player-facing choice prompts** (confirm/choice UI); non-choice hints/logs do not spend cooldown
+    - Choices only (no forced outcomes)
+    - Reset pacing state on apply seed / Start New Game / death restart
+  - Pacing rules
+    - Boredom gate: require `gm.boredom.level >= boredomMin` before proposing an intervention
+    - Cooldown range: 400–600 turns (GM RNG; deterministic)
+    - Store `nextEligibleTurn` (and `lastInterventionTurn`) in GM state (persisted)
+  - Boredom policy
+    - Do NOT hard reset boredom to 0
+    - Partial recovery instead (reduce boredom by a fraction / tiered stepdown)
+    - Introduce event “interest weight” (or tiering)
+  - Phase list (1–4)
+    - [x] Phase 1: Audit boredom + eligibility transitions
+      - Report: `analysis/gm_phase1_audit.md`
+    - [x] Phase 2: Ctx-first hardening (all GM entry/exit points)
+    - [x] Phase 3: Event-interest weighting (interest tiers + partial boredom recovery)
+    - [x] Phase 4: Scheduler gating (boredom gate + `nextEligibleTurn`)
+  - v0.3 testing/merge gates
+    - [x] Determinism across reload (same seed + save/reload preserves `nextEligibleTurn` and eligibility) (`gm_rng_persistence`)
+    - [x] Boredom not stuck at 0 (partial recovery still allows boredom to accumulate) (`gm_boredom_interest`)
+    - [x] No forced negative events (choices only) (confirm/choice delivery)
+    - [x] Reset clears `GM_STATE_V1` (`gm_seed_reset`)
+
+- [x] Bridge/ford generation across rivers
+- [x] Named towns and persistent inventories/NPCs across visits
+- [x] Shop UI (buy/sell) and currency
+- [ ] District themes (market / residential / temple) and signage
+- [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
+- [ ] World generation: support larger lakes and inland water bodies
+  - Allow the overworld generator to create bigger lakes and inland seas, not just thin rivers or small ponds.
+  - Ensure lake size integrates with biome transitions (e.g., beaches, marshy shorelines) and walkability rules.
+  - Consider special POIs or encounters attached to large lakes (ferries, fishing huts, ruined piers) in future work.
+- [ ] If there are not enough beds at home for an NPC, let them sleep on the floor
+- [ ] Move flavor text into JSON data (data-driven flavor)
+- [x] Port towns/cities with distinct layouts **(EXPERIMENTAL)**
+  - Add special “port” variants of towns/cities that sit on coasts, rivers, or lakes.
+  - Layout differences from normal towns:
+    - [x] Partially walled or open toward the water, with a reserved harbor band along the water-facing edge.
+    - [x] Visible water edge integrated into town map (harbor water tiles plus piers extending onto water).
+    - [x] Boats/ships/moored vessels visible at the pier via multi-tile harbor boat prefabs (horizontal and vertical variants).
+    - [x] Harbor piers carved strictly perpendicular to the shoreline, widened to at least 2 tiles where possible, and spaced at least ~6 tiles apart along the shoreline.
+  - Overworld integration:
+    - [x] Harbor direction and shoreline for the port town are derived from overworld water tiles next to the town’s location (harborDir metadata).
+    - [x] Pier and boat orientation (north/south/east/west) matches the detected harbor direction in the overworld.
+  - Harbor accessibility and islands (experimental):
+    - [x] Harbor-only accessibility pass that:
+      - Removes harbor building doors whose exterior tiles are not walkable or not reachable from the town gate.
+      - Carves a fallback door for harbor buildings that have no usable door facing reachable ground.
+    - [x] Harbor land islands (land within the harbor band) are detected and connected:
+      - Any harbor land component not reachable from the gate is linked to the main harbor via a simple PIER bridge (often an L-shaped corridor), so all harbor land is accessible for player and NPCs.
+  - Future extensions (optional):
+    - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
+    - [ ] Trade modifiers or special caravan/ship visits at ports.
+    - [ ] Harbor boat travel system with sailor/captain NPCs:
+      - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
+      - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
+    - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
+    - [ ] Fishing in harbor towns:
+      - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.
+      - Use a simple interaction (e.g., G on a dock/edge tile) to start fishing with time-cost, RNG-based catches (fish items, junk, or nothing).
+      - Integrate caught fish into town shops, cooking/food systems, or quests once those systems exist.
+- [ ] Mouse-hover enemy inspect system tied to Perception skill
+  - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
+  - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
+  - Higher Perception → approximate or exact level and stats (Attack/Defense), gear quality (tier), and whether it looks well equipped.
+  - Implemented via a lightweight mousemove → tile → enemy lookup and a small DOM tooltip/HUD overlay, with no impact when modals are open or tiles are unseen.
+- [ ] NPC diagonal movement and pathfinding
+  - Allow NPCs (town, dungeon, region, followers) to move diagonally when appropriate, not just in 4 cardinal directions.
+  - Update pathfinding heuristics and collision checks so diagonal steps respect walls, doors, props, and other blockers (no corner cutting through wall corners).
+  - Ensure diagonal-capable pathfinding is shared between TownAI, dungeon AI, and follower movement so behavior stays consistent.
+- [ ] Town AI priority: always prioritize shopkeepers reaching their shops
+  - In town performance throttling (NPC budgets, distance bands), ensure shopkeepers who are currently off-duty but need to reach their shop (opening, closing, or on-duty window) are always given high priority, even when they are far away from the player.
+  - Adjust TownAI scheduling so shopkeepers do not “freeze” just because they are in a far band; their movement toward their shop should be considered critical for town believability.
+  - Keep guards and critical events (e.g., bandits at gate) as high priority, but make shopkeepers’ commute to their shop part of the “must-run” set each tick.
+- [ ] Player skill tree and skill points
+  - Perception skill that affects how far the player sees other creatures/enemies, and how early encounters/animals are sensed.
+  - “Campman” / survival skill affecting animal sensing and how often the player can safely flee from encounters.
+- [ ] Follower attribute preferences (faction/archetype driven, visible/hidden)
+  - Design and implement a simple attribute system for followers that mirrors (or reuses) the player attribute model.
+  - On follower level-up, automatically allocate follower attribute points according to their faction/archetype:
+    - Guard-style followers prioritize STR/CON-style toughness and DEX for blocking.
+    - Thief/rogue followers favor DEX and INT for accuracy, crits, and utility (lockpicking/foraging).
+    - Caster/support-style followers (if introduced) would favor INT/CHA.
+  - Decide whether follower attributes are:
+    - Fully visible on a follower inspect panel (explicit STR/DEX/INT/CHA/LCK lines), or
+    - Mostly hidden, with only summarized effects shown (e.g., “Prefers agility and precision”).
+  - Ensure follower attribute spending is data-driven:
+    - Define simple per-archetype weights or priority lists in JSON (e.g., `attributes: { str: 2, dex: 3, int: 1 }`).
+    - Runtime level-up logic distributes points using these weights so different factions feel distinct without hardcoding per-follower behavior.
+  - Keep this system optional/low-noise for players:
+    - Default UI only needs to show high-level effects (Attack, Defense, role description);
+      raw attribute lines can remain a debug/EXPERIMENTAL view until the system is stable.
+- [ ] Player / follower level caps, attribute caps, and respec limits
+  - Introduce clear maximum levels (soft and/or hard caps) for both the player and followers so combat and economy remain tunable at late game.
+  - Add per-attribute caps (either global or per-attribute) so single stats cannot be pushed to absurd values on either the player or followers.
+  - Define strict respec rules:
+    - Attribute points should not be freely and repeatedly respec’d from the Character Sheet during normal runs.
+    - Consider rare/expensive respec options (e.g., special shrine/NPC, high gold cost, or limited-use items) instead of free point shuffling.
+  - Keep the current +/- Character Sheet controls as a debug/EXPERIMENTAL tool only; wire them behind a clear dev flag once proper respec rules exist.
+- [ ] Passive combat skills
+  - One-handed, two-handed, shield use, and striking skills that grow with use up to a cap and affect combat stats.
+- [ ] Deeper character sheet and lasting injuries
+  - Expand the character sheet to show more flavorful and precise body-state details:
+    - Exactly which fingers/toes/limbs are missing, scars, burns, and other lasting marks.
+    - Summaries of major injuries vs cosmetic scars.
+  - Make some injuries mechanically meaningful:
+    - Missing fingers reduce effectiveness with certain weapon types (e.g., bows, heavy two-handed weapons).
+    - Leg/foot injuries affect movement speed or dodge chance.
+    - Eye injuries affect accuracy or FOV range.
+  - Integrate with healing systems:
+    - Normal rest/potions handle temporary HP/status.
+    - Permanent injuries require special treatment (see healer below).
+- [ ] Remove or gate auto-equip behavior once testing is complete
+  - Auto-equipping "best" gear on loot is currently helpful for testing and quick progression but can feel intrusive or confusing for players.
+  - Plan to remove or strictly gate auto-equip so that:
+    - Normal runs favor explicit player choice via the inventory/equipment UI instead of silent auto-upgrades.
+    - Any remaining auto-equip paths (e.g., debug flows, GOD tools, smoketests) are clearly marked as testing-only and not used in normal gameplay.
+  - Review Loot.lootHere(ctx) and PlayerEquip.equipIfBetter usage so that production paths only equip when the player explicitly chooses to.
+- [ ] Weight / encumbrance system for player and followers
+  - Introduce a simple weight or encumbrance model so the player (and followers) cannot carry every item indefinitely without tradeoffs.
+  - Assign weight values to equipment and loot (data-driven in items JSON) and track total carried weight per actor.
+  - Define clear effects of encumbrance (e.g., slower movement, reduced dodge/DEX benefits, or hard item caps) and ensure they are explained in the Character/Follower sheets.
+  - Extend inventory/loot flows so picking up items respects weight limits and forces meaningful choices about what to carry, stash, or leave behind.
+  - Ensure follower inventories and auto-loot behavior also honor weight limits, preventing followers from acting as infinite backpacks.
+- [ ] Difficulty scaling that accounts for player attributes
+  - Now that STR/DEX/INT/CHA/LCK affect combat, shops, and loot, revisit difficulty curves so enemies remain interesting and not trivial at high attribute values.
+  - Define a simple notion of "effective power" for the player that includes level, gear, and attributes, and use it to:
+    - Adjust encounter composition and enemy tiers (especially in late game or deep dungeons).
+    - Tune enemy HP/ATK multipliers so high-attribute builds still face meaningful threats.
+  - Ensure scaling remains data-driven (e.g., via combat/balance JSON) so attribute-impact tuning does not require hard-coded changes.
+  - Keep early game forgiving, but avoid situations where stacked attributes make most fights completely effortless.
+- [ ] Healer / surgeon NPC for permanent injuries
+  - Add a dedicated healer (e.g., in towns or temples) who can treat permanent injuries for gold.
+  - Healing options:
+    - Remove or mitigate permanent penalties caused by missing digits/limbs/eyes, deep scars, etc.
+    - Possibly leave cosmetic marks while removing mechanical penalties.
+  - Balancing:
+    - Cost scales with severity and number of injuries.
+    - May require rare components or reputational thresholds for the most serious fixes.
+  - UI:
+    - Clear menu explaining what each treatment does, its cost, and what remains (cosmetic vs mechanical).
+
+- [ ] Friendly followers / party system (EXPERIMENTAL, first-pass implemented)
+  - Allow the player to have friendly characters that follow them (party members/henchmen).
+  - Followers can fight alongside the player and can die permanently.
+  - Acquisition paths (not implemented yet):
+    - Hire/buy allies from inns or taverns (gold sink, limited slots, different archetypes).
+    - Rescue potential followers from special encounters or dungeons (e.g., captives who choose to join).
+  - First pass (implemented in v1.61.0 and later tweaks):
+    - Data-driven follower archetypes in JSON (`data/entities/followers.json`) loaded via `GameData.followers`.
+    - One basic “Guard Ally” follower record on the player, normalized and persisted on the save.
+    - Simple spawn/runtime layer:
+      - In dungeons/towers/encounters/region-map fights, spawns a guard-style ally enemy near the player that never targets the player but fights hostile factions.
+      - In towns/castles, spawns a follower NPC near the gate that follows the player around using town pathing rules.
+      - Follower HP/level is synced back into `player.followers` on dungeon/encounter/region exits; town hooks are wired for future extensions.
+    - Persistence and saving:
+      - Dungeon/town/region state snapshots exclude follower actors/NPCs so followers are always derived from `player.followers` on entry.
+      - When a follower dies in combat, their corresponding record is removed from `player.followers` and they will not respawn anywhere (permanent death).
+    - Visuals:
+      - Follower glyph/color are defined only in `followers.json` and rendered consistently in town, dungeon, and region views with a distinct backdrop.
+  - Next steps:
+    - Unique follower identity (DONE):
+      - Followers receive a unique name drawn from a randomized name pool per archetype (e.g., “Arne the Guard”, “Tuula the Ranger”) when they join.
+      - Names are persisted in `player.followers` so the same named follower is seen across dungeons/towns until permanent death.
+    - Follower inspect / stats panel (DONE):
+      - Bumping into a follower in dungeon/encounter mode opens a read-only follower inspect panel instead of attacking or prompting to attack.
+      - Talking/bumping a follower NPC in town opens the same follower inspect panel instead of generic chatter or shop text.
+      - Panel shows follower name, level, HP/max HP, base attack/defense, faction/role, traits/temperament, and placeholder equipment slots (for future inventory/gear work).
+    - Shared equipment management (DONE):
+      - From the follower panel, allow equipping/unequipping items for the follower using items from the player’s inventory:
+        - Equip/unequip follower left-hand/right-hand and armor slots.
+        - When the player unequips an item from the follower, that item is moved into the follower’s personal inventory.
+        - When equipping a new item on the follower from the player’s inventory, the replaced item moves into the follower’s inventory.
+    - Follower inventory (DONE):
+      - Each follower has a unique inventory separate from the player’s:
+        - Displayed in the follower panel similarly to the player’s inventory list.
+        - Items can be transferred:
+          - Player → follower: “Give” or “Equip” to send items to the follower (equipped items go into slots, others into follower inventory).
+          - Follower → player: “Take” to move items from follower inventory back into the player’s inventory.
+      - Items taken from followers behave exactly like any other item in player inventory (can be equipped, sold, etc.).
+    - Follower equipment parity, decay, curses, and preferences (DONE):
+      - Followers use the same style of Attack/Defense aggregation as the player (base stats plus all equipped gear), and follower combat stats update immediately when gear changes.
+      - Follower weapons and armor decay when they attack, are blocked, or are hit; when a piece of gear breaks, followers automatically equip the best replacement from their own inventory using simple, archetype-specific preferences.
+      - Seppo’s True Blade (cursed two-handed sword) behaves for followers like for the player: it occupies both hands, cannot be unequipped or replaced by other hand weapons until it breaks, and is tracked as a known damage-stacking bug to fix later.
+    - Follower potion use (DONE):
+      - Followers drink their own potions from their personal inventory when their HP is low, consuming one potion instead of attacking and updating their saved HP accordingly.
+    - Follower death drops (DONE):
+      - When a follower dies, all of their equipped items and inventory items – with their current decay state – are dropped as corpse loot at their death location so the player can recover their gear.
+    - Follower injuries and scars:
+      - Extend the existing player injury/scar system so followers can also acquire lasting injuries and visible scars from critical hits and severe wounds.
+      - Show follower injuries and scars in the follower inspect panel (similar to the player character sheet), and allow healer/surgeon NPCs to treat follower injuries where appropriate.
+    - Follower behavior / AI improvements:
+      - Smarter positioning in dungeons, encounters, and towns so followers avoid standing in doorways and blocking the player’s movement when possible.
+      - Better target selection that focuses on low-HP enemies, prioritizes threats near the player, and avoids overextending far ahead of the party.
+      - Simple “tactics” based on archetype:
+        - Thief followers prefer flanking attacks, attacking wounded or distracted targets, and avoiding prolonged front-line tanking.
+        - Guard followers tend to stay closer to the player, hold chokepoints, and prioritize enemies adjacent to or threatening the player.
+      - Mode extensions beyond simple follow/wait:
+        - Add high-level stances such as “Stay behind me” (more defensive/close behavior) and “Aggressive” (pursue enemies more actively).
+    - General NPC logic improvements:
+      - Expand town NPC routines with more varied idle behaviors (e.g., chatting, visiting harbor, sitting on benches), and context-aware actions (closing doors, reacting to combat nearby).
+      - Make dungeon and encounter AI more aware of terrain (chokepoints, cover, hazards) so they can choose smarter engagement positions.
+      - Ensure overall AI logic remains data-driven where possible (roles, schedules, behavior flags in JSON) while keeping core movement and attack rules centralized.
+    - Follower command UI:
+      - Add a basic party command panel accessible via a hotkey or HUD button:
+        - Global commands such as “All follow” and “All wait”.
+        - Per-follower quick toggles (follow/wait/stance) surfaced more directly than opening individual follower panels.
+      - Later enhancements:
+        - Simple formations (e.g., “line”, “column”, “spread”) that affect how followers position relative to the player.
+        - A “focus my target” command that makes all followers prioritize the enemy currently targeted/attacked by the player.
+    - Follower–healer integration (injury treatment):
+      - Use the existing follower injuries/scars so that healer/surgeon NPCs in towns or temples can treat follower injuries for gold.
+      - Balancing details:
+        - Healable injuries are cheaper to treat; permanent scars may be more expensive or only partially treatable (e.g., remove penalties but keep cosmetic marks).
+      - UI integration:
+        - Extend healer/surgeon dialogs to show a list of followers and their current injuries/scars.
+        - Allow the player to select which follower and which injury to treat, with clear cost and outcome descriptions.
+    - Party size & balance:
+      - Introduce a configurable party size limit (e.g., 1–3 followers).
+      - Ensure follower gear and potion usage are balanced so followers support the player without trivializing combat.
+
+- [ ] Experimental equipment buff system (Seen Life and future buffs)
+  - Generalize the current Seen Life permanent buff into a small, extensible item buff engine:
+    - Keep all buff logic in `entities/item_buffs.js` and avoid scattering buff-specific code across combat/AI modules.
+    - Use a central registry of buff definitions (id, slots allowed, stat effects, trigger conditions, and UI description) instead of hardcoding every buff.
+  - Trigger model:
+    - Continue to use usage-based triggers (hits dealt/taken) for Seen Life, but add well-defined event entry points:
+      - `onWeaponHit(ctx, weapon, info)` for player weapon hits.
+      - `onArmorHit(ctx, armor, info)` for hits taken by equipped armor/shields.
+    - Route all future buff logic through these events so adding a new buff is a matter of hooking into `item_buffs.js`, not editing combat/AI in many places.
+  - Item state:
+    - Keep baked-in stats (atk/def) so existing combat code remains simple.
+    - Normalize item buff metadata into a small `item.buffs` array:
+      - Example: `[{ id: \"seen_life\", data: { atkBonus, defBonus } }, ...]`.
+      - Avoid storing many ad-hoc top-level fields per buff; use a `buffState` or `data` object when additional per-buff counters are needed.
+    - Ensure buffs and their state are serialized with items so buffs persist across saves and mode transitions.
+  - UI and feedback:
+    - Extend `describeItemBuffs(item)` to handle multiple buff types and stackable buffs, generating clear text for hover tooltips and other inspect UIs.
+    - Continue to mark buffed items subtly in the inventory/equipment list (e.g., gold marker) without cluttering the main labels.
+    - Add log helpers to standardize buff-related logs (e.g., using a consistent “buff” category and gold styling) when new buffs trigger.
+  - Future buffs to explore once the engine is stable:
+    - “Blooded”: weapon becomes more dangerous after killing many living enemies (extra damage vs living targets, no effect on undead/constructs).
+    - “Unbreaking”: armor or shields decay more slowly or have a one-time “repair” when breaking.
+    - “Swift”: small dodge or speed bonus when wearing light armor or using certain weapon types.
+    - “Blessed”: minor resistance to specific status effects (bleed, burn, daze) or small passive regeneration under certain conditions (e.g., at dawn).
+    - “Hungry” / “Cursed” affixes for items that have tradeoffs (more power but extra decay, or power but occasional backfire).
+  - Balancing and safety:
+    - Keep early buffs rare and modest to avoid trivializing combat; use per-item thresholds and small probabilities like Seen Life.
+    - Provide GOD/debug commands to force-apply or inspect buffs on items for testing.
+    - Add smoke tests or small targeted tests around item generation, buff application, and save/load to ensure buffs behave deterministically and don’t corrupt equipment state.
+
+- [ ] Centralized equipment repair system (future-proof, multiple repair methods)
+  - Add a small `RepairService` that becomes the single place to calculate how much decay can be removed from an item given some resources:
+    - Inputs: `item` (equip with decay 0–100), `source` (e.g., \"blacksmith\", \"kit\", \"spell\"), and an `offer` object (gold offered, kit power, etc.), plus optional `ctx`/player for skills/buffs.
+    - Output: a `repairResult` describing:
+      - `repairPercent` (how many decay percentage points can be removed),
+      - `newDecay` (what decay would be after repair),
+      - `goldCost` and/or `materialsUsed`,
+      - whether we hit full repair before using the full offer (`capped`).
+  - Blacksmith repair as the first source:
+    - Source: `\"blacksmith\"`.
+    - Offer: `goldOffered`.
+    - Cost rule (tunable, stored in config later):
+      - Cost per 1% fixed scales by tier (e.g., tier1=1g, tier2=2g, tier3=4g per 1% decay repaired, adjusted over time).
+      - Compute:
+        - `maxRepairable = item.decay`,
+        - `affordablePercent = floor(goldOffered / costPerPercent)`,
+        - `repairPercent = min(maxRepairable, affordablePercent)`,
+        - `goldCost = repairPercent * costPerPercent`,
+        - `newDecay = item.decay - repairPercent`.
+      - Never overcharge: if the player offers more gold than needed, only charge up to `goldCost` for a full repair and cap at `newDecay = 0`.
+    - Blacksmith UI integration:
+      - Restrict repairs to blacksmith shop pages only: bumping the blacksmith opens their shop, with a **Trade** vs **Repair** toggle.
+      - In **Repair** mode:
+        - Show all eligible equipment items (equipped and optionally inventory) with `0 < decay < 100`.
+        - For each item, display its name (with buff marker if it has Seen Life), current decay, and an input for \"gold to spend\".
+        - Use `RepairService` to preview how much decay that gold can fix and what the new decay would be.
+        - Confirming the repair deducts `goldCost`, sets `item.decay = newDecay`, and shows a player-facing log (e.g., \"Your [item] is repaired to near-new condition.\").
+  - Future repair methods that can plug into the same service:
+    - Repair kits:
+      - `source = \"kit\"`, `offer = { kitPower }` (e.g., fixed 20% or 40% decay reduction).
+      - Engine: `repairPercent = min(item.decay, kitPower)`, `goldCost = 0`, `materialsUsed = [kitItemId]`.
+    - Magic/ritual repairs:
+      - `source = \"spell\"` or `\"ritual\"`, `offer = { spellPower, components }`.
+      - Perform repairs without gold but maybe consume rare materials or reagents.
+    - Buff interactions:
+      - Buffs like \"Unbreaking\" can:
+        - Lower `costPerPercent` for blacksmith repairs, or
+        - Reduce future decay rate handled elsewhere in decay code.
+      - Cursed items might:
+        - Be unrepairable, or
+        - Cost extra to repair, enforced via `RepairService` after checking `item.buffs`.
+  - Data-driven configuration (later):
+    - Move cost and behavior into a small config file (e.g., `data/config/repair.json`):
+      - `baseCostPerPercentByTier`, type modifiers (weapon/armor/shield), and minimum cost per repair.
+      - Kit definitions (small/medium/large repairs), and any special casing for spells/NPC events.
+    - `RepairService` reads these values so balancing repair becomes mostly data work.
+  - Safety and persistence:
+    - Repair functions must only modify `item.decay` and resource counts (gold/materials); do not touch buffs or other stats.
+    - Ensure `decay` is always clamped to [0,100] after repair.
+    - Because decay is already part of the save format, repairs automatically persist with no new fields required.
+
+- [ ] GOD Arena mode for combat/AI testing
+  - Add a GOD panel entry that teleports the player to a special “arena” test map:
+    - A fairly large, open map (big enough to host any prefab layout from towers/towns and generic dungeon rooms).
+    - Simple, mostly empty base (flat floor) with optional walls/props the user can place or stamp via prefabs.
+    - Uses a dedicated HUD layout with tools for spawning enemies/props/creatures/NPCs and tweaking parameters.
+  - Enemy/creature/NPC spawning:
+    - List all enemy, creature, and town NPC archetypes used in the game (from data/entities/enemies.json, wildlife/creature registries, and town NPC definitions) in a scrollable/filtered list.
+    - Allow spawning one or many instances of the selected type at/around a cursor or the player.
+    - Allow batch spawns (“spawn 10 of this type at random positions”).
+  - Prefab spawning:
+    - Allow stamping any prefab used in towers or towns (JSON room/layouts) into the arena at a chosen anchor:
+      - Tower room prefabs (barracks, storage, prison cells, boss arenas, etc.).
+      - Town building/interior prefabs, plaza/town props groups, and other reusable layouts.
+    - Ensure arena bounds are large enough to accommodate full prefab footprints without clipping.
+  - Tweaks and controls:
+    - Sliders/inputs for:
+      - Enemy level, HP multiplier, damage multiplier, and optional randomization ranges.
+      - Global enemy aggression (e.g., shorter/longer detection ranges).
+    - Toggles:
+      - Player invincible on/off.
+      - Enemies see player on/off (stealth/visibility toggle).
+      - Freeze/unfreeze enemy AI (debug single-step behavior).
+  - Props and walls:
+    - Allow placing/removing walls and basic props (crates, barrels, campfires, doors) to simulate different tactical situations.
+    - Optionally place simple line-of-sight obstacles to test FOV/cover behavior.
+  - Behavior requirements:
+    - Enemies in arena mode should behave exactly as in real game contexts (same AI, FOV, pathing, abilities).
+    - Arena should not alter core AI logic; it only provides a sandbox and parameter overrides.
+  - Safety / exit:
+    - Provide a clear “Return from Arena” button that restores the player to their previous mode/position.
+    - Ensure arena mode does not affect normal save data (or is clearly tagged as non-persistent) except for intentional tests.
+
+## Technical / Cleanup
+
+- [x] CRITICAL: Enemy depth vs dungeon level
+  - Current enemy HP/ATK/XP curves in `data/entities/enemies.json` are keyed by a conceptual “depth”. The engine historically used `floor`/`depth` for multi-floor dungeons.
+  - The game has since moved to a single-floor dungeon model per run, but some code paths (including sandbox helpers and spawn-by-id flows) still conceptually talk about “depth” when sampling curves.
+  - Update enemy stat resolution to be driven by a clearer “dungeon level” or difficulty band rather than a notional multi-floor depth:
+    - Clarify what “level” means for dungeons/towers in the current design (e.g., world progression, tower tier, or encounter difficulty) and use that consistently when sampling enemy curves.
+    - Avoid implying that there are multiple physical dungeon floors when there is only one active floor per run.
+    - Keep curves and their sampling behavior fully data-driven and centralized so future multi-floor dungeons (if reintroduced) can still plug in cleanly.
+  - Sandbox “Test depth” should be revisited once dungeon level semantics are clarified, to match the real progression axis used by the game.
+
+- [ ] Startup diagnostics & loading visualization
+  - Keep startup fast by treating “game becomes playable quickly” as the primary goal and running heavy validations only on demand:
+    - Boot-time HealthCheck should remain a lightweight presence/shape pass over modules and data, deferring full schema validation to GOD/dev tools.
+    - Any future startup HUD must not block world generation or main loop start while waiting on deep validators.
+  - Add an optional, dev-focused startup overlay or GOD panel section that shows which subsystems have finished initializing:
+    - JSON registries via `GameData.ready` (items, enemies, npcs, consumables, encounters, shop pools, tiles/props, etc.).
+    - Core engine modules (WorldRuntime, DungeonRuntime, RNG service, GameLoop, Render, UIOrchestration, ShopService, etc.).
+    - HealthCheck status (module/data health summary).
+  - Design goals:
+    - Visible but unobtrusive: a compact panel in GOD or a dev-only overlay that appears during boot and can be disabled in normal play.
+    - Data-driven: use a simple event or hook API so modules and data loaders can report “started/finished/failed” without hard-coding each step in the UI.
+    - Useful for debugging: make it easy to see when a domain is slow or failing (e.g., missing encounters.json or shop_pools.json) without opening the browser console.
+  - Implementation sketch:
+    - Keep a small `BootMonitor`/`StartupStatus` module that:
+      - Tracks named steps like `GameData.items`, `GameData.encounters`, `WorldRuntime.generate`, `HealthCheck.run`.
+      - Exposes a minimal API (`markStarted(name)`, `markDone(name)`, `markFailed(name, error)`) and a `getSnapshot()` for UI.
+    - Wire `BootMonitor` into:
+      - `data/loader.js` around key `fetchJson` calls (especially consumables, encounters, shop pools).
+      - `core/engine/game_orchestrator.js` during world/town/dungeon initialization.
+      - `core/engine/health_check.js` when running module/data health checks.
+    - Add a small UI surface (likely in GOD) that:
+      - Shows an overall progress indicator (percentage of tracked steps complete) and a list of step names with status (OK / pending / failed).
+      - Allows forcing a re-run of HealthCheck and/or data validation from the GOD panel to refresh the view.
+
+- [ ] Subpath deployment / base URL clarity
+  - [ ] Convert absolute imports in `src/main.js` to be subpath-safe (relative paths or `import.meta.env.BASE_URL`), **or** explicitly document that the app must be served at site root (`/`).
+
+- [ ] Deployment checklist (quick sanity checks after deploy)
+  - Deploy the correct directory (repo root native ESM vs `dist/` when bundling)
+  - Verify these URLs load and work:
+    - `/`
+    - `/docs/`
+    - `/tools/prefab_editor.html`
+
+- [ ] Mountain-pass dungeons: design and implement a complete rework of A/B linked mountain-pass dungeon behavior (portal logic, overworld exit targets, and persistence); current implementation is experimental and unreliable.
+- [ ] GOD panel: add a toggle to visualize enemy FOV/vision cones
+  - GOD toggle that overlays the current FOV/vision radius of selected enemies (or all enemies) on the map:
+    - Show which tiles each enemy can currently see, based on the same LOS/FOV rules used in real gameplay.
+    - Optionally highlight the player when they are inside or outside an enemy’s detection range.
+  - Useful for debugging “enemies see through walls”, stealth behavior, and AI targeting without changing core logic.
+- [ ] Large-file hotspots: plan to split safely (keep entrypoints stable)
+  - Goal: keep most modules in the ~200–500 line range; allow a few thin “facade” files that mostly re-export.
+  - How to re-measure size snapshot (update section below):
+    - From repo root: `npm run analyze:phase1` (or `npm --workspace tiny-roguelike run analyze:phase1`)
+    - Or from the `tiny-roguelike` workspace folder: `node scripts/analyze.js`
+    - Update the “Snapshot date” + “Top offenders” list under “Size snapshot”.
+  - Refactor guardrails (to avoid regressions):
+    - Keep current import sites stable: big file becomes a facade that delegates to new modules.
+    - Extract **pure helpers** first (no DOM, no ctx mutation) → easiest to move.
+    - Avoid circular imports: do not import the facade from its children.
+    - After each PR: run `npm run ci` (includes `lint:strict`, `check:docs-catalog`, and `build`) + `npm run analyze:imports` + smoketest subset (see below).
+
+  - Priority order (lowest risk → highest risk):
+    - (1) `worldgen/` + `ai/` extractions
+    - (2) `core/dungeon/runtime.js`
+    - (3) `core/modes/modes.js`
+    - (4) `core/game.js` (highest fan-in; do last)
+
+  - Target breakdowns (PR-sized steps)
+
+    - [ ] `worldgen/town_gen.js` (1011 lines): make it mostly a pipeline orchestrator
+      - Extract: `worldgen/town_gen_pipeline.js`, `worldgen/town_gen_validate.js`, `worldgen/town_gen_rng.js`
+      - Smoketests after each step: `town,town_flows,determinism`
+
+    - [ ] `ai/town_runtime.js` (1227) + `ai/town_ai_legacy.js` (1466): separate runtime vs policy
+      - Extract: `ai/town_policy.js` (pure scoring), `ai/town_planner.js`, `ai/town_executor.js`, `ai/town_runtime_tick.js`
+      - Add adapter: `ai/town_legacy_adapter.js` so call sites stop importing legacy directly
+      - Smoketests: `town,town_flows,town_diagnostics,determinism`
+
+    - [ ] `core/dungeon/runtime.js` (1310): split entry/exit vs tick vs selectors
+      - Extract: `core/dungeon/runtime_entry.js`, `core/dungeon/runtime_tick.js`, `core/dungeon/runtime_selectors.js`
+      - Keep `core/dungeon/runtime.js` as facade.
+      - Smoketests: `dungeon,dungeon_persistence,combat,determinism`
+
+    - [ ] `core/modes/modes.js` (1414): split per-mode + shared guards
+      - Extract: `core/modes/mode_ids.js`, `core/modes/mode_guards.js`, `core/modes/mode_router.js`
+      - Keep `modes.js` as facade (exports unchanged); `core/modes/transitions.js` should remain the stable wrapper.
+      - Smoketests: `world,region,dungeon,town,encounters,determinism`
+
+    - [ ] `core/game.js` (1079): split orchestration vs UI glue vs lifecycle
+      - Extract: `core/game/game_utils.js` (pure), `core/game/game_render_bridge.js` (UI-only boundary), `core/game/game_session.js` (new game/reset), `core/game/game_tick.js` (turn driver)
+      - Keep `core/game.js` as facade.
+      - Smoketests: `world,inventory,overlays,dungeon,combat,town,determinism`
+
+    - [x] `core/bridge/gm_bridge.js` (17): split into narrow bridge + effects
+      - Implemented as `core/bridge/gm_bridge/*` (markers, world_step, bottle_map, survey_cache) with `core/bridge/gm_bridge.js` as facade.
+      - Smoketests: `gm_seed_reset,gm_bridge_markers,gm_bridge_faction_travel,gm_bottle_map,gm_survey_cache`
+map,gm_survey_cache`
+
+    - [ ] `core/followers_runtime.js` (981): split commands vs tick vs inventory
+      - Extract: `core/followers/runtime_commands.js`, `core/followers/runtime_tick.js`, `core/followers/runtime_inventory.js`
+      - Smoketests: `world,dungeon,combat,inventory,determinism`
+
+    - [ ] `ui/ui.js` (1133): split UI controller vs panels (keep `ui/ui.js` as facade)
+      - Extract: `ui/ui_state.js` (UI state + helpers), `ui/ui_modals.js` (modal open/close + ESC priority), and `ui/ui_actions.js` (high-level UI actions invoked by core)
+      - Move feature-specific logic into `ui/components/*` where possible (inventory/loot/god/gm/follower/etc.) so `ui/ui.js` mostly wires pieces together.
+      - Smoketests: `ui_layout,inventory,overlays,town,dungeon,combat`
+
+    - [ ] `core/game_api.js` (984): split API surface by domain (keep entrypoint stable)
+      - Extract: `core/game_api/world_api.js`, `core/game_api/dungeon_api.js`, `core/game_api/town_api.js`, `core/game_api/encounter_api.js`, `core/game_api/debug_api.js`
+      - `core/game_api.js` becomes a thin facade that composes and re-exports a stable `window.GameAPI` shape.
+      - Smoketests: `api,world,region,dungeon,town,encounters,determinism`
+
+    - [ ] `core/god/handlers.js` (955): split GOD actions into focused handler modules
+      - Extract: `core/god/handlers_spawn.js`, `core/god/handlers_teleport.js`, `core/god/handlers_overlays.js`, `core/god/handlers_debug.js`
+      - Keep `core/god/handlers.js` as a registry that wires buttons → handler functions.
+      - Smoketests: `overlays,inventory,dungeon,combat,town,determinism`
+
+    - [ ] `data/world/world_assets.json` (672): split large JSON for maintainability (data-only)
+      - Option A: split into multiple source JSON files (e.g. `data/world/world_assets_overworld.json`, `data/world/world_assets_town.json`) and load/merge them in `data/loader.js`.
+      - Option B: keep the existing file as the runtime artifact but generate it from smaller sources (script + CI check).
+
+  - Already partially split (still large; continue if needed)
+    - [ ] `region_map/region_map_runtime.js` (944): already has helper modules, but runtime is still big; continue splitting drawing/input vs state/persistence if it keeps growing.
+    - [ ] `core/gm/runtime.js` (1009): code exists under `core/gm/runtime/*`, but facade remains large; continue moving logic out (keep facade mostly as composition/exports).
+
+  - Size snapshot (by line count; update when refactoring)
+    - (Snapshot date: 2026-03-16; measured via file line totals (repo-wide); re-measure locally with `npm run analyze:phase1`)
+    - Top offenders (repo-wide):
+      - 1466 — `ai/town_ai_legacy.js`
+      - 1414 — `core/modes/modes.js`
+      - 1310 — `core/dungeon/runtime.js`
+      - 1227 — `ai/town_runtime.js`
+      - 1133 — `ui/ui.js`
+      - 1079 — `core/game.js`
+      - 1070 — `ai/ai.js`
+      - 1011 — `worldgen/town_gen.js`
+      - 1009 — `core/gm/runtime.js`
+      - 984  — `core/game_api.js`
+      - 981  — `core/followers_runtime.js`
+      - 970  — `worldgen/town/layout_core.js`
+      - 955  — `core/god/handlers.js`
+      - 944  — `region_map/region_map_runtime.js`
+      - 892  — `data/god.js`
+      - 868  — `src/tools/prefab_editor.js`
+      - 742  — `core/encounter/enter.js`
+      - 691  — `core/dungeon/tower_prefabs.js`
+      - 672  — `data/world/world_assets.json`
+      - 669  — `core/bridge/ui_bridge_legacy.js`
+      - 664  — `ai/town_population.js`
+      - 607  — `dungeon/dungeon.js`
+      - 601  — `entities/loot.js`
+      - 593  — `entities/player.js`
+      - 568  — `core/validation_runner.js`
+      - 549  — `core/encounter_interactions.js`
+      - 548  — `world/world.js`
+      - 548  — `core/town/runtime.js`
+
+- [ ] Make special item effects (curses, unique decay rules, special on-hit or on-break behavior) data-driven instead of hardcoded:
+  - Move Seppo’s True Blade curse behavior into JSON-based item metadata so any item can be marked as cursed or given special rules without bespoke code.
+  - Extend item definitions to support generic flags/hooks (e.g., `cursed`, `twoHandLockHands`, `onBreakEffect`, `onEquipEffect`) and have combat/equip systems honor them.
+  - Clean up duplicated Seppo-specific logic in player and follower code to route through the shared data-driven system.
+- [ ] Smoketest runner (robustness + future-proofing):
+  - [x] Remove reliance on “adjacent” POI entry; ensure strict on-tile town/dungeon/tower entry works in tests.
+    - GameAPI helpers (`gotoNearestTown`, `gotoNearestDungeon`, `enterTownIfOnTile`, `enterDungeonIfOnEntrance`) now force-land on the POI tile when needed.
+  - [x] Region Map smoke test: exit via `ctx.region.exitTiles` (orange exits), not just any edge tile.
+  - [x] Encounter smoke test: prefer `GameAPI.completeEncounter("withdraw")` for deterministic exits.
+  - [x] Inventory smoke test: avoid index-shift flakiness by re-finding items after equip/unequip.
+  - [ ] Add explicit smoke coverage for:
+    - [ ] Harbor towns: validate harbor detection (`harborDir`), port layout generation, and enter/exit stability.
+    - [ ] Towers: validate world → tower entry, internal stairs up/down, tower exit, then normal dungeon entry/exit (transition hygiene).
+    - [ ] GM marker interaction: Surveyor’s Cache (`?`) + Bottle Map (`X`) marker flows (only if the smoketest runner can interact with markers / press `G` reliably)
+      - Validate survey cache prompt opens and the cache state is persisted/cleared as expected
+      - Validate Bottle Map marker encounter entry happens at the marker tile (no position/mode desync) and cleanup removes the marker
+  - [ ] Future-proof runner against mode/transition semantics changes:
+    - Prefer GameAPI programmatic transitions (`enter*/returnToWorld*/completeEncounter`) before keypress fallbacks.
+    - Avoid assumptions about walkability of POI tiles; allow ensureWalkable=false when landing on POIs.
+    - Add a small “mode settle” wait helper after transitions (world/town/dungeon/region/encounter) to reduce timing flakes.
+  - [ ] Needs more testing to confirm it’s in good shape:
+    - Run ≥ 10 smoketest iterations in CI-like conditions and track failure rate per scenario.
+    - Add a short report summary (per-scenario pass %, top failure reasons) in the smoketest output.
+  - [ ] Add/extend teleport helpers for tests when needed:
+    - Teleport to nearest tower / town / dungeon / ruins / castle (and other POIs as they’re added).
+    - Ensure teleport helpers support infinite worlds (absolute coords → local window coords via originX/Y).
+- [ ] Dungeon NPC spawn hygiene:
+  - Ensure town-only NPC archetypes (e.g., Seppo and caravan blacksmiths) cannot spawn as “wild” NPCs in dungeon contexts unless explicitly intended, and that any such NPCs have correct movement and interaction handlers when they do appear.
+- [ ] Overworld road cleanup:
+  - Review overworld road/path generation and pruning so that roads only remain when they connect meaningful POIs (towns, castles, dungeons, ruins) and stray/isolated road segments in wilderness are removed as part of a final cleanup pass.
+- [ ] Region Map / overworld integration:
+  - Shallow water tiles (SHALLOW) should not be treated as valid entrances into Region Map views; only proper land or intended coast tiles should generate Region Map entry points.
+- [x] Bridges vs shallows cleanup:
+  - Explicit overworld bridge overlays have been removed; crossings now rely purely on SHALLOW fords generated by InfiniteGen and world helpers.
+  - WORLD_BRIDGES feature/config is disabled by default so no additional runtime bridge overlays are created.
+  - `ctx.world.bridges` is no longer used by the main game; SHALLOW tiles are the single, consistent source of walkable river crossings.
+

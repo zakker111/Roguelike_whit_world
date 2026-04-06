@@ -1,0 +1,7 @@
+{
+  "tiers": {
+    "weapon": { "t1Depth": 0, "t2Depth": 3, "t3Depth": 6 },
+    "armor":  { "t1Depth": 0, "t2Depth": 3, "t3Depth": 6 },
+    "potion": { "t1Depth": 0, "t2Depth": 2, "t3Depth": 5 }
+  }
+}

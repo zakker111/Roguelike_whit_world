@@ -1,0 +1,623 @@
+/**
+ * Actions: context-sensitive actions (interact/loot/descend) orchestrated via ctx.
+ *
+ * API:
+ *   Actions.doAction(ctx) -> handled:boolean
+ *   Actions.loot(ctx) -> handled:boolean
+ *   Actions.descend(ctx) -> handled:boolean
+ *
+ * Notes:
+ * - Uses only ctx and other modules (UI, Loot, DungeonState, Town, World).
+ * - Mutates ctx where appropriate (mode transitions, logging, UI).
+ *
+ * doAction(ctx) overview:
+ * - world: attempts to enter town/dungeon/ruins on the current tile if applicable.
+ * - town: interacts with props (including inn upstairs overlay), talks to NPCs, and shows shop schedules.
+ * - dungeon: guidance and loot underfoot; exiting requires standing on '>' and pressing G.
+ * - encounter: exit via STAIRS or loot underfoot, consistent with dungeon behavior.
+ */
+
+import { getMod } from "../../utils/access.js";
+import { exitToWorld } from "./exit.js";
+import * as GMBridge from "../bridge/gm_bridge.js";
+
+// Helpers
+function inBounds(ctx, x, y) {
+  // Prefer centralized Bounds utility if available
+  try {
+    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.inBounds === "function") {
+      return window.Bounds.inBounds(ctx, x, y);
+    }
+    if (ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
+    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
+  } catch (_) {}
+  const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
+  return x >= 0 && y >= 0 && x < cols && y < rows;
+}
+
+function shopAt(ctx, x, y) {
+  try {
+    if (ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
+      return ctx.ShopService.shopAt(ctx, x, y);
+    }
+  } catch (_) {}
+  const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+  return shops.find(s => s.x === x && s.y === y) || null;
+}
+
+function hasDecalAt(ctx, x, y) {
+  const list = Array.isArray(ctx.decals) ? ctx.decals : [];
+  return list.some(d => d && d.x === x && d.y === y && typeof d.a === "number" && d.a > 0.02);
+}
+
+function propAt(ctx, x, y) {
+  const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+  return props.find(p => p && p.x === x && p.y === y) || null;
+}
+
+function overlayPropAt(ctx, x, y) {
+  try {
+    if (ctx.innUpstairsActive && ctx.innUpstairs && Array.isArray(ctx.innUpstairs.props)) {
+      return ctx.innUpstairs.props.find(p => p && p.x === x && p.y === y) || null;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function describeProp(ctx, p) {
+  if (!p) return false;
+  // Prefer data-driven interactions via PropsService + props.json
+  try {
+    const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+    if (PS && typeof PS.interact === "function") {
+      return !!PS.interact(ctx, p);
+    }
+  } catch (_) {}
+  // Fallback: generic message
+  const name = p.name || p.type || "prop";
+  try { ctx.log && ctx.log(`You stand on ${name}.`, "info"); } catch (_) {}
+  return true;
+}
+
+// Shop schedule helpers (centralized via ShopService)
+function isOpenAtShop(ctx, shop, minutes) {
+  if (ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") return ctx.ShopService.isOpenAt(shop, minutes);
+  // Minimal fallback: unknown schedule => treat as closed unless explicitly alwaysOpen
+  if (!shop) return false;
+  return !!shop.alwaysOpen;
+}
+function isShopOpenNow(ctx, shop) {
+  if (ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") return ctx.ShopService.isShopOpenNow(ctx, shop);
+  const t = ctx.time;
+  const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
+  if (!shop) return false;
+  return isOpenAtShop(ctx, shop, minutes);
+}
+function shopScheduleStr(ctx, shop) {
+  if (ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") return ctx.ShopService.shopScheduleStr(shop);
+  return "";
+}
+
+// Inn rest helpers
+function restAtInn(ctx) {
+  // Advance to 06:00 and fully heal
+  try {
+    const TSM = ctx.TimeService;
+    if (TSM && typeof TSM.create === "function") {
+      const TS = TSM.create({ dayMinutes: 24 * 60, cycleTurns: 360 });
+      const clock = ctx.time;
+      const curMin = clock ? (clock.hours * 60 + clock.minutes) : 0;
+      const goalMin = 6 * 60;
+      let delta = goalMin - curMin; if (delta <= 0) delta += 24 * 60;
+      if (typeof ctx.advanceTimeMinutes === "function") {
+        ctx.advanceTimeMinutes(delta);
+      }
+    }
+  } catch (_) {}
+  ctx.player.hp = ctx.player.maxHp;
+  ctx.log(`You spend the night at the inn. You wake up fully rested at ${(ctx.time && ctx.time.hhmm) || "06:00"}.`, "good");
+  if (typeof ctx.updateUI === "function") ctx.updateUI();
+  // Pure HUD/time update; canvas unchanged — orchestrator will coalesce draw if needed
+}
+
+// Public API
+function isInnStairsTile(ctx, x, y) {
+  try {
+    const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
+    if (arr.some(s => s && s.x === x && s.y === y)) return true;
+  } catch (_) {}
+  // Fallback: treat any STAIRS tile inside the inn building as the portal
+  try {
+    const b = ctx && ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    if (b) {
+      const inside = (x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1);
+      if (inside && ctx.map && ctx.map[y] && ctx.map[y][x] === ctx.TILES.STAIRS) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function doAction(ctx) {
+  if (!ctx) return false;
+
+  // Loot UI gating: if the loot panel is open, close it and do nothing else.
+  // This should not consume a turn or trigger any other context action.
+  try {
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.isLootOpen === "function" && typeof UIO.hideLoot === "function") {
+      const open = !!UIO.isLootOpen(ctx);
+      if (open) {
+        UIO.hideLoot(ctx);
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // Town gate exit priority: when standing at the gate (as detected by the
+  // centralized Exit helpers), exiting to the overworld takes precedence over
+  // any other town action (shops, props, NPCs) so the player can always leave
+  // via G. This relies on Exit.isAtTownGate/exitTownToWorld, so it does not
+  // depend on ctx.townExitAt being present on older saves.
+  try {
+    if (ctx.mode === "town") {
+      const exited = exitToWorld(ctx, { reason: "gate" });
+      if (exited) return true;
+    }
+  } catch (_) {}
+
+  if (ctx.mode === "world") {
+    // Delegate world entry actions to Modes to avoid duplication
+    try {
+      if (ctx.Modes && typeof ctx.Modes.enterTownIfOnTile === "function") {
+        const okTown = !!ctx.Modes.enterTownIfOnTile(ctx);
+        if (okTown) return true;
+      }
+    } catch (_) {}
+    try {
+      if (ctx.Modes && typeof ctx.Modes.enterDungeonIfOnEntrance === "function") {
+        const okDun = !!ctx.Modes.enterDungeonIfOnEntrance(ctx);
+        if (okDun) return true;
+      }
+    } catch (_) {}
+    try {
+      if (ctx.Modes && typeof ctx.Modes.enterRuinsIfOnTile === "function") {
+        const okRuins = !!ctx.Modes.enterRuinsIfOnTile(ctx);
+        if (okRuins) return true;
+      }
+    } catch (_) {}
+
+    // Quest marker start: pressing G on an 'E' tile starts the quest encounter
+    try {
+      const QS = getMod(ctx, "QuestService");
+      if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
+        const started = !!QS.triggerAtMarkerIfHere(ctx);
+        if (started) return true;
+      }
+    } catch (_) {}
+
+    // GM marker action hook (gm.* markers)
+    try {
+      const handled = !!GMBridge.handleMarkerAction(ctx);
+      if (handled) return true;
+    } catch (_) {}
+
+    // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
+    try {
+      const RM = getMod(ctx, "RegionMapRuntime");
+      if (RM && typeof RM.open === "function") {
+        const ok = !!RM.open(ctx);
+        if (!ok && ctx.log) ctx.log("Region Map cannot be opened here.", "warn");
+      } else if (ctx.log) {
+        ctx.log("Region map module not available.", "warn");
+      }
+    } catch (_) {
+      try { ctx.log && ctx.log("Region map module not available.", "warn"); } catch (_) {}
+    }
+    // World action has been fully handled (entered mode, quest, or region map/log)
+    return true;
+  }
+
+  if (ctx.mode === "town") {
+    // Inn upstairs overlay: toggle when standing on inn stairs portal tiles (handle before generic prop/shop interactions)
+    try {
+      if (isInnStairsTile(ctx, ctx.player.x, ctx.player.y)) {
+        const now = !!ctx.innUpstairsActive;
+        ctx.innUpstairsActive = !now;
+        if (ctx.innUpstairsActive) {
+          ctx.log && ctx.log("You ascend to the inn's upstairs.", "info");
+        } else {
+          ctx.log && ctx.log("You return to the inn's hall.", "info");
+        }
+        // Unified refresh via StateSync (mandatory)
+        try {
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
+        return true;
+      }
+    } catch (_) {}
+
+    // When upstairs overlay is active, prefer interaction with upstairs props
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          // Use PropsService if available; fallback to generic description
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          // Unified refresh via StateSync (mandatory)
+          try {
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // Prefer Town interactions (props, talk)
+    if (ctx.Town && typeof ctx.Town.interactProps === "function") {
+      const handled = ctx.Town.interactProps(ctx);
+      if (handled) return true;
+    }
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        // Defer to loot which handles shop messaging
+        return loot(ctx);
+      }
+    }
+    // Nothing else: allow fallback (town-specific loot/"nothing to do here" via global fallback)
+    return false;
+  }
+
+  if (ctx.mode === "region") {
+    // First, try unified exit (pressing G on an edge exit tile)
+    try {
+      const exited = exitToWorld(ctx, { reason: "regionEdge" });
+      if (exited) return true;
+    } catch (_) {}
+
+    // Otherwise, delegate region-specific actions (loot/harvest/etc.)
+    try {
+      const RM = getMod(ctx, "RegionMapRuntime");
+      if (RM && typeof RM.onAction === "function") {
+        const handled = !!RM.onAction(ctx);
+        return handled;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  if (ctx.mode === "encounter") {
+    // Loot/flavor when standing on any corpse/chest (even if already looted)
+    try {
+      const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+      const corpseHere = list.find(c => c && c.x === ctx.player.x && c.y === ctx.player.y);
+      if (corpseHere) {
+        const DR = getMod(ctx, "DungeonRuntime");
+        if (DR && typeof DR.lootHere === "function") {
+          DR.lootHere(ctx);
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // Attempt unified exit when standing on stairs (>) in encounter maps
+    try {
+      const exited = exitToWorld(ctx, { reason: "encounterWithdraw" });
+      if (exited) return true;
+    } catch (_) {}
+
+    // Attempt underfoot loot via DungeonRuntime.lootHere when standing on a corpse/chest
+    try {
+      const DR = getMod(ctx, "DungeonRuntime");
+      if (DR && typeof DR.lootHere === "function" && Array.isArray(ctx.corpses)) {
+        const here = ctx.corpses.find(c => c && c.x === ctx.player.x && c.y === ctx.player.y);
+        if (here) {
+          const handled = !!DR.lootHere(ctx);
+          if (handled) return true;
+        }
+      }
+    } catch (_) {}
+
+    // Delegate prop interactions to EncounterInteractions
+    try {
+      let EI = getMod(ctx, "EncounterInteractions");
+      if (!EI || typeof EI.interactHere !== "function") {
+        EI = (typeof window !== "undefined" ? window.EncounterInteractions : null);
+      }
+      if (EI && typeof EI.interactHere === "function") {
+        const handled = !!EI.interactHere(ctx);
+        if (handled) return true;
+      }
+    } catch (_) {}
+
+    // Otherwise, nothing to do here
+    try {
+      const MZ = getMod(ctx, "Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(ctx, "encounter.exitHint");
+      } else if (ctx.log) {
+        ctx.log("Return to the exit (>) to leave this encounter.", "info");
+      }
+    } catch (_) {
+      try { ctx.log && ctx.log("Return to the exit (>) to leave this encounter.", "info"); } catch (_) {}
+    }
+    return true;
+  }
+
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
+    // Defensive: stale towerRun can leak across dungeon entries and cause stairs
+    // handling to be misrouted into tower logic (breaking exit/loot interactions).
+    try {
+      if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+        const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
+        const kind = (dinfo && typeof dinfo.kind === "string") ? String(dinfo.kind).toLowerCase() : "";
+        if (kind !== "tower") {
+          const ent = ctx.towerRun.entrance || null;
+          const ex = (dinfo && typeof dinfo.x === "number") ? (dinfo.x | 0) : null;
+          const ey = (dinfo && typeof dinfo.y === "number") ? (dinfo.y | 0) : null;
+          const sameEntrance = !!(ent && typeof ent.x === "number" && typeof ent.y === "number" && ex != null && ey != null && (ent.x | 0) === ex && (ent.y | 0) === ey);
+          if (!sameEntrance) ctx.towerRun = null;
+        }
+      }
+    } catch (_) {}
+
+    const isTowerDungeon =
+      !!(ctx.towerRun && ctx.towerRun.kind === "tower") ||
+      !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
+
+    if (isTowerDungeon) {
+      // In towers, let DungeonRuntime decide whether stairs mean floor
+      // transitions or exiting to the overworld so internal tower stairs
+      // don't trigger a world exit via GameExit.exitToWorld.
+      try {
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
+          const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
+          if (ok) return true;
+        }
+      } catch (_) {}
+    } else {
+      // Non-tower dungeons: use centralized exit flow first (standing on
+      // STAIRS and pressing G exits back to the overworld).
+      try {
+        const exited = exitToWorld(ctx, { reason: "stairs" });
+        if (exited) return true;
+      } catch (_) {}
+    }
+
+    // Tower-specific interaction: free captives when standing on them.
+    try {
+      if (isTowerDungeon && ctx.DungeonRuntime && typeof ctx.DungeonRuntime.releaseCaptiveHere === "function") {
+        const freed = ctx.DungeonRuntime.releaseCaptiveHere(ctx);
+        if (freed) return true;
+      }
+    } catch (_) {}
+
+    // Otherwise fall back to loot/guidance behavior in this mode
+    const handled = loot(ctx);
+    if (handled) return true;
+    return false;
+  }
+
+  // Non-world fallback loot: if no branch handled the action and we are not
+  // in overworld mode, defer to generic loot(ctx) so dungeon/town/encounter
+  // modes get consistent underfoot loot / "nothing to do here" messaging.
+  if (ctx.mode !== "world") {
+    try {
+      const handled = loot(ctx);
+      if (handled) return true;
+    } catch (_) {}
+  }
+
+  // Default: nothing happened
+  return false;
+}
+
+export function loot(ctx) {
+  if (ctx.mode === "town") {
+    // Upstairs overlay props interaction takes precedence when active
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          // Pure interaction/log; draw/UI will be requested by effect(s) as needed
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // If standing on a shop door, show schedule and flavor
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        const openNow = isShopOpenNow(ctx, s);
+        const sched = shopScheduleStr(ctx, s);
+        const schedPart = sched ? `${sched}. ` : "";
+        const nameLower = (s.name || "").toLowerCase();
+        if (nameLower === "inn") {
+          ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          ctx.log("You enter the inn.", "info");
+          // Inns provide resting; allow rest regardless
+          restAtInn(ctx);
+          return true;
+        }
+        if (nameLower === "tavern") {
+          ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          const phase = (ctx.time && ctx.time.phase) || "day";
+          if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "info");
+          else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
+          else ctx.log("You enter the tavern.", "info");
+          // Pure log messaging; no visual change -> no draw
+          return true;
+        }
+        if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "info");
+        else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
+        // Pure schedule/log messaging; no visual change -> no draw
+        return true;
+      }
+    }
+    // Prefer props interaction; if not handled, describe underfoot prop explicitly.
+    if (ctx.Town && typeof ctx.Town.interactProps === "function") {
+      const handled = ctx.Town.interactProps(ctx);
+      if (handled) return true;
+    }
+    const p = propAt(ctx, ctx.player.x, ctx.player.y);
+    if (p) {
+      describeProp(ctx, p);
+      // Pure log; do not force a draw
+      return true;
+    }
+    // Corpses in town (e.g. bandits/guards at the gate): allow looting when standing on a corpse tile.
+    try {
+      if (Array.isArray(ctx.corpses)) {
+        const hereCorpse = ctx.corpses.find(
+          c => c && c.x === ctx.player.x && c.y === ctx.player.y
+        );
+        if (hereCorpse) {
+          const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+          if (L && typeof L.lootHere === "function") {
+            L.lootHere(ctx);
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+    // If standing on a blood decal, describe it
+    if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
+      ctx.log("The floor here is stained with blood.", "info");
+      // Pure log; do not force a draw
+      return true;
+    }
+    // Nothing to loot in town
+    ctx.log("Nothing to do here.");
+    return true;
+  }
+
+  if (ctx.mode === "world") {
+    ctx.log("Nothing to loot here.");
+    // Pure log; do not force a draw
+    return true;
+  }
+
+  // Encounter: exit like Region Map; press G on an exit to leave.
+  if (ctx.mode === "encounter") {
+    const here = (ctx.map && ctx.map[ctx.player.y] && ctx.map[ctx.player.y][ctx.player.x]);
+    if (here === ctx.TILES.STAIRS) {
+      try {
+        const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+        if (ER && typeof ER.complete === "function") ER.complete(ctx, "withdraw");
+      } catch (_) {}
+      return true;
+    }
+    // Otherwise prefer to loot underfoot using Loot subsystem
+    try {
+      const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+      if (L && typeof L.lootHere === "function") {
+        L.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
+    // If standing on a blood decal, describe it
+    if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
+      ctx.log("The ground here is stained with blood.", "info");
+      return true;
+    }
+    ctx.log("Nothing to do here.", "info");
+    return true;
+  }
+
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
+    // Defensive: stale towerRun can leak across dungeon entries and cause stairs
+    // handling to be misrouted into tower logic (breaking exit/loot interactions).
+    try {
+      if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+        const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
+        const kind = (dinfo && typeof dinfo.kind === "string") ? String(dinfo.kind).toLowerCase() : "";
+        if (kind !== "tower") {
+          const ent = ctx.towerRun.entrance || null;
+          const ex = (dinfo && typeof dinfo.x === "number") ? (dinfo.x | 0) : null;
+          const ey = (dinfo && typeof dinfo.y === "number") ? (dinfo.y | 0) : null;
+          const sameEntrance = !!(ent && typeof ent.x === "number" && typeof ent.y === "number" && ex != null && ey != null && (ent.x | 0) === ex && (ent.y | 0) === ey);
+          if (!sameEntrance) ctx.towerRun = null;
+        }
+      }
+    } catch (_) {}
+
+    // Prefer centralized return flow
+    try {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
+        const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
+        if (ok) return true;
+      }
+    } catch (_) {}
+
+    // Delegate to Loot.lootHere if available
+    try {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.lootHere === "function") {
+        ctx.DungeonRuntime.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
+    if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
+      ctx.Loot.lootHere(ctx);
+      return true;
+    }
+
+    // If standing on a blood decal, describe it
+    if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
+      ctx.log("The floor here is stained with blood.", "info");
+      // Pure log; do not force a draw
+      return true;
+    }
+    // Guidance if not handled
+    ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info");
+    // Pure guidance; do not force a draw
+    return true;
+  }
+
+  return false;
+}
+
+export function descend(ctx) {
+  if (ctx.mode === "world" || ctx.mode === "town") {
+    // Reuse action to enter town/dungeon if on appropriate tile
+    return doAction(ctx);
+  }
+  if (ctx.mode === "dungeon" || ctx.mode === "sandbox") {
+    ctx.log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
+    return true;
+  }
+  const here = ctx.map[ctx.player.y][ctx.player.x];
+  if (here === ctx.TILES.STAIRS) {
+    ctx.log("There is nowhere to go down from here.", "info");
+  } else {
+    ctx.log("You need to stand on the staircase (brown tile marked with '>').", "info");
+  }
+  return true;
+}
+
+import { attachGlobal } from "../../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Actions", { doAction, loot, descend });

@@ -1,0 +1,104 @@
+# BUGS
+- Deployment: `src/main.js` (and other modules) use absolute ESM imports like `/core/...`; hosting under a subpath (e.g. `https://example.com/game/`) will 404 unless you rewrite requests/configure base path or convert imports to relative.
+- npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
+- some times in towns some extra signs and fire places inside walls
+- some npc dont sleep in theid beds
+- smoketestrunner: several scenarios failing in current build (non-GM, but impacts CI signal)
+  - NOTE: a report can still show `pass: N / fail: 0` even when `failingSteps` contains FAIL entries; verify runner/reporting aggregation.
+  - region: "Region open failed (mode stayed in world)"
+  - dungeon: "Dungeon entry failed (mode=world)" (actionsSummary.dungeonEnter.success=0)
+  - town: "Town entry not achieved" (actionsSummary.townEnter.success=0)
+  - encounters: "Encounter exit not achieved"
+  - overlays: occasional perf failure (e.g. grid draw ~275ms)
+  - inventory: "Hand chooser: both empty -> equip left" assertion
+- VERIFY: multirun in smoketest skips first multirun
+  - Recent smoke report (2026-02-21) completed `runs: 3` with `pass: 3`; if this bug is still reproducible, capture the report JSON and the exact URL params. 
+- creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
+- creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
+- [FIXED] Followers in Region Map and ruins would sometimes multiply or spawn far from the player:
+  - In some ruins runs, spawnInDungeon was invoked twice (once on entering Region Map and once during RUINS encounter setup), which created duplicate runtime allies for the same follower.
+  - In encounters and Region Map, follower spawn logic could fall back to arbitrarily distant tiles when no nearby spot was found, leading to allies appearing at remote corners of the map.
+  - Now:
+    - RegionMapRuntime only calls FollowersRuntime.spawnInDungeon once per Region Map entry; the ruins-specific encounter no longer re-spawns followers.
+    - FollowersRuntime.spawnInDungeon tracks existing follower actors via _followerId and will not create a second runtime ally for the same follower on the current map.
+    - findSpawnTileNearPlayer uses a larger local radius for encounters/Region Map and refuses to fall back to distant tiles; when no nearby spot is free, followers simply do not spawn and a log line explains that they cannot find room nearby.
+- [FIXED] in dungeons when enemies fight each other they are logged (which is good for debugging purposes), but they gave player XP when they killed each other
+- in dungeons enemies seems to show behind walls(not line of sight)
+- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
+- VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
+- there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
+- [FIXED] minimap showed all chunks when going in ruins, dungeons, towns etc and re-entering:
+  - Overworld minimap now uses the same fog-of-war grid and Fog helpers as the main overworld view, and rebuilds its offscreen buffer per mode.
+  - Previously explored overworld chunks no longer leak into the minimap when returning from towns, dungeons, ruins, or encounters.
+- minimap shows dungeons and towns
+- dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
+- caravan master does not seem to spawn in towns cities etc. when caravan enters it
+- caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
+- dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
+- mountain-pass dungeons (A/B linked pair) are currently unreliable: interior portal + normal exit behavior does not consistently send the player to the intended far-side overworld tile; treat mountain-pass dungeon travel as broken for now
+- world generation / infinite overworld gets slow and sluggish after exploring large chunks of the world; investigate performance of infinite_gen + world_runtime expansion and caching when many chunks have been visited
+- sometimes the player can trade with a shopkeeper even when they are not at their shop (e.g., bumping them away from the shop door still opens the shop UI)
+- [FIXED] in some towns, ground/terrain tinting would change incorrectly or inconsistently (tiles changing biome color unexpectedly):
+  - Town biome is now derived once per town and pinned on the core game context using the town's overworld coordinates.
+  - The renderer reuses this pinned biome and no longer re-derives based on player position, so moving inside a town or revisiting it does not flip the ground tint (e.g., GRASS ↔ BEACH ↔ SNOW).
+- [FIXED] animals/creatures on the Region Map sometimes used odd or incorrect glyphs (and could gain square/circle backdrops when attacked):
+  - Region Map now looks up wildlife glyphs and colors from `data/entities/animals.json`.
+  - Neutral and hostile animals are drawn as glyph-only letters (e.g., `d`, `f`, `b`) with no background box, while followers and non-animal enemies still use their square+glyph markers.
+- Quest Board bandit encounter (“Bandits near the farm”) does not always spawn followers correctly:
+  - When starting the quest encounter from the `E` marker, followers often log “Your followers cannot find room to stand nearby in this area.” even on relatively open snow/snow-forest tiles.
+  - This suggests a mismatch between the camp-style encounter map, region/encounter walkability, and follower spawn radius/occupancy checks for that specific template.
+  - Investigate FollowersRuntime.findSpawnTileNearPlayer and quest_service → EncounterRuntime.enter wiring for the `bandits_farm` quest template to ensure at least one nearby spawn tile is found when the player has space to move in multiple directions.
+- Followers sometimes fail to spawn in random encounters even when the area around the player looks open (especially in snow biomes):
+  - The log “Your followers cannot find room to stand nearby in this area.” appears repeatedly on encounter entry, but the player can still move several tiles in multiple directions.
+  - Root cause unknown; likely interaction between encounter map generators (camp/ambush/ruins), ctx.isWalkable tiles, and occupancy checks in FollowersRuntime.findSpawnTileNearPlayer.
+  - Needs focused repro cases and visual inspection (FOV on, GOD/enemy markers) to see what is actually blocking follower tiles in those encounters.
+- Possible follower state bug after sleeping in town inns:
+  - After travelling to town with active followers, sleeping at the inn, and then returning to the dungeon/encounter, followers sometimes do not follow the player into the dungeon at all.
+  - In some runs, followers later appear only in scripted encounters (e.g., overworld events) and can spawn far away from the player instead of near the player’s position.
+  - Likely related to FollowersRuntime.spawnInDungeon/spawnInTown and syncFollowersFromTown/syncFollowersFromDungeon not fully updating follower runtime state across town sleep/rest flows; needs a focused repro path and inspection of follower record vs runtime actors when using inns.
+- [FIXED] Seppo's True Blade (and other two-handed hand weapons that occupy both hands) previously counted Attack twice for followers when the same item was equipped in left and right; Attack/Defense aggregation for both players and followers now counts each equipped item only once so two-handed weapons behave as a single blade instead of double-stacking damage
+- In one dungeon run, Seppo spawned as a wild NPC inside a dungeon room but did not move or respond to interaction:
+  - Seppo appeared in a dungeon context (not town), was stationary, and bumping into him did not open any dialog or shop UI.
+  - Needs investigation of how Seppo (or Seppo-like caravan blacksmith NPCs) can leak into dungeon spawns
+  - Likely related to shared prefab usage or NPC archetype reuse between town/castle and dungeon maps without proper mode-specific behavior.
+- [FIXED] World map sometimes shows leftover road tiles in unexpected places:
+  - After some world generations, there were isolated or partial road segments that did not connect to towns, castles, or obvious points of interest.
+  - These remnants came from earlier overworld road generation passes; the current build has removed the overworld road feature entirely while keeping bridges across rivers.
+  - Result: the world map now shows only natural terrain plus bridges; no free-floating or orphan road tiles should appear in the wilderness.
+- Bandits-at-the-gate town event: guard/bandit corpses seem to have no loot when looted via G at the gate:
+  - During the bandits-at-the-gate town event, pressing G while standing on some guard/bandit corpses near the gate reports nothing to loot or shows only flavor, with no items or gold granted.
+  - This likely indicates a mismatch between town-mode corpse records (ctx.corpses), the Loot subsystem, and the town-mode loot path in core/modes/actions.js::loot(ctx) around the bandit event flows.
+  - Needs focused repro in a fresh town with an active bandits-at-the-gate event to confirm whether corpses are spawned without loot, or whether the lootHere/loot(ctx) path is not being invoked correctly in town mode for those specific corpses.
+
+- VERIFY (POSSIBLY FIXED): Dungeon runs sometimes break ladder/stairs/loot interactions (was CRITICAL)
+  - Original report: In some runs, dungeon progression breaks: stairs/ladders do not work, and pressing G on stairs logs "There is no corpse here to loot.".
+  - Current status (2026-02-21): user currently cannot reproduce via:
+    - Start game → dungeon (stairs/ladders + loot interactions OK)
+    - Start game → tower → dungeon (stairs/ladders + loot interactions OK)
+  - Mitigation added (may not cover every root cause):
+    - Prefer dungeon exit handling over loot when pressing G in non-tower dungeons, and avoid misrouting STAIRS handling into tower logic.
+    - Add defensive clearing of stale `ctx.towerRun` when entering a non-tower dungeon.
+    - Key touchpoints: `core/modes/actions.js`, `core/modes/exit.js`, `core/dungeon/runtime.js`.
+  - This may still be intermittent/stateful (seed/save-load/mode transitions). If it reappears, capture: seed, exact steps, and whether the run involved tower/town transitions before dungeon entry.
+
+- VERIFY (POSSIBLY FIXED): GM/Guard fine: fine encounter can trigger even when player cancels the "attack guard" prompt
+  - Original report: When attempting to attack a guard, if the player cancels the confirmation popup, the guard fine encounter can still trigger later (or immediately) even though the player did not attack.
+  - Expected: cancel should leave no hostile/guard-fine scheduling side effects.
+  - Current status (2026-02-21): user currently cannot reproduce; may be intermittent. If it reappears, capture the exact sequence (mode/location, which prompt was shown, and how many turns later the fine triggers).
+  - Likely cause still requires investigation: double-confirm/turn consumption, or guard/town reputation bookkeeping scheduling `guardFine` despite cancellation.
+- While the lockpicking mini-game is open, some keyboard movement keys still move the player:
+  - Arrow keys and certain Numpad keys (1–7) may continue to move the player character even though the lockpicking overlay is active.
+  - Expected: while the lockpicking modal is open, world/region/dungeon movement keys should be swallowed so the player cannot walk around during the puzzle.
+  - Needs input handling audit so LockpickModal correctly blocks arrow and numpad movement from reaching the core input/movement handlers.
+- Loot sometimes logs that an item was "equipped" without actually changing player equipment:
+  - After looting corpses/chests, the log occasionally reports entries like "equipped [item desc]" but the corresponding slot on the player remains unchanged.
+  - This suggests a mismatch between ctx.equipIfBetter/autoequip behavior in entities/loot.js and the inventory/equipment update path used by Player/PlayerEquip.
+  - Needs a focused repro with logging around Loot.lootHere(ctx) to verify when equipIfBetter returns true vs when inventory/equipment actually change.
+- Follower HP display sometimes shows excessive floating-point digits (e.g., `HP 11.099999999999998`):
+  - Likely due to floating-point arithmetic and stringification in follower health UI.
+  - Health should be clamped/rounded to a small number of decimals (or integers) before display to avoid confusing visual noise.
+- [FIXED] Critical overworld rendering bug (single run): entire overworld map appeared with a black tint/background while towns, dungeons, and ruins still rendered correctly:
+  - In one run, when the overworld map loaded after extensive exploration (many chunks/tiles revealed), all tiles outside towns/dungeons/ruins were effectively blacked out or heavily darkened, even though movement and mode transitions still worked.
+  - Towns, dungeons, and ruins views were unaffected and rendered normally, suggesting an overworld-only rendering/state issue (fog-of-war, tints, or palette overlays misapplied) that may surface when the visible/seen grids or tile caches grow large.
+  - The immediate failure mode (entire overworld appearing black) is now prevented by a defensive guard in `ui/render/overworld_fog.js` that skips drawing the fog overlay when the fog grids look invalid or out of sync with the current overworld window. The world may appear more revealed than intended in that edge case, but it will no longer be fully blacked out.
+  - Performance and long-run infinite-world behavior are still tracked separately under world/infinite_gen + world_runtime performance work.
