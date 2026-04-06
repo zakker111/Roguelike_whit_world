@@ -20,7 +20,8 @@ import { getMechanicKnowledge } from "/core/gm/runtime/state_ensure.js";
 let _panelEl = null;
 let _summaryEl = null;
 let _statsEl = null;
-let _profileEl = null;
+let _orchestratorEl = null;
+let _questsEl = null;
 let _traitsEl = null;
 let _moodEl = null;
 let _mechEl = null;
@@ -468,6 +469,66 @@ function ensurePanel() {
   _summaryEl.style.color = "#e5e7eb";
   body.appendChild(_summaryEl);
 
+  const moodLabel = document.createElement("div");
+  moodLabel.textContent = "Mood";
+  moodLabel.style.fontSize = "11px";
+  moodLabel.style.textTransform = "uppercase";
+  moodLabel.style.letterSpacing = "0.05em";
+  moodLabel.style.color = "#9ca3af";
+  moodLabel.style.marginTop = "4px";
+  body.appendChild(moodLabel);
+
+  _moodEl = document.createElement("div");
+  _moodEl.className = "gm-panel-mood";
+  _moodEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _moodEl.style.fontSize = "11px";
+  _moodEl.style.whiteSpace = "pre-wrap";
+  _moodEl.style.background = "#020617";
+  _moodEl.style.borderRadius = "6px";
+  _moodEl.style.border = "1px solid #1f2937";
+  _moodEl.style.padding = "6px 8px";
+  body.appendChild(_moodEl);
+
+  const orchestratorLabel = document.createElement("div");
+  orchestratorLabel.textContent = "Next action / cooldowns";
+  orchestratorLabel.style.fontSize = "11px";
+  orchestratorLabel.style.textTransform = "uppercase";
+  orchestratorLabel.style.letterSpacing = "0.05em";
+  orchestratorLabel.style.color = "#9ca3af";
+  orchestratorLabel.style.marginTop = "4px";
+  body.appendChild(orchestratorLabel);
+
+  _orchestratorEl = document.createElement("div");
+  _orchestratorEl.className = "gm-panel-orchestrator";
+  _orchestratorEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _orchestratorEl.style.fontSize = "11px";
+  _orchestratorEl.style.whiteSpace = "pre-wrap";
+  _orchestratorEl.style.background = "#020617";
+  _orchestratorEl.style.borderRadius = "6px";
+  _orchestratorEl.style.border = "1px solid #1f2937";
+  _orchestratorEl.style.padding = "6px 8px";
+  body.appendChild(_orchestratorEl);
+
+  const questsLabel = document.createElement("div");
+  questsLabel.textContent = "Active quests";
+  questsLabel.style.fontSize = "11px";
+  questsLabel.style.textTransform = "uppercase";
+  questsLabel.style.letterSpacing = "0.05em";
+  questsLabel.style.color = "#9ca3af";
+  questsLabel.style.marginTop = "4px";
+  body.appendChild(questsLabel);
+
+  _questsEl = document.createElement("div");
+  _questsEl.className = "gm-panel-quests";
+  _questsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  _questsEl.style.fontSize = "11px";
+  _questsEl.style.whiteSpace = "pre-wrap";
+  _questsEl.style.background = "#020617";
+  _questsEl.style.borderRadius = "6px";
+  _questsEl.style.border = "1px solid #1f2937";
+  _questsEl.style.padding = "6px 8px";
+  body.appendChild(_questsEl);
+
   const statsLabel = document.createElement("div");
   statsLabel.textContent = "Stats";
   statsLabel.style.fontSize = "11px";
@@ -488,26 +549,6 @@ function ensurePanel() {
   _statsEl.style.padding = "6px 8px";
   body.appendChild(_statsEl);
 
-  const profileLabel = document.createElement("div");
-  profileLabel.textContent = "Profile";
-  profileLabel.style.fontSize = "11px";
-  profileLabel.style.textTransform = "uppercase";
-  profileLabel.style.letterSpacing = "0.05em";
-  profileLabel.style.color = "#9ca3af";
-  profileLabel.style.marginTop = "4px";
-  body.appendChild(profileLabel);
-
-  _profileEl = document.createElement("div");
-  _profileEl.className = "gm-panel-profile";
-  _profileEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _profileEl.style.fontSize = "11px";
-  _profileEl.style.whiteSpace = "pre-wrap";
-  _profileEl.style.background = "#020617";
-  _profileEl.style.borderRadius = "6px";
-  _profileEl.style.border = "1px solid #1f2937";
-  _profileEl.style.padding = "6px 8px";
-  body.appendChild(_profileEl);
-
   const traitsLabel = document.createElement("div");
   traitsLabel.textContent = "Traits";
   traitsLabel.style.fontSize = "11px";
@@ -527,26 +568,6 @@ function ensurePanel() {
   _traitsEl.style.border = "1px solid #1f2937";
   _traitsEl.style.padding = "6px 8px";
   body.appendChild(_traitsEl);
-
-  const moodLabel = document.createElement("div");
-  moodLabel.textContent = "Mood";
-  moodLabel.style.fontSize = "11px";
-  moodLabel.style.textTransform = "uppercase";
-  moodLabel.style.letterSpacing = "0.05em";
-  moodLabel.style.color = "#9ca3af";
-  moodLabel.style.marginTop = "4px";
-  body.appendChild(moodLabel);
-
-  _moodEl = document.createElement("div");
-  _moodEl.className = "gm-panel-mood";
-  _moodEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _moodEl.style.fontSize = "11px";
-  _moodEl.style.whiteSpace = "pre-wrap";
-  _moodEl.style.background = "#020617";
-  _moodEl.style.borderRadius = "6px";
-  _moodEl.style.border = "1px solid #1f2937";
-  _moodEl.style.padding = "6px 8px";
-  body.appendChild(_moodEl);
 
   const mechLabel = document.createElement("div");
   mechLabel.textContent = "Mechanics";
@@ -628,7 +649,8 @@ function renderSnapshot(gm) {
   if (!gm) {
     _summaryEl.textContent = "GM state not available (GMRuntime or GameAPI missing).";
     _statsEl.textContent = "";
-    if (_profileEl) _profileEl.textContent = "";
+    if (_orchestratorEl) _orchestratorEl.textContent = "";
+    if (_questsEl) _questsEl.textContent = "";
     if (_traitsEl) _traitsEl.textContent = "";
     if (_moodEl) {
       _moodEl.textContent = "mood: (no data)\nvalence:  [........]\narousal:  [----------]";
@@ -653,6 +675,10 @@ function renderSnapshot(gm) {
   if (boredomLevel > 1) boredomLevel = 1;
   const boredomPct = Math.round(boredomLevel * 100);
   const enabled = gm.enabled !== false;
+  const threads = gm.threads && typeof gm.threads === "object" ? gm.threads : {};
+  const bottleMap = threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
+  const surveyCache = threads.surveyCache && typeof threads.surveyCache === "object" ? threads.surveyCache : null;
+  const activeQuestCount = (bottleMap && bottleMap.active === true ? 1 : 0) + (surveyCache && surveyCache.active && typeof surveyCache.active === "object" ? 1 : 0);
 
   if (_toggleBtn) {
     _toggleBtn.textContent = enabled ? "Disable GM" : "Enable GM";
@@ -663,7 +689,7 @@ function renderSnapshot(gm) {
   const nextEligibleTurn = (typeof pacing.nextEligibleTurn === "number" && Number.isFinite(pacing.nextEligibleTurn)) ? (pacing.nextEligibleTurn | 0) : 0;
   const lastInterventionTurn = (typeof pacing.lastInterventionTurn === "number" && Number.isFinite(pacing.lastInterventionTurn)) ? (pacing.lastInterventionTurn | 0) : -9999;
 
-  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | NextElig: T=${nextEligibleTurn} | LastInt: T=${lastInterventionTurn} | Enabled: ${enabled ? "On" : "Off"}`;
+  _summaryEl.textContent = `Mode: ${mode} | Turns: ${totalTurns} | Boredom: ${boredomPct}% | Quests: ${activeQuestCount} | NextElig: T=${nextEligibleTurn} | LastInt: T=${lastInterventionTurn} | Enabled: ${enabled ? "On" : "Off"}`;
 
   const lines = [];
   lines.push(`Total turns: ${totalTurns}`);
@@ -733,32 +759,32 @@ function renderSnapshot(gm) {
 
   _statsEl.textContent = lines.join("\n");
 
-  if (_profileEl) {
-    const linesProfile = [];
-    linesProfile.push(`  boredom: ${boredomLevel.toFixed(2)}`);
+  if (_orchestratorEl) {
+    const linesOrchestrator = [];
+    linesOrchestrator.push(`boredom: ${boredomLevel.toFixed(2)}`);
 
     const p = gm.pacing && typeof gm.pacing === "object" ? gm.pacing : {};
     const pNext = (typeof p.nextEligibleTurn === "number" && Number.isFinite(p.nextEligibleTurn)) ? (p.nextEligibleTurn | 0) : 0;
     const pLast = (typeof p.lastInterventionTurn === "number" && Number.isFinite(p.lastInterventionTurn)) ? (p.lastInterventionTurn | 0) : -9999;
     const pCd = (typeof p.lastCooldownTurns === "number" && Number.isFinite(p.lastCooldownTurns)) ? (p.lastCooldownTurns | 0) : 0;
-    linesProfile.push(`  pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
+    linesOrchestrator.push(`pacing: nextEligibleTurn=${pNext} lastInterventionTurn=${pLast} lastCooldownTurns=${pCd}`);
 
     // Phase 6-style GM stream visibility: RNG + scheduler.
     const rng = gm.rng && typeof gm.rng === "object" ? gm.rng : null;
     if (!rng) {
-      linesProfile.push("  gm.rng: (no data)");
+      linesOrchestrator.push("gm.rng: (no data)");
     } else {
       const algo = (typeof rng.algo === "string" && rng.algo) ? rng.algo : "?";
       const calls = (typeof rng.calls === "number" && Number.isFinite(rng.calls)) ? (rng.calls | 0) : 0;
       const rawState = rng.state;
       const state = (typeof rawState === "number" && Number.isFinite(rawState)) ? (rawState >>> 0) : null;
       const stateHex = state == null ? "-" : "0x" + state.toString(16).padStart(8, "0");
-      linesProfile.push(`  gm.rng: algo=${algo} state=${stateHex} calls=${calls}`);
+      linesOrchestrator.push(`gm.rng: algo=${algo} state=${stateHex} calls=${calls}`);
     }
 
     const sched = gm.scheduler && typeof gm.scheduler === "object" ? gm.scheduler : null;
     if (!sched) {
-      linesProfile.push("  gm.scheduler: (no data)");
+      linesOrchestrator.push("gm.scheduler: (no data)");
     } else {
       const lastAutoTurn = (typeof sched.lastAutoTurn === "number" && Number.isFinite(sched.lastAutoTurn)) ? (sched.lastAutoTurn | 0) : -9999;
       const rawLastAction = (typeof gm.lastActionTurn === "number" && Number.isFinite(gm.lastActionTurn))
@@ -770,19 +796,19 @@ function renderSnapshot(gm) {
       const h = Array.isArray(sched.history) ? sched.history : [];
       const nextId = (typeof sched.nextId === "number" && Number.isFinite(sched.nextId)) ? (sched.nextId | 0) : 0;
       const lastActionPart = rawLastAction == null ? "" : ` lastActionTurn=${rawLastAction}`;
-      linesProfile.push(`  gm.scheduler: lastAutoTurn=${lastAutoTurn}${lastActionPart} queue=${q.length} history=${h.length} nextId=${nextId}`);
+      linesOrchestrator.push(`gm.scheduler: lastAutoTurn=${lastAutoTurn}${lastActionPart} queue=${q.length} history=${h.length} nextId=${nextId}`);
 
       const actions = (sched.actions && typeof sched.actions === "object") ? sched.actions : {};
       const showN = Math.min(q.length, 5);
-      linesProfile.push(`  gm.scheduler.queue (next ${showN}${q.length > showN ? "/" + q.length : ""}):`);
+      linesOrchestrator.push(`gm.scheduler.queue (next ${showN}${q.length > showN ? "/" + q.length : ""}):`);
       if (showN === 0) {
-        linesProfile.push("    (empty)");
+        linesOrchestrator.push("  (empty)");
       }
       for (let i = 0; i < showN; i++) {
         const id = (typeof q[i] === "string" && q[i]) ? q[i] : String(q[i] || "");
         const a = id && actions && typeof actions === "object" ? actions[id] : null;
         if (!a || typeof a !== "object") {
-          linesProfile.push(`    - ${id || "?"}: (missing action record)`);
+          linesOrchestrator.push(`  - ${id || "?"}: (missing action record)`);
           continue;
         }
 
@@ -792,135 +818,84 @@ function renderSnapshot(gm) {
         const priority = (typeof a.priority === "number" && Number.isFinite(a.priority)) ? (a.priority | 0) : (a.priority | 0);
         const earliestTurn = (typeof a.earliestTurn === "number" && Number.isFinite(a.earliestTurn)) ? (a.earliestTurn | 0) : (a.earliestTurn | 0);
         const latestTurn = (typeof a.latestTurn === "number" && Number.isFinite(a.latestTurn)) ? (a.latestTurn | 0) : (a.latestTurn | 0);
+        const eligible = earliestTurn <= totalTurns && (latestTurn <= 0 || totalTurns <= latestTurn) ? "ready" : "waiting";
 
-        linesProfile.push(
-          `    - ${String(a.id || id || "?")}: kind=${kind || "-"} status=${status} delivery=${delivery} priority=${priority} earliestTurn=${earliestTurn} latestTurn=${latestTurn}`
+        linesOrchestrator.push(
+          `  - ${String(a.id || id || "?")}: kind=${kind || "-"} status=${status} delivery=${delivery} elig=${eligible} priority=${priority} earliestTurn=${earliestTurn} latestTurn=${latestTurn}`
         );
       }
     }
 
-    const threads = gm.threads && typeof gm.threads === "object" ? gm.threads : {};
-    const bottleMap = threads.bottleMap && typeof threads.bottleMap === "object" ? threads.bottleMap : null;
     const fishing = bottleMap && bottleMap.fishing && typeof bottleMap.fishing === "object" ? bottleMap.fishing : null;
+    _orchestratorEl.textContent = linesOrchestrator.join("\n");
 
-    const bmActive = !!(bottleMap && bottleMap.active === true);
-    const bmStatus = bottleMap && typeof bottleMap.status === "string" && bottleMap.status ? bottleMap.status : "-";
-    const bmInstanceId = bottleMap && bottleMap.instanceId != null ? String(bottleMap.instanceId) : "";
-
-    const eligibleSuccesses = fishing ? (fishing.eligibleSuccesses | 0) : 0;
-    const totalSuccesses = fishing ? (fishing.totalSuccesses | 0) : 0;
-    const lastAwardTurn = fishing && typeof fishing.lastAwardTurn === "number" && Number.isFinite(fishing.lastAwardTurn) ? (fishing.lastAwardTurn | 0) : -9999;
-    const awardCount = fishing ? (fishing.awardCount | 0) : 0;
-
-    const cfgBM = getBottleMapFishingConfigForPanel();
-    const derived = deriveBottleMapFishingChance(eligibleSuccesses, boredomLevel, cfgBM);
-    const chancePct = Math.round((derived.chance * 100) * 1000) / 1000;
-    const forcedStr = derived.forced ? " (FORCED)" : "";
-    const iidPart = bmInstanceId ? ` instanceId=${bmInstanceId}` : "";
-
-    linesProfile.push("  bottle map (fishing):");
-    linesProfile.push(`    thread: active=${bmActive} status=${bmStatus}${iidPart}`);
-    linesProfile.push(`    counters: eligibleSuccesses=${eligibleSuccesses} totalSuccesses=${totalSuccesses} lastAwardTurn=${lastAwardTurn} awardCount=${awardCount}`);
-    linesProfile.push(
-      `    config: S0=${cfgBM.S0} Smax=${cfgBM.Smax} boredomMin=${cfgBM.boredomMin.toFixed(2)} boredomMultMax=${cfgBM.boredomMultMax.toFixed(2)} cooldownTurns=${cfgBM.cooldownTurns}`
-    );
-    linesProfile.push(`    chance: eligible=${derived.eligible} boredom=${derived.boredom.toFixed(2)} s=${derived.s} chance=${chancePct}%${forcedStr}`);
-
-    // Bottle Map quest thread snapshot
-    if (bottleMap) {
-      const t = bottleMap.target && typeof bottleMap.target === "object" ? bottleMap.target : null;
-      const tx = t && typeof t.absX === "number" ? (t.absX | 0) : null;
-      const ty = t && typeof t.absY === "number" ? (t.absY | 0) : null;
-      const createdTurn = bottleMap.createdTurn == null ? null : (bottleMap.createdTurn | 0);
-      const claimedTurn = bottleMap.claimedTurn == null ? null : (bottleMap.claimedTurn | 0);
-      const attempts = bottleMap.attempts == null ? 0 : (bottleMap.attempts | 0);
-      const placementTries = bottleMap.placementTries == null ? null : (bottleMap.placementTries | 0);
-      const failureReason = bottleMap.failureReason ? String(bottleMap.failureReason) : "";
-
-      linesProfile.push("  bottle map (quest):");
-      linesProfile.push(`    state: active=${bmActive} status=${bmStatus} attempts=${attempts}`);
-      linesProfile.push(`    target: ${tx == null ? "-" : tx},${ty == null ? "-" : ty} createdTurn=${createdTurn == null ? "-" : createdTurn} claimedTurn=${claimedTurn == null ? "-" : claimedTurn}`);
-      if (placementTries != null) linesProfile.push(`    placement: tries=${placementTries}`);
-      if (failureReason) linesProfile.push(`    failure: ${failureReason}`);
-    }
-
-    const modeTurnsProfile = stats.modeTurns && typeof stats.modeTurns === "object" ? stats.modeTurns : {};
-    const mtEntriesProfile = Object.keys(modeTurnsProfile).map((k) => [k, modeTurnsProfile[k] | 0]);
-    if (mtEntriesProfile.length) {
-      mtEntriesProfile.sort((a, b) => b[1] - a[1]);
-      linesProfile.push("  top modes:");
-      mtEntriesProfile.slice(0, 3).forEach(([key, val]) => {
-        linesProfile.push(`    - ${key}: ${val}`);
-      });
-    }
-
-    const familiesProfile = gm.families && typeof gm.families === "object" ? gm.families : {};
-    const famRows = [];
-    const famKeysProfile = Object.keys(familiesProfile);
-    for (let i = 0; i < famKeysProfile.length; i++) {
-      const key = famKeysProfile[i];
-      const entry = familiesProfile[key];
-      if (!entry || typeof entry !== "object") continue;
-      const seen = entry.seen | 0;
-      if (seen < 1) continue;
-      const pos = entry.positive | 0;
-      const neg = entry.negative | 0;
-      const denom = pos + neg;
-      let score = 0;
-      if (denom > 0) {
-        score = (pos - neg) / denom;
+    if (_questsEl) {
+      const linesQuests = [];
+      if (activeQuestCount < 1) {
+        linesQuests.push("No active quest threads.");
+      } else {
+        linesQuests.push(`Active quest threads: ${activeQuestCount}`);
       }
-      famRows.push({ key, seen, score });
-    }
-    if (famRows.length) {
-      famRows.sort((a, b) => {
-        if (b.seen !== a.seen) return b.seen - a.seen;
-        if (b.score !== a.score) return b.score - a.score;
-        if (a.key < b.key) return -1;
-        if (a.key > b.key) return 1;
-        return 0;
-      });
-      const topFamilies = famRows.slice(0, 3);
-      linesProfile.push("  top families:");
-      for (let i = 0; i < topFamilies.length; i++) {
-        const f = topFamilies[i];
-        const scoreStr = f.score.toFixed(2);
-        linesProfile.push(`    - ${f.key}:  seen=${f.seen} score=${scoreStr}`);
+
+      linesQuests.push("");
+      linesQuests.push("Bottle Map:");
+      if (!bottleMap) {
+        linesQuests.push("  (no data)");
       }
-    }
+      const bmActive = !!(bottleMap && bottleMap.active === true);
+      const bmStatus = bottleMap && typeof bottleMap.status === "string" && bottleMap.status ? bottleMap.status : "-";
+      const bmInstanceId = bottleMap && bottleMap.instanceId != null ? String(bottleMap.instanceId) : "";
 
-    const traitLines = [];
-    const traits = gm.traits && typeof gm.traits === "object" ? gm.traits : null;
-    const TRAIT_MIN_SAMPLES_PROFILE = 3;
-    const TRAIT_MIN_SCORE_PROFILE = 0.4;
+      const eligibleSuccesses = fishing ? (fishing.eligibleSuccesses | 0) : 0;
+      const totalSuccesses = fishing ? (fishing.totalSuccesses | 0) : 0;
+      const lastAwardTurn = fishing && typeof fishing.lastAwardTurn === "number" && Number.isFinite(fishing.lastAwardTurn) ? (fishing.lastAwardTurn | 0) : -9999;
+      const awardCount = fishing ? (fishing.awardCount | 0) : 0;
 
-    function addTraitSummary(key, label) {
-      if (!traits) return;
-      const tr = traits[key];
-      if (!tr) return;
-      const seen = tr.seen | 0;
-      const pos = tr.positive | 0;
-      const neg = tr.negative | 0;
-      const samples = pos + neg;
-      if (seen < TRAIT_MIN_SAMPLES_PROFILE) return;
-      if (samples <= 0) return;
-      const score = (pos - neg) / samples;
-      if (Math.abs(score) < TRAIT_MIN_SCORE_PROFILE) return;
-      traitLines.push(`    - ${label} (${score.toFixed(2)})`);
-    }
+      const cfgBM = getBottleMapFishingConfigForPanel();
+      const derived = deriveBottleMapFishingChance(eligibleSuccesses, boredomLevel, cfgBM);
+      const chancePct = Math.round((derived.chance * 100) * 1000) / 1000;
+      const forcedStr = derived.forced ? " (FORCED)" : "";
+      const iidPart = bmInstanceId ? ` instanceId=${bmInstanceId}` : "";
 
-    addTraitSummary("trollSlayer", "Troll Slayer");
-    addTraitSummary("townProtector", "Town Protector");
-    addTraitSummary("caravanAlly", "Caravan Ally");
+      linesQuests.push(`  thread: active=${bmActive} status=${bmStatus}${iidPart}`);
+      linesQuests.push(`  counters: eligibleSuccesses=${eligibleSuccesses} totalSuccesses=${totalSuccesses} lastAwardTurn=${lastAwardTurn} awardCount=${awardCount}`);
+      linesQuests.push(
+        `  chance: eligible=${derived.eligible} boredom=${derived.boredom.toFixed(2)} s=${derived.s} chance=${chancePct}%${forcedStr}`
+      );
 
-    if (traitLines.length) {
-      linesProfile.push("  traits:");
-      for (let i = 0; i < traitLines.length; i++) {
-        linesProfile.push(traitLines[i]);
+      if (bottleMap) {
+        const t = bottleMap.target && typeof bottleMap.target === "object" ? bottleMap.target : null;
+        const tx = t && typeof t.absX === "number" ? (t.absX | 0) : null;
+        const ty = t && typeof t.absY === "number" ? (t.absY | 0) : null;
+        const createdTurn = bottleMap.createdTurn == null ? null : (bottleMap.createdTurn | 0);
+        const claimedTurn = bottleMap.claimedTurn == null ? null : (bottleMap.claimedTurn | 0);
+        const attempts = bottleMap.attempts == null ? 0 : (bottleMap.attempts | 0);
+        const placementTries = bottleMap.placementTries == null ? null : (bottleMap.placementTries | 0);
+        const failureReason = bottleMap.failureReason ? String(bottleMap.failureReason) : "";
+
+        linesQuests.push(`  state: target=${tx == null ? "-" : tx},${ty == null ? "-" : ty} createdTurn=${createdTurn == null ? "-" : createdTurn} claimedTurn=${claimedTurn == null ? "-" : claimedTurn}`);
+        linesQuests.push(`  progress: attempts=${attempts}${placementTries == null ? "" : ` placementTries=${placementTries}`}`);
+        if (failureReason) linesQuests.push(`  failure: ${failureReason}`);
       }
-    }
 
-    _profileEl.textContent = linesProfile.join("\n");
+      linesQuests.push("");
+      linesQuests.push("Survey Cache:");
+      if (!surveyCache) {
+        linesQuests.push("  (no data)");
+      } else {
+        const scActive = surveyCache.active && typeof surveyCache.active === "object" ? surveyCache.active : null;
+        const scInstanceId = scActive && scActive.instanceId != null ? String(scActive.instanceId) : "-";
+        const scX = scActive && typeof scActive.absX === "number" && Number.isFinite(scActive.absX) ? (scActive.absX | 0) : null;
+        const scY = scActive && typeof scActive.absY === "number" && Number.isFinite(scActive.absY) ? (scActive.absY | 0) : null;
+        const scNextSpawnTurn = typeof surveyCache.nextSpawnTurn === "number" && Number.isFinite(surveyCache.nextSpawnTurn) ? (surveyCache.nextSpawnTurn | 0) : 0;
+        const scClaimed = Array.isArray(surveyCache.claimedOrder) ? surveyCache.claimedOrder.length : 0;
+        const scAttempts = surveyCache.attempts && typeof surveyCache.attempts === "object" ? Object.keys(surveyCache.attempts).length : 0;
+        linesQuests.push(`  active=${!!scActive} instanceId=${scInstanceId} target=${scX == null ? "-" : scX},${scY == null ? "-" : scY}`);
+        linesQuests.push(`  nextSpawnTurn=${scNextSpawnTurn} claimed=${scClaimed} attemptsTracked=${scAttempts}`);
+      }
+
+      _questsEl.textContent = linesQuests.join("\n");
+    }
   }
 
   if (_traitsEl) {

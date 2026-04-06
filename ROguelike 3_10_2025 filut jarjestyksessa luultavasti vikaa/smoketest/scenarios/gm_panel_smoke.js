@@ -64,18 +64,29 @@
 
       record(opened && panelVisible, "GM panel smoke: GMPanel.show opens #gm-panel");
 
-      // Snapshot content check (lightweight, no strict formatting assumptions)
-      const hasRngLine = await waitUntil(() => {
+      const hasOrchestratorSection = await waitUntil(() => {
         try {
-          const el = document.querySelector("#gm-panel .gm-panel-profile");
+          const el = document.querySelector("#gm-panel .gm-panel-orchestrator");
           const txt = el ? String(el.textContent || "") : "";
-          return txt.includes("gm.rng:");
+          return txt.includes("gm.rng:") && txt.includes("gm.scheduler:");
         } catch (_) {
           return false;
         }
       }, 2500, 80);
 
-      record(hasRngLine, "GM panel smoke: profile contains gm.rng line");
+      record(hasOrchestratorSection, "GM panel smoke: orchestrator section shows GM RNG and scheduler");
+
+      const hasQuestSection = await waitUntil(() => {
+        try {
+          const el = document.querySelector("#gm-panel .gm-panel-quests");
+          const txt = el ? String(el.textContent || "") : "";
+          return txt.includes("Bottle Map:") && (txt.includes("Survey Cache:") || txt.includes("No active quest threads."));
+        } catch (_) {
+          return false;
+        }
+      }, 2500, 80);
+
+      record(hasQuestSection, "GM panel smoke: quest section shows Bottle Map and quest summary");
 
       return true;
     } catch (e) {
