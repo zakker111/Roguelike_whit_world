@@ -190,6 +190,39 @@
 
       record(persistedFilterState, "GM panel smoke: traits/mechanics filter toggles persist via GM_PANEL_PREFS_V1");
 
+      let rawJsonBehavior = false;
+      try {
+        const rawToggle = document.querySelector('#gm-panel [data-gm-section-toggle="raw"]');
+        const rawBody = document.querySelector('#gm-panel [data-gm-section-body="raw"]');
+        if (rawToggle && rawBody) {
+          const collapsedByDefault = rawBody.hidden === true;
+          const emptyWhileCollapsed = String(rawBody.textContent || "").trim() === "";
+
+          rawToggle.click();
+
+          const expandedWithJson = await waitUntil(() => {
+            try {
+              const inner = document.querySelector('#gm-panel [data-gm-section-body="raw"]');
+              const txt = inner ? String(inner.textContent || "").trim() : "";
+              return !!(inner && inner.hidden === false && txt.startsWith("{"));
+            } catch (_) {
+              return false;
+            }
+          }, 2000, 80);
+
+          rawJsonBehavior = collapsedByDefault && emptyWhileCollapsed && expandedWithJson;
+
+          try {
+            const rawReset = document.querySelector('#gm-panel [data-gm-section-toggle="raw"]');
+            if (rawReset) rawReset.click();
+          } catch (_) {}
+        }
+      } catch (_) {
+        rawJsonBehavior = false;
+      }
+
+      record(rawJsonBehavior, "GM panel smoke: raw JSON section starts collapsed and renders on expand");
+
       return true;
     } catch (e) {
       record(false, "GM panel smoke scenario failed: " + (e && e.message ? e.message : String(e)));

@@ -27,6 +27,7 @@ let _moodEl = null;
 let _mechEl = null;
 let _intentsEl = null;
 let _eventsEl = null;
+let _rawJsonEl = null;
 let _toggleBtn = null;
 let _copyBtn = null;
 let _resetBtn = null;
@@ -49,6 +50,7 @@ const DEFAULT_SECTION_PREFS = Object.freeze({
   mechanics: true,
   intents: true,
   events: true,
+  raw: false,
 });
 
 function cloneDefaultPanelPrefs() {
@@ -170,7 +172,12 @@ function setSectionExpanded(id, expanded, persist = true) {
 }
 
 function toggleSection(id) {
-  setSectionExpanded(id, !isSectionExpanded(id), true);
+  const nextExpanded = !isSectionExpanded(id);
+  setSectionExpanded(id, nextExpanded, true);
+  if (!nextExpanded && id === "raw" && _rawJsonEl) {
+    _rawJsonEl.textContent = "";
+  }
+  if (_open && nextExpanded) refresh();
 }
 
 function createPanelBlock(className) {
@@ -617,6 +624,9 @@ function ensurePanel() {
   _eventsEl = createPanelBlock("gm-panel-events");
   body.appendChild(createSection("events", "Recent events", _eventsEl, { scrollable: true, maxHeight: "160px" }));
 
+  _rawJsonEl = createPanelBlock("gm-panel-json");
+  body.appendChild(createSection("raw", "Raw GM JSON", _rawJsonEl, { scrollable: true, maxHeight: "240px" }));
+
   root.appendChild(header);
   root.appendChild(body);
   document.body.appendChild(root);
@@ -645,6 +655,7 @@ function renderSnapshot(gm) {
     if (_mechEl) _mechEl.textContent = "";
     if (_intentsEl) _intentsEl.textContent = "GM intents (latest first; 'none' = decision)\n  No GM intents yet.";
     _eventsEl.textContent = "No GM events (GMRuntime not available).";
+    if (_rawJsonEl && isSectionExpanded("raw")) _rawJsonEl.textContent = "GM state not available.";
     if (_toggleBtn) {
       _toggleBtn.textContent = "GM N/A";
       _toggleBtn.disabled = true;
@@ -1151,6 +1162,14 @@ function renderSnapshot(gm) {
       evLines.push(`[T ${t}] ${type} @ ${scope}`);
     }
     _eventsEl.textContent = evLines.join("\n");
+  }
+
+  if (_rawJsonEl && isSectionExpanded("raw")) {
+    try {
+      _rawJsonEl.textContent = JSON.stringify(gm, null, 2);
+    } catch (_) {
+      _rawJsonEl.textContent = "(raw GM JSON unavailable)";
+    }
   }
 }
 
