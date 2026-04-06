@@ -147,10 +147,11 @@ Bundling (optional, Vite)
 - Setup:
   - npm install
   - npm run dev         # start Vite dev server (imports are resolved automatically)
-  - npm run build       # builds to dist/ with optimized assets
+  - npm run build       # builds a self-contained dist/ artifact (bundle + runtime files/docs)
   - npm run preview     # serves the built dist/ on http://localhost:8080
 - Deploy:
-  - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
+  - Deploy dist/ consistently for production.
+  - The build now copies the runtime source tree, JSON registries, docs, and tools into dist/ so both fresh loads and stale cached HTML keep working during rollout.
   - Tip: bump meta[name="app-version"] in index.html (often aligned with package.json version) to force clearing saved states on deploy.
 
 Key features at a glance
