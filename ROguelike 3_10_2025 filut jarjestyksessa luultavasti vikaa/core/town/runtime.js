@@ -446,14 +446,41 @@ function startCaravanAmbushEncounter(ctx, npc) {
 
     const biome = "GRASS";
     let ok = false;
+    let synced = false;
+
+    let applyCtxSyncAndRefresh = null;
     try {
-      const GA = ctx.GameAPI || getMod(ctx, "GameAPI") || (typeof window !== "undefined" ? window.GameAPI : null);
-      if (GA && typeof GA.enterEncounter === "function") {
-        ok = !!GA.enterEncounter(template, biome, template.difficulty);
-      } else if (typeof ctx.enterEncounter === "function") {
-        ok = !!ctx.enterEncounter(template, biome);
+      const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
+      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+        applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
       }
     } catch (_) {}
+
+    try {
+      const M = ctx.Modes || getMod(ctx, "Modes");
+      if (M && typeof M.enterEncounter === "function") {
+        ok = !!M.enterEncounter(ctx, template, biome, template.difficulty || 4, applyCtxSyncAndRefresh || undefined);
+        if (ok) synced = true;
+      }
+    } catch (_) {}
+
+    if (!ok) {
+      try {
+        const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
+        if (ER && typeof ER.enter === "function") {
+          ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
+        }
+      } catch (_) {}
+    }
+
+    if (ok && !synced) {
+      try {
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          applyCtxSyncAndRefresh(ctx);
+          synced = true;
+        }
+      } catch (_) {}
+    }
 
     if (!ok && ctx.log) {
       ctx.log("Failed to start caravan ambush encounter.", "warn");
