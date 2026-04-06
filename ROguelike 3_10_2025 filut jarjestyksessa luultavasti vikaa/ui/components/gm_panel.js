@@ -33,8 +33,146 @@ let _resetBtn = null;
 let _clearBtn = null;
 let _open = false;
 let _refreshTimer = null;
+let _panelPrefs = null;
+const _sectionRegistry = Object.create(null);
 
 const MAX_EVENTS = 20;
+const GM_PANEL_PREFS_KEY = "GM_PANEL_PREFS_V1";
+const DEFAULT_SECTION_PREFS = Object.freeze({
+  mood: true,
+  orchestrator: true,
+  quests: true,
+  stats: true,
+  traits: true,
+  mechanics: true,
+  intents: true,
+  events: true,
+});
+
+function cloneDefaultPanelPrefs() {
+  return { sections: Object.assign({}, DEFAULT_SECTION_PREFS) };
+}
+
+function normalizePanelPrefs(raw) {
+  const next = cloneDefaultPanelPrefs();
+  const sections = raw && raw.sections && typeof raw.sections === "object" ? raw.sections : null;
+  const keys = Object.keys(DEFAULT_SECTION_PREFS);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (sections && Object.prototype.hasOwnProperty.call(sections, key)) {
+      next.sections[key] = sections[key] !== false;
+    }
+  }
+  return next;
+}
+
+function getPanelPrefs() {
+  if (_panelPrefs) return _panelPrefs;
+  let parsed = null;
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem(GM_PANEL_PREFS_KEY);
+      if (raw) parsed = JSON.parse(raw);
+    }
+  } catch (_) {}
+  _panelPrefs = normalizePanelPrefs(parsed);
+  return _panelPrefs;
+}
+
+function savePanelPrefs() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    const prefs = getPanelPrefs();
+    window.localStorage.setItem(GM_PANEL_PREFS_KEY, JSON.stringify(prefs));
+  } catch (_) {}
+}
+
+function clearPanelPrefs() {
+  _panelPrefs = cloneDefaultPanelPrefs();
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem(GM_PANEL_PREFS_KEY);
+    }
+  } catch (_) {}
+}
+
+function isSectionExpanded(id) {
+  const prefs = getPanelPrefs();
+  return prefs.sections[id] !== false;
+}
+
+function setSectionExpanded(id, expanded, persist = true) {
+  const prefs = getPanelPrefs();
+  prefs.sections[id] = expanded !== false;
+  const entry = _sectionRegistry[id];
+  if (entry) {
+    const isOpen = prefs.sections[id] !== false;
+    if (entry.body) entry.body.hidden = !isOpen;
+    if (entry.toggle) {
+      entry.toggle.textContent = `${isOpen ? "▼" : "▶"} ${entry.title}`;
+      entry.toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
+    if (entry.container) entry.container.dataset.collapsed = isOpen ? "false" : "true";
+  }
+  if (persist) savePanelPrefs();
+}
+
+function toggleSection(id) {
+  setSectionExpanded(id, !isSectionExpanded(id), true);
+}
+
+function createPanelBlock(className) {
+  const el = document.createElement("div");
+  el.className = className;
+  el.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  el.style.fontSize = "11px";
+  el.style.whiteSpace = "pre-wrap";
+  el.style.background = "#020617";
+  el.style.borderRadius = "6px";
+  el.style.border = "1px solid #1f2937";
+  el.style.padding = "6px 8px";
+  return el;
+}
+
+function createSection(id, title, contentEl, opts = {}) {
+  const section = document.createElement("section");
+  section.className = "gm-panel-section";
+  section.dataset.gmSection = id;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "gm-panel-section-toggle";
+  toggle.dataset.gmSectionToggle = id;
+  toggle.style.background = "transparent";
+  toggle.style.border = "none";
+  toggle.style.color = "#9ca3af";
+  toggle.style.cursor = "pointer";
+  toggle.style.fontSize = "11px";
+  toggle.style.fontWeight = "600";
+  toggle.style.letterSpacing = "0.05em";
+  toggle.style.margin = "0";
+  toggle.style.padding = "0";
+  toggle.style.textAlign = "left";
+  toggle.style.textTransform = "uppercase";
+  toggle.style.width = "100%";
+  toggle.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleSection(id);
+  });
+
+  contentEl.dataset.gmSectionBody = id;
+  if (opts.scrollable === true) {
+    contentEl.style.maxHeight = opts.maxHeight || "160px";
+    contentEl.style.overflowY = "auto";
+  }
+
+  section.appendChild(toggle);
+  section.appendChild(contentEl);
+  _sectionRegistry[id] = { container: section, toggle, body: contentEl, title };
+  setSectionExpanded(id, isSectionExpanded(id), false);
+  return section;
+}
 
 function formatValenceBar(val) {
   const totalSlots = 8;
@@ -249,7 +387,12 @@ function clearGMPersistedState() {
     const ctx = GA.getCtx();
     if (!ctx) return false;
     GM.clearPersisted(ctx);
-    try { ctx.log && ctx.log("[GM] Cleared persisted GM state (GM_STATE_V1).", "notice"); } catch (_) {}
+    clearPanelPrefs();
+    const ids = Object.keys(DEFAULT_SECTION_PREFS);
+    for (let i = 0; i < ids.length; i++) {
+      setSectionExpanded(ids[i], DEFAULT_SECTION_PREFS[ids[i]] !== false, false);
+    }
+    try { ctx.log && ctx.log("[GM] Cleared persisted GM state (GM_STATE_V1) and GM panel prefs (GM_PANEL_PREFS_V1).", "notice"); } catch (_) {}
     refresh();
     return true;
   } catch (_) {
@@ -311,6 +454,7 @@ function installDrag(headerEl, panelEl) {
 function ensurePanel() {
   if (_panelEl) return _panelEl;
   if (typeof document === "undefined") return null;
+  getPanelPrefs();
 
   const root = document.createElement("div");
   root.id = "gm-panel";
@@ -469,169 +613,29 @@ function ensurePanel() {
   _summaryEl.style.color = "#e5e7eb";
   body.appendChild(_summaryEl);
 
-  const moodLabel = document.createElement("div");
-  moodLabel.textContent = "Mood";
-  moodLabel.style.fontSize = "11px";
-  moodLabel.style.textTransform = "uppercase";
-  moodLabel.style.letterSpacing = "0.05em";
-  moodLabel.style.color = "#9ca3af";
-  moodLabel.style.marginTop = "4px";
-  body.appendChild(moodLabel);
+  _moodEl = createPanelBlock("gm-panel-mood");
+  body.appendChild(createSection("mood", "Mood", _moodEl));
 
-  _moodEl = document.createElement("div");
-  _moodEl.className = "gm-panel-mood";
-  _moodEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _moodEl.style.fontSize = "11px";
-  _moodEl.style.whiteSpace = "pre-wrap";
-  _moodEl.style.background = "#020617";
-  _moodEl.style.borderRadius = "6px";
-  _moodEl.style.border = "1px solid #1f2937";
-  _moodEl.style.padding = "6px 8px";
-  body.appendChild(_moodEl);
+  _orchestratorEl = createPanelBlock("gm-panel-orchestrator");
+  body.appendChild(createSection("orchestrator", "Next action / cooldowns", _orchestratorEl));
 
-  const orchestratorLabel = document.createElement("div");
-  orchestratorLabel.textContent = "Next action / cooldowns";
-  orchestratorLabel.style.fontSize = "11px";
-  orchestratorLabel.style.textTransform = "uppercase";
-  orchestratorLabel.style.letterSpacing = "0.05em";
-  orchestratorLabel.style.color = "#9ca3af";
-  orchestratorLabel.style.marginTop = "4px";
-  body.appendChild(orchestratorLabel);
+  _questsEl = createPanelBlock("gm-panel-quests");
+  body.appendChild(createSection("quests", "Active quests", _questsEl));
 
-  _orchestratorEl = document.createElement("div");
-  _orchestratorEl.className = "gm-panel-orchestrator";
-  _orchestratorEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _orchestratorEl.style.fontSize = "11px";
-  _orchestratorEl.style.whiteSpace = "pre-wrap";
-  _orchestratorEl.style.background = "#020617";
-  _orchestratorEl.style.borderRadius = "6px";
-  _orchestratorEl.style.border = "1px solid #1f2937";
-  _orchestratorEl.style.padding = "6px 8px";
-  body.appendChild(_orchestratorEl);
+  _statsEl = createPanelBlock("gm-panel-stats");
+  body.appendChild(createSection("stats", "Stats", _statsEl));
 
-  const questsLabel = document.createElement("div");
-  questsLabel.textContent = "Active quests";
-  questsLabel.style.fontSize = "11px";
-  questsLabel.style.textTransform = "uppercase";
-  questsLabel.style.letterSpacing = "0.05em";
-  questsLabel.style.color = "#9ca3af";
-  questsLabel.style.marginTop = "4px";
-  body.appendChild(questsLabel);
+  _traitsEl = createPanelBlock("gm-panel-traits");
+  body.appendChild(createSection("traits", "Traits", _traitsEl));
 
-  _questsEl = document.createElement("div");
-  _questsEl.className = "gm-panel-quests";
-  _questsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _questsEl.style.fontSize = "11px";
-  _questsEl.style.whiteSpace = "pre-wrap";
-  _questsEl.style.background = "#020617";
-  _questsEl.style.borderRadius = "6px";
-  _questsEl.style.border = "1px solid #1f2937";
-  _questsEl.style.padding = "6px 8px";
-  body.appendChild(_questsEl);
+  _mechEl = createPanelBlock("gm-panel-mechanics");
+  body.appendChild(createSection("mechanics", "Mechanics", _mechEl));
 
-  const statsLabel = document.createElement("div");
-  statsLabel.textContent = "Stats";
-  statsLabel.style.fontSize = "11px";
-  statsLabel.style.textTransform = "uppercase";
-  statsLabel.style.letterSpacing = "0.05em";
-  statsLabel.style.color = "#9ca3af";
-  statsLabel.style.marginTop = "4px";
-  body.appendChild(statsLabel);
+  _intentsEl = createPanelBlock("gm-panel-intents");
+  body.appendChild(createSection("intents", "GM intents", _intentsEl, { scrollable: true, maxHeight: "160px" }));
 
-  _statsEl = document.createElement("div");
-  _statsEl.className = "gm-panel-stats";
-  _statsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _statsEl.style.fontSize = "11px";
-  _statsEl.style.whiteSpace = "pre-wrap";
-  _statsEl.style.background = "#020617";
-  _statsEl.style.borderRadius = "6px";
-  _statsEl.style.border = "1px solid #1f2937";
-  _statsEl.style.padding = "6px 8px";
-  body.appendChild(_statsEl);
-
-  const traitsLabel = document.createElement("div");
-  traitsLabel.textContent = "Traits";
-  traitsLabel.style.fontSize = "11px";
-  traitsLabel.style.textTransform = "uppercase";
-  traitsLabel.style.letterSpacing = "0.05em";
-  traitsLabel.style.color = "#9ca3af";
-  traitsLabel.style.marginTop = "4px";
-  body.appendChild(traitsLabel);
-
-  _traitsEl = document.createElement("div");
-  _traitsEl.className = "gm-panel-traits";
-  _traitsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _traitsEl.style.fontSize = "11px";
-  _traitsEl.style.whiteSpace = "pre-wrap";
-  _traitsEl.style.background = "#020617";
-  _traitsEl.style.borderRadius = "6px";
-  _traitsEl.style.border = "1px solid #1f2937";
-  _traitsEl.style.padding = "6px 8px";
-  body.appendChild(_traitsEl);
-
-  const mechLabel = document.createElement("div");
-  mechLabel.textContent = "Mechanics";
-  mechLabel.style.fontSize = "11px";
-  mechLabel.style.textTransform = "uppercase";
-  mechLabel.style.letterSpacing = "0.05em";
-  mechLabel.style.color = "#9ca3af";
-  mechLabel.style.marginTop = "4px";
-  body.appendChild(mechLabel);
-
-  _mechEl = document.createElement("div");
-  _mechEl.className = "gm-panel-mechanics";
-  _mechEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _mechEl.style.fontSize = "11px";
-  _mechEl.style.whiteSpace = "pre-wrap";
-  _mechEl.style.background = "#020617";
-  _mechEl.style.borderRadius = "6px";
-  _mechEl.style.border = "1px solid #1f2937";
-  _mechEl.style.padding = "6px 8px";
-  body.appendChild(_mechEl);
-
-  const intentsLabel = document.createElement("div");
-  intentsLabel.textContent = "GM intents";
-  intentsLabel.style.fontSize = "11px";
-  intentsLabel.style.textTransform = "uppercase";
-  intentsLabel.style.letterSpacing = "0.05em";
-  intentsLabel.style.color = "#9ca3af";
-  intentsLabel.style.marginTop = "4px";
-  body.appendChild(intentsLabel);
-
-  _intentsEl = document.createElement("div");
-  _intentsEl.className = "gm-panel-intents";
-  _intentsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _intentsEl.style.fontSize = "11px";
-  _intentsEl.style.whiteSpace = "pre-wrap";
-  _intentsEl.style.background = "#020617";
-  _intentsEl.style.borderRadius = "6px";
-  _intentsEl.style.border = "1px solid #1f2937";
-  _intentsEl.style.padding = "6px 8px";
-  _intentsEl.style.maxHeight = "160px";
-  _intentsEl.style.overflowY = "auto";
-  body.appendChild(_intentsEl);
-
-  const eventsLabel = document.createElement("div");
-  eventsLabel.textContent = "Recent events";
-  eventsLabel.style.fontSize = "11px";
-  eventsLabel.style.textTransform = "uppercase";
-  eventsLabel.style.letterSpacing = "0.05em";
-  eventsLabel.style.color = "#9ca3af";
-  eventsLabel.style.marginTop = "4px";
-  body.appendChild(eventsLabel);
-
-  _eventsEl = document.createElement("div");
-  _eventsEl.className = "gm-panel-events";
-  _eventsEl.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  _eventsEl.style.fontSize = "11px";
-  _eventsEl.style.whiteSpace = "pre-wrap";
-  _eventsEl.style.background = "#020617";
-  _eventsEl.style.borderRadius = "6px";
-  _eventsEl.style.border = "1px solid #1f2937";
-  _eventsEl.style.padding = "6px 8px";
-  _eventsEl.style.maxHeight = "160px";
-  _eventsEl.style.overflowY = "auto";
-  body.appendChild(_eventsEl);
+  _eventsEl = createPanelBlock("gm-panel-events");
+  body.appendChild(createSection("events", "Recent events", _eventsEl, { scrollable: true, maxHeight: "160px" }));
 
   root.appendChild(header);
   root.appendChild(body);

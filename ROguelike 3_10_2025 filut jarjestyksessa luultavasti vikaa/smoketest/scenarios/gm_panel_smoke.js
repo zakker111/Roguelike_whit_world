@@ -88,6 +88,54 @@
 
       record(hasQuestSection, "GM panel smoke: quest section shows Bottle Map and quest summary");
 
+      let persistedSectionState = false;
+      try {
+        const toggle = document.querySelector('#gm-panel [data-gm-section-toggle="quests"]');
+        const body = document.querySelector('#gm-panel [data-gm-section-body="quests"]');
+        if (toggle && body) {
+          toggle.click();
+          const collapsed = await waitUntil(() => {
+            try {
+              const inner = document.querySelector('#gm-panel [data-gm-section-body="quests"]');
+              return !!(inner && inner.hidden === true);
+            } catch (_) {
+              return false;
+            }
+          }, 1500, 60);
+
+          let hasPrefs = false;
+          try {
+            const rawPrefs = window.localStorage ? window.localStorage.getItem("GM_PANEL_PREFS_V1") : "";
+            hasPrefs = !!(rawPrefs && rawPrefs.includes('"quests":false'));
+          } catch (_) {
+            hasPrefs = false;
+          }
+
+          try { GMP.hide(); } catch (_) {}
+          try { GMP.show(); } catch (_) {}
+
+          const stillCollapsed = await waitUntil(() => {
+            try {
+              const inner = document.querySelector('#gm-panel [data-gm-section-body="quests"]');
+              return !!(inner && inner.hidden === true);
+            } catch (_) {
+              return false;
+            }
+          }, 2000, 80);
+
+          persistedSectionState = collapsed && hasPrefs && stillCollapsed;
+
+          try {
+            const reopenToggle = document.querySelector('#gm-panel [data-gm-section-toggle="quests"]');
+            if (reopenToggle) reopenToggle.click();
+          } catch (_) {}
+        }
+      } catch (_) {
+        persistedSectionState = false;
+      }
+
+      record(persistedSectionState, "GM panel smoke: collapsed section persists via GM_PANEL_PREFS_V1");
+
       return true;
     } catch (e) {
       record(false, "GM panel smoke scenario failed: " + (e && e.message ? e.message : String(e)));
