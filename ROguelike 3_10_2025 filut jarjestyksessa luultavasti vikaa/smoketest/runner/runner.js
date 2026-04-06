@@ -1925,8 +1925,9 @@
           detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
           detailsHtml
         });
+        const collectOnly = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.COLLECT_ONLY);
         // Render only if not in suppress/collect mode
-        if (!suppress) {
+        if (!suppress && !collectOnly) {
           try {
             // Ensure GOD panel is visible before writing the report
             try { openGodPanel(); } catch (_) {}
@@ -2083,9 +2084,10 @@
     try {
       window.SmokeTest = window.SmokeTest || {};
       window.SmokeTest.Runner = window.SmokeTest.Runner || {};
-      // For multi-run, enable stacking (append each run's report) and do not suppress per-run rendering
+      // For multi-run, enable stacking (append each run's report). Preserve an existing collect-only
+      // mode so headless harnesses can skip expensive panel/export DOM work while still collecting JSON.
       window.SmokeTest.Runner.STACK_LOGS = stacking;
-      window.SmokeTest.Runner.COLLECT_ONLY = false;
+      window.SmokeTest.Runner.COLLECT_ONLY = !!window.SmokeTest.Runner.COLLECT_ONLY;
     } catch (_) {}
 
     // Keep GOD panel closed until after overworld is confirmed and seed is applied (safer for exit logic)
@@ -2435,15 +2437,21 @@
 
       // Progress snippet
       try {
-        const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        const skippedStable = (skipList && skipList.length) ? `<div style="opacity:0.85;">Skipped (stable OK): ${skipList.join(", ")}</div>` : ``;
-        const abortedInfo = (res && res.aborted) ? `<div style="color:#ef4444;">Run ${i + 1} aborted (${res.abortReason}). Remaining scenarios skipped.</div>` : ``;
-        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}${abortedInfo}`;
-        if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
+        const collectOnly = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.COLLECT_ONLY);
+        if (!collectOnly) {
+          const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          const skippedStable = (skipList && skipList.length) ? `<div style="opacity:0.85;">Skipped (stable OK): ${skipList.join(", ")}</div>` : ``;
+          const abortedInfo = (res && res.aborted) ? `<div style="color:#ef4444;">Run ${i + 1} aborted (${res.abortReason}). Remaining scenarios skipped.</div>` : ``;
+          const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}${abortedInfo}`;
+          if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
+        }
       } catch (_) {}
 
       // Update live matchup scoreboard
-      updateMatchup();
+      try {
+        const collectOnly = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.COLLECT_ONLY);
+        if (!collectOnly) updateMatchup();
+      } catch (_) {}
 
       // Update status to reflect completion of this run
       try {
@@ -2622,21 +2630,25 @@
 
       // Append final aggregated report (keep per-run sections visible)
       try {
-        // Ensure GOD panel is visible before writing the aggregated report
-        try { openGodPanel(); } catch (_) {}
-        const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        if (Bsum && typeof Bsum.appendToPanel === "function") {
-          Bsum.appendToPanel(summary);
-          Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (informational: union of success across runs)</strong></div>` + mainAgg);
-        } else {
-          panelReport(summary + mainAgg);
+        const collectOnly = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.COLLECT_ONLY);
+        if (!collectOnly) {
+          // Ensure GOD panel is visible before writing the aggregated report
+          try { openGodPanel(); } catch (_) {}
+          const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (Bsum && typeof Bsum.appendToPanel === "function") {
+            Bsum.appendToPanel(summary);
+            Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (informational: union of success across runs)</strong></div>` + mainAgg);
+          } else {
+            panelReport(summary + mainAgg);
+          }
         }
       } catch (_) {}
 
       // Export buttons aggregation (final only)
       try {
+        const collectOnly = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.COLLECT_ONLY);
         const E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
-        if (E && typeof E.attachButtons === "function") {
+        if (!collectOnly && E && typeof E.attachButtons === "function") {
           // Build aggregated Key Checklist (object) and diagnostics
           let aggregatedKeyChecklist = {};
           try {

@@ -174,7 +174,11 @@ async function findFreePort(preferredPort) {
 async function main() {
   const preferredPort = Number(process.env.PORT || 8080);
   const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 2);
-  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, seriesRuns * 60000);
+  const scenarioCount = PHASE0_SCENARIOS.split(',').length;
+  // Phase 0 runs a broad suite, and two full series can legitimately exceed 120s
+  // even when healthy. Scale the harness timeout with suite size instead of treating
+  // it like a tiny smoke pass.
+  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, seriesRuns * scenarioCount * 6000);
   // Some environments set PORT globally (e.g. Codespaces/preview tooling). If that port is already
   // in use, the server child will fail to bind and the harness can accidentally talk to whatever
   // is already listening there (often resulting in redirect loops). Always probe for a free port
@@ -273,6 +277,9 @@ async function main() {
         () =>
           page.evaluate(async () => {
             const seriesRuns = Number(window.__PHASE0_SERIES_RUNS__ || 2);
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+            window.SmokeTest.Runner.COLLECT_ONLY = true;
             const res = await window.SmokeTest.Run.runSeries(seriesRuns);
             const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
             const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
@@ -316,7 +323,7 @@ async function main() {
         ok: seriesOk && bootOk,
         config: {
           seriesRuns,
-          scenarioCount: PHASE0_SCENARIOS.split(',').length
+          scenarioCount
         },
         passToken,
         checks: {
