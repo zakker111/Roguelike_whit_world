@@ -136,6 +136,60 @@
 
       record(persistedSectionState, "GM panel smoke: collapsed section persists via GM_PANEL_PREFS_V1");
 
+      let persistedFilterState = false;
+      try {
+        const traitsToggle = document.querySelector('#gm-panel [data-gm-filter-toggle="traits"]');
+        const mechToggle = document.querySelector('#gm-panel [data-gm-filter-toggle="mechanics"]');
+        if (traitsToggle && mechToggle) {
+          traitsToggle.click();
+          mechToggle.click();
+
+          const toggled = await waitUntil(() => {
+            try {
+              const t = document.querySelector('#gm-panel [data-gm-filter-toggle="traits"]');
+              const m = document.querySelector('#gm-panel [data-gm-filter-toggle="mechanics"]');
+              return !!(t && t.getAttribute("aria-pressed") === "true" && m && m.getAttribute("aria-pressed") === "true");
+            } catch (_) {
+              return false;
+            }
+          }, 1500, 60);
+
+          let hasFilterPrefs = false;
+          try {
+            const rawPrefs = window.localStorage ? window.localStorage.getItem("GM_PANEL_PREFS_V1") : "";
+            hasFilterPrefs = !!(rawPrefs && rawPrefs.includes('"showAllTraits":true') && rawPrefs.includes('"showAllMechanics":true'));
+          } catch (_) {
+            hasFilterPrefs = false;
+          }
+
+          try { GMP.hide(); } catch (_) {}
+          try { GMP.show(); } catch (_) {}
+
+          const persisted = await waitUntil(() => {
+            try {
+              const t = document.querySelector('#gm-panel [data-gm-filter-toggle="traits"]');
+              const m = document.querySelector('#gm-panel [data-gm-filter-toggle="mechanics"]');
+              return !!(t && t.getAttribute("aria-pressed") === "true" && m && m.getAttribute("aria-pressed") === "true");
+            } catch (_) {
+              return false;
+            }
+          }, 2000, 80);
+
+          persistedFilterState = toggled && hasFilterPrefs && persisted;
+
+          try {
+            const traitsReset = document.querySelector('#gm-panel [data-gm-filter-toggle="traits"]');
+            const mechReset = document.querySelector('#gm-panel [data-gm-filter-toggle="mechanics"]');
+            if (traitsReset && traitsReset.getAttribute("aria-pressed") === "true") traitsReset.click();
+            if (mechReset && mechReset.getAttribute("aria-pressed") === "true") mechReset.click();
+          } catch (_) {}
+        }
+      } catch (_) {
+        persistedFilterState = false;
+      }
+
+      record(persistedFilterState, "GM panel smoke: traits/mechanics filter toggles persist via GM_PANEL_PREFS_V1");
+
       return true;
     } catch (e) {
       record(false, "GM panel smoke scenario failed: " + (e && e.message ? e.message : String(e)));

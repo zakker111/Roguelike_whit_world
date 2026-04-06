@@ -468,6 +468,24 @@ html {
   gap: 0;
 }
 
+.gm-panel-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gm-panel-filter-label {
+  color: #9ca3af;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.gm-panel-filter-toggle {
+  margin-left: auto;
+}
+
 .gm-panel-block {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;

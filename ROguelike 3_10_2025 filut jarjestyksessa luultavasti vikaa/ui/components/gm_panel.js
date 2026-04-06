@@ -31,6 +31,8 @@ let _toggleBtn = null;
 let _copyBtn = null;
 let _resetBtn = null;
 let _clearBtn = null;
+let _traitsFilterBtn = null;
+let _mechFilterBtn = null;
 let _open = false;
 let _refreshTimer = null;
 let _panelPrefs = null;
@@ -50,7 +52,11 @@ const DEFAULT_SECTION_PREFS = Object.freeze({
 });
 
 function cloneDefaultPanelPrefs() {
-  return { sections: Object.assign({}, DEFAULT_SECTION_PREFS) };
+  return {
+    sections: Object.assign({}, DEFAULT_SECTION_PREFS),
+    showAllTraits: false,
+    showAllMechanics: false,
+  };
 }
 
 function normalizePanelPrefs(raw) {
@@ -63,6 +69,8 @@ function normalizePanelPrefs(raw) {
       next.sections[key] = sections[key] !== false;
     }
   }
+  next.showAllTraits = !!(raw && raw.showAllTraits === true);
+  next.showAllMechanics = !!(raw && raw.showAllMechanics === true);
   return next;
 }
 
@@ -94,6 +102,50 @@ function clearPanelPrefs() {
       window.localStorage.removeItem(GM_PANEL_PREFS_KEY);
     }
   } catch (_) {}
+}
+
+function isPanelFilterEnabled(key) {
+  const prefs = getPanelPrefs();
+  return prefs[key] === true;
+}
+
+function setPanelFilterEnabled(key, enabled, persist = true) {
+  const prefs = getPanelPrefs();
+  prefs[key] = enabled === true;
+  if (persist) savePanelPrefs();
+}
+
+function updateFilterToggleLabel(btn, showAll) {
+  if (!btn) return;
+  btn.textContent = showAll ? "Show: all" : "Show: active only";
+  btn.setAttribute("aria-pressed", showAll ? "true" : "false");
+}
+
+function createFilterControls(id, prefKey) {
+  const row = document.createElement("div");
+  row.className = "gm-panel-filter-row";
+
+  const label = document.createElement("span");
+  label.className = "gm-panel-filter-label";
+  label.textContent = "View";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "gm-panel-chip gm-panel-filter-toggle";
+  btn.dataset.gmFilterToggle = id;
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const next = !isPanelFilterEnabled(prefKey);
+    setPanelFilterEnabled(prefKey, next, true);
+    updateFilterToggleLabel(btn, next);
+    refresh();
+  });
+  updateFilterToggleLabel(btn, isPanelFilterEnabled(prefKey));
+
+  row.appendChild(label);
+  row.appendChild(btn);
+  return { row, btn };
 }
 
 function isSectionExpanded(id) {
@@ -149,6 +201,7 @@ function createSection(id, title, contentEl, opts = {}) {
   }
 
   section.appendChild(toggle);
+  if (opts.controlEl) section.appendChild(opts.controlEl);
   section.appendChild(contentEl);
   _sectionRegistry[id] = { container: section, toggle, body: contentEl, title };
   setSectionExpanded(id, isSectionExpanded(id), false);
@@ -548,11 +601,15 @@ function ensurePanel() {
   _statsEl = createPanelBlock("gm-panel-stats");
   body.appendChild(createSection("stats", "Stats", _statsEl));
 
+  const traitsControls = createFilterControls("traits", "showAllTraits");
+  _traitsFilterBtn = traitsControls.btn;
   _traitsEl = createPanelBlock("gm-panel-traits");
-  body.appendChild(createSection("traits", "Traits", _traitsEl));
+  body.appendChild(createSection("traits", "Traits", _traitsEl, { controlEl: traitsControls.row }));
 
+  const mechanicsControls = createFilterControls("mechanics", "showAllMechanics");
+  _mechFilterBtn = mechanicsControls.btn;
   _mechEl = createPanelBlock("gm-panel-mechanics");
-  body.appendChild(createSection("mechanics", "Mechanics", _mechEl));
+  body.appendChild(createSection("mechanics", "Mechanics", _mechEl, { controlEl: mechanicsControls.row }));
 
   _intentsEl = createPanelBlock("gm-panel-intents");
   body.appendChild(createSection("intents", "GM intents", _intentsEl, { scrollable: true, maxHeight: "160px" }));
@@ -572,6 +629,9 @@ function ensurePanel() {
 
 function renderSnapshot(gm) {
   if (!_summaryEl || !_statsEl || !_eventsEl) return;
+
+  updateFilterToggleLabel(_traitsFilterBtn, isPanelFilterEnabled("showAllTraits"));
+  updateFilterToggleLabel(_mechFilterBtn, isPanelFilterEnabled("showAllMechanics"));
 
   if (!gm) {
     _summaryEl.textContent = "GM state not available (GMRuntime or GameAPI missing).";
@@ -828,6 +888,7 @@ function renderSnapshot(gm) {
   if (_traitsEl) {
     const t = gm.traits || {};
     const linesT = [];
+    const showAllTraits = isPanelFilterEnabled("showAllTraits");
     const dbg = gm.debug && typeof gm.debug === "object" ? gm.debug : {};
     const currentTurn = typeof dbg.lastTickTurn === "number" ? (dbg.lastTickTurn | 0) : null;
     const TRAIT_MIN_SAMPLES = 3; // minimum relevant events (kills/quests) before we treat this as an active trait
@@ -839,7 +900,7 @@ function renderSnapshot(gm) {
     const FAMILY_FORGET_TURNS = 300; // same forgetting window as named traits
     const FAMILY_MAX_ROWS = 6; // cap rows to keep panel compact
 
-    function pushTraitIfActive(key, label) {
+    function pushTraitRow(key, label) {
       const tr = t[key];
       if (!tr) return;
       const seen = tr.seen | 0;
@@ -864,15 +925,23 @@ function renderSnapshot(gm) {
       }
 
       const isActive = hasEnoughSamples && hasStrongBias && remembered;
-      if (!isActive) return;
+      const hasHistory = seen > 0 || pos > 0 || neg > 0 || lastTurn != null;
+      if (!showAllTraits && !isActive) return;
+      if (showAllTraits && !hasHistory) return;
 
       const scoreStr = score.toFixed(2);
-      linesT.push(`${label}: seen=${seen} pos=${pos} neg=${neg} score=${scoreStr}`);
+      if (!showAllTraits) {
+        linesT.push(`${label}: seen=${seen} pos=${pos} neg=${neg} score=${scoreStr}`);
+        return;
+      }
+
+      const state = isActive ? "active" : remembered ? "inactive" : "forgotten";
+      linesT.push(`${label}: state=${state} seen=${seen} pos=${pos} neg=${neg} score=${scoreStr}`);
     }
 
-    pushTraitIfActive("trollSlayer", "Troll Slayer");
-    pushTraitIfActive("townProtector", "Town Protector");
-    pushTraitIfActive("caravanAlly", "Caravan Ally");
+    pushTraitRow("trollSlayer", "Troll Slayer");
+    pushTraitRow("townProtector", "Town Protector");
+    pushTraitRow("caravanAlly", "Caravan Ally");
 
     // Dynamic family-based traits (e.g., Troll Slayer, Lizardman Ally, etc.)
     const famEntries = [];
@@ -884,22 +953,23 @@ function renderSnapshot(gm) {
       const seen = entry.seen | 0;
       const pos = entry.positive | 0;
       const neg = entry.negative | 0;
-      if (seen < FAMILY_MIN_SEEN) continue;
-
       const lastTurn = entry.lastUpdatedTurn == null ? null : (entry.lastUpdatedTurn | 0);
       let remembered = true;
       if (currentTurn != null && lastTurn != null) {
         const delta = currentTurn - lastTurn;
         if (delta > FAMILY_FORGET_TURNS) remembered = false;
       }
-      if (!remembered) continue;
 
       const samples = pos + neg;
       let score = 0;
       if (samples > 0) {
         score = (pos - neg) / samples;
       }
-      famEntries.push({ key, seen, pos, neg, score });
+      const isActive = seen >= FAMILY_MIN_SEEN && remembered;
+      const hasHistory = seen > 0 || pos > 0 || neg > 0 || lastTurn != null;
+      if (!showAllTraits && !isActive) continue;
+      if (showAllTraits && !hasHistory) continue;
+      famEntries.push({ key, seen, pos, neg, score, isActive, remembered });
     }
 
     if (famEntries.length) {
@@ -927,12 +997,17 @@ function renderSnapshot(gm) {
         const famName = formatFamilyName(f.key);
         const role = f.score >= 0 ? "Slayer" : "Ally";
         const scoreStr = f.score.toFixed(2);
-        linesT.push(`${famName} ${role}: seen=${f.seen} pos=${f.pos} neg=${f.neg} score=${scoreStr}`);
+        if (!showAllTraits) {
+          linesT.push(`${famName} ${role}: seen=${f.seen} pos=${f.pos} neg=${f.neg} score=${scoreStr}`);
+          continue;
+        }
+        const state = f.isActive ? "active" : f.remembered ? "inactive" : "forgotten";
+        linesT.push(`${famName} ${role}: state=${state} seen=${f.seen} pos=${f.pos} neg=${f.neg} score=${scoreStr}`);
       }
     }
 
     if (!linesT.length) {
-      _traitsEl.textContent = "No active traits yet.";
+      _traitsEl.textContent = showAllTraits ? "No trait history yet." : "No active traits yet.";
     } else {
       _traitsEl.textContent = linesT.join("\n");
     }
@@ -974,6 +1049,7 @@ function renderSnapshot(gm) {
   if (_mechEl) {
     const m = gm.mechanics || {};
     const linesM = [];
+    const showAllMechanics = isPanelFilterEnabled("showAllMechanics");
 
     const currentTurn = typeof debug.lastTickTurn === "number" ? (debug.lastTickTurn | 0) : 0;
 
@@ -987,7 +1063,7 @@ function renderSnapshot(gm) {
     function pushMech(key, label) {
       const mc = m[key];
       if (!mc) {
-        linesM.push(`${label}: (no data)`);
+        if (showAllMechanics) linesM.push(`${label}: (no data)`);
         return;
       }
       const seen = mc.seen | 0;
@@ -1004,6 +1080,9 @@ function renderSnapshot(gm) {
         knowledge = "unknown";
       }
 
+      const isActive = knowledge !== "unseen" && knowledge !== "disinterested";
+      if (!showAllMechanics && !isActive) return;
+
       const succRate = attempts > 0 ? success / attempts : 0;
       const succStr = succRate.toFixed(2);
 
@@ -1015,7 +1094,7 @@ function renderSnapshot(gm) {
     pushMech("lockpicking", "Lockpicking");
     pushMech("questBoard", "Quest Board");
     pushMech("followers", "Followers");
-    _mechEl.textContent = linesM.join("\n");
+    _mechEl.textContent = linesM.length ? linesM.join("\n") : "No active mechanics yet.";
   }
 
   if (_intentsEl) {
