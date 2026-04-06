@@ -3,7 +3,7 @@ v1.50.47 — Verified gameplay baseline before merge
 - Manual validation confirmed the current gameplay baseline is ready for continued development: towns, NPC interactions, enemies, GM flows, and core world transitions were checked before release.
 - Build/deploy baseline remains healthy with a self-contained `dist/` artifact produced by `prepare_dist.js`.
 
-Deployment: pending
+Deployment: https://19qd47aef6z2.cosine.page
 
 v1.50.46 — Logging: "all" reveals previously filtered logs
 
@@ -4503,5 +4503,4 @@ v0.1 — Baseline Roguelike Core
 - Added: GOD panel tools (heal, spawn, FOV adjustment, seed control)
 
 <!-- Planned / Ideas and technical TODO items have been moved to TODO.md -->
-
 
