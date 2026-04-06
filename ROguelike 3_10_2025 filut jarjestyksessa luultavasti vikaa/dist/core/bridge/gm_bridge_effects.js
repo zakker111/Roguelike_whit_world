@@ -49,7 +49,7 @@ export function grantBottleMapRewards(ctx, reward) {
 
   try {
     if (typeof ctx.updateUI === "function") ctx.updateUI();
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 /**
@@ -78,7 +78,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
     if (reg && reg.length) {
       tmpl = reg.find((t) => t && String(t.id || "").toLowerCase() === key) || null;
     }
-  } catch (_) {
+  } catch {
     tmpl = null;
   }
 
@@ -91,7 +91,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
         const count = loaded ? reg.length : 0;
         ctx.log(`[GM] Faction encounter template '${id}' not found (templatesLoaded=${loaded}, count=${count}).`, "warn");
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     return false;
   }
 
@@ -106,7 +106,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
       const name = W.biomeName(tile) || "";
       if (name) biome = String(name).toUpperCase();
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   let difficulty = 1;
   try {
@@ -114,7 +114,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
     if (ES && typeof ES.computeDifficulty === "function") {
       difficulty = ES.computeDifficulty(ctx, biome);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   if (typeof difficulty !== "number" || !Number.isFinite(difficulty)) difficulty = 1;
   if (difficulty < 1) difficulty = 1;
   if (difficulty > 5) difficulty = 5;
@@ -127,7 +127,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
     if (M && typeof M.enterEncounter === "function") {
       ok = !!M.enterEncounter(ctx, tmpl, biome, difficulty, NO_SYNC);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Fallback: direct EncounterRuntime entry (still ctx-first).
   if (!ok) {
@@ -136,13 +136,13 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
       if (ER && typeof ER.enter === "function") {
         ok = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
   }
 
   if (!ok) {
     try {
       if (ctx && typeof ctx.log === "function") ctx.log("[GM] Failed to start faction encounter.", "warn");
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     return false;
   }
 
@@ -151,7 +151,7 @@ export function startGmFactionEncounter(ctx, encounterId, opts) {
       const name = tmpl && tmpl.name ? tmpl.name : id;
       ctx.log(`[GM] A special encounter begins: ${name}.`, "notice");
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   return true;
 }

@@ -108,10 +108,10 @@ let _lastSaveMs = 0;
 function isLocalStorageDisabled(ctx) {
   try {
     if (ctx && (ctx.NO_LOCALSTORAGE || ctx.noLocalStorage)) return true;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   try {
     if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return true;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return false;
 }
 
@@ -126,26 +126,26 @@ function bootLog(msg, level = "info", meta) {
       window.Logger.log(line, level, m);
       return;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   try {
     // eslint-disable-next-line no-console
     if (typeof console !== "undefined" && typeof console.log === "function") console.log(line);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 function markDirty(gm) {
   _dirty = true;
   try {
     if (gm && typeof gm === "object") gm._dirty = true;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 function clearDirty(gm) {
   _dirty = false;
   try {
     if (gm && typeof gm === "object") gm._dirty = false;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 function readPersistedState(ctx) {
@@ -156,7 +156,7 @@ function readPersistedState(ctx) {
     const obj = JSON.parse(raw);
     if (!obj || typeof obj !== "object") return null;
     return obj;
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -183,7 +183,7 @@ function writePersistedState(ctx, gm, { force = false } = {}) {
     _lastSaveMs = Date.now();
     clearDirty(gm);
     return true;
-  } catch (_) {
+  } catch {
     return false;
   }
 }
@@ -192,7 +192,7 @@ function clearPersistedState(ctx) {
   if (isLocalStorageDisabled(ctx)) return;
   try {
     if (typeof localStorage !== "undefined") localStorage.removeItem(LS_KEY);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 
@@ -265,7 +265,7 @@ function _ensureState(ctx) {
   // - smoketest gm_seed_reset (probe not cleared, runSeed not updated)
   // - downstream gm.* marker/encounter flows that rely on runSeed + fresh threads.
   let runSeedNow = 0;
-  try { runSeedNow = (deriveRunSeed() >>> 0); } catch (_) { runSeedNow = 0; }
+  try { runSeedNow = (deriveRunSeed() >>> 0); } catch { runSeedNow = 0; }
 
   try {
     const prev = (_state && typeof _state.runSeed === "number" && Number.isFinite(_state.runSeed))
@@ -276,14 +276,14 @@ function _ensureState(ctx) {
       _state = createDefaultState();
       _state.runSeed = runSeedNow;
       // Best-effort: clear persisted per-run GM state so it can't be reloaded later.
-      try { clearPersistedState(ctx); } catch (_) {}
+      try { clearPersistedState(ctx); } catch { /\* ignore \*/ }
       // Reset persistence throttles as well.
       _dirty = false;
       _lastSavedTurn = -1;
       _lastSaveMs = 0;
       _loadedOnce = true;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   if (!_state) {
     _state = createDefaultState();
@@ -628,7 +628,7 @@ export function recordIntervention(ctx, meta = {}) {
       cooldownTurns: res.cooldownTurns | 0,
       nextEligibleTurn: res.nextEligibleTurn | 0,
     }, turn);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   writePersistedState(ctx, gm, { force: true });
   return true;
@@ -700,7 +700,7 @@ export function surveyCache_onMarkerPlaced(ctx) {
     markDirty(gm);
     writePersistedState(ctx, gm, { force: true });
     return true;
-  } catch (_) {
+  } catch {
     return false;
   }
 }
@@ -800,7 +800,7 @@ function bottleMapPersistIfChanged(ctx, gm, res, rngCallsBefore) {
   let after = null;
   try {
     after = (gm && gm.rng && typeof gm.rng.calls === "number" && Number.isFinite(gm.rng.calls)) ? (gm.rng.calls | 0) : null;
-  } catch (_) {
+  } catch {
     after = null;
   }
 
@@ -899,7 +899,7 @@ export function onWorldScanRect(ctx, rect) {
     if (GB && typeof GB.onWorldScanRect === "function") {
       return GB.onWorldScanRect(ctx, rect);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return false;
 }
 
@@ -909,7 +909,7 @@ export function onWorldScanTile(ctx, meta) {
     if (GB && typeof GB.onWorldScanTile === "function") {
       return GB.onWorldScanTile(ctx, meta);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return false;
 }
 
@@ -919,7 +919,7 @@ export function ensureGuaranteedSurveyCache(ctx) {
     if (GB && typeof GB.ensureGuaranteedSurveyCache === "function") {
       return GB.ensureGuaranteedSurveyCache(ctx);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return false;
 }
 
@@ -936,7 +936,7 @@ export function reset(ctx, opts = {}) {
   // Treat reset as a new-run boundary: clear persisted GM state.
   try {
     clearPersistedState(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   _state = null;
   _loadedOnce = false;
@@ -962,13 +962,13 @@ export function exportState(ctx) {
     const gm = getState(ctx);
     if (!gm || typeof gm !== "object") return null;
     return JSON.parse(JSON.stringify(gm));
-  } catch (_) {
+  } catch {
     return null;
   }
 }
 
 export function clearPersisted(ctx) {
-  try { clearPersistedState(ctx); } catch (_) {}
+  try { clearPersistedState(ctx); } catch { /\* ignore \*/ }
   return true;
 }
 

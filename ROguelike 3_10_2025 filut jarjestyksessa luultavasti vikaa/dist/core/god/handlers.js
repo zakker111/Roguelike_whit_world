@@ -23,11 +23,11 @@ export function install(getCtx) {
     try {
       const c = getCtx();
       if (c && c[name]) return c[name];
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     try {
       const w = (typeof window !== "undefined") ? window : {};
       return w[name] || null;
-    } catch (_) { return null; }
+    } catch { return null; }
   }
 
   UIH.setHandlers({
@@ -48,7 +48,7 @@ export function install(getCtx) {
           }
           return;
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       try {
         const SR = (c && c.SandboxRuntime) || (typeof window !== "undefined" ? window.SandboxRuntime : null);
         if (SR && typeof SR.enter === "function") {
@@ -63,16 +63,16 @@ export function install(getCtx) {
               if (typeof c.updateUI === "function") c.updateUI();
               if (typeof c.requestDraw === "function") c.requestDraw();
             }
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
           try {
             if (c && typeof c.log === "function") {
               c.log("Sandbox: Entered dungeon test room. Press F10 for Sandbox Controls panel.", "info");
             }
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
           return;
         }
-      } catch (_) {}
-      try { c && c.log && c.log("GOD: SandboxRuntime module not available; sandbox entry disabled.", "warn"); } catch (_) {}
+      } catch { /\* ignore \*/ }
+      try { c && c.log && c.log("GOD: SandboxRuntime module not available; sandbox entry disabled.", "warn"); } catch { /\* ignore \*/ }
     },
     onGodSpawn: () => {
       if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), 3); return; }
@@ -135,7 +135,7 @@ export function install(getCtx) {
         try {
           c.log("GOD: hire follower handler threw an error; see console for details.", "warn");
           console.error(e);
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       }
     },
     // FOV/Grid
@@ -143,7 +143,7 @@ export function install(getCtx) {
       try {
         const c = getCtx();
         if (typeof c.setFovRadius === "function") c.setFovRadius(v);
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
     onGodToggleGrid: (_v) => {
       // UI updates window.DRAW_GRID and triggers redraw; ensure a draw via UIOrchestration when available.
@@ -153,7 +153,7 @@ export function install(getCtx) {
         if (UIO && typeof UIO.requestDraw === "function") {
           UIO.requestDraw(c);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
     // Always Crit toggles
     onGodSetAlwaysCrit: (enabled) => {
@@ -224,7 +224,7 @@ export function install(getCtx) {
           try {
             const W = (typeof window !== "undefined" && window.World) ? window.World : null;
             return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
-          } catch (_) { return ""; }
+          } catch { return ""; }
         })();
         const diff = 1;
         const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
@@ -240,7 +240,7 @@ export function install(getCtx) {
             }
           }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
     onGodArmEncounterNextMove: (encId) => {
       try {
@@ -270,7 +270,7 @@ export function install(getCtx) {
 
         window.DEBUG_ENCOUNTER_ARM = rawId;
         c.log(`GOD: Armed '${rawId}' — will trigger on next overworld move.`, "notice");
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
     // Status effects
     onGodApplyBleed: (dur = 3) => {
@@ -333,15 +333,15 @@ export function install(getCtx) {
           try {
             c.player.godNextStatusEffect = id;
             c.player._godStatusOnNextHit = id;
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
         }
         try {
           if (typeof window !== "undefined") {
             window.GOD_NEXT_STATUS_EFFECT = id;
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
         c.log(`GOD: Next hit will apply ${valid[id]} status to the target.`, "notice");
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
     // Town events
     onGodTownBandits: () => {
@@ -367,7 +367,7 @@ export function install(getCtx) {
         try {
           c.log("GOD: Bandits at Gate handler threw an error; see console.", "warn");
           console.error(e);
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       }
     },
 
@@ -383,7 +383,7 @@ export function install(getCtx) {
           if (UIO && typeof UIO.requestDraw === "function") {
             UIO.requestDraw(c);
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
         return;
       }
       // Ensure town NPCs are populated before running the check
@@ -395,9 +395,9 @@ export function install(getCtx) {
           try {
             const OF = (c.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null));
             if (OF && typeof OF.rebuild === "function") OF.rebuild(c);
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       const TAI = c.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
       if (TAI && typeof TAI.checkHomeRoutes === "function") {
@@ -432,7 +432,7 @@ export function install(getCtx) {
             const npcTotalAll = totalChecked + skippedCount;
             extraLines.push(`NPCs: ${totalChecked} checked (excluding pets). Total in town: ${npcTotalAll}.`);
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
 
         if (res.residents && typeof res.residents.total === "number") {
           const r = res.residents;
@@ -483,14 +483,14 @@ export function install(getCtx) {
             const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
             el.innerHTML = html;
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
         extraLines.forEach(line => getCtx().log(line, "info"));
         try {
           const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
           if (UIO && typeof UIO.requestDraw === "function") {
             UIO.requestDraw(c);
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       } else {
         getCtx().log("TownAI.checkHomeRoutes not available.", "warn");
       }
@@ -544,7 +544,7 @@ export function install(getCtx) {
           const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
           el.innerHTML = html;
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       lines.forEach(l => c.log(l, "info"));
       try {
@@ -552,7 +552,7 @@ export function install(getCtx) {
         if (UIO && typeof UIO.requestDraw === "function") {
           UIO.requestDraw(c);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
 
     onGodCheckSigns: () => {
@@ -642,7 +642,7 @@ export function install(getCtx) {
           const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
           el.innerHTML = html;
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       c.log(header, shops.length ? "info" : "warn");
       lines.forEach(l => c.log(l, "info"));
@@ -651,7 +651,7 @@ export function install(getCtx) {
         if (UIO && typeof UIO.requestDraw === "function") {
           UIO.requestDraw(c);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
 
     onGodCheckPrefabs: () => {
@@ -721,7 +721,7 @@ export function install(getCtx) {
           const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
           el.innerHTML = html;
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       c.log(header, PFB ? "info" : "warn");
       lines.forEach(l => c.log(l, "info"));
@@ -730,7 +730,7 @@ export function install(getCtx) {
         if (UIO && typeof UIO.requestDraw === "function") {
           UIO.requestDraw(c);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
 
     // Teleport helpers
@@ -783,7 +783,7 @@ export function install(getCtx) {
         DungeonState: !!c.DungeonState
       };
       let rngSrc = "mulberry32.fallback";
-      try { if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") rngSrc = "RNG.service"; } catch (_) {}
+      try { if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") rngSrc = "RNG.service"; } catch { /\* ignore \*/ }
       let seedStr = "(random)";
       try {
         if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
@@ -793,7 +793,7 @@ export function install(getCtx) {
           const sRaw = localStorage.getItem("SEED");
           if (sRaw != null) seedStr = String((Number(sRaw) >>> 0));
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       c.log("Diagnostics:", "notice");
       c.log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
       c.log(`- Mode: ${c.mode}  Floor: ${c.floor}  FOV: ${c.fovRadius}`, "info");
@@ -805,13 +805,13 @@ export function install(getCtx) {
       try {
         const perf = c.getPerfStats ? c.getPerfStats() : {};
         c.log(`- PERF last turn: ${Number(perf.lastTurnMs || 0).toFixed(2)}ms, last draw: ${Number(perf.lastDrawMs || 0).toFixed(2)}ms`, "info");
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       try {
         const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
         if (UIO && typeof UIO.requestDraw === "function") {
           UIO.requestDraw(c);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
 
     onGodRunValidation: () => {
@@ -825,14 +825,14 @@ export function install(getCtx) {
         } else {
           c.log("ValidationRunner not available.", "warn");
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     },
 
     onGodRunGmEmissionSim: () => {
       const c = getCtx();
       try {
         const rep = runGmEmissionSim({ preserveCtx: c });
-        try { window.__GM_EMISSION_SIM_RESULT__ = rep; } catch (_) {}
+        try { window.__GM_EMISSION_SIM_RESULT__ = rep; } catch { /\* ignore \*/ }
 
         // Pretty JSON into the GOD panel output textarea
         try {
@@ -842,7 +842,7 @@ export function install(getCtx) {
             if (Object.prototype.hasOwnProperty.call(el, "value")) el.value = txt;
             else el.textContent = txt;
           }
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
 
         // Log one-line summaries
         try {
@@ -853,12 +853,12 @@ export function install(getCtx) {
             const ms = typeof s.ms === "number" ? ` (${s.ms}ms)` : "";
             c.log(`[GM SIM] ${s.ok ? "PASS" : "FAIL"} [${s.id}] ${s.label}${ms}`, s.ok ? "info" : "warn");
           });
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       } catch (e) {
         try {
           c.log("GOD: GM emission sim failed; see console for details.", "warn");
           console.error(e);
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       }
     },
 
@@ -883,12 +883,12 @@ export function install(getCtx) {
             let ok = false;
             try {
               ok = document.execCommand("copy");
-            } catch (_) {
+            } catch {
               ok = false;
             }
             document.body.removeChild(ta);
             return ok;
-          } catch (_) {
+          } catch {
             return false;
           }
         }
@@ -898,7 +898,7 @@ export function install(getCtx) {
           if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
             usedAsync = true;
             navigator.clipboard.writeText(json).then(() => {
-              try { c.log("GOD: Copied GM emission sim report JSON to clipboard.", "notice"); } catch (_) {}
+              try { c.log("GOD: Copied GM emission sim report JSON to clipboard.", "notice"); } catch { /\* ignore \*/ }
             }).catch(() => {
               const ok = fallbackCopy();
               c.log(
@@ -907,7 +907,7 @@ export function install(getCtx) {
               );
             });
           }
-        } catch (_) {
+        } catch {
           usedAsync = false;
         }
 
@@ -922,7 +922,7 @@ export function install(getCtx) {
         try {
           c.log("GOD: Copy GM emission sim report failed; see console.", "warn");
           console.error(e);
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       }
     },
 
@@ -937,11 +937,11 @@ export function install(getCtx) {
         c.log("GOD: Reloading with smoketest=1…", "notice");
         window.location.href = url.toString();
       } catch (e) {
-        try { console.error(e); } catch (_) {}
+        try { console.error(e); } catch { /\* ignore \*/ }
         try {
           const c = getCtx();
           c.log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
         window.location.search = "?smoketest=1";
       }
     },

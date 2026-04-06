@@ -10,16 +10,16 @@ export function tick(ctx) {
 
   try {
     spawnCaravansIfNeeded(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   try {
     advanceCaravans(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Escort ambush events: small chance each world tick while escorting
   try {
     maybeEscortAmbush(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Future: day/night effects or ambient overlays in world mode
   return true;
@@ -53,7 +53,7 @@ export function startEscortAutoTravel(ctx) {
         return;
       }
       if (typeof c.turn === "function") c.turn();
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     steps++;
     if (steps >= maxSteps) { state.running = false; return; }
     setTimeout(step, delayMs);
@@ -69,7 +69,7 @@ export function startEscortAutoTravel(ctx) {
       c.turn();
       steps++;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   if (steps < maxSteps) {
     setTimeout(step, delayMs);
@@ -93,7 +93,7 @@ function getTurn(ctx) {
     if (ctx && ctx.time && typeof ctx.time.turnCounter === "number") {
       return ctx.time.turnCounter | 0;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return 0;
 }
 
@@ -105,7 +105,7 @@ function turnsPerDay(ctx) {
     if (ctx && ctx.time && typeof ctx.time.cycleTurns === "number") {
       return Math.max(1, ctx.time.cycleTurns | 0);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return 360;
 }
 
@@ -119,7 +119,7 @@ function worldRng(ctx) {
       const base = (typeof ctx.rng === "function") ? ctx.rng : undefined;
       return window.RNGUtils.getRng(base);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   if (ctx && typeof ctx.rng === "function") return ctx.rng;
   return function () { return Math.random(); };
 }
@@ -170,7 +170,7 @@ function isWalkableWorld(ctx, wx, wy) {
     if (W && typeof W.isWalkable === "function") {
       return !!W.isWalkable(tile);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return true;
 }
 
@@ -235,7 +235,7 @@ function spawnCaravansIfNeeded(ctx) {
       px = (ctx.world.originX | 0) + (ctx.player.x | 0);
       py = (ctx.world.originY | 0) + (ctx.player.y | 0);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Helper: check if there is already a caravan currently parked at this town.
   function hasParkedCaravanAt(town) {
@@ -323,7 +323,7 @@ function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
     if (towns.length >= 4 && roll < 0.35 && farthest) {
       destTown = farthest;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   const now = getTurn(ctx);
   const days = turnsPerDay(ctx);
@@ -386,7 +386,7 @@ function maybeEscortAmbush(ctx) {
       if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
         applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
 
     // Prefer ctx-first entry via Modes (no ctx reacquire).
     try {
@@ -395,7 +395,7 @@ function maybeEscortAmbush(ctx) {
         ok = !!M.enterEncounter(ctx, template, biome, template.difficulty || 4, applyCtxSyncAndRefresh || undefined);
         if (ok) synced = true;
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
 
     // Fallback: EncounterRuntime directly
     if (!ok) {
@@ -404,7 +404,7 @@ function maybeEscortAmbush(ctx) {
         if (ER && typeof ER.enter === "function") {
           ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     }
 
     if (ok && !synced) {
@@ -413,13 +413,13 @@ function maybeEscortAmbush(ctx) {
           applyCtxSyncAndRefresh(ctx);
           synced = true;
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     }
 
     if (ok && ctx.log) {
       ctx.log("Bandits strike the caravan on the road!", "notice");
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 }
 
 function advanceCaravans(ctx) {
@@ -474,7 +474,7 @@ function advanceCaravans(ctx) {
     try {
       if (typeof cv.lastX !== "number") cv.lastX = cx;
       if (typeof cv.lastY !== "number") cv.lastY = cy;
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
 
     // Arrived at destination town: start a dwell period here and, if this is the
     // escorted caravan, pay the player and end the escort job.
@@ -496,15 +496,15 @@ function advanceCaravans(ctx) {
                 ctx.player.inventory = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : [];
                 ctx.player.inventory.push({ kind: "gold", amount: reward, name: `${reward} gold coins` });
               }
-            } catch (_) {}
+            } catch { /\* ignore \*/ }
             try {
               ctx.log && ctx.log(`You safely escort the caravan to its destination and receive ${reward} gold.`, "good");
-            } catch (_) {}
+            } catch { /\* ignore \*/ }
           }
           // Mark escort job as finished so auto-travel stops and future legs are independent.
           world.caravanEscort = { id: cv.id, reward: reward, active: false };
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // Dwell for 2–4 in-game days at the destination town.
       const dwellDays = Math.max(minDwellDays, Math.min(maxDwellDays, (2 + (cx + cy) % 3) | 0));
@@ -583,7 +583,7 @@ function advanceCaravans(ctx) {
             }
           }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     }
 
     if (moved) {
@@ -592,7 +592,7 @@ function advanceCaravans(ctx) {
       try {
         cv.lastX = cx;
         cv.lastY = cy;
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // If the player is escorting this caravan and it is within the current window, move the player with it.
       try {
@@ -608,13 +608,13 @@ function advanceCaravans(ctx) {
             ctx.player.y = ly;
           }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     } else {
       // Update last position even when staying still (no move succeeded).
       try {
         cv.lastX = cx;
         cv.lastY = cy;
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     }
   }
 }

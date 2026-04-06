@@ -14,7 +14,7 @@ export function maybeHandleWorldStep(ctx) {
 
   // Phase 7: keep Bottle Map marker/thread state consistent as you move.
   // This is a cheap integrity pass (no RNG consumption).
-  try { reconcileMarkers(ctx); } catch (_) {}
+  try { reconcileMarkers(ctx); } catch { /\* ignore \*/ }
 
   try {
     const GM = getMod(ctx, "GMRuntime");
@@ -33,14 +33,14 @@ export function maybeHandleWorldStep(ctx) {
 
       // No fallbacks: if the specific encounter template isn't loaded yet, defer cleanly.
       if (!hasEncounterTemplate(ctx, encId)) {
-        try { if (typeof ctx.log === "function") ctx.log(`[GM] Travel encounter template '${String(encId)}' not ready yet; try again in a moment.`, "info"); } catch (_) {}
+        try { if (typeof ctx.log === "function") ctx.log(`[GM] Travel encounter template '${String(encId)}' not ready yet; try again in a moment.`, "info"); } catch { /\* ignore \*/ }
         return false;
       }
 
       const UIO = getMod(ctx, "UIOrchestration");
       if (!UIO || typeof UIO.showConfirm !== "function") {
         // Phase 5 direction: choices only. If we can't present a confirm UI, do not force-start.
-        try { if (typeof ctx.log === "function") ctx.log("[GM] Travel encounter requires confirm UI; skipping.", "warn"); } catch (_) {}
+        try { if (typeof ctx.log === "function") ctx.log("[GM] Travel encounter requires confirm UI; skipping.", "warn"); } catch { /\* ignore \*/ }
         return false;
       }
 
@@ -51,7 +51,7 @@ export function maybeHandleWorldStep(ctx) {
           const k = encId === "gm_bandit_bounty" ? "gm.travel.banditBounty.prompt" : encId === "gm_troll_hunt" ? "gm.travel.trollHunt.prompt" : encId === "gm_survey_cache_scene" ? "gm.travel.surveyCache.prompt" : "";
           if (k) prompt = MZ.get(k, null) || "";
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       if (!prompt) {
         if (encId === "gm_bandit_bounty") prompt = "You spot signs of bandits nearby. Investigate?";
         else if (encId === "gm_troll_hunt") prompt = "You hear heavy tracks and guttural noises ahead. Hunt the troll?";
@@ -64,17 +64,17 @@ export function maybeHandleWorldStep(ctx) {
         if (GM && typeof GM.recordIntervention === "function") {
           GM.recordIntervention(ctx, { kind: "confirm", channel: "factionTravel", id: String(encId) });
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       const onOk = () => {
         try {
           const started = !!startGmFactionEncounter(ctx, encId, { ctxFirst: true });
           if (started) applySyncAfterGmTransition(ctx);
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       };
 
       const onCancel = () => {
-        try { if (typeof ctx.log === "function") ctx.log("You decide not to get involved.", "info"); } catch (_) {}
+        try { if (typeof ctx.log === "function") ctx.log("You decide not to get involved.", "info"); } catch { /\* ignore \*/ }
       };
 
       UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
@@ -83,12 +83,12 @@ export function maybeHandleWorldStep(ctx) {
 
     // Unknown intent kinds are ignored for forward compatibility.
     return false;
-  } catch (_) {
+  } catch {
     try {
       if (ctx && typeof ctx.log === "function") {
         ctx.log("[GM] Failed to process faction travel event intent.", "warn");
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     return false;
   }
 }
@@ -123,9 +123,9 @@ function handleGuardFineTravelEvent(ctx, GM) {
         } else if (typeof ctx.log === "function") {
           ctx.log("A patrol of guards demands a fine you cannot afford. They let you go with a warning this time.", "warn");
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
-      try { GM.onEvent(ctx, { type: "gm.guardFine.refuse" }); } catch (_) {}
+      try { GM.onEvent(ctx, { type: "gm.guardFine.refuse" }); } catch { /\* ignore \*/ }
       return true;
     }
 
@@ -135,25 +135,25 @@ function handleGuardFineTravelEvent(ctx, GM) {
       if (MZ && typeof MZ.get === "function") {
         prompt = MZ.get("gm.guardFine.prompt", vars) || "";
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     if (!prompt) prompt = `A patrol of guards demands a fine of ${fine} gold for your crimes.\nPay?`;
 
     const onPay = () => {
-      try { goldObj.amount = Math.max(0, currentGold - fine); } catch (_) {}
-      try { GM.onEvent(ctx, { type: "gm.guardFine.pay" }); } catch (_) {}
+      try { goldObj.amount = Math.max(0, currentGold - fine); } catch { /\* ignore \*/ }
+      try { GM.onEvent(ctx, { type: "gm.guardFine.pay" }); } catch { /\* ignore \*/ }
       try {
         if (MZ && typeof MZ.log === "function") MZ.log(ctx, "gm.guardFine.paid", { amount: fine }, "good");
         else if (typeof ctx.log === "function") ctx.log(`You pay ${fine} gold to settle your fines with the guards.`, "info");
-      } catch (_) {}
-      try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+      } catch { /\* ignore \*/ }
+      try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch { /\* ignore \*/ }
     };
 
     const onRefuse = () => {
-      try { GM.onEvent(ctx, { type: "gm.guardFine.refuse" }); } catch (_) {}
+      try { GM.onEvent(ctx, { type: "gm.guardFine.refuse" }); } catch { /\* ignore \*/ }
       try {
         if (MZ && typeof MZ.log === "function") MZ.log(ctx, "gm.guardFine.refused", null, "warn");
         else if (typeof ctx.log === "function") ctx.log("You refuse to pay the fine. The guards will remember this.", "warn");
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
     };
 
     if (UIO && typeof UIO.showConfirm === "function") {
@@ -162,7 +162,7 @@ function handleGuardFineTravelEvent(ctx, GM) {
         if (GM && typeof GM.recordIntervention === "function") {
           GM.recordIntervention(ctx, { kind: "confirm", channel: "factionTravel", id: "guardFine" });
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       UIO.showConfirm(ctx, prompt, null, onPay, onRefuse);
       return true;
@@ -174,11 +174,11 @@ function handleGuardFineTravelEvent(ctx, GM) {
       if (typeof ctx.log === "function") {
         ctx.log("[GM] Guard fine requires confirm UI; skipping (no forced outcome).", "warn");
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
 
     return false;
-  } catch (_) {
-    try { if (ctx && typeof ctx.log === "function") ctx.log("[GM] Error handling guard fine travel event.", "warn"); } catch (_) {}
+  } catch {
+    try { if (ctx && typeof ctx.log === "function") ctx.log("[GM] Error handling guard fine travel event.", "warn"); } catch { /\* ignore \*/ }
     return false;
   }
 }

@@ -21,14 +21,14 @@ import { talk as talkImpl } from "./talk.js";
 
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
-  try { ctx.townBiome = undefined; } catch (_) {}
+  try { ctx.townBiome = undefined; } catch { /\* ignore \*/ }
   const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
   if (Tn && typeof Tn.generate === "function") {
     const handled = Tn.generate(ctx);
     if (handled) {
       // Greeters at gate: Town.generate should ensure one; allow module to add none if unnecessary
       if (typeof Tn.spawnGateGreeters === "function") {
-        try { Tn.spawnGateGreeters(ctx, 0); } catch (_) {}
+        try { Tn.spawnGateGreeters(ctx, 0); } catch { /\* ignore \*/ }
       }
 
       // Safety: if no NPCs ended up populated, force a minimal population so the town isn't empty
@@ -46,9 +46,9 @@ export function generate(ctx) {
           try {
             if (typeof rebuildOccupancy === "function") rebuildOccupancy(ctx);
             else if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // Spawn recruitable follower NPCs in the inn (if present) with a modest rarity gate.
       try {
@@ -59,14 +59,14 @@ export function generate(ctx) {
             else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
               rfn = window.RNGUtils.getRng(undefined);
             }
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
           const roll = typeof rfn === "function" ? rfn() : Math.random();
           // ~25% chance per town generation when below cap.
           if (roll < 0.25) {
             spawnInnFollowerHires(ctx);
           }
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // Post-gen refresh via StateSync
       try {
@@ -74,7 +74,7 @@ export function generate(ctx) {
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       return true;
     }
   }
@@ -112,7 +112,7 @@ export function isFreeTownFloor(ctx, x, y) {
     if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") {
       return !!ctx.Utils.isFreeTownFloor(ctx, x, y);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   const U = (typeof window !== "undefined" ? window.Utils : null);
   if (U && typeof U.isFreeTownFloor === "function") {
     return !!U.isFreeTownFloor(ctx, x, y);
@@ -147,7 +147,7 @@ export function tryMoveTown(ctx, dx, dy) {
     if (npcBlocked && Array.isArray(ctx.npcs)) {
       occupant = ctx.npcs.find(n => n && n.x === nx && n.y === ny) || null;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // When upstairs overlay is active, ignore downstairs NPC blocking inside the inn footprint
   // BUT: if the occupant at the bump tile is the innkeeper, still treat it as a talk bump to open the shop UI.
@@ -160,7 +160,7 @@ export function tryMoveTown(ctx, dx, dy) {
         if (!occupant) {
           try {
             occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
         }
         const isInnKeeper = !!(occupant && occupant.isShopkeeper && occupant._shopRef && String(occupant._shopRef.type || "").toLowerCase() === "inn");
         if (isInnKeeper) {
@@ -174,7 +174,7 @@ export function tryMoveTown(ctx, dx, dy) {
         npcBlocked = false;
       }
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a full melee attack
   // using the shared Combat.playerAttackEnemy logic instead of simple flat damage.
@@ -201,27 +201,27 @@ export function tryMoveTown(ctx, dx, dy) {
             } else if (typeof oldOnEnemyDied === "function") {
               oldOnEnemyDied(enemy);
             }
-          } catch (_) {}
+          } catch { /\* ignore \*/ }
         };
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       try {
         C.playerAttackEnemy(ctx, enemyRef);
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // Restore original handler
       try {
         ctx.onEnemyDied = oldOnEnemyDied;
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
       // Rebuild occupancy if the bandit died
       try {
         if (enemyRef._dead) {
           rebuildOccupancy(ctx);
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
 
-      try { ctx.turn && ctx.turn(); } catch (_) {}
+      try { ctx.turn && ctx.turn(); } catch { /\* ignore \*/ }
       return true;
     }
 
@@ -232,13 +232,13 @@ export function tryMoveTown(ctx, dx, dy) {
         const v = ctx.getPlayerAttack();
         if (typeof v === "number" && v > 0) atk = v;
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     let mult = 1.0;
     try {
       if (typeof ctx.rng === "function") {
         mult = 0.8 + ctx.rng() * 0.7; // 0.8–1.5x
       }
-    } catch (_) {}
+    } catch { /\* ignore \*/ }
     const dmg = Math.max(1, Math.round(atk * mult));
     const maxHp = typeof occupant.maxHp === "number" ? occupant.maxHp : 20;
     if (typeof occupant.hp !== "number") occupant.hp = maxHp;
@@ -254,8 +254,8 @@ export function tryMoveTown(ctx, dx, dy) {
       if (typeof ctx.addBloodDecal === "function" && dmg > 0) {
         ctx.addBloodDecal(occupant.x, occupant.y, 1.2);
       }
-    } catch (_) {}
-    try { ctx.turn && ctx.turn(); } catch (_) {}
+    } catch { /\* ignore \*/ }
+    try { ctx.turn && ctx.turn(); } catch { /\* ignore \*/ }
     return true;
   }
 
@@ -276,8 +276,8 @@ export function tryMoveTown(ctx, dx, dy) {
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
-    } catch (_) {}
-    try { ctx.turn && ctx.turn(); } catch (_) {}
+    } catch { /\* ignore \*/ }
+    try { ctx.turn && ctx.turn(); } catch { /\* ignore \*/ }
     return true;
   }
   return false;
@@ -300,13 +300,13 @@ export function applyLeaveSync(ctx) {
   // Sync any follower/ally state before persisting and leaving town.
   try {
     syncFollowersFromTown(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Persist current town state (map + visibility + entities) before leaving
   try {
     const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
     if (TS && typeof TS.save === "function") TS.save(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Switch mode and restore overworld map
   ctx.mode = "world";
@@ -316,7 +316,7 @@ export function applyLeaveSync(ctx) {
   try {
     if (ctx.world && ctx.world.seenRef && Array.isArray(ctx.world.seenRef)) ctx.seen = ctx.world.seenRef;
     if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Restore world position if available (convert absolute world coords -> local window indices)
   try {
@@ -330,8 +330,8 @@ export function applyLeaveSync(ctx) {
         ctx._suspendExpandShift = true;
         try {
           // Convert to local indices to test
-          let lx = rx - ctx.world.originX;
-          let ly = ry - ctx.world.originY;
+          const lx = rx - ctx.world.originX;
+          const ly = ry - ctx.world.originY;
           WR.ensureInBounds(ctx, lx, ly, 32);
         } finally {
           ctx._suspendExpandShift = false;
@@ -349,20 +349,20 @@ export function applyLeaveSync(ctx) {
         ctx.player.y = Math.max(0, Math.min((ctx.map.length || 1) - 1, ly));
       }
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Clear exit anchors
   try {
     ctx.townExitAt = null;
     ctx.dungeonExitAt = null;
     ctx.dungeon = ctx.dungeonInfo = null;
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Hide UI elements (Quest Board and similar town-only modals)
   try {
     const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.hideQuestBoard === "function") UB.hideQuestBoard(ctx);
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Refresh via StateSync
   try {
@@ -370,8 +370,8 @@ export function applyLeaveSync(ctx) {
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
-  } catch (_) {}
-  try { ctx.log && ctx.log("You return to the overworld.", "info"); } catch (_) {}
+  } catch { /\* ignore \*/ }
+  try { ctx.log && ctx.log("You return to the overworld.", "info"); } catch { /\* ignore \*/ }
 
   return true;
 }
@@ -384,110 +384,8 @@ export function rebuildOccupancy(ctx) {
       OF.rebuild(ctx);
       return true;
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
   return false;
-}
-
-/**
- * Start a special caravan ambush encounter when the player chooses to attack a caravan
- * from inside town. The caravan master and their guards are represented as enemies,
- * and a broken caravan with a lootable chest appears on a small road map.
- */
-function startCaravanAmbushEncounter(ctx, npc) {
-  try {
-    // Close any confirm dialog before switching modes
-    try {
-      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
-    } catch (_) {}
-
-    // Remove the caravan merchant and their shop from town so they don't persist after the attack.
-    try {
-      if (Array.isArray(ctx.npcs)) {
-        const idx = ctx.npcs.indexOf(npc);
-        if (idx !== -1) ctx.npcs.splice(idx, 1);
-      }
-      if (Array.isArray(ctx.shops)) {
-        for (let i = ctx.shops.length - 1; i >= 0; i--) {
-          const s = ctx.shops[i];
-          if (s && s.type === "caravan") ctx.shops.splice(i, 1);
-        }
-      }
-      // Mark any parked caravan at this town as no longer atTown so the overworld logic can move/retire it.
-      try {
-        const world = ctx.world;
-        if (world && Array.isArray(world.caravans) && ctx.worldReturnPos) {
-          const wx = ctx.worldReturnPos.x | 0;
-          const wy = ctx.worldReturnPos.y | 0;
-          for (const cv of world.caravans) {
-            if (!cv) continue;
-            if ((cv.x | 0) === wx && (cv.y | 0) === wy && cv.atTown) {
-              cv.atTown = false;
-              cv.dwellUntil = 0;
-              cv.ambushed = true;
-            }
-          }
-        }
-      } catch (_) {}
-      try { rebuildOccupancy(ctx); } catch (_) {}
-    } catch (_) {}
-
-    const template = {
-      id: "caravan_ambush",
-      name: "Caravan Ambush",
-      map: { w: 26, h: 16, generator: "caravan_road" },
-      groups: [
-        { faction: "guard", count: { min: 3, max: 4 }, type: "guard" },
-        { faction: "guard", count: { min: 2, max: 3 }, type: "guard_elite" }
-      ],
-      objective: { type: "reachExit" },
-      difficulty: 4
-    };
-
-    const biome = "GRASS";
-    let ok = false;
-    let synced = false;
-
-    let applyCtxSyncAndRefresh = null;
-    try {
-      const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
-      if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
-        applyCtxSyncAndRefresh = GA.applyCtxSyncAndRefresh;
-      }
-    } catch (_) {}
-
-    try {
-      const M = ctx.Modes || getMod(ctx, "Modes");
-      if (M && typeof M.enterEncounter === "function") {
-        ok = !!M.enterEncounter(ctx, template, biome, template.difficulty || 4, applyCtxSyncAndRefresh || undefined);
-        if (ok) synced = true;
-      }
-    } catch (_) {}
-
-    if (!ok) {
-      try {
-        const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
-        if (ER && typeof ER.enter === "function") {
-          ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
-        }
-      } catch (_) {}
-    }
-
-    if (ok && !synced) {
-      try {
-        if (typeof applyCtxSyncAndRefresh === "function") {
-          applyCtxSyncAndRefresh(ctx);
-          synced = true;
-        }
-      } catch (_) {}
-    }
-
-    if (!ok && ctx.log) {
-      ctx.log("Failed to start caravan ambush encounter.", "warn");
-    } else if (ok && ctx.log) {
-      ctx.log("You ambush the caravan outside the town!", "notice");
-    }
-  } catch (_) {}
 }
 
 if (typeof window !== "undefined") {
@@ -523,17 +421,17 @@ export function tick(ctx) {
         if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
           t0 = performance.now();
         }
-      } catch (_) {}
+      } catch { /\* ignore \*/ }
       TAI.townNPCsAct(ctx);
       if (t0 != null) {
         try {
           const dt = performance.now() - t0;
           ctx._perfTownAIAccum = (ctx._perfTownAIAccum || 0) + dt;
           ctx._perfTownAICount = (ctx._perfTownAICount || 0) + 1;
-        } catch (_) {}
+        } catch { /\* ignore \*/ }
       }
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Simple follower NPC behavior: stay near the player in town, unless set to wait.
   tickTownFollowers(ctx);
@@ -546,7 +444,7 @@ export function tick(ctx) {
       const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Visual: fade blood decals over time in town mode, matching dungeon/region behavior
   try {
@@ -562,14 +460,14 @@ export function tick(ctx) {
       }
       ctx.decals = ctx.decals.filter(d => d.a > 0.04);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   // Clamp corpse list length similar to dungeon tick so town combat can't grow it unbounded
   try {
     if (Array.isArray(ctx.corpses) && ctx.corpses.length > 50) {
       ctx.corpses = ctx.corpses.slice(-50);
     }
-  } catch (_) {}
+  } catch { /\* ignore \*/ }
 
   return true;
 }
