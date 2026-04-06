@@ -346,6 +346,7 @@ To keep the project’s history and docs useful:
 - **Workflow (small slices):**
   - Follow `docs/phase_workflow.md`.
   - Keep changes small and reversible; always ship with a deploy + quick smoke QA.
+  - When the user says **"deploy"**, treat that as a request for the exact preview deployment URL for the new deploy (for example `https://bgzc1o2v3sig.cosine.page`), not just the stable production URL.
   - Prefer running `npm run ci` (includes `lint:strict`, `check:docs-catalog`, `build`) before merging.
 - **Docs catalog (docs viewer):**
   - If you add/remove docs that should appear in `/docs/`, update `docs/index.html`.
