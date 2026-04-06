@@ -10,6 +10,10 @@ on:
         description: 'How many times to run acceptance:phase6 (flake detection)'
         required: false
         default: '1'
+      phase0_repeats:
+        description: 'How many times to run acceptance:phase0 (fresh-start flake detection)'
+        required: false
+        default: '1'
       run_phase0:
         description: 'Whether to run acceptance:phase0'
         type: boolean
@@ -24,6 +28,7 @@ jobs:
         working-directory: ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa
     env:
       PHASE6_REPEATS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase6_repeats || '1' }}
+      PHASE0_REPEATS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.phase0_repeats || '1' }}
       RUN_PHASE0: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.run_phase0 == true || github.event.inputs.run_phase0 == 'true' }}
     steps:
       - name: Checkout
@@ -83,7 +88,17 @@ jobs:
         if: ${{ env.RUN_PHASE0 == 'true' }}
         run: |
           set -euo pipefail
-          npm run acceptance:phase0 2>&1 | tee artifacts/qa/acceptance_phase0.log
+          mkdir -p artifacts/qa
+
+          repeats="${PHASE0_REPEATS:-1}"
+          if ! [[ "$repeats" =~ ^[0-9]+$ ]] || [ "$repeats" -lt 1 ]; then
+            repeats=1
+          fi
+
+          for i in $(seq 1 "$repeats"); do
+            echo "Running acceptance:phase0 (${i}/${repeats})"
+            npm run acceptance:phase0 2>&1 | tee "artifacts/qa/acceptance_phase0_run${i}.log"
+          done
 
       - name: Upload QA logs
         if: always()

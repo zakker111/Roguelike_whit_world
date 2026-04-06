@@ -87,6 +87,12 @@ const PHASE0_SCENARIOS = [
   'gm_survey_cache'
 ].join(',');
 
+function parseSeriesRuns(rawValue) {
+  const n = Number(rawValue);
+  if (!Number.isFinite(n)) return 2;
+  return Math.max(2, Math.trunc(n));
+}
+
 async function httpGetOk(urlStr) {
   const u = new URL(urlStr);
 
@@ -167,6 +173,8 @@ async function findFreePort(preferredPort) {
 
 async function main() {
   const preferredPort = Number(process.env.PORT || 8080);
+  const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 2);
+  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, seriesRuns * 60000);
   // Some environments set PORT globally (e.g. Codespaces/preview tooling). If that port is already
   // in use, the server child will fail to bind and the harness can accidentally talk to whatever
   // is already listening there (often resulting in redirect loops). Always probe for a free port
@@ -181,7 +189,7 @@ async function main() {
   base.searchParams.set('smoketest', '1');
   base.searchParams.set('dev', '1');
   base.searchParams.set('scenarios', PHASE0_SCENARIOS);
-  base.searchParams.set('smokecount', '2');
+  base.searchParams.set('smokecount', String(seriesRuns));
   base.searchParams.set('skipokafter', '0');
   base.searchParams.set('autorun', '0');
 
@@ -244,6 +252,10 @@ async function main() {
         { timeout: TIMEOUTS.pageReadyMs }
       );
 
+      await page.evaluate((runs) => {
+        window.__PHASE0_SERIES_RUNS__ = runs;
+      }, seriesRuns);
+
       // Boot-time sanity: verify critical transition functions are present.
       const modeFns = await page.evaluate(() => {
         const M = window.Modes;
@@ -260,13 +272,14 @@ async function main() {
       const series = await withTimeout(
         () =>
           page.evaluate(async () => {
-            const res = await window.SmokeTest.Run.runSeries(2);
+            const seriesRuns = Number(window.__PHASE0_SERIES_RUNS__ || 2);
+            const res = await window.SmokeTest.Run.runSeries(seriesRuns);
             const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
             const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
             return { series: res, passToken, jsonToken };
           }),
-        TIMEOUTS.seriesRunMs,
-        'SmokeTest.Run.runSeries(2)'
+        seriesRunTimeoutMs,
+        `SmokeTest.Run.runSeries(${seriesRuns})`
       );
 
       const { series: seriesRes, passToken, jsonToken } = series || {};
@@ -301,6 +314,10 @@ async function main() {
 
       const report = {
         ok: seriesOk && bootOk,
+        config: {
+          seriesRuns,
+          scenarioCount: PHASE0_SCENARIOS.split(',').length
+        },
         passToken,
         checks: {
           modeFns: modeFns || null,
