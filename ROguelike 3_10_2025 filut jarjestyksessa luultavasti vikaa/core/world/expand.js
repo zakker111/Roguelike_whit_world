@@ -3,11 +3,49 @@
  */
 import { scanPOIs as scanPOIsExt } from "./scan_pois.js";
 
+function nowMs() {
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      return performance.now();
+    }
+  } catch (_) {
+    return Date.now();
+  }
+  return Date.now();
+}
+
+function shouldLogExpandPerf(dtMs) {
+  if (dtMs >= 8) return true;
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
+  } catch (_) {
+    return false;
+  }
+  return false;
+}
+
+function logExpandPerf(ctx, details) {
+  try {
+    if (!shouldLogExpandPerf(details.dtMs)) return;
+    const LG = (typeof window !== "undefined") ? window.Logger : null;
+    const message = `[WorldGen] expandMap side=${details.side} size=${details.cols}x${details.rows} dt=${details.dtMs.toFixed(1)}ms`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(message, "notice", Object.assign({ category: "WorldGen", perf: "expandMap" }, details));
+    } else if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug(message, details);
+    }
+  } catch (_) {
+    return;
+  }
+}
+
 /**
  * Expand map arrays on any side by K tiles, generating via world.gen.tileAt against world origin offsets.
  * Preserves fog arrays and shifts entities/camera when prepending (left/top) unless ctx._suspendExpandShift is true.
  */
 export function expandMap(ctx, side, K) {
+  const t0 = nowMs();
   const world = ctx.world;
   const gen = world && world.gen;
   if (!gen || typeof gen.tileAt !== "function") return false;
@@ -283,6 +321,13 @@ export function expandMap(ctx, side, K) {
   world.map = ctx.map;
   world.seenRef = ctx.seen;
   world.visibleRef = ctx.visible;
+  logExpandPerf(ctx, {
+    side: String(side),
+    added: K | 0,
+    rows: world.height | 0,
+    cols: world.width | 0,
+    dtMs: nowMs() - t0
+  });
   return true;
 }
 
@@ -292,7 +337,6 @@ export function expandMap(ctx, side, K) {
 export function ensureInBounds(ctx, nx, ny, CHUNK = 32) {
   let expanded = false;
   const rows = ctx.map.length;
-  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
   if (nx < 0) { expandMap(ctx, "left", Math.max(CHUNK, -nx + 4)); expanded = true; }
   if (ny < 0) { expandMap(ctx, "top", Math.max(CHUNK, -ny + 4)); expanded = true; }
