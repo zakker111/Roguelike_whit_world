@@ -71,7 +71,12 @@ To run CI on a branch without pushing a new commit (or to stress-test for flakin
 4. Choose the branch/ref to test.
 5. Set:
    - `phase6_repeats` (number of full Phase 6 runs) — typical: `1` (quick), `3` (default), `10+` (flake hunting)
+   - `phase0_repeats` (number of full Phase 0 runs) — typical: `1` (quick), `3+` (fresh-start flake hunting)
    - `run_phase0` (toggle Phase 0) — leave `true` for the full baseline gate
+
+Notes:
+- `phase0_repeats` reruns the whole Phase 0 harness from a fresh server/browser start in CI.
+- `PHASE0_SERIES_RUNS` controls the internal `runSeries(N)` count inside one `acceptance:phase0` invocation; it defaults to `2` and must be at least `2` to detect pass/fail flake within a single run.
 
 - **Repo hygiene**
   - Note: Git does not track empty directories; if you see a local empty typo folder (`... vikoa/`), it can be deleted safely.
