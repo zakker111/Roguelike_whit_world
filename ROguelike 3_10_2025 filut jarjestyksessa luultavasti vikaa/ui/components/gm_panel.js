@@ -123,14 +123,7 @@ function toggleSection(id) {
 
 function createPanelBlock(className) {
   const el = document.createElement("div");
-  el.className = className;
-  el.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-  el.style.fontSize = "11px";
-  el.style.whiteSpace = "pre-wrap";
-  el.style.background = "#020617";
-  el.style.borderRadius = "6px";
-  el.style.border = "1px solid #1f2937";
-  el.style.padding = "6px 8px";
+  el.className = `gm-panel-block ${className}`;
   return el;
 }
 
@@ -143,18 +136,6 @@ function createSection(id, title, contentEl, opts = {}) {
   toggle.type = "button";
   toggle.className = "gm-panel-section-toggle";
   toggle.dataset.gmSectionToggle = id;
-  toggle.style.background = "transparent";
-  toggle.style.border = "none";
-  toggle.style.color = "#9ca3af";
-  toggle.style.cursor = "pointer";
-  toggle.style.fontSize = "11px";
-  toggle.style.fontWeight = "600";
-  toggle.style.letterSpacing = "0.05em";
-  toggle.style.margin = "0";
-  toggle.style.padding = "0";
-  toggle.style.textAlign = "left";
-  toggle.style.textTransform = "uppercase";
-  toggle.style.width = "100%";
   toggle.addEventListener("click", (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
@@ -163,8 +144,8 @@ function createSection(id, title, contentEl, opts = {}) {
 
   contentEl.dataset.gmSectionBody = id;
   if (opts.scrollable === true) {
-    contentEl.style.maxHeight = opts.maxHeight || "160px";
-    contentEl.style.overflowY = "auto";
+    contentEl.classList.add("gm-panel-block-scrollable");
+    if (opts.maxHeight) contentEl.style.maxHeight = opts.maxHeight;
   }
 
   section.appendChild(toggle);
@@ -458,73 +439,35 @@ function ensurePanel() {
 
   const root = document.createElement("div");
   root.id = "gm-panel";
+  root.className = "gm-panel";
   root.style.position = "fixed";
   root.style.top = "80px";
   root.style.right = "24px";
-  root.style.zIndex = "32000";
-  root.style.minWidth = "320px";
-  root.style.maxWidth = "420px";
-  root.style.maxHeight = "70vh";
-  root.style.background = "rgba(15,23,42,0.96)";
-  root.style.border = "1px solid #1f2937";
-  root.style.borderRadius = "8px";
-  root.style.boxShadow = "0 20px 40px rgba(0,0,0,0.7)";
-  root.style.color = "#e5e7eb";
-  root.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  root.style.fontSize = "13px";
-  root.style.overflowX = "hidden";
-  root.style.overflowY = "auto";
 
   const header = document.createElement("div");
   header.className = "gm-panel-header";
-  header.style.display = "flex";
-  header.style.alignItems = "center";
-  header.style.justifyContent = "space-between";
-  header.style.padding = "6px 8px";
-  header.style.borderBottom = "1px solid #1f2937";
-  header.style.background = "linear-gradient(180deg, rgba(79,70,229,0.18), rgba(15,23,42,0.98))";
-  header.style.cursor = "move";
 
   const titleWrap = document.createElement("div");
-  titleWrap.style.display = "flex";
-  titleWrap.style.alignItems = "center";
+  titleWrap.className = "gm-panel-title-wrap";
 
   const title = document.createElement("span");
   title.className = "gm-panel-title";
   title.textContent = "Game Master";
-  title.style.fontWeight = "600";
-  title.style.letterSpacing = "0.06em";
-  title.style.textTransform = "uppercase";
-  title.style.fontSize = "11px";
-  title.style.color = "#a5b4fc";
 
   const dragHint = document.createElement("span");
   dragHint.className = "gm-panel-drag-hint";
   dragHint.textContent = "(drag)";
-  dragHint.style.marginLeft = "8px";
-  dragHint.style.fontSize = "10px";
-  dragHint.style.color = "#9ca3af";
 
   titleWrap.appendChild(title);
   titleWrap.appendChild(dragHint);
 
   const actionsWrap = document.createElement("div");
-  actionsWrap.style.display = "flex";
-  actionsWrap.style.alignItems = "center";
-  actionsWrap.style.gap = "4px";
+  actionsWrap.className = "gm-panel-actions";
 
   _toggleBtn = document.createElement("button");
   _toggleBtn.type = "button";
-  _toggleBtn.className = "gm-panel-toggle";
+  _toggleBtn.className = "gm-panel-chip gm-panel-toggle";
   _toggleBtn.textContent = "Toggle GM";
-  _toggleBtn.style.background = "transparent";
-  _toggleBtn.style.border = "1px solid #4b5563";
-  _toggleBtn.style.borderRadius = "999px";
-  _toggleBtn.style.color = "#e5e7eb";
-  _toggleBtn.style.cursor = "pointer";
-  _toggleBtn.style.fontSize = "10px";
-  _toggleBtn.style.lineHeight = "1";
-  _toggleBtn.style.padding = "2px 6px";
   _toggleBtn.addEventListener("click", (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
@@ -535,27 +478,13 @@ function ensurePanel() {
   closeBtn.type = "button";
   closeBtn.className = "gm-panel-close";
   closeBtn.textContent = "×";
-  closeBtn.style.background = "transparent";
-  closeBtn.style.border = "none";
-  closeBtn.style.color = "#e5e7eb";
-  closeBtn.style.cursor = "pointer";
-  closeBtn.style.fontSize = "16px";
-  closeBtn.style.lineHeight = "1";
-  closeBtn.style.padding = "2px 4px";
   closeBtn.addEventListener("click", (ev) => {
     ev.preventDefault();
     hide();
   });
 
   function styleSmallBtn(btn) {
-    btn.style.background = "transparent";
-    btn.style.border = "1px solid #4b5563";
-    btn.style.borderRadius = "999px";
-    btn.style.color = "#e5e7eb";
-    btn.style.cursor = "pointer";
-    btn.style.fontSize = "10px";
-    btn.style.lineHeight = "1";
-    btn.style.padding = "2px 6px";
+    btn.classList.add("gm-panel-chip");
   }
 
   _copyBtn = document.createElement("button");
@@ -602,15 +531,9 @@ function ensurePanel() {
 
   const body = document.createElement("div");
   body.className = "gm-panel-body";
-  body.style.padding = "8px 10px";
-  body.style.display = "flex";
-  body.style.flexDirection = "column";
-  body.style.gap = "8px";
 
   _summaryEl = document.createElement("div");
   _summaryEl.className = "gm-panel-summary";
-  _summaryEl.style.fontSize = "12px";
-  _summaryEl.style.color = "#e5e7eb";
   body.appendChild(_summaryEl);
 
   _moodEl = createPanelBlock("gm-panel-mood");
