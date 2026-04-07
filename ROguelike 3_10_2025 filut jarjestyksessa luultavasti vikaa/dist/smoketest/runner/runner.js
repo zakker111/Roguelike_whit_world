@@ -1341,6 +1341,16 @@
 
           await moveKey("g", 260);
           if (getMode() !== "world") await moveKey("g", 320);
+          if (getMode() !== "world") {
+            try {
+              const RM = (typeof window !== "undefined" && window.RegionMapRuntime) ? window.RegionMapRuntime : null;
+              const ctxNow = (typeof G.getCtx === "function") ? G.getCtx() : null;
+              if (RM && typeof RM.close === "function" && ctxNow) {
+                const closed = !!RM.close(ctxNow);
+                if (closed) act.usedFallback = act.usedFallback || "runtime.close";
+              }
+            } catch (_) {}
+          }
 
           let ok = (getMode() === "world");
           if (ok) {

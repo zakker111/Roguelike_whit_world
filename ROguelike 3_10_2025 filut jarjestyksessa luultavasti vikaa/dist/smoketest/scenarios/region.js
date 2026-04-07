@@ -10,13 +10,12 @@
       const G = window.GameAPI || {};
       const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
 
-      // Preconditions
-      if (getMode() !== "world") {
-        recordSkip("Region scenario skipped (not in world)");
+      if (typeof ctx.ensureRegionOnce !== "function") {
+        recordSkip("Region scenario skipped (ensureRegionOnce unavailable)");
         return true;
       }
 
-      const opened = (typeof ctx.ensureRegionOnce === "function") ? await ctx.ensureRegionOnce() : false;
+      const opened = await ctx.ensureRegionOnce();
       if (!opened || getMode() !== "region") {
         record(false, "Region open failed (mode=" + (getMode() || "unknown") + ")");
         return false;
