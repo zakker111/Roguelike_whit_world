@@ -86,15 +86,15 @@ export function createInventoryOps(getCtx) {
   }
 
   function equipItemByIndex(idx) {
-    equipItemByIndexFacade(ctx(), idx);
+    return !!equipItemByIndexFacade(ctx(), idx);
   }
 
   function equipItemByIndexHand(idx, hand) {
-    equipItemByIndexHandFacade(ctx(), idx, hand);
+    return !!equipItemByIndexHandFacade(ctx(), idx, hand);
   }
 
   function unequipSlot(slot) {
-    unequipSlotFacade(ctx(), slot);
+    return !!unequipSlotFacade(ctx(), slot);
   }
 
   return {

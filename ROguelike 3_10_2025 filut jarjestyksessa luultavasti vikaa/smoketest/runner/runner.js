@@ -1886,6 +1886,8 @@
         : false;
       const ok = scenariosAllPassed || (!hasHardFail && (hasRealOk || hasPriorOkSkip));
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
+      let effectiveSteps = steps.slice();
+      let effectiveFailedSteps = [];
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         // Suppress known failure counterparts if their success occurred within this run
@@ -1920,6 +1922,8 @@
         const passed = filteredSteps.filter(s => s.ok && !s.skipped);
         const skipped = filteredSteps.filter(s => s.skipped);
         const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
+        effectiveSteps = filteredSteps.slice();
+        effectiveFailedSteps = failed.slice();
         issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
         passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
         skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
@@ -1979,6 +1983,10 @@
       } catch (_) {}
 
       try {
+        const rawFailedSteps = steps.filter(s => s && s.ok === false && !s.skipped);
+        const normalizedScenarioResults = Array.isArray(scenarioResults)
+          ? scenarioResults.filter(sr => sr && sr.normalizedByHeuristic)
+          : [];
         window.SMOKE_OK = ok;
         window.SMOKE_STEPS = steps.slice();
         // Include validation counts in exported JSON (non-fatal)
@@ -1998,9 +2006,39 @@
           window.SMOKE_VALIDATION_WARNINGS = valObj.warnings | 0;
           window.SMOKE_VALIDATION_NOTICES = valObj.notices | 0;
         } catch (_) {}
-        window.SMOKE_JSON = { ok, steps, caps, trace, keyChecklist: keyChecklistRun, validation: valObj };
+        window.SMOKE_JSON = {
+          ok,
+          steps,
+          effectiveSteps,
+          failingSteps: effectiveFailedSteps,
+          rawFailingSteps: rawFailedSteps,
+          scenarioResults,
+          normalizedScenarioResults,
+          caps,
+          trace,
+          keyChecklist: keyChecklistRun,
+          validation: valObj
+        };
       } catch (_) {}
-      try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps, trace, keyChecklist: keyChecklistRun })); } catch (_) {}
+      try {
+        const rawFailedSteps = steps.filter(s => s && s.ok === false && !s.skipped);
+        const normalizedScenarioResults = Array.isArray(scenarioResults)
+          ? scenarioResults.filter(sr => sr && sr.normalizedByHeuristic)
+          : [];
+        localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL");
+        localStorage.setItem("smoke-json-token", JSON.stringify({
+          ok,
+          steps,
+          effectiveSteps,
+          failingSteps: effectiveFailedSteps,
+          rawFailingSteps: rawFailedSteps,
+          scenarioResults,
+          normalizedScenarioResults,
+          caps,
+          trace,
+          keyChecklist: keyChecklistRun
+        }));
+      } catch (_) {}
       // Provide hidden DOM tokens for CI (align with legacy runner)
       try {
         var token = document.getElementById("smoke-pass-token");
@@ -2043,7 +2081,22 @@
           jsonToken.style.display = "none";
           document.body.appendChild(jsonToken);
         }
-        jsonToken.textContent = JSON.stringify({ ok, steps, caps, trace, keyChecklist: keyChecklistRun });
+        const rawFailedSteps = steps.filter(s => s && s.ok === false && !s.skipped);
+        const normalizedScenarioResults = Array.isArray(scenarioResults)
+          ? scenarioResults.filter(sr => sr && sr.normalizedByHeuristic)
+          : [];
+        jsonToken.textContent = JSON.stringify({
+          ok,
+          steps,
+          effectiveSteps,
+          failingSteps: effectiveFailedSteps,
+          rawFailingSteps: rawFailedSteps,
+          scenarioResults,
+          normalizedScenarioResults,
+          caps,
+          trace,
+          keyChecklist: keyChecklistRun
+        });
       } catch (_) {}
       // Finalize trace with end mode and perf snapshot
       try {

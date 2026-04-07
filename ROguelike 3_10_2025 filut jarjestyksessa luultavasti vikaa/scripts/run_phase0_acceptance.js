@@ -175,10 +175,11 @@ async function main() {
   const preferredPort = Number(process.env.PORT || 8080);
   const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 2);
   const scenarioCount = PHASE0_SCENARIOS.split(',').length;
-  // Phase 0 runs a broad suite, and two full series can legitimately exceed 120s
-  // even when healthy. Scale the harness timeout with suite size instead of treating
-  // it like a tiny smoke pass.
-  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, seriesRuns * scenarioCount * 6000);
+  // Phase 0 runs a broad suite with multiple world-mode transitions and browser-settle
+  // waits. A healthy single series is already close to 70s in this repo, so two full
+  // series need more headroom than a bare per-scenario multiplier leaves. Keep the
+  // timeout proportional to suite size, but add fixed slack for page orchestration.
+  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, (seriesRuns * scenarioCount * 8000) + 30000);
   // Some environments set PORT globally (e.g. Codespaces/preview tooling). If that port is already
   // in use, the server child will fail to bind and the harness can accidentally talk to whatever
   // is already listening there (often resulting in redirect loops). Always probe for a free port

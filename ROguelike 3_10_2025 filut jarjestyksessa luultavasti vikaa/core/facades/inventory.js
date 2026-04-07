@@ -29,40 +29,37 @@ export function hideInventoryPanel(ctx) {
 export function equipItemByIndex(ctx, idx) {
   const IF = getMod(ctx, "InventoryFlow");
   if (IF && typeof IF.equipItemByIndex === "function") {
-    IF.equipItemByIndex(ctx, idx);
-    return;
+    return !!IF.equipItemByIndex(ctx, idx);
   }
   const IC = getMod(ctx, "InventoryController");
   if (IC && typeof IC.equipByIndex === "function") {
-    IC.equipByIndex(ctx, idx);
-    return;
+    return !!IC.equipByIndex(ctx, idx);
   }
+  return false;
 }
 
 export function equipItemByIndexHand(ctx, idx, hand) {
   const IF = getMod(ctx, "InventoryFlow");
   if (IF && typeof IF.equipItemByIndexHand === "function") {
-    IF.equipItemByIndexHand(ctx, idx, hand);
-    return;
+    return !!IF.equipItemByIndexHand(ctx, idx, hand);
   }
   const IC = getMod(ctx, "InventoryController");
   if (IC && typeof IC.equipByIndexHand === "function") {
-    IC.equipByIndexHand(ctx, idx, hand);
-    return;
+    return !!IC.equipByIndexHand(ctx, idx, hand);
   }
+  return false;
 }
 
 export function unequipSlot(ctx, slot) {
   const IF = getMod(ctx, "InventoryFlow");
   if (IF && typeof IF.unequipSlot === "function") {
-    IF.unequipSlot(ctx, slot);
-    return;
+    return !!IF.unequipSlot(ctx, slot);
   }
   const IC = getMod(ctx, "InventoryController");
   if (IC && typeof IC.unequipSlot === "function") {
-    IC.unequipSlot(ctx, slot);
-    return;
+    return !!IC.unequipSlot(ctx, slot);
   }
+  return false;
 }
 
 export function addPotionToInventory(ctx, heal = 3, name = `potion (+${heal} HP)`) {

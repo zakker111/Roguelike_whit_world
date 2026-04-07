@@ -156,11 +156,11 @@ export function equipIfBetter(player, item, hooks = {}) {
 }
 
 export function equipItemByIndex(player, idx, hooks = {}) {
-  if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
+  if (!player.inventory || idx < 0 || idx >= player.inventory.length) return false;
   const item = player.inventory[idx];
   if (!item || item.kind !== "equip") {
     if (hooks.log) hooks.log("That item cannot be equipped.");
-    return;
+    return false;
   }
 
   // If Seppo's True Blade is currently equipped in hands, block equipping other hand items.
@@ -175,7 +175,7 @@ export function equipItemByIndex(player, idx, hooks = {}) {
         (right0 && isCursedSeppoBlade(right0));
       if (cursedEquipped0 && !isCursedSeppoBlade(item)) {
         if (hooks.log) hooks.log("Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "info");
-        return;
+        return false;
       }
     }
   } catch (_) {}
@@ -200,6 +200,9 @@ export function equipItemByIndex(player, idx, hooks = {}) {
       }
       if (prevL && prevL !== item) player.inventory.push(prevL);
       if (prevR && prevR !== item) player.inventory.push(prevR);
+      if (hooks.updateUI) hooks.updateUI();
+      if (hooks.renderInventory) hooks.renderInventory();
+      return true;
     } else if (preferredHand) {
       const other = preferredHand === "left" ? "right" : "left";
       const wasTwoHanded = !!(eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded);
@@ -221,9 +224,18 @@ export function equipItemByIndex(player, idx, hooks = {}) {
         if (eq[other]) player.inventory.push(eq[other]);
         eq[other] = null;
       }
+      if (hooks.updateUI) hooks.updateUI();
+      if (hooks.renderInventory) hooks.renderInventory();
+      return true;
     } else {
       // no preference -> use auto/better logic
-      equipIfBetter(player, item, hooks);
+      const equipped = !!equipIfBetter(player, item, hooks);
+      if (!equipped) {
+        player.inventory.push(item);
+        if (hooks.updateUI) hooks.updateUI();
+        if (hooks.renderInventory) hooks.renderInventory();
+      }
+      return equipped;
     }
   } else {
     // Non-hand items -> simple replacement
@@ -238,17 +250,18 @@ export function equipItemByIndex(player, idx, hooks = {}) {
       hooks.log(`You equip ${item.name} (${slot}${statStr ? ", " + statStr : ""}).`);
     }
     if (prev) player.inventory.push(prev);
+    if (hooks.updateUI) hooks.updateUI();
+    if (hooks.renderInventory) hooks.renderInventory();
+    return true;
   }
-
-  if (hooks.updateUI) hooks.updateUI();
-  if (hooks.renderInventory) hooks.renderInventory();
+  return false;
 }
 
 export function unequipSlot(player, slot, hooks = {}) {
   if (!player || !player.equipment) return;
   const eq = player.equipment;
   const valid = ["left","right","head","torso","legs","hands"];
-  if (!valid.includes(slot)) return;
+  if (!valid.includes(slot)) return false;
 
   const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && typeof window.Player.describeItem === "function" ? window.Player.describeItem : null) || defaultDescribe;
 
@@ -256,13 +269,13 @@ export function unequipSlot(player, slot, hooks = {}) {
   try {
     if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && isCursedSeppoBlade(eq.left)) {
       if (hooks.log) hooks.log("Cursed: The blade clings to your hands and cannot be unequipped.", "info");
-      return;
+      return false;
     }
     if ((slot === "left" || slot === "right")) {
       const single = eq[slot];
       if (single && isCursedSeppoBlade(single)) {
         if (hooks.log) hooks.log("Cursed: The blade clings to your hand and cannot be unequipped.", "info");
-        return;
+        return false;
       }
     }
   } catch (_) {}
@@ -275,16 +288,17 @@ export function unequipSlot(player, slot, hooks = {}) {
     if (hooks.log) hooks.log(`You unequip ${describe(item)} (two-handed).`);
     if (hooks.updateUI) hooks.updateUI();
     if (hooks.renderInventory) hooks.renderInventory();
-    return;
+    return true;
   }
 
   const it = eq[slot];
-  if (!it) return;
+  if (!it) return false;
   eq[slot] = null;
   player.inventory.push(it);
   if (hooks.log) hooks.log(`You unequip ${describe(it)} from ${slot}.`);
   if (hooks.updateUI) hooks.updateUI();
   if (hooks.renderInventory) hooks.renderInventory();
+  return true;
 }
 
 // Back-compat: attach to window
