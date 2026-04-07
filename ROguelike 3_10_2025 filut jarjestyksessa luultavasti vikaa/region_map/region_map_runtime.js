@@ -800,9 +800,14 @@ function close(ctx) {
 
   // Refresh via StateSync so minimap/FOV/UI update
   try {
-    const SS = ctx.StateSync || getMod(ctx, "StateSync");
-    if (SS && typeof SS.applyAndRefresh === "function") {
-      SS.applyAndRefresh(ctx, {});
+    const GA = (typeof window !== "undefined") ? window.GameAPI : null;
+    if (GA && typeof GA.applyCtxSyncAndRefresh === "function") {
+      GA.applyCtxSyncAndRefresh(ctx);
+    } else {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
     }
   } catch (_) {}
 

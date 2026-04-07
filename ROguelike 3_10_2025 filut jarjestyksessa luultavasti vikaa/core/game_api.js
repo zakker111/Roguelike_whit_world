@@ -940,6 +940,12 @@ export function create(ctx) {
         if (ok) {
           p.x = destX | 0;
           p.y = destY | 0;
+          try {
+            if (mode === "region" && ctx.region && ctx.region.cursor) {
+              ctx.region.cursor.x = destX | 0;
+              ctx.region.cursor.y = destY | 0;
+            }
+          } catch (_) {}
 
           try {
             const SS = ctx.StateSync || getMod(ctx, "StateSync");
