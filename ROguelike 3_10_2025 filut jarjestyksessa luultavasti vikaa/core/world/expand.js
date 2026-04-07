@@ -9,7 +9,7 @@ function nowMs() {
     if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
       return performance.now();
     }
-  } catch (_) {
+  } catch {
     return Date.now();
   }
   return Date.now();
@@ -20,7 +20,7 @@ function shouldLogExpandPerf(dtMs) {
   try {
     if (typeof window !== "undefined" && window.DEV) return true;
     if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
-  } catch (_) {
+  } catch {
     return false;
   }
   return false;
@@ -36,7 +36,7 @@ function logExpandPerf(ctx, details) {
     } else if (typeof console !== "undefined" && typeof console.debug === "function") {
       console.debug(message, details);
     }
-  } catch (_) {
+  } catch {
     return;
   }
 }
@@ -91,23 +91,23 @@ export function expandMap(ctx, side, K) {
           playerShifted: !ctx._suspendExpandShift
         });
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
     if (!ctx._suspendExpandShift) {
-      try { ctx.player.x += K; } catch (_) { void 0; }
+      try { ctx.player.x += K; } catch { void 0; }
       try {
         if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.x += K;
         if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.x += K;
         if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.x += K;
-      } catch (_) {
+      } catch {
         void 0;
       }
       try {
         const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
         const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
         if (cam) cam.x += K * TILE;
-      } catch (_) {
+      } catch {
         void 0;
       }
     }
@@ -131,7 +131,7 @@ export function expandMap(ctx, side, K) {
           playerShifted: false
         });
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
   } else if (side === "top") {
@@ -157,16 +157,16 @@ export function expandMap(ctx, side, K) {
           playerShifted: !ctx._suspendExpandShift
         });
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
     if (!ctx._suspendExpandShift) {
-      try { ctx.player.y += K; } catch (_) { void 0; }
+      try { ctx.player.y += K; } catch { void 0; }
       try {
         if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.y += K;
         if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.y += K;
         if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.y += K;
-      } catch (_) {
+      } catch {
         void 0;
       }
     }
@@ -190,7 +190,7 @@ export function expandMap(ctx, side, K) {
           playerShifted: false
         });
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
   }

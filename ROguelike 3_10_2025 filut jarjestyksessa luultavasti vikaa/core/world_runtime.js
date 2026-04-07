@@ -25,7 +25,7 @@ function currentSeed() {
     if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
       return window.RNG.getSeed();
     }
-  } catch (_) {
+  } catch {
     return (Date.now() >>> 0);
   }
   return (Date.now() >>> 0);
@@ -104,22 +104,22 @@ export function generate(ctx, opts = {}) {
     ctx.mode = "world";
 
     // For debugging: always spawn a castle very close to the starting position so layout/NPCs are easy to test.
-    try { spawnDebugCastleNearPlayer(ctx); } catch (_) { void 0; }
+    try { spawnDebugCastleNearPlayer(ctx); } catch { void 0; }
 
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
-    try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) { void 0; }
+    try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch { void 0; }
 
     // Hybrid GM marker thread: guarantee at least one Survey Cache per run.
     try {
       if (GMBridge && typeof GMBridge.ensureGuaranteedSurveyCache === "function") {
         GMBridge.ensureGuaranteedSurveyCache(ctx);
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
 
     // Spawn a few travelling caravans that wander between the known towns.
-    try { spawnInitialCaravans(ctx); } catch (_) { void 0; }
+    try { spawnInitialCaravans(ctx); } catch { void 0; }
 
     // Camera/FOV/UI via StateSync
     try {
@@ -127,7 +127,7 @@ export function generate(ctx, opts = {}) {
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
-    } catch (_) {
+    } catch {
       void 0;
     }
 
@@ -138,7 +138,7 @@ export function generate(ctx, opts = {}) {
     try {
       const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
       if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
-    } catch (_) {
+    } catch {
       void 0;
     }
 
@@ -146,7 +146,7 @@ export function generate(ctx, opts = {}) {
   }
 
   // Infinite generator unavailable: throw a hard error (no finite fallback)
-  try { ctx.log && ctx.log("Error: Infinite world generator unavailable or not initialized.", "bad"); } catch (_) { void 0; }
+  try { ctx.log && ctx.log("Error: Infinite world generator unavailable or not initialized.", "bad"); } catch { void 0; }
   throw new Error("Infinite world generator unavailable or not initialized");
 }
 
