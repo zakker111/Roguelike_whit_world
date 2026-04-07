@@ -96,7 +96,7 @@ export function hide(ctx) {
 
 export function equipItemByIndex(ctx, idx) {
   const IC = mod("InventoryController");
-  if (IC && typeof IC.equipByIndex === "function") { IC.equipByIndex(ctx, idx); return; }
+  if (IC && typeof IC.equipByIndex === "function") { return !!IC.equipByIndex(ctx, idx); }
   const P = mod("Player");
   if (P && typeof P.equipItemByIndex === "function") {
     const describeItem = (it) => {
@@ -114,15 +114,14 @@ export function equipItemByIndex(ctx, idx) {
         if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
       } catch (_) {}
     };
-    P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem });
-    return;
+    return !!P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem });
   }
   throw new Error("Equip system missing; InventoryController.equipByIndex and Player.equipItemByIndex not found");
 }
 
 export function equipItemByIndexHand(ctx, idx, hand) {
   const IC = mod("InventoryController");
-  if (IC && typeof IC.equipByIndexHand === "function") { IC.equipByIndexHand(ctx, idx, hand); return; }
+  if (IC && typeof IC.equipByIndexHand === "function") { return !!IC.equipByIndexHand(ctx, idx, hand); }
   const P = mod("Player");
   if (P && typeof P.equipItemByIndex === "function") {
     const describeItem = (it) => {
@@ -140,15 +139,14 @@ export function equipItemByIndexHand(ctx, idx, hand) {
         if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
       } catch (_) {}
     };
-    P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem, preferredHand: hand });
-    return;
+    return !!P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem, preferredHand: hand });
   }
   throw new Error("Equip system missing; InventoryController.equipByIndexHand and Player.equipItemByIndex not found");
 }
 
 export function unequipSlot(ctx, slot) {
   const IC = mod("InventoryController");
-  if (IC && typeof IC.unequipSlot === "function") { IC.unequipSlot(ctx, slot); return; }
+  if (IC && typeof IC.unequipSlot === "function") { return !!IC.unequipSlot(ctx, slot); }
   const P = mod("Player");
   if (P && typeof P.unequipSlot === "function") {
     const renderInventory = () => {
@@ -157,8 +155,7 @@ export function unequipSlot(ctx, slot) {
         if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
       } catch (_) {}
     };
-    P.unequipSlot(ctx.player, slot, { log: ctx.log, updateUI: ctx.updateUI, renderInventory });
-    return;
+    return !!P.unequipSlot(ctx.player, slot, { log: ctx.log, updateUI: ctx.updateUI, renderInventory });
   }
   throw new Error("Equip system missing; InventoryController.unequipSlot and Player.unequipSlot not found");
 }

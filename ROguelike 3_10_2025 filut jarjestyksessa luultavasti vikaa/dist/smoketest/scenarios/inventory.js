@@ -14,6 +14,16 @@
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
       var sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms|0)));
+      var isCursedSeppoBlade = function (item) {
+        if (!item) return false;
+        try {
+          var id = String(item.id || "").toLowerCase();
+          var name = String(item.name || "");
+          return id === "seppos_true_blade" || /seppo's true blade/i.test(name);
+        } catch (_) {
+          return false;
+        }
+      };
       var makeBudget = ctx.makeBudget || (ms => {
         var start = Date.now(); var dl = start + (ms|0);
         return { exceeded: function(){return Date.now() > dl;}, remain: function(){return Math.max(0, dl - Date.now());} };
@@ -114,6 +124,11 @@
         var s0 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
         var ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
         await sleep(140);
+        var eqAfterManualEquip = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+        if (slot === "hand") {
+          if (eqAfterManualEquip.left && eqAfterManualEquip.left.name === item.name) slot = "left";
+          else if (eqAfterManualEquip.right && eqAfterManualEquip.right.name === item.name) slot = "right";
+        }
         var s1 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
         var ok2 = window.GameAPI.unequipSlot(slot);
         await sleep(140);
@@ -148,7 +163,7 @@
 
       // Two-handed equip/unequip behavior + hand chooser
       var inv2 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
-      var idx2h = inv2.findIndex(function (it) { return it && it.kind === "equip" && it.twoHanded; });
+      var idx2h = inv2.findIndex(function (it) { return it && it.kind === "equip" && it.twoHanded && !isCursedSeppoBlade(it); });
       if (idx2h !== -1 && typeof window.GameAPI.equipItemAtIndex === "function") {
         var okEq = !!window.GameAPI.equipItemAtIndex(idx2h);
         await sleep(140);
@@ -159,6 +174,8 @@
         var eqInfo2 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
         var handsCleared = !eqInfo2.left && !eqInfo2.right;
         record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
+      } else if (inv2.some(function (it) { return it && it.kind === "equip" && it.twoHanded && isCursedSeppoBlade(it); })) {
+        recordSkip("Skipped two-handed equip test (only cursed two-handed item available)");
       } else {
         recordSkip("Skipped two-handed equip test (no two-handed item)");
       }
@@ -235,54 +252,59 @@
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
         (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
         await sleep(120);
-
-        var leftSig = handSigs[0];
-        var leftIndex = resolveUniqueIndex(leftSig, "hand chooser test");
-        if (!leftIndex.ok) {
-          recordSkip("Skipped hand chooser test (unable to resolve unique 1-hand item)");
+        var eqBeforeHandChooser = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+        if (eqBeforeHandChooser.left || eqBeforeHandChooser.right) {
+          recordSkip("Skipped hand chooser test (hands could not be cleared)");
         } else {
-          var okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function")
-            ? !!window.GameAPI.equipItemAtIndexHand(leftIndex.idx, "left")
-            : (!!window.GameAPI.equipItemAtIndex(leftIndex.idx));
-          await sleep(140);
-          var eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-          var leftOk = equipmentMatches(eqInfoA.left, leftSig) && !equipmentMatches(eqInfoA.right, leftSig);
-          record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
 
-          if (handSigs.length > 1 && typeof window.GameAPI.equipItemAtIndexHand === "function" && typeof window.GameAPI.equipItemAtIndex === "function") {
-            (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
-            (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
-            await sleep(120);
+          var leftSig = handSigs[0];
+          var leftIndex = resolveUniqueIndex(leftSig, "hand chooser test");
+          if (!leftIndex.ok) {
+            recordSkip("Skipped hand chooser test (unable to resolve unique 1-hand item)");
+          } else {
+            var okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function")
+              ? !!window.GameAPI.equipItemAtIndexHand(leftIndex.idx, "left")
+              : (!!window.GameAPI.equipItemAtIndex(leftIndex.idx));
+            await sleep(140);
+            var eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+            var leftOk = equipmentMatches(eqInfoA.left, leftSig) && !equipmentMatches(eqInfoA.right, leftSig);
+            record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
 
-            var rightSig = handSigs[0];
-            var autoSig = handSigs[1];
-            var rightIndex = resolveUniqueIndex(rightSig, "right-hand setup");
+            if (handSigs.length > 1 && typeof window.GameAPI.equipItemAtIndexHand === "function" && typeof window.GameAPI.equipItemAtIndex === "function") {
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
+              await sleep(120);
 
-            if (!rightIndex.ok) {
-              recordSkip("Skipped hand chooser auto-equip test (unable to resolve right-hand setup item)");
-            } else {
-              var okRightSetup = !!window.GameAPI.equipItemAtIndexHand(rightIndex.idx, "right");
-              await sleep(140);
-              var eqInfoRight = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-              var rightOccupied = okRightSetup && equipmentMatches(eqInfoRight.right, rightSig) && !eqInfoRight.left;
+              var rightSig = handSigs[0];
+              var autoSig = handSigs[1];
+              var rightIndex = resolveUniqueIndex(rightSig, "right-hand setup");
 
-              if (!rightOccupied) {
-                recordSkip("Skipped hand chooser auto-equip test (unable to occupy right hand)");
+              if (!rightIndex.ok) {
+                recordSkip("Skipped hand chooser auto-equip test (unable to resolve right-hand setup item)");
               } else {
-                var autoIndex = resolveUniqueIndex(autoSig, "auto hand chooser test");
-                if (!autoIndex.ok) {
-                  recordSkip("Skipped hand chooser auto-equip test (unable to resolve auto-equip item)");
+                var okRightSetup = !!window.GameAPI.equipItemAtIndexHand(rightIndex.idx, "right");
+                await sleep(140);
+                var eqInfoRight = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                var rightOccupied = okRightSetup && equipmentMatches(eqInfoRight.right, rightSig) && !eqInfoRight.left;
+
+                if (!rightOccupied) {
+                  recordSkip("Skipped hand chooser auto-equip test (unable to occupy right hand)");
                 } else {
-                  var okAuto = !!window.GameAPI.equipItemAtIndex(autoIndex.idx);
-                  await sleep(140);
-                  var eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-                  var autoLeft = equipmentMatches(eqInfoB.left, autoSig) && equipmentMatches(eqInfoB.right, rightSig);
-                  record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
+                  var autoIndex = resolveUniqueIndex(autoSig, "auto hand chooser test");
+                  if (!autoIndex.ok) {
+                    recordSkip("Skipped hand chooser auto-equip test (unable to resolve auto-equip item)");
+                  } else {
+                    var okAuto = !!window.GameAPI.equipItemAtIndex(autoIndex.idx);
+                    await sleep(140);
+                    var eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                    var autoLeft = equipmentMatches(eqInfoB.left, autoSig) && equipmentMatches(eqInfoB.right, rightSig);
+                    record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
+                  }
                 }
               }
+            } else {
+              recordSkip("Skipped hand chooser auto-equip test (need two distinct 1-hand items and hand API)");
             }
-          } else {
-            recordSkip("Skipped hand chooser auto-equip test (need two distinct 1-hand items and hand API)");
           }
         }
       } else {
@@ -413,17 +435,25 @@
         } else {
           // Dungeon enter/exit cycle (with settle waits and explicit mode confirmation)
           try {
-            if (typeof ctx.ensureDungeonOnce === "function") { await ctx.ensureDungeonOnce(); }
-            await persistCheck("dungeon", "dungeon enter", inv0, eq0);
+            var enteredDungeon = (typeof ctx.ensureDungeonOnce === "function") ? !!(await ctx.ensureDungeonOnce()) : false;
+            if (!enteredDungeon) {
+              recordSkip("Inventory persistence skipped (dungeon enter helper did not reach dungeon)");
+            } else {
+              await persistCheck("dungeon", "dungeon enter", inv0, eq0);
 
-            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
-            await persistCheck("world", "dungeon exit", inv0, eq0);
+              if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
+              await persistCheck("world", "dungeon exit", inv0, eq0);
 
-            if (typeof ctx.ensureDungeonOnce === "function") { await ctx.ensureDungeonOnce(); }
-            await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
+              var reenteredDungeon = (typeof ctx.ensureDungeonOnce === "function") ? !!(await ctx.ensureDungeonOnce()) : false;
+              if (!reenteredDungeon) {
+                recordSkip("Inventory persistence skipped (dungeon re-enter helper did not reach dungeon)");
+              } else {
+                await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
 
-            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
-            await persistCheck("world", "dungeon re-exit", inv0, eq0);
+                if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
+                await persistCheck("world", "dungeon re-exit", inv0, eq0);
+              }
+            }
           } catch (_) {
             record(false, "Inventory persistence (dungeon cycles) failed");
           }

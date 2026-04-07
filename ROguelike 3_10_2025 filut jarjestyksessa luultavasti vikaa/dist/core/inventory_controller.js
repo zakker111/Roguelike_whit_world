@@ -99,7 +99,7 @@ export function equipByIndex(ctx, idx, hooks) {
   if (!P || typeof P.equipItemByIndex !== "function") {
     throw new Error("Player.equipItemByIndex missing; equip system cannot proceed");
   }
-  P.equipItemByIndex(ctx.player, idx, {
+  return !!P.equipItemByIndex(ctx.player, idx, {
     log: ctx.log,
     updateUI: ctx.updateUI,
     renderInventory: () => render(ctx),
@@ -113,7 +113,7 @@ export function equipByIndexHand(ctx, idx, hand, hooks) {
   if (!P || typeof P.equipItemByIndex !== "function") {
     throw new Error("Player.equipItemByIndex missing; equip system cannot proceed");
   }
-  P.equipItemByIndex(ctx.player, idx, {
+  return !!P.equipItemByIndex(ctx.player, idx, {
     log: ctx.log,
     updateUI: ctx.updateUI,
     renderInventory: () => render(ctx),
@@ -128,7 +128,7 @@ export function unequipSlot(ctx, slot, hooks) {
   if (!P || typeof P.unequipSlot !== "function") {
     throw new Error("Player.unequipSlot missing; equip system cannot proceed");
   }
-  P.unequipSlot(ctx.player, slot, {
+  return !!P.unequipSlot(ctx.player, slot, {
     log: ctx.log,
     updateUI: ctx.updateUI,
     renderInventory: () => render(ctx),

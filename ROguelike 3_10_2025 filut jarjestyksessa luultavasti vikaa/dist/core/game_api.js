@@ -514,9 +514,9 @@ export function create(ctx) {
         return { atk: 0, def: 0, hp: p.hp, maxHp: p.maxHp, level: p.level };
       }
     },
-    equipItemAtIndex: (idx) => { try { ctx.equipItemByIndex((Number(idx)||0)|0); return true; } catch(_) { return false; } },
-    equipItemAtIndexHand: (idx, hand) => { try { ctx.equipItemByIndexHand((Number(idx)||0)|0, String(hand||"left")); return true; } catch(_) { return false; } },
-    unequipSlot: (slot) => { try { ctx.unequipSlot(String(slot)); return true; } catch(_) { return false; } },
+    equipItemAtIndex: (idx) => { try { return !!ctx.equipItemByIndex((Number(idx)||0)|0); } catch(_) { return false; } },
+    equipItemAtIndexHand: (idx, hand) => { try { return !!ctx.equipItemByIndexHand((Number(idx)||0)|0, String(hand||"left")); } catch(_) { return false; } },
+    unequipSlot: (slot) => { try { return !!ctx.unequipSlot(String(slot)); } catch(_) { return false; } },
     getPotions: () => {
       try {
         const p = ctx.getPlayer();
