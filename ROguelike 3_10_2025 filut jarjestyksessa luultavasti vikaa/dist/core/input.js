@@ -5,13 +5,14 @@
  * Exports (ESM + window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
  *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, isHelpOpen, isCharacterOpen,
+ *     isLockpickOpen,
  *     onRestart, onShowInventory, onHideInventory, onHideLoot, onHideGod, onHideShop, onHideSmoke,
  *     onShowGod, onShowHelp, onHideHelp, onShowCharacter, onHideCharacter,
  *     onMove(dx,dy), onWait, onLoot, adjustFov(delta), toggleSandboxPanel, toggleGMPanel }
  * - destroy(): removes listener.
  *
  * Rules and priorities
- * - If a modal is open (inventory/loot/GOD/shop), Escape closes it and other keys are ignored.
+ * - If a blocking modal is open (inventory/loot/GOD/shop/etc), gameplay keys are ignored.
  * - Movement only when no modal is open.
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
  * - Inventory: I. Loot/Action: G.
@@ -145,6 +146,13 @@ export function init(handlers) {
       } else {
         e.preventDefault();
       }
+      return;
+    }
+
+    // Lockpicking modal owns its own keyboard controls (arrows/A/D/Enter/Space/Esc).
+    // Do not process gameplay input here while it is open or movement keys can leak
+    // through before the modal's listener gets a chance to consume them.
+    if (_handlers.isLockpickOpen && _handlers.isLockpickOpen()) {
       return;
     }
 
