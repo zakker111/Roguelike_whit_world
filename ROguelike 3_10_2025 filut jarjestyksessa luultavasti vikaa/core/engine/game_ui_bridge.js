@@ -202,6 +202,14 @@ export function setupInputBridge(opts) {
         UIO.showHelp(getCtx());
       }
     },
+    isLockpickOpen: () => {
+      const UIO = modHandle("UIOrchestration");
+      return !!(
+        UIO &&
+        typeof UIO.isLockpickOpen === "function" &&
+        UIO.isLockpickOpen(getCtx())
+      );
+    },
     onHideHelp: () => {
       const UIO = modHandle("UIOrchestration");
       if (UIO && typeof UIO.hideHelp === "function") {
