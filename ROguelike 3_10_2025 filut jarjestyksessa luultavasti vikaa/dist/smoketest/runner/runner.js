@@ -1876,15 +1876,18 @@
 
       // Build report via reporting renderer
       // Run-level OK:
-      // - If selected scenarios all passed (including heuristic normalization), the run is OK.
-      // - Otherwise, require at least one non-skipped OK step and no hard failures.
+      // - Hard failures in this run always make the run fail, even if a scenario is
+      //   heuristically normalized to passed later. This keeps the PASS/FAIL tokens
+      //   truthful for CI and avoids masking real regressions with union-of-success logic.
+      // - If there are no hard failures, require either all selected scenarios to pass
+      //   or at least one non-skipped OK step (or a prior-ok skip).
       const hasHardFail = steps.some(s => !s.ok && !s.skipped);
       const hasRealOk = steps.some(s => s.ok && !s.skipped);
       const hasPriorOkSkip = steps.some(s => s.ok && s.skipped && s.skippedReason === "prior_ok");
       const scenariosAllPassed = (scenarioResults && scenarioResults.length)
         ? scenarioResults.every(sr => !!(sr && sr.passed))
         : false;
-      const ok = scenariosAllPassed || (!hasHardFail && (hasRealOk || hasPriorOkSkip));
+      const ok = !hasHardFail && (scenariosAllPassed || hasRealOk || hasPriorOkSkip);
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       let effectiveSteps = steps.slice();
       let effectiveFailedSteps = [];
