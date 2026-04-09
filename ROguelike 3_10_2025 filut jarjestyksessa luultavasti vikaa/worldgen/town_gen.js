@@ -1000,7 +1000,7 @@ function generate(ctx) {
 
 // Shop helpers moved to ShopService; local duplicates removed.
 
-import { parseHHMM } from "../services/index.js";
+import { parseHHMM } from "/services/index.js";
 import * as Prefabs from "./prefabs.js";
 import * as Roads from "./roads.js";
 import { attachGlobal } from "../utils/global.js";
