@@ -173,7 +173,15 @@ export function saveRegionState(ctx) {
     const mapObj = _loadRegionStateMap();
     // Filter corpses within the region bounds
     const corpses = Array.isArray(ctx.corpses)
-      ? ctx.corpses.map(c => ({ x: c.x | 0, y: c.y | 0, looted: !!c.looted, loot: Array.isArray(c.loot) ? c.loot : [] }))
+      ? ctx.corpses.map(c => ({
+          x: c.x | 0,
+          y: c.y | 0,
+          kind: typeof c.kind === "string" ? c.kind : undefined,
+          looted: !!c.looted,
+          _examined: !!c._examined,
+          loot: Array.isArray(c.loot) ? c.loot : [],
+          meta: c && c.meta && typeof c.meta === "object" ? c.meta : undefined
+        }))
       : [];
     const st = {
       w: (ctx.region.width | 0),

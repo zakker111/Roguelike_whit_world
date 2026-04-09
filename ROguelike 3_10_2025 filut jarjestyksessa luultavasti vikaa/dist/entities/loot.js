@@ -521,9 +521,14 @@ export function lootHere(ctx) {
     return;
   }
 
-  // If any chest underfoot, announce opening once
-  if (containers.some(c => String(c.kind || "").toLowerCase() === "chest")) {
-    ctx.log("You open the chest.", "info");
+  const chestContainers = containers.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
+  const corpseContainers = containers.length - chestContainers;
+
+  // Only use chest-specific wording when the underfoot loot is chest-only.
+  // Mixed corpse+chest tiles can happen when an enemy dies on top of a chest,
+  // especially in ruins, and chest wording is misleading there.
+  if (chestContainers > 0 && corpseContainers === 0) {
+    ctx.log(chestContainers === 1 ? "You open the chest." : "You open the chests.", "info");
   }
 
   const acquired = [];
