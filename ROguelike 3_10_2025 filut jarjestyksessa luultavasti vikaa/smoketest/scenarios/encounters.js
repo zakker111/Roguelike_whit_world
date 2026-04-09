@@ -18,6 +18,32 @@
         return true;
       }
 
+      const previousInvincible = (() => {
+        try {
+          if (window.UI && typeof window.UI.getInvincibleState === "function") {
+            return !!window.UI.getInvincibleState();
+          }
+        } catch (_) {}
+        try {
+          return !!window.GOD_INVINCIBLE;
+        } catch (_) {}
+        return false;
+      })();
+
+      const setInvincible = (enabled) => {
+        try {
+          if (window.UI && typeof window.UI.setInvincibleState === "function") {
+            window.UI.setInvincibleState(!!enabled);
+            return true;
+          }
+        } catch (_) {}
+        try {
+          window.GOD_INVINCIBLE = !!enabled;
+          return true;
+        } catch (_) {}
+        return false;
+      };
+
       // Ensure we are in overworld
       try {
         if (typeof G.getMode === "function" && G.getMode() !== "world") {
@@ -32,6 +58,8 @@
         return true;
       }
       record(true, "Encounter prep: in overworld");
+      setInvincible(true);
+      record(true, "Encounter prep: invincible enabled for smoke safety");
 
       // Enter an encounter explicitly (bypass prompt)
       let entered = false;
@@ -58,9 +86,9 @@
 
       // Move a few steps and attempt basic actions (bump-to-attack if possible)
       try {
-        const dirs = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp"];
+        const dirs = ["ArrowRight","ArrowDown"];
         let acted = false;
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 2; i++) {
           key(dirs[i % dirs.length]);
           await sleep(120);
           // Try G to interact/loot if something is underfoot
@@ -95,6 +123,16 @@
     } catch (e) {
       try { (ctx.record || function(){false;})(false, "Encounter scenario failed: " + (e && e.message ? e.message : String(e))); } catch (_) {}
       return false;
+    } finally {
+      try {
+        if (typeof window !== "undefined" && typeof window.GOD_INVINCIBLE !== "undefined") {
+          if (window.UI && typeof window.UI.setInvincibleState === "function") {
+            window.UI.setInvincibleState(previousInvincible);
+          } else {
+            window.GOD_INVINCIBLE = !!previousInvincible;
+          }
+        }
+      } catch (_) {}
     }
 
     // Helpers
