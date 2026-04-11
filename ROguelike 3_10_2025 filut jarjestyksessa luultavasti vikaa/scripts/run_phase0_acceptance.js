@@ -56,6 +56,87 @@ async function terminateChild(child, timeoutMs) {
   await waitForExit(child, 500);
 }
 
+function createCleanupController() {
+  const cleanupFns = [];
+  let cleanupPromise = null;
+  let installed = false;
+  let removing = false;
+
+  const removeHandlers = () => {
+    if (removing || !installed) return;
+    removing = true;
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+      try { process.removeListener(sig, handlers[sig]); } catch (_) {}
+    }
+    try { process.removeListener('uncaughtException', handlers.uncaughtException); } catch (_) {}
+    try { process.removeListener('unhandledRejection', handlers.unhandledRejection); } catch (_) {}
+    installed = false;
+    removing = false;
+  };
+
+  const runCleanup = async () => {
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      const fns = cleanupFns.slice().reverse();
+      for (const fn of fns) {
+        try {
+          await fn();
+        } catch (_) {}
+      }
+      removeHandlers();
+    })();
+    return cleanupPromise;
+  };
+
+  const handlers = {
+    SIGINT: () => {
+      process.exitCode = process.exitCode || 130;
+      runCleanup().finally(() => process.exit(process.exitCode || 130));
+    },
+    SIGTERM: () => {
+      process.exitCode = process.exitCode || 143;
+      runCleanup().finally(() => process.exit(process.exitCode || 143));
+    },
+    SIGHUP: () => {
+      process.exitCode = process.exitCode || 129;
+      runCleanup().finally(() => process.exit(process.exitCode || 129));
+    },
+    uncaughtException: (err) => {
+      process.exitCode = 1;
+      try {
+        process.stderr.write(String(err && err.stack ? err.stack : err) + '\n');
+      } catch (_) {}
+      runCleanup().finally(() => process.exit(1));
+    },
+    unhandledRejection: (err) => {
+      process.exitCode = 1;
+      try {
+        process.stderr.write(String(err && err.stack ? err.stack : err) + '\n');
+      } catch (_) {}
+      runCleanup().finally(() => process.exit(1));
+    }
+  };
+
+  const installHandlers = () => {
+    if (installed) return;
+    installed = true;
+    process.on('SIGINT', handlers.SIGINT);
+    process.on('SIGTERM', handlers.SIGTERM);
+    process.on('SIGHUP', handlers.SIGHUP);
+    process.on('uncaughtException', handlers.uncaughtException);
+    process.on('unhandledRejection', handlers.unhandledRejection);
+  };
+
+  return {
+    add(fn) {
+      if (typeof fn === 'function') cleanupFns.push(fn);
+    },
+    installHandlers,
+    runCleanup,
+    removeHandlers
+  };
+}
+
 async function withTimeout(work, timeoutMs, label) {
   return await Promise.race([
     Promise.resolve().then(() => work()),
@@ -172,6 +253,8 @@ async function findFreePort(preferredPort) {
 }
 
 async function main() {
+  const cleanup = createCleanupController();
+  cleanup.installHandlers();
   const preferredPort = Number(process.env.PORT || 8080);
   const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 2);
   const scenarioCount = PHASE0_SCENARIOS.split(',').length;
@@ -205,6 +288,7 @@ async function main() {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(port) }
   });
+  cleanup.add(() => terminateChild(server, TIMEOUTS.serverShutdownMs));
 
   const serverLogs = [];
   const onLog = (buf) => {
@@ -223,6 +307,7 @@ async function main() {
     }
 
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    cleanup.add(() => withTimeout(() => browser.close(), 5000, 'browser.close').catch(() => {}));
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
@@ -353,10 +438,10 @@ async function main() {
 
       process.exitCode = report.ok ? 0 : 1;
     } finally {
-      await browser.close();
+      await cleanup.runCleanup();
     }
   } finally {
-    await terminateChild(server, TIMEOUTS.serverShutdownMs);
+    await cleanup.runCleanup();
   }
 }
 
