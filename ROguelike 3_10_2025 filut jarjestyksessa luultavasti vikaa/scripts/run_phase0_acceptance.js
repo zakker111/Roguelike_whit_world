@@ -445,9 +445,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  try {
-    process.stderr.write(String(err && err.stack ? err.stack : err) + '\n');
-  } catch (_) {}
-  process.exitCode = 1;
-});
+main()
+  .then(() => {
+    process.exit(process.exitCode || 0);
+  })
+  .catch((err) => {
+    try {
+      process.stderr.write(String(err && err.stack ? err.stack : err) + '\n');
+    } catch (_) {}
+    process.exit(1);
+  });

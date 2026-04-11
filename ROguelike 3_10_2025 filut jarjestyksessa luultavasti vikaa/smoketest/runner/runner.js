@@ -1489,6 +1489,8 @@
       };
 
       const baseCtx = {
+        index: runIndex || 1,
+        total: runTotal || 1,
         key,
         sleep,
         makeBudget,
