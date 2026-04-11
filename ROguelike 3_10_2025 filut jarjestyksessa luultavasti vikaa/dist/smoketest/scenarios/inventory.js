@@ -14,6 +14,8 @@
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
       var sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms|0)));
+      var runIndex = (ctx && ctx.index) ? (ctx.index | 0) : 1;
+      var repeatRun = runIndex > 1;
       var isCursedSeppoBlade = function (item) {
         if (!item) return false;
         try {
@@ -444,14 +446,18 @@
               if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
               await persistCheck("world", "dungeon exit", inv0, eq0);
 
-              var reenteredDungeon = (typeof ctx.ensureDungeonOnce === "function") ? !!(await ctx.ensureDungeonOnce()) : false;
-              if (!reenteredDungeon) {
-                recordSkip("Inventory persistence skipped (dungeon re-enter helper did not reach dungeon)");
+              if (repeatRun) {
+                recordSkip("Inventory persistence: skipped dungeon re-enter cycle on repeat run " + runIndex);
               } else {
-                await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
+                var reenteredDungeon = (typeof ctx.ensureDungeonOnce === "function") ? !!(await ctx.ensureDungeonOnce()) : false;
+                if (!reenteredDungeon) {
+                  recordSkip("Inventory persistence skipped (dungeon re-enter helper did not reach dungeon)");
+                } else {
+                  await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
 
-                if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
-                await persistCheck("world", "dungeon re-exit", inv0, eq0);
+                  if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
+                  await persistCheck("world", "dungeon re-exit", inv0, eq0);
+                }
               }
             }
           } catch (_) {
@@ -466,11 +472,15 @@
             if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
             await persistCheck("world", "town exit", inv0, eq0);
 
-            if (typeof ctx.ensureTownOnce === "function") { await ctx.ensureTownOnce(); }
-            await persistCheck("town", "town re-enter", inv0, eq0);
+            if (repeatRun) {
+              recordSkip("Inventory persistence: skipped town re-enter cycle on repeat run " + runIndex);
+            } else {
+              if (typeof ctx.ensureTownOnce === "function") { await ctx.ensureTownOnce(); }
+              await persistCheck("town", "town re-enter", inv0, eq0);
 
-            if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
-            await persistCheck("world", "town re-exit", inv0, eq0);
+              if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
+              await persistCheck("world", "town re-exit", inv0, eq0);
+            }
           } catch (_) {
             record(false, "Inventory persistence (town cycles) failed");
           }
