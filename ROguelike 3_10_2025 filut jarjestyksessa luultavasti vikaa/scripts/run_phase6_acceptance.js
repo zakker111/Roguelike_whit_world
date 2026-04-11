@@ -233,6 +233,7 @@ async function main() {
       const pass = (seriesRes && typeof seriesRes.pass === 'number') ? seriesRes.pass : null;
       const fail = (seriesRes && typeof seriesRes.fail === 'number') ? seriesRes.fail : null;
       const flakeScenarios = (seriesRes && Array.isArray(seriesRes.flakeScenarios)) ? seriesRes.flakeScenarios : [];
+      const normalizedFlakeScenarios = (seriesRes && Array.isArray(seriesRes.normalizedFlakeScenarios)) ? seriesRes.normalizedFlakeScenarios : [];
       const scenarioOutcomes = (seriesRes && seriesRes.scenarioOutcomes && typeof seriesRes.scenarioOutcomes === 'object') ? seriesRes.scenarioOutcomes : {};
       const seriesOk = (seriesRes && typeof seriesRes.seriesOk === 'boolean') ? seriesRes.seriesOk : null;
 
@@ -259,6 +260,7 @@ async function main() {
         seriesOk,
         flake,
         flakeScenarios,
+        normalizedFlakeScenarios,
         passToken,
         runs: { total: runs.length, pass, fail },
         scenarioOutcomes,

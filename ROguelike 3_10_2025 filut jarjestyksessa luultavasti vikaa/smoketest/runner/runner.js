@@ -2592,13 +2592,22 @@
               if (cur.hardFailMessages.indexOf(msg) === -1) cur.hardFailMessages.push(msg);
             }
           }
+          Object.keys(out).forEach((name) => {
+            const cur = out[name];
+            if (!cur) return;
+            cur.executedRuns = Math.max(0, (cur.runs | 0) - (cur.skippedStableRuns | 0) - (cur.skippedMissingRuns | 0));
+          });
         }
       } catch (_) {}
       return out;
     })();
-    const flakeScenarios = Object.entries(scenarioOutcomes)
+    const normalizedFlakeScenarios = Object.entries(scenarioOutcomes)
       .filter(([, outcome]) => outcome && outcome.passRuns > 0 && outcome.failRuns > 0)
       .map(([name, outcome]) => ({ name, ...outcome }));
+    const rawFlakeScenarios = Object.entries(scenarioOutcomes)
+      .filter(([, outcome]) => outcome && outcome.rawPassRuns > 0 && outcome.rawFailRuns > 0)
+      .map(([name, outcome]) => ({ name, ...outcome }));
+    const flakeScenarios = rawFlakeScenarios;
     const flake = flakeScenarios.length > 0;
     const seriesOk = hardFailRuns.length === 0 && !flake;
 
@@ -2686,10 +2695,11 @@
 
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const flakeColor = flake ? '#f59e0b' : '#86efac';
+      const normalizedFlakeColor = normalizedFlakeScenarios.length ? '#f59e0b' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
         `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
-        `<div>Series status: <span style="color:${seriesOk ? '#86efac' : '#ef4444'};">${seriesOk ? 'PASS' : 'FAIL'}</span>  •  Flaky scenarios: <span style="color:${flakeColor};">${flakeScenarios.length}</span></div>`,
+        `<div>Series status: <span style="color:${seriesOk ? '#86efac' : '#ef4444'};">${seriesOk ? 'PASS' : 'FAIL'}</span>  •  Raw flaky scenarios: <span style="color:${flakeColor};">${flakeScenarios.length}</span>  •  Normalized flaky scenarios: <span style="color:${normalizedFlakeColor};">${normalizedFlakeScenarios.length}</span></div>`,
         `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
@@ -2850,6 +2860,7 @@
             seriesOk,
             flake,
             flakeScenarios,
+            normalizedFlakeScenarios,
             scenarioOutcomes,
             hardFailRuns,
             skipped: skippedRuns,
@@ -2891,6 +2902,7 @@
       seriesOk,
       flake,
       flakeScenarios,
+      normalizedFlakeScenarios,
       scenarioOutcomes,
       hardFailRuns,
       results: all,
