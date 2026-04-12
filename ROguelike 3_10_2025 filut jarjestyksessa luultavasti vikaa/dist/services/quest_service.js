@@ -16,6 +16,9 @@
 import { getMod } from "../utils/access.js";
 import { MarkerService } from "./marker_service.js";
 (function initQuestService() {
+  const BANDITS_FARM_TEMPLATE_ID = "bandits_farm";
+  const BANDITS_FARM_AFTERMATH_TURNS = 720;
+
   function _gd() {
     try { return (typeof window !== "undefined" ? window.GameData : null); } catch (_) { return null; }
   }
@@ -70,6 +73,109 @@ import { MarkerService } from "./marker_service.js";
     town.quests.active = Array.isArray(town.quests.active) ? town.quests.active : [];
     town.quests.completed = Array.isArray(town.quests.completed) ? town.quests.completed : [];
     return town.quests;
+  }
+  function _findByTemplate(list, templateId) {
+    try {
+      return (Array.isArray(list) ? list : []).find(q => q && String(q.templateId || "") === String(templateId || "")) || null;
+    } catch (_) { return null; }
+  }
+  function _latestCompletedByTemplate(list, templateId) {
+    try {
+      let best = null;
+      const arr = Array.isArray(list) ? list : [];
+      for (const q of arr) {
+        if (!q || String(q.templateId || "") !== String(templateId || "")) continue;
+        if (!best || ((q.completedAtTurn | 0) > (best.completedAtTurn | 0))) best = q;
+      }
+      return best;
+    } catch (_) { return null; }
+  }
+  function _decorateQuestForBoard(ctx, quest) {
+    if (!quest || typeof quest !== "object") return quest;
+    const out = { ...quest };
+    if (String(out.templateId || "") !== BANDITS_FARM_TEMPLATE_ID) return out;
+
+    if (out.kind === "encounter") {
+      out.boardLead = "Farmers on the edge of town are asking for help. Take the contract if you want a short, high-pressure fight with a visible payoff.";
+      if (out.status === "completedPendingTurnIn") {
+        out.boardStatus = "The farm road is clear for now. Return here to collect your reward and spread the good news.";
+      } else if (out.status === "failed") {
+        out.boardStatus = "The job fell through and the farmers are still nervous.";
+      } else if (out.marker) {
+        out.boardStatus = "Follow the E marker outside town and drive the bandits off.";
+      } else {
+        out.boardStatus = "The town wants someone to clear the road before the bandits get bolder.";
+      }
+    }
+
+    return out;
+  }
+  function _getTownSituation(ctx, townQ) {
+    if (!townQ) return null;
+
+    const activeBandits = _findByTemplate(townQ.active, BANDITS_FARM_TEMPLATE_ID);
+    if (activeBandits) {
+      if (activeBandits.status === "completedPendingTurnIn") {
+        return {
+          templateId: BANDITS_FARM_TEMPLATE_ID,
+          stage: "turnin",
+          title: "Town Situation",
+          tone: "good",
+          text: "Word is spreading that the farm road is clear again. Return to the board, collect your reward, and let the town know the threat is handled.",
+          cta: "Finish the thread by turning in the contract."
+        };
+      }
+      return {
+        templateId: BANDITS_FARM_TEMPLATE_ID,
+        stage: "active",
+        title: "Town Situation",
+        tone: "warn",
+        text: "Farmers east of town are still under pressure. The town is waiting to hear whether you can break the bandit hold on the road.",
+        cta: "Leave town, find the E marker, and decide how to handle the bandits."
+      };
+    }
+
+    const availableBandits = _findByTemplate(townQ.available, BANDITS_FARM_TEMPLATE_ID);
+    if (availableBandits) {
+      return {
+        templateId: BANDITS_FARM_TEMPLATE_ID,
+        stage: "offer",
+        title: "Town Situation",
+        tone: "warn",
+        text: "A nearby farm is being harassed and the guards are stretched thin. Someone needs to answer the posting before the raiders get comfortable.",
+        cta: "Accept the contract if you want to step into a live town problem."
+      };
+    }
+
+    const latestBandits = _latestCompletedByTemplate(townQ.completed, BANDITS_FARM_TEMPLATE_ID);
+    if (!latestBandits) return null;
+
+    const age = Math.max(0, (_nowTurn(ctx) | 0) - (latestBandits.completedAtTurn | 0));
+    if (age > BANDITS_FARM_AFTERMATH_TURNS) return null;
+
+    if (latestBandits.finalStatus === "completed") {
+      return {
+        templateId: BANDITS_FARM_TEMPLATE_ID,
+        stage: "resolved",
+        title: "Town Situation",
+        tone: "good",
+        text: "The farms are calmer and traders have started using the road again. People in town are talking like the worst of the trouble has passed.",
+        cta: "The town remembers that you solved this one."
+      };
+    }
+
+    if (latestBandits.finalStatus === "failed") {
+      return {
+        templateId: BANDITS_FARM_TEMPLATE_ID,
+        stage: "failed",
+        title: "Town Situation",
+        tone: "bad",
+        text: "The farm trouble was left unresolved. The guards are tense, farmers are keeping close to the walls, and the town still feels the setback.",
+        cta: "The world noticed that this thread went badly."
+      };
+    }
+
+    return null;
   }
   function _chooseN(rng, arr, n, avoidIdsSet) {
     const pool = arr.filter(t => !avoidIdsSet.has(t.id));
@@ -476,7 +582,13 @@ import { MarkerService } from "./marker_service.js";
     _seedStartTownAllThree(ctx, town, st);
     _rerollAvailableIfNeeded(ctx, town, st);
     const key = _townKeyForWorldPos(ctx, town.x, town.y);
-    return { townKey: key, available: st.available.slice(0), active: st.active.slice(0), completed: st.completed.slice(0) };
+    return {
+      townKey: key,
+      story: _getTownSituation(ctx, st),
+      available: st.available.slice(0).map(q => _decorateQuestForBoard(ctx, q)),
+      active: st.active.slice(0).map(q => _decorateQuestForBoard(ctx, q)),
+      completed: st.completed.slice(0).map(q => _decorateQuestForBoard(ctx, q))
+    };
   }
 
   function accept(ctx, templateId) {
@@ -575,6 +687,9 @@ import { MarkerService } from "./marker_service.js";
       const marker = _placeEncounterMarkerNearTown(ctx, town, tmpl);
       inst.marker = marker;
       _addQuestEncounterMarker(ctx, marker.x, marker.y, inst.instanceId);
+      if (tmpl.id === BANDITS_FARM_TEMPLATE_ID) {
+        try { ctx.log && ctx.log("Locals point you toward the farm road. Find the E marker outside town and decide how to deal with the bandits.", "notice"); } catch (_) {}
+      }
     }
 
     // Claim ownership for this town (on acceptance)
@@ -799,6 +914,9 @@ import { MarkerService } from "./marker_service.js";
     } catch (_) {}
 
     try { ctx.log && ctx.log(`Quest complete: ${found.title}. You receive ${pay} gold.`, "good"); } catch (_) {}
+    if (found.templateId === BANDITS_FARM_TEMPLATE_ID) {
+      try { ctx.log && ctx.log("The town starts to relax as word spreads that the farm road is safe again.", "good"); } catch (_) {}
+    }
     _applyAndRefresh(ctx);
     return true;
   }
@@ -858,12 +976,18 @@ import { MarkerService } from "./marker_service.js";
           if (victory) {
             a.status = "completedPendingTurnIn";
             try { ctx.log && ctx.log("Quest objective complete. Return to the Quest Board to claim your reward.", "good"); } catch (_) {}
+            if (a.templateId === BANDITS_FARM_TEMPLATE_ID) {
+              try { ctx.log && ctx.log("The surviving farmers will want to hear this. Bring the news back to town.", "notice"); } catch (_) {}
+            }
           } else {
             // Withdraw early -> fail
             a.status = "failed";
             (qs.completed || (qs.completed = [])).push({ ...a, completedAtTurn: _nowTurn(ctx), finalStatus: "failed" });
             qs.active.splice(i, 1);
             try { ctx.log && ctx.log("You withdrew early. The quest has failed.", "warn"); } catch (_) {}
+            if (a.templateId === BANDITS_FARM_TEMPLATE_ID) {
+              try { ctx.log && ctx.log("The guards mutter that the bandits will only grow bolder if nobody answers them.", "warn"); } catch (_) {}
+            }
           }
           _applyAndRefresh(ctx);
           return;

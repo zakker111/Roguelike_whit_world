@@ -113,6 +113,15 @@ function gmMarkerLabel(kind) {
   }
 }
 
+function storyToneColor(tone) {
+  switch (String(tone || "")) {
+    case "good": return "#86efac";
+    case "bad": return "#fca5a5";
+    case "warn": return "#fcd34d";
+    default: return "#93c5fd";
+  }
+}
+
 function render(ctx) {
   const el = ensurePanel();
   if (!el) return;
@@ -128,6 +137,19 @@ function render(ctx) {
     }
 
     let html = "";
+    const story = qs && qs.story && typeof qs.story === "object" ? qs.story : null;
+
+    if (story) {
+      const toneColor = storyToneColor(story.tone);
+      const stage = String(story.stage || "");
+      const templateId = String(story.templateId || "");
+      const cta = story.cta ? `<div style="color:${toneColor};font-size:12px;margin-top:4px;">${story.cta}</div>` : "";
+      html += `<div id="questboard-town-situation" data-story-stage="${stage}" data-story-template-id="${templateId}" style="margin-bottom:10px;padding:8px;border:1px solid #334155;border-radius:6px;background:rgba(15,23,42,0.55);">`;
+      html += `<div style="margin:0 0 4px 0;color:#e2e8f0;font-weight:600;">${story.title || "Town Situation"}</div>`;
+      html += `<div style="color:#cbd5e1;">${story.text || ""}</div>`;
+      html += cta;
+      html += `</div>`;
+    }
 
     // GM Markers
     const allMarkers = (ctx && ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
@@ -157,7 +179,8 @@ function render(ctx) {
       html += av.map((q) => {
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const btn = `<button data-accept="${q.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Accept</button>`;
-        const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${q.desc || ""}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
+        const desc = q.boardLead || q.desc || "";
+        const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${desc}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
         return makeRow(text + btn);
       }).join("");
     }
@@ -187,7 +210,7 @@ function render(ctx) {
             }
           } catch (_) {}
           // Prefer completed status over marker hint to avoid misleading messaging after victory
-          status = completed ? "Completed — claim your reward." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
+          status = q.boardStatus || (completed ? "Completed — claim your reward." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective."));
           // Show Complete button when eligible; else still allow trying to complete (will show a warning if not ready)
           const canComplete = completed && q.instanceId;
           btnActive = canComplete

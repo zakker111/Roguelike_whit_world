@@ -23,6 +23,7 @@
     { "id": "gm_boredom_milestones", "label": "GM: Boredom relief on milestones (town/dungeon/ruins/encounter)" },
     { "id": "gm_bridge_markers", "label": "GMBridge + Markers" },
     { "id": "quest_board_gm_markers", "label": "Quest Board: GM Markers" },
+    { "id": "quest_board_thread_status", "label": "Quest Board: Bandit thread status" },
     { "id": "gm_panel_smoke", "label": "GM Panel (Smoke)" },
     { "id": "gm_bridge_faction_travel", "label": "GMBridge: Faction travel (guard fine confirm)" },
     { "id": "gm_bottle_map", "label": "GM: Bottle Map" },
