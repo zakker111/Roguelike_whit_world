@@ -1,3 +1,11 @@
+v1.50.48 — Acceptance multirun stability and clean merge baseline
+
+- Acceptance launchers now clean up browser/server children on interrupts and exit cleanly after writing reports.
+- Phase 0 multirun now passes reliably after wiring repeat-run context into smoketest scenarios and trimming repeat-run inventory persistence work.
+- Verified on current branch with `build`, `acceptance:phase0` (3-series), and `acceptance:phase6`.
+
+Deployment: https://f8z5or2tznso.cosine.page
+
 v1.50.47 — Verified gameplay baseline before merge
 
 - Manual validation confirmed the current gameplay baseline is ready for continued development: towns, NPC interactions, enemies, GM flows, and core world transitions were checked before release.
@@ -4503,4 +4511,3 @@ v0.1 — Baseline Roguelike Core
 - Added: GOD panel tools (heal, spawn, FOV adjustment, seed control)
 
 <!-- Planned / Ideas and technical TODO items have been moved to TODO.md -->
-
