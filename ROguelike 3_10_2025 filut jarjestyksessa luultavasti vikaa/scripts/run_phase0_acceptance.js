@@ -163,6 +163,7 @@ const PHASE0_SCENARIOS = [
   'gm_bridge_faction_travel',
   'gm_bridge_markers',
   'quest_board_gm_markers',
+  'quest_board_thread_status',
   'gm_panel_smoke',
   'gm_bottle_map',
   'gm_survey_cache'
