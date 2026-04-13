@@ -12,6 +12,41 @@
 
 import { getMod } from "../../utils/access.js";
 
+function nowMs() {
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      return performance.now();
+    }
+  } catch (_) {
+    return Date.now();
+  }
+  return Date.now();
+}
+
+function shouldLogWorldTurnPerf(dtMs) {
+  if (dtMs >= 8) return true;
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
+  } catch (_) {
+    return false;
+  }
+  return false;
+}
+
+function logWorldTurnPerf(details) {
+  try {
+    if (!shouldLogWorldTurnPerf(details.dtMs)) return;
+    const LG = (typeof window !== "undefined") ? window.Logger : null;
+    const message = `[TurnLoop] world total=${details.dtMs.toFixed(1)}ms worldRuntime=${details.worldRuntimeMs.toFixed(1)}ms status=${details.statusMs.toFixed(1)}ms gm=${details.gmMs.toFixed(1)}ms sync=${details.syncMs.toFixed(1)}ms`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(message, "notice", Object.assign({ category: "TurnLoop", perf: "world-turn" }, details));
+    } else if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug(message, details);
+    }
+  } catch (_) {}
+}
+
 function modHandle(ctx, name) {
   try {
     if (ctx && ctx[name]) return ctx[name];
@@ -24,6 +59,12 @@ function modHandle(ctx, name) {
 
 export function tick(ctx) {
   if (!ctx) return true;
+  const isWorld = ctx.mode === "world";
+  const t0 = isWorld ? nowMs() : 0;
+  let worldRuntimeMs = 0;
+  let statusMs = 0;
+  let gmMs = 0;
+  let syncMs = 0;
 
   // Injury healing: healable injuries tick down and disappear when reaching 0
   try {
@@ -88,7 +129,11 @@ export function tick(ctx) {
       if (TR && typeof TR.tick === "function") TR.tick(ctx);
     } else if (ctx.mode === "world") {
       const WR = modHandle(ctx, "WorldRuntime");
-      if (WR && typeof WR.tick === "function") WR.tick(ctx);
+      if (WR && typeof WR.tick === "function") {
+        const t = isWorld ? nowMs() : 0;
+        WR.tick(ctx);
+        if (isWorld) worldRuntimeMs = nowMs() - t;
+      }
     } else if (ctx.mode === "encounter") {
       const ER = modHandle(ctx, "EncounterRuntime");
       if (ER && typeof ER.tick === "function") {
@@ -113,7 +158,9 @@ export function tick(ctx) {
   try {
     const ST = modHandle(ctx, "Status");
     if (ST && typeof ST.tick === "function") {
+      const t = isWorld ? nowMs() : 0;
       ST.tick(ctx);
+      if (isWorld) statusMs = nowMs() - t;
     }
   } catch (_) {}
 
@@ -121,7 +168,9 @@ export function tick(ctx) {
   try {
     const GM = modHandle(ctx, "GMRuntime");
     if (GM && typeof GM.tick === "function") {
+      const t = isWorld ? nowMs() : 0;
       GM.tick(ctx);
+      if (isWorld) gmMs = nowMs() - t;
     }
   } catch (_) {}
 
@@ -129,9 +178,21 @@ export function tick(ctx) {
   try {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
+      const t = isWorld ? nowMs() : 0;
       SS.applyAndRefresh(ctx, {});
+      if (isWorld) syncMs = nowMs() - t;
     }
   } catch (_) {}
+
+  if (isWorld) {
+    logWorldTurnPerf({
+      dtMs: nowMs() - t0,
+      worldRuntimeMs,
+      statusMs,
+      gmMs,
+      syncMs
+    });
+  }
 
   // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), orchestrator may re-sync.
   return true;
