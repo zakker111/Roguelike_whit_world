@@ -1,5 +1,42 @@
 import { getMod } from "../../utils/access.js";
 
+function nowMs() {
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      return performance.now();
+    }
+  } catch {
+    return Date.now();
+  }
+  return Date.now();
+}
+
+function shouldLogWorldPerf(dtMs) {
+  if (dtMs >= 6) return true;
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function logWorldPerf(details) {
+  try {
+    if (!shouldLogWorldPerf(details.dtMs)) return;
+    const LG = (typeof window !== "undefined") ? window.Logger : null;
+    const message = `[WorldTick] total=${details.dtMs.toFixed(1)}ms spawn=${details.spawnMs.toFixed(1)}ms advance=${details.advanceMs.toFixed(1)}ms escort=${details.escortMs.toFixed(1)}ms caravans=${details.caravans} towns=${details.towns}`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(message, "notice", Object.assign({ category: "WorldTick", perf: "tick" }, details));
+    } else if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug(message, details);
+    }
+  } catch {
+    return;
+  }
+}
+
 /**
  * World tick (Phase 3 extraction): optional per-turn hook for overworld mode.
  * Currently:
@@ -7,19 +44,38 @@ import { getMod } from "../../utils/access.js";
  */
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "world" || !ctx.world) return true;
+  const t0 = nowMs();
+  let spawnMs = 0;
+  let advanceMs = 0;
+  let escortMs = 0;
 
   try {
+    const t = nowMs();
     spawnCaravansIfNeeded(ctx);
+    spawnMs = nowMs() - t;
   } catch { /\* ignore \*/ }
 
   try {
+    const t = nowMs();
     advanceCaravans(ctx);
+    advanceMs = nowMs() - t;
   } catch { /\* ignore \*/ }
 
   // Escort ambush events: small chance each world tick while escorting
   try {
+    const t = nowMs();
     maybeEscortAmbush(ctx);
+    escortMs = nowMs() - t;
   } catch { /\* ignore \*/ }
+
+  logWorldPerf({
+    dtMs: nowMs() - t0,
+    spawnMs,
+    advanceMs,
+    escortMs,
+    caravans: Array.isArray(ctx.world.caravans) ? ctx.world.caravans.length : 0,
+    towns: Array.isArray(ctx.world.towns) ? ctx.world.towns.length : 0
+  });
 
   // Future: day/night effects or ambient overlays in world mode
   return true;
