@@ -12,4 +12,5 @@ export * from "./shop_service.js";
 export * from "./stats_service.js";
 export * from "./time_service.js";
 export * from "./town_chest_loot.js";
+export * from "./town_flavor_service.js";
 export * from "./weather_service.js";

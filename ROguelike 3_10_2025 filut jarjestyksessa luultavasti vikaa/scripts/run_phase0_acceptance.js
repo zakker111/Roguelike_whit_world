@@ -152,6 +152,7 @@ async function withTimeout(work, timeoutMs, label) {
 const PHASE0_SCENARIOS = [
   'world',
   'town',
+  'town_rumor_status',
   'dungeon',
   'region',
   'encounters',

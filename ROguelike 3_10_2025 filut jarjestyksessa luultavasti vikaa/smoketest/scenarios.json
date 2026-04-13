@@ -8,6 +8,7 @@
     { "id": "dungeon_persistence", "label": "Dungeon Persistence" },
     { "id": "dungeon_stairs_transitions", "label": "Dungeon Stairs Transitions" },
     { "id": "town", "label": "Town" },
+    { "id": "town_rumor_status", "label": "Town rumor status" },
     { "id": "town_diagnostics", "label": "Town Diagnostics" },
     { "id": "overlays", "label": "Overlays" },
     { "id": "ui_layout", "label": "UI Layout (Canvas Stability)" },

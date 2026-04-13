@@ -366,6 +366,7 @@
       if (name === "dungeon_persistence") return S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run;
       if (name === "dungeon_stairs_transitions") return S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run;
       if (name === "town") return S.Town && S.Town.run;
+      if (name === "town_rumor_status") return S.town_rumor_status && S.town_rumor_status.run;
       if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
       if (name === "overlays") return S.Overlays && S.Overlays.run;
       if (name === "ui_layout") return S.UILayout && S.UILayout.run;
