@@ -1,3 +1,12 @@
+v1.50.50 — Overworld FOV guard cache fix
+
+- Fixed the overworld FOV guard to persist across `getCtx()` recreations:
+  - `core/engine/game_fov.js` now keeps its cache at module scope instead of keying it by transient ctx identity.
+  - This lets world-mode movement reuse the cheap local visibility update during sync/refresh instead of falling back to full FOV recomputation every turn.
+- Retained the new perf instrumentation from `v1.50.49`, which now confirms the remaining world refresh cost drops substantially after the cache fix.
+
+Deployment: https://bfi4yn1equms.cosine.page
+
 v1.50.49 — Overworld sync perf instrumentation
 
 - Added lightweight perf breakdown logs for overworld turns:

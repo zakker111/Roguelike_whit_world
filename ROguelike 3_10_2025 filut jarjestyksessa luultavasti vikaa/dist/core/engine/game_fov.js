@@ -9,16 +9,14 @@
  */
 import { fogSet } from "./fog.js";
 
-const _cache = new WeakMap();
-
-function getCache(ctx) {
-  let c = _cache.get(ctx);
-  if (!c) {
-    c = { lastX: -1, lastY: -1, lastRadius: -1, lastMode: "", lastCols: -1, lastRows: -1 };
-    _cache.set(ctx, c);
-  }
-  return c;
-}
+const _cache = {
+  lastX: -1,
+  lastY: -1,
+  lastRadius: -1,
+  lastMode: "",
+  lastCols: -1,
+  lastRows: -1,
+};
 
 function ensureVisibilityShape(ctx) {
   try {
@@ -91,19 +89,18 @@ export function recomputeWithGuard(ctx) {
   } catch (_) {}
   const effectiveRadius = Math.max(1, baseRadius + equipBonus);
 
-  const cache = getCache(ctx);
-  const moved = (ctx.player.x !== cache.lastX) || (ctx.player.y !== cache.lastY);
-  const fovChanged = (effectiveRadius !== cache.lastRadius);
-  const modeChanged = (ctx.mode !== cache.lastMode);
-  const mapChanged = (rows !== cache.lastRows) || (cols !== cache.lastCols);
+  const moved = (ctx.player.x !== _cache.lastX) || (ctx.player.y !== _cache.lastY);
+  const fovChanged = (effectiveRadius !== _cache.lastRadius);
+  const modeChanged = (ctx.mode !== _cache.lastMode);
+  const mapChanged = (rows !== _cache.lastRows) || (cols !== _cache.lastCols);
 
   if (ctx.mode === "world" && moved && !modeChanged && !mapChanged && !fovChanged) {
     ensureVisibilityShape(ctx);
-    if (cache.lastX >= 0 && cache.lastY >= 0) {
-      paintWorldVisibilityRadius(ctx, cache.lastX, cache.lastY, effectiveRadius, false, false);
+    if (_cache.lastX >= 0 && _cache.lastY >= 0) {
+      paintWorldVisibilityRadius(ctx, _cache.lastX, _cache.lastY, effectiveRadius, false, false);
     }
     paintWorldVisibilityRadius(ctx, ctx.player.x, ctx.player.y, effectiveRadius, true, true);
-    updateCache(cache, ctx, rows, cols, effectiveRadius);
+    updateCache(_cache, ctx, rows, cols, effectiveRadius);
     return true;
   }
 
@@ -125,7 +122,7 @@ export function recomputeWithGuard(ctx) {
     }
   } catch (_) {}
 
-  updateCache(cache, ctx, rows, cols, effectiveRadius);
+  updateCache(_cache, ctx, rows, cols, effectiveRadius);
   return true;
 }
 
