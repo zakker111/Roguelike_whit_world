@@ -391,6 +391,7 @@
       if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
       if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
       if (name === "quest_board_thread_status") return S.quest_board_thread_status && S.quest_board_thread_status.run;
+      if (name === "caravan_thread_status") return S.caravan_thread_status && S.caravan_thread_status.run;
       if (name === "gm_panel_smoke") return S.gm_panel_smoke && S.gm_panel_smoke.run;
       if (name === "logging_filters") return S.logging_filters && S.logging_filters.run;
     } catch (_) {}
