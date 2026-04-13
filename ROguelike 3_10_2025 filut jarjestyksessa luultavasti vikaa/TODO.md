@@ -300,9 +300,10 @@ Known issues / deferred (post-merge):
   - Future extensions (optional):
     - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
     - [ ] Trade modifiers or special caravan/ship visits at ports.
-    - [ ] Harbor boat travel system with sailor/captain NPCs:
-      - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
-      - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
+    - [x] Harbor boat travel system with sailor/captain NPCs:
+      - Port towns now spawn a harbor captain NPC who offers paid passage between known harbor towns.
+      - Passage currently costs 200 gold, uses the fade/sleep travel presentation, and arrives through the normal town-entry flow.
+      - Future expansion: broaden destinations beyond known ports to nearby coastal/river/lake POIs.
     - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
     - [ ] Fishing in harbor towns:
       - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.

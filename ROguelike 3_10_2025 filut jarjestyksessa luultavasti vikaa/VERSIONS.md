@@ -2,9 +2,18 @@ v1.50.48 — Acceptance multirun stability and clean merge baseline
 
 - Acceptance launchers now clean up browser/server children on interrupts and exit cleanly after writing reports.
 - Phase 0 multirun now passes reliably after wiring repeat-run context into smoketest scenarios and trimming repeat-run inventory persistence work.
+- Harbor captain fast travel is now live in port towns:
+  - Each port town spawns a harbor captain NPC.
+  - Talking to the captain offers paid passage (`200` gold, about 8 hours) to another known harbor town.
+  - Travel uses the existing fade/sleep presentation and lands through the normal town-entry path at the destination harbor.
+- Added deterministic smoketest coverage for harbor captain travel and cleaned up the harbor travel flow:
+  - gold now uses the correct inventory schema (`kind: "gold"`, `amount`)
+  - travel sync preserves the destination harbor correctly
+  - captain names now use the normal town-population randomization pattern
 - Verified on current branch with `build`, `acceptance:phase0` (3-series), and `acceptance:phase6`.
+- Re-verified harbor travel on the current branch with `build` and targeted browser smoke for `harbor_fast_travel`.
 
-Deployment: https://f8z5or2tznso.cosine.page
+Deployment: https://tg2eltxoq3u2.cosine.page
 
 v1.50.47 — Verified gameplay baseline before merge
 
