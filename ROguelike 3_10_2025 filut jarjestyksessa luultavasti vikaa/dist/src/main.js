@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
+        '/smoketest/scenarios/harbor_fast_travel.js',
         '/smoketest/scenarios/skeleton_key_chest.js',
         '/smoketest/scenarios/dungeon_persistence.js',
         '/smoketest/scenarios/dungeon_stairs_transitions.js',

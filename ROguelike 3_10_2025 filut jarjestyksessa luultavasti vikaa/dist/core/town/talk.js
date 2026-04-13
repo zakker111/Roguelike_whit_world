@@ -242,6 +242,55 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     }
   } catch (_) {}
 
+  try {
+    if (npc && npc.isHarborCaptain) {
+      const UIO =
+        ctx.UIOrchestration ||
+        getMod(ctx, "UIOrchestration") ||
+        (typeof window !== "undefined" ? window.UIOrchestration : null);
+      const HT =
+        ctx.HarborTravelService ||
+        getMod(ctx, "HarborTravelService") ||
+        (typeof window !== "undefined" ? window.HarborTravelService : null);
+
+      if (HT && typeof HT.getHarborTravelDestination === "function" && typeof HT.buyHarborPassage === "function") {
+        const fare = Math.max(1, ((npc.harborTicketPrice | 0) || 200));
+        const destination = HT.getHarborTravelDestination(ctx);
+        const label = npc.name || "Harbormaster";
+        if (!destination) {
+          if (ctx.log) ctx.log(`${label}: "No ship is sailing to another harbor today."`, "info");
+          return true;
+        }
+
+        const destinationName = destination.name ? `${destination.name} Harbor` : "another harbor town";
+        const canAfford = !HT.canAffordHarborPassage || !!HT.canAffordHarborPassage(ctx, fare);
+        if (!canAfford) {
+          if (ctx.log) ctx.log(`${label}: "Passage to ${destinationName} costs ${fare} gold."`, "info");
+          return true;
+        }
+
+        const prompt = `${label}: "Passage to ${destinationName} costs ${fare} gold. Cast off now?"`;
+        const onOk = () => {
+          try {
+            HT.buyHarborPassage(ctx, npc, { price: fare, destination });
+          } catch (_) {}
+        };
+        const onCancel = () => {
+          try {
+            if (ctx.log) ctx.log(`${label}: "The tide will wait for no one."`, "info");
+          } catch (_) {}
+        };
+
+        if (UIO && typeof UIO.showConfirm === "function") {
+          UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+        } else {
+          onOk();
+        }
+        return true;
+      }
+    }
+  } catch (_) {}
+
   const lines =
     Array.isArray(npc.lines) && npc.lines.length
       ? npc.lines

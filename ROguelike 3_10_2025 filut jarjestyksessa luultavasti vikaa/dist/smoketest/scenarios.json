@@ -10,6 +10,7 @@
     { "id": "town", "label": "Town" },
     { "id": "town_rumor_status", "label": "Town rumor status" },
     { "id": "town_diagnostics", "label": "Town Diagnostics" },
+    { "id": "harbor_fast_travel", "label": "Harbor fast travel" },
     { "id": "overlays", "label": "Overlays" },
     { "id": "ui_layout", "label": "UI Layout (Canvas Stability)" },
     { "id": "determinism", "label": "Determinism" },

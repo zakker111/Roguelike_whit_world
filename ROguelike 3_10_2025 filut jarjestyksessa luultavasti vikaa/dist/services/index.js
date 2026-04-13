@@ -4,6 +4,7 @@
 export * from "./combat_service.js";
 export * from "./encounter_service.js";
 export * from "./flavor_service.js";
+export * from "./harbor_travel_service.js";
 export * from "./marker_service.js";
 export * from "./messages.js";
 export * from "./props_service.js";

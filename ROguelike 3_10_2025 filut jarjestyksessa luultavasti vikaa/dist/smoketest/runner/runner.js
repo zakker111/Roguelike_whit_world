@@ -368,6 +368,7 @@
       if (name === "town") return S.Town && S.Town.run;
       if (name === "town_rumor_status") return S.town_rumor_status && S.town_rumor_status.run;
       if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
+      if (name === "harbor_fast_travel") return S.HarborFastTravel && S.HarborFastTravel.run;
       if (name === "overlays") return S.Overlays && S.Overlays.run;
       if (name === "ui_layout") return S.UILayout && S.UILayout.run;
       if (name === "determinism") return S.Determinism && S.Determinism.run;
@@ -1535,6 +1536,7 @@
         dungeon_stairs_transitions: S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run,
         town: S.Town && S.Town.run,
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
+        harbor_fast_travel: S.HarborFastTravel && S.HarborFastTravel.run,
         overlays: S.Overlays && S.Overlays.run,
         ui_layout: S.UILayout && S.UILayout.run,
         determinism: S.Determinism && S.Determinism.run,

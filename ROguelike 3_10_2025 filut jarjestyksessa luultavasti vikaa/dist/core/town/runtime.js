@@ -294,7 +294,7 @@ export function returnToWorldIfAtGate(ctx) {
   return true;
 }
 
-export function applyLeaveSync(ctx) {
+export function applyLeaveSync(ctx, opts = {}) {
   if (!ctx || !ctx.world) return false;
 
   // Sync any follower/ally state before persisting and leaving town.
@@ -371,7 +371,11 @@ export function applyLeaveSync(ctx) {
       SS.applyAndRefresh(ctx, {});
     }
   } catch { /\* ignore \*/ }
-  try { ctx.log && ctx.log("You return to the overworld.", "info"); } catch { /\* ignore \*/ }
+  try {
+    if (!opts || opts.suppressLog !== true) {
+      ctx.log && ctx.log("You return to the overworld.", "info");
+    }
+  } catch { /\* ignore \*/ }
 
   return true;
 }
