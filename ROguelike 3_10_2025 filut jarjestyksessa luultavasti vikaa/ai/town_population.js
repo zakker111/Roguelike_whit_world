@@ -476,7 +476,7 @@ function populateTown(ctx) {
       npcs.push({
         x: spot.x,
         y: spot.y,
-        name: captainNames[0] || "Harbormaster",
+        name: captainNames[randInt(ctx, 0, captainNames.length - 1)] || "Harbormaster",
         lines: captainLines,
         isHarborCaptain: true,
         harborTicketPrice: 200,
