@@ -82,8 +82,8 @@ export function travelToHarborTown(ctx, destination, opts = {}) {
       if (!ctx.world || !Array.isArray(ctx.world.map)) return;
       ctx.mode = "world";
       ctx.map = ctx.world.map;
-      if (ctx.world.seenRef) ctx.seen = ctx.world.seenRef;
-      if (ctx.world.visibleRef) ctx.visible = ctx.world.visibleRef;
+      if (Array.isArray(ctx.world.seenRef)) ctx.seen = ctx.world.seenRef;
+      if (Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
 
       if (WR && typeof WR.ensureInBounds === "function") {
         ctx._suspendExpandShift = true;
@@ -157,7 +157,13 @@ export function buyHarborPassage(ctx, captainNpc, opts = {}) {
     try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
 
     ctx.log && ctx.log(`You buy passage for ${fare} gold.`, "good");
-    return travelToHarborTown(ctx, destination, opts);
+    const started = travelToHarborTown(ctx, destination, opts);
+    if (!started) {
+      gold.amount = amount;
+      ctx.updateUI && ctx.updateUI();
+      try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
+    }
+    return started;
   } catch (_) {
     return false;
   }
