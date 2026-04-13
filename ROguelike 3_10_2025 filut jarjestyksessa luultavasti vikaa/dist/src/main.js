@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/dungeon_persistence.js',
         '/smoketest/scenarios/dungeon_stairs_transitions.js',
         '/smoketest/scenarios/town_diagnostics.js',
+        '/smoketest/scenarios/town_rumor_status.js',
         '/smoketest/scenarios/api.js',
         '/smoketest/scenarios/encounters.js',
         '/smoketest/scenarios/gm_mechanic_hints.js',

@@ -23,6 +23,6 @@ export function updateStats(ctx) {
   const weather = (ctx && ctx.weather) ? ctx.weather : null;
 
   try {
-    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time, perf, weather);
+    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time, perf, weather, ctx);
   } catch (_) {}
 }
