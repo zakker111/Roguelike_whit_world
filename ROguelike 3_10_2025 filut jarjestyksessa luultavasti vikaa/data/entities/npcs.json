@@ -48,6 +48,26 @@
     "Everything is freshly stocked.",
     "Open by dawn, closed by dusk."
   ],
+  "harborWorkerNames": [
+    "Dockworker",
+    "Sailor",
+    "Harbor hand"
+  ],
+  "harborWorkerLines": [
+    "Unloading the crates.",
+    "Waiting for the next boat.",
+    "River's calmer today."
+  ],
+  "harborCaptainNames": [
+    "Harbormaster",
+    "Captain",
+    "Dockmaster"
+  ],
+  "harborCaptainLines": [
+    "Passage leaves on the tide.",
+    "Another harbor waits beyond the water.",
+    "Two hundred gold and we cast off at once."
+  ],
   "petCats": [
     "Cat",
     "Mittens",
