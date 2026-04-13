@@ -1,3 +1,14 @@
+v1.50.49 — Overworld sync perf instrumentation
+
+- Added lightweight perf breakdown logs for overworld turns:
+  - `core/world/tick.js` now reports caravan/world tick timing via `[WorldTick]`.
+  - `core/engine/turn_loop.js` now reports world turn timing via `[TurnLoop]`.
+  - `core/state/state_sync.js` now reports local sync vs refresh time via `[StateSync]`.
+  - `core/state/game_state.js` now reports refresh substeps via `[GameState]` for camera, FOV, UI, and draw request.
+- Reconfirmed the current overworld perf issue is mostly inside sync/refresh work rather than caravan simulation.
+
+Deployment: https://9x7efy51p7fk.cosine.page
+
 v1.50.48 — Acceptance multirun stability and clean merge baseline
 
 - Acceptance launchers now clean up browser/server children on interrupts and exit cleanly after writing reports.
