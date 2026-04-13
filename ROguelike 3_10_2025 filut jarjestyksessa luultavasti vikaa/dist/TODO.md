@@ -27,7 +27,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
 - [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
 - [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
-- [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
+- [x] **GM follow-up (medium risk):** GM-driven encounter starts remain ctx-first and are validated by `gm_bridge_faction_travel` / `acceptance:phase6`.
 
 ## Next slices (plan)
 
