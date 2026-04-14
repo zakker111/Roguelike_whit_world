@@ -22,7 +22,13 @@ import {
   buildAggregatedStepsForDisplay,
   summarizeStepPerf,
   buildPerfWarnings,
-  buildSeriesSummaryHtml
+  buildSeriesSummaryHtml,
+  buildDiagnostics,
+  buildScenarioPassCountsObject,
+  buildActionsSummary,
+  buildScenariosSummary,
+  buildAllStepStats,
+  buildAggregatedExportReport
 } from "/smoketest/runner/reporting_helpers.js";
 
 (function () {
