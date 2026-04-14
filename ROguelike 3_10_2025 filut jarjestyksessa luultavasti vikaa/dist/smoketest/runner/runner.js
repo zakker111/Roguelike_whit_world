@@ -390,6 +390,7 @@
       if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
       if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
       if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
+      if (name === "gm_town_incidents") return S.gm_town_incidents && S.gm_town_incidents.run;
       if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
       if (name === "quest_board_thread_status") return S.quest_board_thread_status && S.quest_board_thread_status.run;
       if (name === "caravan_thread_status") return S.caravan_thread_status && S.caravan_thread_status.run;

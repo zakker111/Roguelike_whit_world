@@ -96,6 +96,8 @@ export function createDefaultState() {
       // Back-compat: the old "factionEvents" slots are still kept around as a
       // stable, easy-to-inspect view for the GM panel and for migration.
       factionEvents: {},
+      lastTownIncidentTurn: -9999,
+      lastTownIncidentTownKey: "",
     },
 
     // Lightweight, persisted per-run GM-driven "threads".

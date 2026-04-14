@@ -21,6 +21,10 @@
     "entrance": {
       "familyRumor": "You hear rumors about recent troubles with {family}.",
       "generalRumor": "You overhear local gossip: someone swears trouble is brewing just beyond the town walls.",
+      "townTrouble": {
+        "innBrawl": "The inn is louder than it should be. People are already wagering on whether the guards arrive in time.",
+        "thiefChase": "Someone at the gate swears a thief is about to make a run through town."
+      },
       "variety": {
         "tryTown": "You get the sense the townsfolk have different work for you.",
         "tryDungeon": "You hear whispers that the dungeons have changed since your last delve.",

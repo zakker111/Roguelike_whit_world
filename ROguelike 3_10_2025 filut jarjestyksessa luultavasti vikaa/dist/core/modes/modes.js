@@ -250,6 +250,48 @@ function gmEvent(ctx, event) {
               if (!usedMessages) {
                 ctx.log("You catch a stray rumor as you arrive.", "flavor", { category: "gm" });
               }
+            } else if (topic === "town_trouble:inn_brawl") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.townTrouble.innBrawl";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("The inn is louder than it should be. People are already wagering on whether the guards arrive in time.", "flavor", { category: "gm" });
+              }
+              try {
+                const TIS = ctx.TownIncidentService || getMod(ctx, "TownIncidentService") || (typeof window !== "undefined" ? window.TownIncidentService : null);
+                if (TIS && typeof TIS.maybeArmTownIncidentFromGM === "function") {
+                  TIS.maybeArmTownIncidentFromGM(ctx, intent);
+                }
+              } catch (_) {}
+            } else if (topic === "town_trouble:thief_chase") {
+              let usedMessages = false;
+              if (hasMessages) {
+                try {
+                  const key = "gm.entrance.townTrouble.thiefChase";
+                  const text = M.get(key, null);
+                  if (text) {
+                    M.log(ctx, key, null, "flavor");
+                    usedMessages = true;
+                  }
+                } catch (_) {}
+              }
+              if (!usedMessages) {
+                ctx.log("Someone at the gate swears a thief is about to make a run through town.", "flavor", { category: "gm" });
+              }
+              try {
+                const TIS = ctx.TownIncidentService || getMod(ctx, "TownIncidentService") || (typeof window !== "undefined" ? window.TownIncidentService : null);
+                if (TIS && typeof TIS.maybeArmTownIncidentFromGM === "function") {
+                  TIS.maybeArmTownIncidentFromGM(ctx, intent);
+                }
+              } catch (_) {}
             } else if (topic === "variety:try_town") {
               let usedMessages = false;
               if (hasMessages) {
