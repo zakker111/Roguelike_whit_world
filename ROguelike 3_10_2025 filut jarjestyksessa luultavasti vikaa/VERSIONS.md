@@ -1,7 +1,7 @@
-v1.50.51 — Branch preview refresh on New_branch_14_4_2026
+v1.50.52 — Branch preview refresh on New_branch_14_4_2026
 
 - Prepared a fresh playable preview for `New_branch_14_4_2026`.
-- Bumped the app version metadata for this branch preview so the deployed build can be distinguished from the previous `v1.50.50` overworld FOV fix preview.
+- Bumped the app version metadata for this branch preview so the deployed build can be distinguished from the previous `v1.50.51` cat/documentation preview.
 - Special town cats were refreshed and documented on this branch:
   - Added Leevi and Alli to the current named-cat set alongside Jekku and Pulla.
   - Special cats are now driven through the existing world/town home-town flow:
@@ -12,7 +12,7 @@ v1.50.51 — Branch preview refresh on New_branch_14_4_2026
   - Added the memorial code comment at the special-cat spawn site in `worldgen/town/npcs_bootstrap.js`.
 - Documentation refresh:
   - Updated `README.md`, `FEATURES.md`, `TODO.md`, and `VERSIONS.md` to reflect the current special-cat behavior and the planned future pet-slot follow-up.
-- Deployment: https://6b3h3fchzpgl.cosine.page
+- Deployment: https://12j0erhd6lhf.cosine.page
 
 v1.50.50 — Overworld FOV guard cache fix
 
