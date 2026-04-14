@@ -1,3 +1,9 @@
+v1.50.51 — Branch preview refresh on New_branch_14_4_2026
+
+- Prepared a fresh playable preview for `New_branch_14_4_2026`.
+- Bumped the app version metadata for this branch preview so the deployed build can be distinguished from the previous `v1.50.50` overworld FOV fix preview.
+- Deployment: https://6b3h3fchzpgl.cosine.page
+
 v1.50.50 — Overworld FOV guard cache fix
 
 - Fixed the overworld FOV guard to persist across `getCtx()` recreations:
