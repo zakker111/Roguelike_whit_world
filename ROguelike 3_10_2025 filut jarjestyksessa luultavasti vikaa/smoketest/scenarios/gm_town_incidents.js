@@ -51,6 +51,21 @@
 
     try {
       try { if (ctx && typeof ctx.ensureTownOnce === "function") await ctx.ensureTownOnce(); } catch (_) {}
+      try {
+        const mode0 = has(G.getMode) ? G.getMode() : null;
+        if (mode0 !== "town" && has(G.forceWorld)) {
+          G.forceWorld();
+          await sleep(180);
+        }
+      } catch (_) {}
+      try {
+        const mode1 = has(G.getMode) ? G.getMode() : null;
+        if (mode1 !== "town" && has(G.gotoNearestTown)) {
+          await G.gotoNearestTown();
+          await sleep(220);
+        }
+      } catch (_) {}
+      try { if (ctx && typeof ctx.ensureTownOnce === "function" && (!has(G.getMode) || G.getMode() !== "town")) await ctx.ensureTownOnce(); } catch (_) {}
       gctx = G.getCtx();
       const mode = has(G.getMode) ? G.getMode() : (gctx && gctx.mode ? String(gctx.mode) : "");
       if (mode !== "town") {
@@ -81,13 +96,27 @@
       const hasInn = !!(gctx.tavern && gctx.tavern.building);
       const firstTopic = hasInn ? "town_trouble:inn_brawl" : "town_trouble:thief_chase";
       const firstIncident = TIS.maybeArmTownIncidentFromGM(gctx, { kind: "flavor", topic: firstTopic });
-      record(!!(firstIncident && firstIncident.status === "live"), "GM town incidents: live incident arms from GM flavor topic");
+      record(!!(firstIncident && firstIncident.status === "rumored"), "GM town incidents: rumor state arms from GM flavor topic");
+      record(/Rumor:/.test(getStatusText()) && /inn|market square|thief|guards|fight/i.test(getStatusText()), "GM town incidents: HUD rumor reflects rumored incident");
 
       TIS.tickTownIncident(gctx);
       await updateUI(gctx);
+      const noEarlyActors = Array.isArray(gctx.npcs) ? gctx.npcs.filter(n => n && n.isTownIncident && n._townIncidentId === firstIncident.id) : [];
+      record(noEarlyActors.length === 0, "GM town incidents: rumor does not materialize actors before escalation");
+
+      try {
+        if (gctx && gctx.time && typeof gctx.time.turnCounter === "number") {
+          gctx.time.turnCounter = ((firstIncident.escalatesAtTurn | 0) + 1);
+        }
+      } catch (_) {}
 
       const liveActors = Array.isArray(gctx.npcs) ? gctx.npcs.filter(n => n && n.isTownIncident && n._townIncidentId === firstIncident.id) : [];
-      record(liveActors.length > 0, "GM town incidents: live actors materialize in town");
+      TIS.tickTownIncident(gctx);
+      await updateUI(gctx);
+      const escalatedIncident = town.gmIncident || firstIncident;
+      record(!!(escalatedIncident && escalatedIncident.status === "live"), "GM town incidents: rumor escalates into a live incident");
+      const liveActorsAfterEscalation = Array.isArray(gctx.npcs) ? gctx.npcs.filter(n => n && n.isTownIncident && n._townIncidentId === firstIncident.id) : [];
+      record(liveActorsAfterEscalation.length > 0, "GM town incidents: live actors materialize in town");
       record(/Rumor:/.test(getStatusText()) && /inn|thief|market square|guards/i.test(getStatusText()), "GM town incidents: HUD rumor reflects active incident");
 
       TIS.resolveTownIncident(gctx, "resolved");
@@ -101,7 +130,7 @@
       if (gctx.townPlaza || gctx.townExitAt || (gctx.tavern && gctx.tavern.door)) {
         delete town.gmIncident;
         gctx.npcs = Array.isArray(gctx.npcs) ? gctx.npcs.filter(n => !(n && n.isTownIncident)) : [];
-        const thiefIncident = TIS.maybeArmTownIncidentFromGM(gctx, { kind: "flavor", topic: "town_trouble:thief_chase" });
+        const thiefIncident = TIS.maybeArmTownIncidentFromGM(gctx, { kind: "flavor", topic: "town_trouble:thief_chase", forceImmediate: true });
         TIS.tickTownIncident(gctx);
         const thief = Array.isArray(gctx.npcs) ? gctx.npcs.find(n => n && n.isTownIncident && n.incidentRole === "thief" && n._townIncidentId === thiefIncident.id) : null;
         record(!!thief, "GM town incidents: thief chase spawns a thief actor");

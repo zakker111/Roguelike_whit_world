@@ -36,6 +36,7 @@
     { "id": "gm_disable_switch", "label": "GM: Disable switch (gm.enabled=false)" },
     { "id": "gm_rng_persistence", "label": "GM: RNG persistence (soft reload continuity)" },
     { "id": "gm_scheduler_arbitration", "label": "GM: Scheduler arbitration (RNG-free)" },
+    { "id": "gm_town_incidents", "label": "GM: Town incidents" },
     { "id": "logging_filters", "label": "Logging: filters + LOG_LEVEL=all" }
   ]
 }

@@ -153,6 +153,10 @@ function clearExpiredIncident(rec, turn) {
 }
 
 function incidentMessage(type, status) {
+  const rumored = {
+    inn_brawl: "The inn commons sounds tense, and everyone expects one more shove to start a fight.",
+    thief_chase: "People near the market square keep glancing over their shoulders, waiting for a thief to make a run for it.",
+  };
   const live = {
     inn_brawl: "The inn commons is one shove away from a fight.",
     thief_chase: "Guards are searching for a thief near the market square.",
@@ -165,6 +169,7 @@ function incidentMessage(type, status) {
     inn_brawl: "The inn has gone quiet again, but the bruises are still fresh.",
     thief_chase: "The thief got away, and everyone in town has a different story about it.",
   };
+  if (status === "rumored") return rumored[type] || rumored.inn_brawl;
   if (status === "live") return live[type] || live.inn_brawl;
   if (status === "escaped") return escaped[type] || escaped.inn_brawl;
   return resolved[type] || resolved.inn_brawl;
@@ -257,20 +262,21 @@ export function maybeArmTownIncidentFromGM(ctx, intent) {
   if (!topic.startsWith("town_trouble:")) return null;
 
   const existing = clearExpiredIncident(rec, currentTurn(ctx));
-  if (existing && existing.status === "live") return existing;
+  if (existing) return existing;
 
   const type = topic.slice("town_trouble:".length) || "inn_brawl";
   const anchor = findIncidentAnchor(ctx, type);
   if (!anchor) return null;
 
   const turn = currentTurn(ctx);
+  const immediate = !!intent.forceImmediate;
   rec.gmIncident = normalizeIncident({
     id: `incident:${type}:${turn}:${rec.x | 0},${rec.y | 0}`,
     type,
     site: anchor.site,
-    status: "live",
+    status: immediate ? "live" : "rumored",
     createdTurn: turn,
-    escalatesAtTurn: turn,
+    escalatesAtTurn: immediate ? turn : (turn + 8),
     resolvedTurn: null,
     aftermathUntilTurn: null,
     spawnedActors: false,
@@ -394,6 +400,18 @@ export function resolveTownIncident(ctx, outcome = "resolved") {
 export function tickTownIncident(ctx) {
   const incident = getCurrentTownIncident(ctx);
   if (!incident) return false;
+
+  if (incident.status === "rumored") {
+    const turn = currentTurn(ctx);
+    const escalateAt = typeof incident.escalatesAtTurn === "number" ? (incident.escalatesAtTurn | 0) : turn;
+    if (turn < escalateAt) return false;
+    incident.status = "live";
+    incident.spawnedActors = false;
+    try {
+      const msg = incidentMessage(incident.type, incident.status);
+      if (msg && ctx && typeof ctx.log === "function") ctx.log(msg, "notice");
+    } catch (_) {}
+  }
 
   if (incident.status === "live" && incident.spawnedActors !== true) {
     materializeTownIncident(ctx);

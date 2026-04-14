@@ -107,8 +107,21 @@ export function getEntranceIntentImpl(ctx, gm, mode, helpers) {
     const lastTownIncidentTurn = typeof gm.storyFlags.lastTownIncidentTurn === "number"
       ? (gm.storyFlags.lastTownIncidentTurn | 0)
       : -9999;
+    const lastTownIncidentTownKey = typeof gm.storyFlags.lastTownIncidentTownKey === "string"
+      ? gm.storyFlags.lastTownIncidentTownKey
+      : "";
     const INCIDENT_COOLDOWN_TURNS = 180;
-    if ((turn - lastTownIncidentTurn) >= INCIDENT_COOLDOWN_TURNS) {
+    let currentTownKey = "";
+    try {
+      if (ctx && ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+        currentTownKey = `${ctx.worldReturnPos.x | 0},${ctx.worldReturnPos.y | 0}`;
+      }
+    } catch (_) {}
+    const sameTownRepeatCooldown = 360;
+    const blockedSameTown = !!currentTownKey
+      && currentTownKey === lastTownIncidentTownKey
+      && (turn - lastTownIncidentTurn) < sameTownRepeatCooldown;
+    if ((turn - lastTownIncidentTurn) >= INCIDENT_COOLDOWN_TURNS && !blockedSameTown) {
       const hasInn = !!(ctx && ctx.tavern && ctx.tavern.building);
       const hasMarket = !!(ctx && (ctx.townPlaza || (Array.isArray(ctx.shops) && ctx.shops.length)));
       if (hasInn && (((entriesForMode | 0) % 8) === 1 || !hasMarket)) {
