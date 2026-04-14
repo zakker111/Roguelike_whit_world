@@ -269,7 +269,7 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
           }
         }
         if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
-        // in memory of my loved pets they live always in my hearth
+        // my friend dog was greatest and shall live forever in our hearths
         ctx.npcs.push({
           x: pos.x,
           y: pos.y,
