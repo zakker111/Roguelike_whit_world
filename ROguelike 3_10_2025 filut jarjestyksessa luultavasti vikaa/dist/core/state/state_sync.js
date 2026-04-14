@@ -19,6 +19,41 @@
  * }
  */
 
+function nowMs() {
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      return performance.now();
+    }
+  } catch (_) {
+    return Date.now();
+  }
+  return Date.now();
+}
+
+function shouldLogStateSyncPerf(dtMs) {
+  if (dtMs >= 6) return true;
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
+  } catch (_) {
+    return false;
+  }
+  return false;
+}
+
+function logStateSyncPerf(details) {
+  try {
+    if (!shouldLogStateSyncPerf(details.dtMs)) return;
+    const LG = (typeof window !== "undefined") ? window.Logger : null;
+    const message = `[StateSync] total=${details.dtMs.toFixed(1)}ms local=${details.localMs.toFixed(1)}ms refresh=${details.refreshMs.toFixed(1)}ms mode=${details.mode}`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(message, "notice", Object.assign({ category: "StateSync", perf: "applyAndRefresh" }, details));
+    } else if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug(message, details);
+    }
+  } catch (_) {}
+}
+
 export function applyLocal(ctx, sink) {
   if (!ctx || !sink) return;
   try { if (typeof sink.setMode === "function") sink.setMode(ctx.mode); } catch (_) {}
@@ -60,18 +95,43 @@ export function applyLocal(ctx, sink) {
 }
 
 export function applyAndRefresh(ctx, sink) {
-  applyLocal(ctx, sink);
+  const t0 = nowMs();
+  let localMs = 0;
+  let refreshMs = 0;
+  try {
+    const t = nowMs();
+    applyLocal(ctx, sink);
+    localMs = nowMs() - t;
+  } catch (_) {}
   // Prefer GameState refresh helper if available
   try {
     if (typeof window !== "undefined" && window.GameState && typeof window.GameState.applySyncAndRefresh === "function") {
+      const t = nowMs();
       window.GameState.applySyncAndRefresh(ctx);
+      refreshMs = nowMs() - t;
+      logStateSyncPerf({
+        dtMs: nowMs() - t0,
+        localMs,
+        refreshMs,
+        mode: String((ctx && ctx.mode) || "")
+      });
       return;
     }
   } catch (_) {}
-  try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
-  try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-  try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+  try {
+    const t = nowMs();
+    if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+    if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+    if (typeof ctx.updateUI === "function") ctx.updateUI();
+    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    refreshMs = nowMs() - t;
+  } catch (_) {}
+  logStateSyncPerf({
+    dtMs: nowMs() - t0,
+    localMs,
+    refreshMs,
+    mode: String((ctx && ctx.mode) || "")
+  });
 }
 
 import { attachGlobal } from "../../utils/global.js";

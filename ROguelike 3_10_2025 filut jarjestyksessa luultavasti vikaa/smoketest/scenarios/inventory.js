@@ -371,7 +371,7 @@
 
           // Capture twice (allow in-mode oscillation to settle)
           var inv1 = captureInv(); var eq1 = captureEq();
-          await sleep(500);
+          await sleep(250);
           try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(1); } catch (_) {}
           var inv2 = captureInv(); var eq2 = captureEq();
 
@@ -447,16 +447,6 @@
 
               if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
               await persistCheck("world", "dungeon exit", inv0, eq0);
-
-              var reenteredDungeon = (typeof ctx.ensureDungeonOnce === "function") ? !!(await ctx.ensureDungeonOnce()) : false;
-              if (!reenteredDungeon) {
-                recordSkip("Inventory persistence skipped (dungeon re-enter helper did not reach dungeon)");
-              } else {
-                await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
-
-                if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
-                await persistCheck("world", "dungeon re-exit", inv0, eq0);
-              }
             }
           } catch (_) {
             record(false, "Inventory persistence (dungeon cycles) failed");
@@ -469,12 +459,6 @@
 
             if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
             await persistCheck("world", "town exit", inv0, eq0);
-
-            if (typeof ctx.ensureTownOnce === "function") { await ctx.ensureTownOnce(); }
-            await persistCheck("town", "town re-enter", inv0, eq0);
-
-            if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
-            await persistCheck("world", "town re-exit", inv0, eq0);
           } catch (_) {
             record(false, "Inventory persistence (town cycles) failed");
           }

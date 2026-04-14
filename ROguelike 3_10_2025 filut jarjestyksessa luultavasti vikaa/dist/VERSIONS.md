@@ -1,10 +1,39 @@
+v1.50.50 — Overworld FOV guard cache fix
+
+- Fixed the overworld FOV guard to persist across `getCtx()` recreations:
+  - `core/engine/game_fov.js` now keeps its cache at module scope instead of keying it by transient ctx identity.
+  - This lets world-mode movement reuse the cheap local visibility update during sync/refresh instead of falling back to full FOV recomputation every turn.
+- Retained the new perf instrumentation from `v1.50.49`, which now confirms the remaining world refresh cost drops substantially after the cache fix.
+
+Deployment: https://bfi4yn1equms.cosine.page
+
+v1.50.49 — Overworld sync perf instrumentation
+
+- Added lightweight perf breakdown logs for overworld turns:
+  - `core/world/tick.js` now reports caravan/world tick timing via `[WorldTick]`.
+  - `core/engine/turn_loop.js` now reports world turn timing via `[TurnLoop]`.
+  - `core/state/state_sync.js` now reports local sync vs refresh time via `[StateSync]`.
+  - `core/state/game_state.js` now reports refresh substeps via `[GameState]` for camera, FOV, UI, and draw request.
+- Reconfirmed the current overworld perf issue is mostly inside sync/refresh work rather than caravan simulation.
+
+Deployment: https://9x7efy51p7fk.cosine.page
+
 v1.50.48 — Acceptance multirun stability and clean merge baseline
 
 - Acceptance launchers now clean up browser/server children on interrupts and exit cleanly after writing reports.
 - Phase 0 multirun now passes reliably after wiring repeat-run context into smoketest scenarios and trimming repeat-run inventory persistence work.
+- Harbor captain fast travel is now live in port towns:
+  - Each port town spawns a harbor captain NPC.
+  - Talking to the captain offers paid passage (`200` gold, about 8 hours) to another known harbor town.
+  - Travel uses the existing fade/sleep presentation and lands through the normal town-entry path at the destination harbor.
+- Added deterministic smoketest coverage for harbor captain travel and cleaned up the harbor travel flow:
+  - gold now uses the correct inventory schema (`kind: "gold"`, `amount`)
+  - travel sync preserves the destination harbor correctly
+  - captain names now use the normal town-population randomization pattern
 - Verified on current branch with `build`, `acceptance:phase0` (3-series), and `acceptance:phase6`.
+- Re-verified harbor travel on the current branch with `build` and targeted browser smoke for `harbor_fast_travel`.
 
-Deployment: https://f8z5or2tznso.cosine.page
+Deployment: https://tg2eltxoq3u2.cosine.page
 
 v1.50.47 — Verified gameplay baseline before merge
 

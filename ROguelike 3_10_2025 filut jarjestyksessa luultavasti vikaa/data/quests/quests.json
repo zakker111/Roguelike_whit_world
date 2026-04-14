@@ -40,6 +40,26 @@
       "expiresTurns": 360,
       "radiusMin": 6,
       "radiusMax": 14
+    },
+    {
+      "id": "missing_caravan",
+      "kind": "encounter",
+      "title": "Missing caravan",
+      "desc": "A merchant caravan missed its last arrival. Find the wreck and deal with the raiders around it.",
+      "encounter": {
+        "map": { "generator": "caravan_road", "w": 26, "h": 16 },
+        "groups": [
+          { "type": "bandit", "count": { "min": 4, "max": 6 }, "faction": "bandit" }
+        ],
+        "difficulty": 2
+      },
+      "markerGlyph": "E",
+      "rewardGoldMin": 14,
+      "rewardGoldMax": 24,
+      "expiresTurns": 420,
+      "radiusMin": 7,
+      "radiusMax": 16,
+      "tags": ["town-thread", "caravan", "road"]
     }
   ]
 }

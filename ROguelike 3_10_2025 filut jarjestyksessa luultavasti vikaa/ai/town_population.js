@@ -70,6 +70,49 @@ function bedsFor(ctx, building) {
   );
 }
 
+function collectHarborBandCells(ctx) {
+  try {
+    const mask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
+    if (!mask || !mask.length) return [];
+    const rows = mask.length;
+    const cols = mask[0] ? mask[0].length : 0;
+    const cells = [];
+    for (let y = 1; y < rows - 1; y++) {
+      for (let x = 1; x < cols - 1; x++) {
+        if (!mask[y][x]) continue;
+        if (!isFreeTownFloor(ctx, x, y)) continue;
+        cells.push({ x, y });
+      }
+    }
+    return cells;
+  } catch (_) {
+    return [];
+  }
+}
+
+function pickHarborHome(ctx, harborBuildings, fallbackSpot) {
+  try {
+    if (!Array.isArray(harborBuildings) || !harborBuildings.length) return null;
+    const b = harborBuildings[randInt(ctx, 0, harborBuildings.length - 1)];
+    const pos =
+      randomInteriorSpot(ctx, b) ||
+      (b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
+        ? { x: b.door.x, y: b.door.y }
+        : { x: fallbackSpot.x, y: fallbackSpot.y });
+    return {
+      building: b,
+      x: pos.x,
+      y: pos.y,
+      door:
+        b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
+          ? { x: b.door.x, y: b.door.y }
+          : { x: fallbackSpot.x, y: fallbackSpot.y },
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 // --- Main population entry point ---
 
 function populateTown(ctx) {
@@ -402,15 +445,51 @@ function populateTown(ctx) {
   })();
 
   // Harbor workers / sailors for port towns: extra NPCs with work spots in the harbor band.
+  (function spawnHarborCaptain() {
+    try {
+      if (ctx.townKind !== "port") return;
+      if (ctx.npcs.some(n => n && n.isHarborCaptain)) return;
+
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
+      const captainNames =
+        ND && Array.isArray(ND.harborCaptainNames) && ND.harborCaptainNames.length
+          ? ND.harborCaptainNames
+          : ["Harbormaster", "Captain", "Dockmaster"];
+      const captainLines =
+        ND && Array.isArray(ND.harborCaptainLines) && ND.harborCaptainLines.length
+          ? ND.harborCaptainLines
+          : [
+              "Passage leaves on the tide.",
+              "Another harbor waits beyond the water.",
+              "Two hundred gold and we cast off at once.",
+            ];
+      const bandCells = collectHarborBandCells(ctx);
+      if (!bandCells.length) return;
+
+      const harborBuildings = Array.isArray(ctx.townHarborBuildings)
+        ? ctx.townHarborBuildings
+        : [];
+      const spot = bandCells[randInt(ctx, 0, bandCells.length - 1)];
+      if (!spot) return;
+
+      npcs.push({
+        x: spot.x,
+        y: spot.y,
+        name: captainNames[randInt(ctx, 0, captainNames.length - 1)] || "Harbormaster",
+        lines: captainLines,
+        isHarborCaptain: true,
+        harborTicketPrice: 200,
+        _home: pickHarborHome(ctx, harborBuildings, spot),
+        _work: { x: spot.x, y: spot.y },
+        _workIsHarbor: true,
+      });
+    } catch (_) {}
+  })();
+
   (function spawnHarborWorkers() {
     try {
       if (ctx.townKind !== "port") return;
-      const mask = Array.isArray(ctx.townHarborMask) ? ctx.townHarborMask : null;
-      if (!mask || !mask.length) return;
-      const rows = mask.length;
-      const cols = mask[0] ? mask[0].length : 0;
-      if (!rows || !cols) return;
-
       const GD = getGameData(ctx);
       const ND = GD && GD.npcs ? GD.npcs : null;
       const workerNames =
@@ -427,14 +506,7 @@ function populateTown(ctx) {
             ];
 
       // Candidate free tiles inside the harbor band
-      const bandCells = [];
-      for (let y = 1; y < rows - 1; y++) {
-        for (let x = 1; x < cols - 1; x++) {
-          if (!mask[y][x]) continue;
-          if (!isFreeTownFloor(ctx, x, y)) continue;
-          bandCells.push({ x, y });
-        }
-      }
+      const bandCells = collectHarborBandCells(ctx);
       if (!bandCells.length) return;
 
       const harborBuildings = Array.isArray(ctx.townHarborBuildings)
@@ -449,25 +521,6 @@ function populateTown(ctx) {
         if (!spot) break;
         if (ctx.npcs.some(n => n && n.x === spot.x && n.y === spot.y)) continue;
 
-        let home = null;
-        if (harborBuildings.length) {
-          const b = harborBuildings[randInt(ctx, 0, harborBuildings.length - 1)];
-          const pos =
-            randomInteriorSpot(ctx, b) ||
-            (b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
-              ? { x: b.door.x, y: b.door.y }
-              : { x: spot.x, y: spot.y });
-          home = {
-            building: b,
-            x: pos.x,
-            y: pos.y,
-            door:
-              b.door && typeof b.door.x === "number" && typeof b.door.y === "number"
-                ? { x: b.door.x, y: b.door.y }
-                : { x: spot.x, y: spot.y },
-          };
-        }
-
         const name = workerNames[placed % workerNames.length] || "Harbor worker";
         npcs.push({
           x: spot.x,
@@ -475,7 +528,7 @@ function populateTown(ctx) {
           name,
           lines: workerLines,
           isHarborWorker: true,
-          _home: home,
+          _home: pickHarborHome(ctx, harborBuildings, spot),
           _work: { x: spot.x, y: spot.y },
           _workIsHarbor: true,
         });

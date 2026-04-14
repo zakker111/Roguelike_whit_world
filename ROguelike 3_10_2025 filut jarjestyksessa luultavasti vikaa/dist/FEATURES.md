@@ -268,6 +268,9 @@ This file should describe the **current state**, not the future; update it whene
     - Exactly one pier connects to each boat: if the boat already touches an existing pier, no extra hull-to-shore pier is carved; otherwise a dedicated “boat pier” is built from hull toward shore.
   - Small “warehouse” buildings and dock props (crates, barrels, lamps) appear along the harbor edge within the harbor band; these are tagged as harbor buildings for AI use.
   - Harbor workers are spawned via town AI and prefer to work and linger in the harbor band, with sleep behavior integrated into normal town schedules.
+  - Harbor captains now spawn in port towns and offer paid passage to another known harbor town:
+    - Passage currently costs 200 gold and advances time by about 8 hours.
+    - Travel uses the normal fade/sleep presentation and arrives in the destination town through the standard town-entry flow.
   - Harbor accessibility (experimental):
     - A harbor-only accessibility pass checks that harbor building doors lead to reachable ground from the town gate:
       - Doors whose exterior tiles are not walkable or not reachable are converted back into walls.

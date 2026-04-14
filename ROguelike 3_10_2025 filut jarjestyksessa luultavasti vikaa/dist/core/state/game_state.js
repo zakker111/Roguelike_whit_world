@@ -8,6 +8,41 @@
  */
 import { allocFog } from "../engine/fog.js";
 
+function nowMs() {
+  try {
+    if (typeof performance !== "undefined" && performance && typeof performance.now === "function") {
+      return performance.now();
+    }
+  } catch (_) {
+    return Date.now();
+  }
+  return Date.now();
+}
+
+function shouldLogStatePerf(dtMs) {
+  if (dtMs >= 6) return true;
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    if (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1") return true;
+  } catch (_) {
+    return false;
+  }
+  return false;
+}
+
+function logGameStatePerf(details) {
+  try {
+    if (!shouldLogStatePerf(details.dtMs)) return;
+    const LG = (typeof window !== "undefined") ? window.Logger : null;
+    const message = `[GameState] refresh total=${details.dtMs.toFixed(1)}ms camera=${details.cameraMs.toFixed(1)}ms fov=${details.fovMs.toFixed(1)}ms ui=${details.uiMs.toFixed(1)}ms draw=${details.drawMs.toFixed(1)}ms mode=${details.mode}`;
+    if (LG && typeof LG.log === "function") {
+      LG.log(message, "notice", Object.assign({ category: "GameState", perf: "refresh" }, details));
+    } else if (typeof console !== "undefined" && typeof console.debug === "function") {
+      console.debug(message, details);
+    }
+  } catch (_) {}
+}
+
 export function ensureVisibilityShape(ctx) {
   if (!ctx || !Array.isArray(ctx.map)) return;
   const rows = ctx.map.length;
@@ -36,10 +71,41 @@ export function ensureVisibilityShape(ctx) {
 }
 
 export function applySyncAndRefresh(ctx) {
-  try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
-  try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-  try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+  const t0 = nowMs();
+  let cameraMs = 0;
+  let fovMs = 0;
+  let uiMs = 0;
+  let drawMs = 0;
+
+  try {
+    const t = nowMs();
+    if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+    cameraMs = nowMs() - t;
+  } catch (_) {}
+  try {
+    const t = nowMs();
+    if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+    fovMs = nowMs() - t;
+  } catch (_) {}
+  try {
+    const t = nowMs();
+    if (typeof ctx.updateUI === "function") ctx.updateUI();
+    uiMs = nowMs() - t;
+  } catch (_) {}
+  try {
+    const t = nowMs();
+    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    drawMs = nowMs() - t;
+  } catch (_) {}
+
+  logGameStatePerf({
+    dtMs: nowMs() - t0,
+    cameraMs,
+    fovMs,
+    uiMs,
+    drawMs,
+    mode: String((ctx && ctx.mode) || "")
+  });
 }
 
 /**

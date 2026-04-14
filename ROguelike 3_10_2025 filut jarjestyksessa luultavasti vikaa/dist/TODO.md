@@ -15,23 +15,25 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 - [x] GM panel smoketest scenario exists and is included in Phase 0 acceptance (`gm_panel_smoke`)
 - [x] Quest board GM markers smoketest exists and is included in Phase 0 acceptance (`quest_board_gm_markers`)
+- [x] Missing Caravan town thread shipped end-to-end: quest template, town-situation copy, rumors, and dedicated smoke coverage (`data/quests/quests.json`, `services/quest_service.js`, `smoketest/scenarios/caravan_thread_status.js`)
+- [x] Phase 0 acceptance stabilized after trimming the inventory persistence smoke to one verified dungeon cycle + one verified town cycle (`smoketest/scenarios/inventory.js`)
 - [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
 - [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
 - [x] Logging convention documented (`docs/phase_workflow.md`)
 
 ## Near-term engineering plan (small slices)
 
-- [ ] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
+- [x] **Worldgen/UI import normalization (very low risk):** use absolute `/services/index.js` imports in worldgen (side-effect neutral).
 - [x] **ESLint guardrail (low risk):** add `no-restricted-imports` rules to prevent deep imports into `core/bridge/*/*` (force stable entrypoints).
 - [ ] **Continue barrel adoption (low risk, gradual):** convert a few high-churn modules per slice (prefer UI/worldgen first; avoid known cycle-prone areas).
 - [ ] **Docs hygiene:** keep `docs/index.html` catalog up to date; rely on `check:docs-catalog` to catch broken links.
-- [ ] **GM follow-up (medium risk):** keep GM-driven encounter starts ctx-first (validated by `gm_bridge_faction_travel`).
+- [x] **GM follow-up (medium risk):** GM-driven encounter starts remain ctx-first and are validated by `gm_bridge_faction_travel` / `acceptance:phase6`.
 
 ## Next slices (plan)
 
-- [ ] **Ctx-first audit for remaining GM encounter starts (non-marker):** identify any remaining `GameAPI` / window-only entry points and migrate to ctx-first facades.
+- [x] **Ctx-first audit for remaining GM encounter starts (non-marker):** identify any remaining `GameAPI` / window-only entry points and migrate to ctx-first facades.
   - Acceptance: no GM code path starts an encounter via a ctx reacquire; add/extend a smoketest that triggers at least one non-marker GM encounter start and asserts stable mode/position.
-- [ ] **GM panel surfacing: action queue + quests (incremental):** add a small “orchestrator snapshot” section to the GM panel.
+- [x] **GM panel surfacing: action queue + quests (incremental):** add a small “orchestrator snapshot” section to the GM panel.
   - Acceptance: GM panel shows next scheduled actions (id/status/delivery) and active quest thread count/summary; update `gm_panel_smoke` to assert these fields render.
 - [x] **Acceptance flake detection loop (Phase 0):** `acceptance:phase0` emits a JSON summary including `flake=true/false`, supports configurable internal series runs, and CI can repeat the full Phase 0 harness with numbered logs.
   - Acceptance: `scripts/run_phase0_acceptance.js` reports flake status/config; CI exposes `phase0_repeats` and treats Phase 0 as a required gate.
@@ -157,6 +159,7 @@ Known issues / deferred (post-merge):
         - [x] `npm run build`
         - [x] `node scripts/run_phase0_acceptance.js`
         - [x] `node scripts/run_phase6_acceptance.js`
+        - [x] Phase 0 smoke run is currently green for 2 internal series runs (no flake; `inventory`, `caravan_thread_status`, `town_rumor_status`, and `quest_board_thread_status` all pass)
         - [x] Manual Gate B/C verified in Playwright against the dev server:
           - guard fine decline/accept remain stable in overworld
           - bandit bounty + troll hunt decline/accept/withdraw remain stable
@@ -297,9 +300,10 @@ Known issues / deferred (post-merge):
   - Future extensions (optional):
     - [x] Harbor-specific NPCs (dockworkers, sailors/harbor workers) with work spots in the harbor band.
     - [ ] Trade modifiers or special caravan/ship visits at ports.
-    - [ ] Harbor boat travel system with sailor/captain NPCs:
-      - Allow the player to use moored ships to travel between compatible ports or to nearby coastal/river/lake POIs.
-      - Add a sailor/captain NPC on each ship who offers travel destinations and prices through a simple dialog at the gangway or deck.
+    - [x] Harbor boat travel system with sailor/captain NPCs:
+      - Port towns now spawn a harbor captain NPC who offers paid passage between known harbor towns.
+      - Passage currently costs 200 gold, uses the fade/sleep travel presentation, and arrives through the normal town-entry flow.
+      - Future expansion: broaden destinations beyond known ports to nearby coastal/river/lake POIs.
     - [ ] Harbor NPC variety (e.g., fishermen, fishmongers, dock guards) with harbor-band work spots and simple day/night routines.
     - [ ] Fishing in harbor towns:
       - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.

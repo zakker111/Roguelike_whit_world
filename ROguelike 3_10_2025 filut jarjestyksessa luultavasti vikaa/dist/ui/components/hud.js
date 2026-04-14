@@ -5,11 +5,15 @@
  * - init()
  * - update(player, floor, time, perf, perfOn)
  */
+import { getTownStatusSummary } from "/services/town_flavor_service.js";
+
 let _hpEl = null;
 let _floorEl = null;
+let _townEl = null;
 let _lastHpText = "";
 let _lastFloorText = "";
 let _lastHudWeatherLabel = "";
+let _lastTownText = "";
 
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
@@ -18,11 +22,13 @@ function byId(id) {
 export function init() {
   _hpEl = byId("health");
   _floorEl = byId("floor");
+  _townEl = byId("town-status");
 }
 
-export function update(player, floor, time, perf, perfOn, weather) {
+export function update(player, floor, time, perf, perfOn, weather, ctx) {
   const hpEl = _hpEl || byId("health");
   const floorEl = _floorEl || byId("floor");
+  const townEl = _townEl || byId("town-status");
 
   // HP + statuses
   if (hpEl && player) {
@@ -121,6 +127,31 @@ export function update(player, floor, time, perf, perfOn, weather) {
     if (floorStr !== _lastFloorText) {
       floorEl.textContent = floorStr;
       _lastFloorText = floorStr;
+    }
+  }
+
+  if (townEl) {
+    let townText = "";
+    let visible = false;
+    try {
+      const mode = String((ctx && ctx.mode) || "");
+      if (mode === "town") {
+        const summary = getTownStatusSummary(ctx);
+        if (summary) {
+          const districts = Array.isArray(summary.districts) ? summary.districts.join(" • ") : "";
+          const rumor = summary.primaryRumor && summary.primaryRumor.text ? String(summary.primaryRumor.text) : "";
+          townText = `${summary.title || "Town"}${districts ? ` | Districts: ${districts}` : ""}${rumor ? ` | Rumor: ${rumor}` : ""}`;
+          visible = !!townText;
+        }
+      }
+    } catch (_) {}
+    townEl.hidden = !visible;
+    if (visible && townText !== _lastTownText) {
+      townEl.textContent = townText;
+      _lastTownText = townText;
+    } else if (!visible && _lastTownText) {
+      townEl.textContent = "";
+      _lastTownText = "";
     }
   }
 }

@@ -366,7 +366,9 @@
       if (name === "dungeon_persistence") return S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run;
       if (name === "dungeon_stairs_transitions") return S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run;
       if (name === "town") return S.Town && S.Town.run;
+      if (name === "town_rumor_status") return S.town_rumor_status && S.town_rumor_status.run;
       if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
+      if (name === "harbor_fast_travel") return S.HarborFastTravel && S.HarborFastTravel.run;
       if (name === "overlays") return S.Overlays && S.Overlays.run;
       if (name === "ui_layout") return S.UILayout && S.UILayout.run;
       if (name === "determinism") return S.Determinism && S.Determinism.run;
@@ -389,6 +391,8 @@
       if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
       if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
       if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
+      if (name === "quest_board_thread_status") return S.quest_board_thread_status && S.quest_board_thread_status.run;
+      if (name === "caravan_thread_status") return S.caravan_thread_status && S.caravan_thread_status.run;
       if (name === "gm_panel_smoke") return S.gm_panel_smoke && S.gm_panel_smoke.run;
       if (name === "logging_filters") return S.logging_filters && S.logging_filters.run;
     } catch (_) {}
@@ -1532,6 +1536,7 @@
         dungeon_stairs_transitions: S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run,
         town: S.Town && S.Town.run,
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
+        harbor_fast_travel: S.HarborFastTravel && S.HarborFastTravel.run,
         overlays: S.Overlays && S.Overlays.run,
         ui_layout: S.UILayout && S.UILayout.run,
         determinism: S.Determinism && S.Determinism.run,

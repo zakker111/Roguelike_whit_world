@@ -359,11 +359,11 @@ export const UI = {
   },
 
   // HUD + inventory stats
-  updateStats(player, floor, getAtk, getDef, time, perf, weather) {
+  updateStats(player, floor, getAtk, getDef, time, perf, weather, ctx) {
     // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
     try {
       if (Hud && typeof Hud.update === "function") {
-        Hud.update(player, floor, time, perf, this.getPerfState(), weather);
+        Hud.update(player, floor, time, perf, this.getPerfState(), weather, ctx);
       }
     } catch (_) {}
 

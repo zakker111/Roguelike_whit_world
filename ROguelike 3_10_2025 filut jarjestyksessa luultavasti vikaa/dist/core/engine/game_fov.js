@@ -7,16 +7,16 @@
  * Cache keys per ctx:
  * - lastX, lastY, lastRadius, lastMode, lastCols, lastRows
  */
-const _cache = new WeakMap();
+import { fogSet } from "./fog.js";
 
-function getCache(ctx) {
-  let c = _cache.get(ctx);
-  if (!c) {
-    c = { lastX: -1, lastY: -1, lastRadius: -1, lastMode: "", lastCols: -1, lastRows: -1 };
-    _cache.set(ctx, c);
-  }
-  return c;
-}
+const _cache = {
+  lastX: -1,
+  lastY: -1,
+  lastRadius: -1,
+  lastMode: "",
+  lastCols: -1,
+  lastRows: -1,
+};
 
 function ensureVisibilityShape(ctx) {
   try {
@@ -31,6 +31,39 @@ function ensureVisibilityShape(ctx) {
   if (!okVis) ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
   const okSeen = Array.isArray(ctx.seen) && ctx.seen.length === rows && (rows === 0 || (ctx.seen[0] && ctx.seen[0].length === cols));
   if (!okSeen) ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
+}
+
+function updateCache(cache, ctx, rows, cols, radius) {
+  cache.lastX = ctx.player.x | 0;
+  cache.lastY = ctx.player.y | 0;
+  cache.lastRadius = radius | 0;
+  cache.lastMode = String(ctx.mode || "");
+  cache.lastCols = cols | 0;
+  cache.lastRows = rows | 0;
+}
+
+function paintWorldVisibilityRadius(ctx, centerX, centerY, radius, value, markSeen) {
+  if (!ctx || !Array.isArray(ctx.visible) || !Array.isArray(ctx.seen)) return;
+  const rows = ctx.map.length;
+  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+  const cx = centerX | 0;
+  const cy = centerY | 0;
+  const rr = Math.max(1, radius | 0);
+  const radius2 = rr * rr;
+  const y0 = Math.max(0, cy - rr);
+  const y1 = Math.min(rows - 1, cy + rr);
+  const x0Base = Math.max(0, cx - rr);
+  const x1Base = Math.min(cols - 1, cx + rr);
+
+  for (let y = y0; y <= y1; y++) {
+    const dy = y - cy;
+    for (let x = x0Base; x <= x1Base; x++) {
+      const dx = x - cx;
+      if ((dx * dx + dy * dy) > radius2) continue;
+      fogSet(ctx.visible, x, y, value);
+      if (markSeen) fogSet(ctx.seen, x, y, true);
+    }
+  }
 }
 
 export function recomputeWithGuard(ctx) {
@@ -56,11 +89,20 @@ export function recomputeWithGuard(ctx) {
   } catch (_) {}
   const effectiveRadius = Math.max(1, baseRadius + equipBonus);
 
-  const cache = getCache(ctx);
-  const moved = (ctx.player.x !== cache.lastX) || (ctx.player.y !== cache.lastY);
-  const fovChanged = (effectiveRadius !== cache.lastRadius);
-  const modeChanged = (ctx.mode !== cache.lastMode);
-  const mapChanged = (rows !== cache.lastRows) || (cols !== cache.lastCols);
+  const moved = (ctx.player.x !== _cache.lastX) || (ctx.player.y !== _cache.lastY);
+  const fovChanged = (effectiveRadius !== _cache.lastRadius);
+  const modeChanged = (ctx.mode !== _cache.lastMode);
+  const mapChanged = (rows !== _cache.lastRows) || (cols !== _cache.lastCols);
+
+  if (ctx.mode === "world" && moved && !modeChanged && !mapChanged && !fovChanged) {
+    ensureVisibilityShape(ctx);
+    if (_cache.lastX >= 0 && _cache.lastY >= 0) {
+      paintWorldVisibilityRadius(ctx, _cache.lastX, _cache.lastY, effectiveRadius, false, false);
+    }
+    paintWorldVisibilityRadius(ctx, ctx.player.x, ctx.player.y, effectiveRadius, true, true);
+    updateCache(_cache, ctx, rows, cols, effectiveRadius);
+    return true;
+  }
 
   if (!modeChanged && !mapChanged && !fovChanged && !moved) {
     return false;
@@ -80,12 +122,7 @@ export function recomputeWithGuard(ctx) {
     }
   } catch (_) {}
 
-  cache.lastX = ctx.player.x | 0;
-  cache.lastY = ctx.player.y | 0;
-  cache.lastRadius = effectiveRadius | 0;
-  cache.lastMode = String(ctx.mode || "");
-  cache.lastCols = cols | 0;
-  cache.lastRows = rows | 0;
+  updateCache(_cache, ctx, rows, cols, effectiveRadius);
   return true;
 }
 

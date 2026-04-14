@@ -16,6 +16,100 @@
 import { getMod } from "../utils/access.js";
 import { MarkerService } from "./marker_service.js";
 (function initQuestService() {
+  const BANDITS_FARM_TEMPLATE_ID = "bandits_farm";
+  const MISSING_CARAVAN_TEMPLATE_ID = "missing_caravan";
+  const BANDITS_FARM_AFTERMATH_TURNS = 720;
+  const MISSING_CARAVAN_AFTERMATH_TURNS = 720;
+  const STORY_TEMPLATE_PRIORITY = [
+    BANDITS_FARM_TEMPLATE_ID,
+    MISSING_CARAVAN_TEMPLATE_ID,
+  ];
+
+  const THREAD_CONFIGS = {
+    [BANDITS_FARM_TEMPLATE_ID]: {
+      aftermathTurns: BANDITS_FARM_AFTERMATH_TURNS,
+      boardLead: "Farmers on the edge of town are asking for help. Take the contract if you want a short, high-pressure fight with a visible payoff.",
+      boardStatus: {
+        completedPendingTurnIn: "The farm road is clear for now. Return here to collect your reward and spread the good news.",
+        failed: "The job fell through and the farmers are still nervous.",
+        marker: "Follow the E marker outside town and drive the bandits off.",
+        offer: "The town wants someone to clear the road before the bandits get bolder.",
+      },
+      story: {
+        turnin: {
+          tone: "good",
+          text: "Word is spreading that the farm road is clear again. Return to the board, collect your reward, and let the town know the threat is handled.",
+          cta: "Finish the thread by turning in the contract."
+        },
+        active: {
+          tone: "warn",
+          text: "Farmers east of town are still under pressure. The town is waiting to hear whether you can break the bandit hold on the road.",
+          cta: "Leave town, find the E marker, and decide how to handle the bandits."
+        },
+        offer: {
+          tone: "warn",
+          text: "A nearby farm is being harassed and the guards are stretched thin. Someone needs to answer the posting before the raiders get comfortable.",
+          cta: "Accept the contract if you want to step into a live town problem."
+        },
+        resolved: {
+          tone: "good",
+          text: "The farms are calmer and traders have started using the road again. People in town are talking like the worst of the trouble has passed.",
+          cta: "The town remembers that you solved this one."
+        },
+        failed: {
+          tone: "bad",
+          text: "The farm trouble was left unresolved. The guards are tense, farmers are keeping close to the walls, and the town still feels the setback.",
+          cta: "The world noticed that this thread went badly."
+        }
+      },
+      acceptLog: "Locals point you toward the farm road. Find the E marker outside town and decide how to deal with the bandits.",
+      claimLog: "The town starts to relax as word spreads that the farm road is safe again.",
+      victoryLog: "The surviving farmers will want to hear this. Bring the news back to town.",
+      failLog: "The guards mutter that the bandits will only grow bolder if nobody answers them."
+    },
+    [MISSING_CARAVAN_TEMPLATE_ID]: {
+      aftermathTurns: MISSING_CARAVAN_AFTERMATH_TURNS,
+      boardLead: "Merchants want answers before the road goes cold. Take the posting if you want to track a missing caravan and clean up whatever stopped it.",
+      boardStatus: {
+        completedPendingTurnIn: "The road has news again. Return to the board and report what became of the caravan.",
+        failed: "No answer ever came back from the road, and the merchants are still bracing for a loss.",
+        marker: "Follow the E marker outside town and investigate the caravan route.",
+        offer: "A caravan missed its arrival window. The town wants someone on the road before the trail goes stale."
+      },
+      story: {
+        turnin: {
+          tone: "good",
+          text: "The merchants are waiting at the board for a clean report. Bring them the news and collect the reward while the road is still quiet.",
+          cta: "Return to the board and close out the caravan thread."
+        },
+        active: {
+          tone: "warn",
+          text: "A missing caravan has everyone watching the road. Traders are lowering their voices and waiting to hear whether anyone made it back.",
+          cta: "Follow the E marker and investigate the caravan route."
+        },
+        offer: {
+          tone: "warn",
+          text: "A caravan failed to arrive and the merchants are getting nervous. If no one checks the road soon, people will assume the worst.",
+          cta: "Accept the contract if you want to investigate the missing caravan."
+        },
+        resolved: {
+          tone: "good",
+          text: "The caravan road is moving again and the merchants have started speaking like trade might recover before the week is out.",
+          cta: "The town knows the caravan trouble was answered."
+        },
+        failed: {
+          tone: "bad",
+          text: "The caravan never came home and the road feels poorer for it. Merchants are talking like another route may be lost.",
+          cta: "This thread left the town more anxious than before."
+        }
+      },
+      acceptLog: "Merchants point you toward the road and ask you to find what happened to the missing caravan.",
+      claimLog: "Word spreads quickly that the caravan road has an answer at last, and the market begins to loosen again.",
+      victoryLog: "If any of the caravan's people made it out, the merchants will want to hear the full report in town.",
+      failLog: "The merchants grimly note that another caravan may now be written off."
+    }
+  };
+
   function _gd() {
     try { return (typeof window !== "undefined" ? window.GameData : null); } catch (_) { return null; }
   }
@@ -70,6 +164,130 @@ import { MarkerService } from "./marker_service.js";
     town.quests.active = Array.isArray(town.quests.active) ? town.quests.active : [];
     town.quests.completed = Array.isArray(town.quests.completed) ? town.quests.completed : [];
     return town.quests;
+  }
+  function _findByTemplate(list, templateId) {
+    try {
+      return (Array.isArray(list) ? list : []).find(q => q && String(q.templateId || "") === String(templateId || "")) || null;
+    } catch (_) { return null; }
+  }
+  function _latestCompletedByTemplate(list, templateId) {
+    try {
+      let best = null;
+      const arr = Array.isArray(list) ? list : [];
+      for (const q of arr) {
+        if (!q || String(q.templateId || "") !== String(templateId || "")) continue;
+        if (!best || ((q.completedAtTurn | 0) > (best.completedAtTurn | 0))) best = q;
+      }
+      return best;
+    } catch (_) { return null; }
+  }
+  function _decorateQuestForBoard(ctx, quest) {
+    if (!quest || typeof quest !== "object") return quest;
+    const out = { ...quest };
+    const cfg = THREAD_CONFIGS[String(out.templateId || "")] || null;
+    if (!cfg) return out;
+
+    if (out.kind === "encounter") {
+      out.boardLead = cfg.boardLead || out.desc || "";
+      if (out.status === "completedPendingTurnIn") {
+        out.boardStatus = cfg.boardStatus && cfg.boardStatus.completedPendingTurnIn ? cfg.boardStatus.completedPendingTurnIn : "";
+      } else if (out.status === "failed") {
+        out.boardStatus = cfg.boardStatus && cfg.boardStatus.failed ? cfg.boardStatus.failed : "";
+      } else if (out.marker) {
+        out.boardStatus = cfg.boardStatus && cfg.boardStatus.marker ? cfg.boardStatus.marker : "";
+      } else {
+        out.boardStatus = cfg.boardStatus && cfg.boardStatus.offer ? cfg.boardStatus.offer : "";
+      }
+    }
+
+    return out;
+  }
+  function _storyForTemplate(ctx, townQ, templateId) {
+    if (!townQ) return null;
+    const cfg = THREAD_CONFIGS[String(templateId || "")] || null;
+    if (!cfg || !cfg.story) return null;
+
+    const active = _findByTemplate(townQ.active, templateId);
+    if (active) {
+      if (active.status === "completedPendingTurnIn") {
+        const turnin = cfg.story.turnin || null;
+        if (!turnin) return null;
+        return {
+          templateId,
+          stage: "turnin",
+          title: "Town Situation",
+          tone: turnin.tone || "good",
+          text: turnin.text || "",
+          cta: turnin.cta || ""
+        };
+      }
+      const live = cfg.story.active || null;
+      if (!live) return null;
+      return {
+        templateId,
+        stage: "active",
+        title: "Town Situation",
+        tone: live.tone || "warn",
+        text: live.text || "",
+        cta: live.cta || ""
+      };
+    }
+
+    const available = _findByTemplate(townQ.available, templateId);
+    if (available) {
+      const offer = cfg.story.offer || null;
+      if (!offer) return null;
+      return {
+        templateId,
+        stage: "offer",
+        title: "Town Situation",
+        tone: offer.tone || "warn",
+        text: offer.text || "",
+        cta: offer.cta || ""
+      };
+    }
+
+    const latest = _latestCompletedByTemplate(townQ.completed, templateId);
+    if (!latest) return null;
+
+    const age = Math.max(0, (_nowTurn(ctx) | 0) - (latest.completedAtTurn | 0));
+    if (age > ((cfg.aftermathTurns | 0) || 720)) return null;
+
+    if (latest.finalStatus === "completed") {
+      const resolved = cfg.story.resolved || null;
+      if (!resolved) return null;
+      return {
+        templateId,
+        stage: "resolved",
+        title: "Town Situation",
+        tone: resolved.tone || "good",
+        text: resolved.text || "",
+        cta: resolved.cta || ""
+      };
+    }
+
+    if (latest.finalStatus === "failed") {
+      const failed = cfg.story.failed || null;
+      if (!failed) return null;
+      return {
+        templateId,
+        stage: "failed",
+        title: "Town Situation",
+        tone: failed.tone || "bad",
+        text: failed.text || "",
+        cta: failed.cta || ""
+      };
+    }
+
+    return null;
+  }
+  function _getTownSituation(ctx, townQ) {
+    if (!townQ) return null;
+    for (const templateId of STORY_TEMPLATE_PRIORITY) {
+      const story = _storyForTemplate(ctx, townQ, templateId);
+      if (story) return story;
+    }
+    return null;
   }
   function _chooseN(rng, arr, n, avoidIdsSet) {
     const pool = arr.filter(t => !avoidIdsSet.has(t.id));
@@ -273,7 +491,7 @@ import { MarkerService } from "./marker_service.js";
     } catch (_) { return true; }
   }
 
-  // One-time seeding: nearest-to-player town gets all three starter quests (planks, berries, bandits)
+  // One-time seeding: nearest-to-player town gets the starter quest set.
   function _seedStartTownAllThree(ctx, town, townQ) {
     try {
       if (!ctx || !ctx.world || !Array.isArray(ctx.world.towns) || !town) return;
@@ -476,7 +694,13 @@ import { MarkerService } from "./marker_service.js";
     _seedStartTownAllThree(ctx, town, st);
     _rerollAvailableIfNeeded(ctx, town, st);
     const key = _townKeyForWorldPos(ctx, town.x, town.y);
-    return { townKey: key, available: st.available.slice(0), active: st.active.slice(0), completed: st.completed.slice(0) };
+    return {
+      townKey: key,
+      story: _getTownSituation(ctx, st),
+      available: st.available.slice(0).map(q => _decorateQuestForBoard(ctx, q)),
+      active: st.active.slice(0).map(q => _decorateQuestForBoard(ctx, q)),
+      completed: st.completed.slice(0).map(q => _decorateQuestForBoard(ctx, q))
+    };
   }
 
   function accept(ctx, templateId) {
@@ -575,6 +799,10 @@ import { MarkerService } from "./marker_service.js";
       const marker = _placeEncounterMarkerNearTown(ctx, town, tmpl);
       inst.marker = marker;
       _addQuestEncounterMarker(ctx, marker.x, marker.y, inst.instanceId);
+      const cfg = THREAD_CONFIGS[tmpl.id] || null;
+      if (cfg && cfg.acceptLog) {
+        try { ctx.log && ctx.log(cfg.acceptLog, "notice"); } catch (_) {}
+      }
     }
 
     // Claim ownership for this town (on acceptance)
@@ -799,6 +1027,10 @@ import { MarkerService } from "./marker_service.js";
     } catch (_) {}
 
     try { ctx.log && ctx.log(`Quest complete: ${found.title}. You receive ${pay} gold.`, "good"); } catch (_) {}
+    const foundCfg = THREAD_CONFIGS[String(found.templateId || "")] || null;
+    if (foundCfg && foundCfg.claimLog) {
+      try { ctx.log && ctx.log(foundCfg.claimLog, "good"); } catch (_) {}
+    }
     _applyAndRefresh(ctx);
     return true;
   }
@@ -858,12 +1090,20 @@ import { MarkerService } from "./marker_service.js";
           if (victory) {
             a.status = "completedPendingTurnIn";
             try { ctx.log && ctx.log("Quest objective complete. Return to the Quest Board to claim your reward.", "good"); } catch (_) {}
+            const cfg = THREAD_CONFIGS[String(a.templateId || "")] || null;
+            if (cfg && cfg.victoryLog) {
+              try { ctx.log && ctx.log(cfg.victoryLog, "notice"); } catch (_) {}
+            }
           } else {
             // Withdraw early -> fail
             a.status = "failed";
             (qs.completed || (qs.completed = [])).push({ ...a, completedAtTurn: _nowTurn(ctx), finalStatus: "failed" });
             qs.active.splice(i, 1);
             try { ctx.log && ctx.log("You withdrew early. The quest has failed.", "warn"); } catch (_) {}
+            const cfg = THREAD_CONFIGS[String(a.templateId || "")] || null;
+            if (cfg && cfg.failLog) {
+              try { ctx.log && ctx.log(cfg.failLog, "warn"); } catch (_) {}
+            }
           }
           _applyAndRefresh(ctx);
           return;
@@ -910,7 +1150,6 @@ import { MarkerService } from "./marker_service.js";
     if (quest.kind !== "encounter") { _removeQuestMarker(ctx, hereId); return false; }
 
     // Start the special encounter; pass questInstanceId through
-    const GD = _gd();
     const tmpl = _templateById(quest.templateId) || {};
     const encT = tmpl.encounter || {};
     const biome = (function guessBiome() {
@@ -934,7 +1173,7 @@ import { MarkerService } from "./marker_service.js";
       if (ER && typeof ER.enter === "function") {
         ER.enter(ctx, {
           template: {
-            id: "quest_bandits_farm",
+            id: `quest_${tmpl.id || quest.templateId || "encounter"}`,
             name: tmpl.title || "Quest Encounter",
             map: { generator: (encT.map && encT.map.generator) ? encT.map.generator : "camp", w: (encT.map && encT.map.w) || 26, h: (encT.map && encT.map.h) || 18 },
             groups: Array.isArray(encT.groups) && encT.groups.length ? encT.groups : [{ type: "bandit", count: { min: 3, max: 5 } }]
