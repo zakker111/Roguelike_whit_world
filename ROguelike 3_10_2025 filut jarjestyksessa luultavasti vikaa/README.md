@@ -91,10 +91,10 @@ Towns and Wild Seppo
 - Town guards and barracks:
   - Towns spawn a small number of guard NPCs (blue-tinted “n” glyphs) who patrol around the gate, plaza, and roads instead of wandering randomly.
   - Many towns also place a Guard Barracks prefab near the plaza/gate; some guards sleep in barracks beds at night while others stay on duty.
-- Special town cats:
-  - The world can designate home towns for named cats: Jekku, Leevi, Alli, and Pulla.
-  - When you enter one of their home towns, that cat appears near the plaza as a simple flavor NPC for now.
-  - Current behavior is intentionally minimal: they keep their special names and say “Meow.”
+- Special town pets:
+  - The world can designate home towns for named cats Jekku, Leevi, Alli, and Pulla, plus the named dog Ava.
+  - When you enter one of their home towns, that pet appears near the plaza as a simple flavor NPC for now.
+  - Current behavior is intentionally minimal: the special cats say “Meow.” and Ava says “Woof.”
 - Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)

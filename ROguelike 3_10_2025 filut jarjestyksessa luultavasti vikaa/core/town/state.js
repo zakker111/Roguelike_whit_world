@@ -152,6 +152,7 @@ function cloneForStorage(st) {
           isShopkeeper: !!n.isShopkeeper,
           isPet: !!n.isPet,
           isSpecialTownCat: !!n.isSpecialTownCat,
+          isSpecialTownDog: !!n.isSpecialTownDog,
           isGuard: !!n.isGuard,
           guard: !!n.guard,
           guardType: n.guardType,

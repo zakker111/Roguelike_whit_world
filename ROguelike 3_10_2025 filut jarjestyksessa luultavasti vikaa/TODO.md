@@ -24,7 +24,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
 - [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
 - [x] Logging convention documented (`docs/phase_workflow.md`)
-- [x] Special town cats expanded and documented: Jekku, Leevi, Alli, and Pulla now have designated home-town support, spawn through the world/town bootstrap flow, and preserve pet identity in town saves (`world/world.js`, `worldgen/town/npcs_bootstrap.js`, `core/town/state.js`, `data/entities/npcs.json`)
+- [x] Special town pets expanded and documented: Jekku, Leevi, Alli, Pulla, and Ava now have designated home-town support, spawn through the world/town bootstrap flow, and preserve pet identity in town saves (`world/world.js`, `worldgen/town/npcs_bootstrap.js`, `core/town/state.js`, `data/entities/npcs.json`)
 
 ## Near-term engineering plan (small slices)
 
