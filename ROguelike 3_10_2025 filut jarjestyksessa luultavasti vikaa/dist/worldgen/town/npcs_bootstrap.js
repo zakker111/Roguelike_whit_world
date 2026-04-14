@@ -218,7 +218,7 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
     }
   } catch (_) {}
 
-  (function placeSpecialCats() {
+  (function placeSpecialPets() {
     try {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
@@ -234,8 +234,13 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
             { name: "Alli", lines: ["Meow."] },
             { name: "Pulla", lines: ["Meow."] },
           ];
+      const specialDogs = (ND && Array.isArray(ND.specialDogs) && ND.specialDogs.length)
+        ? ND.specialDogs
+        : [
+            { name: "Ava", lines: ["Woof."] },
+          ];
 
-      function spawnCatOnce(nameCheck, displayName, lines) {
+      function spawnSpecialPetOnce(nameCheck, displayName, lines, kind) {
         // Avoid duplicate by name if already present
         if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === nameCheck)) return;
         // Prefer a free floor near the plaza
@@ -264,16 +269,17 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
           }
         }
         if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
-        // in memory of my loved pets they live always in my hearth
+        // my friend dog was greatest and shall live forever in our hearths
         ctx.npcs.push({
           x: pos.x,
           y: pos.y,
           name: displayName,
-          kind: "cat",
-          lines: Array.isArray(lines) && lines.length ? lines.slice(0) : ["Meow."],
+          kind: kind === "dog" ? "dog" : "cat",
+          lines: Array.isArray(lines) && lines.length ? lines.slice(0) : [kind === "dog" ? "Woof." : "Meow."],
           pet: true,
           isPet: true,
-          isSpecialTownCat: true
+          isSpecialTownCat: kind === "cat",
+          isSpecialTownDog: kind === "dog"
         });
       }
 
@@ -281,7 +287,14 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
         if (!cat || !cat.name) continue;
         const homeFlag = `${String(cat.name).toLowerCase()}Home`;
         if (!townInfo[homeFlag]) continue;
-        spawnCatOnce(String(cat.name).toLowerCase(), String(cat.name), cat.lines);
+        spawnSpecialPetOnce(String(cat.name).toLowerCase(), String(cat.name), cat.lines, "cat");
+      }
+
+      for (const dog of specialDogs) {
+        if (!dog || !dog.name) continue;
+        const homeFlag = `${String(dog.name).toLowerCase()}Home`;
+        if (!townInfo[homeFlag]) continue;
+        spawnSpecialPetOnce(String(dog.name).toLowerCase(), String(dog.name), dog.lines, "dog");
       }
     } catch (_) {}
   })();

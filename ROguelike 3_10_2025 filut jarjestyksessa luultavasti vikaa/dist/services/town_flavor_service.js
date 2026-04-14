@@ -1,3 +1,5 @@
+import { getTownIncidentRumor } from "./town_incident_service.js";
+
 function currentTownRecord(ctx) {
   try {
     if (!ctx || !ctx.worldReturnPos || !Array.isArray(ctx.world?.towns)) return null;
@@ -65,6 +67,11 @@ export function getTownRumors(ctx) {
   const kind = String((rec && rec.kind) || ctx?.townKind || "town");
   const isHarborTown = !!((rec && rec.harborDir) || ctx?.townHarborDir) && kind !== "castle";
   const storyRumor = storyRumorFromQuestBoard(ctx);
+  const incidentRumor = getTownIncidentRumor(ctx);
+
+  if (incidentRumor && incidentRumor.text && incidentRumor.status === "live") {
+    rumors.push(incidentRumor);
+  }
 
   if (storyRumor && storyRumor.text) {
     rumors.push({
@@ -74,6 +81,10 @@ export function getTownRumors(ctx) {
       text: storyRumor.text,
       cta: storyRumor.cta || ""
     });
+  }
+
+  if (incidentRumor && incidentRumor.text && incidentRumor.status !== "live") {
+    rumors.push(incidentRumor);
   }
 
   if (isHarborTown) {

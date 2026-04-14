@@ -21,6 +21,7 @@ import {
   banditAttackPlayer,
   removeDeadNPCs,
 } from "./town_combat.js";
+import { getCurrentTownIncident, isTownIncidentCombatant } from "../services/town_incident_service.js";
 import {
   inUpstairsInterior,
   innUpstairsBeds,
@@ -58,6 +59,8 @@ function townNPCsAct(ctx) {
   if (!Array.isArray(npcs) || npcs.length === 0) return;
 
   let banditEvent = !!(ctx._townBanditEvent && ctx._townBanditEvent.active);
+  const activeIncident = getCurrentTownIncident(ctx);
+  const liveIncident = !!(activeIncident && activeIncident.status === "live");
   let anyBandit = false;
   for (const n of npcs) {
     if (n && n.isBandit && !n._dead) {
@@ -121,6 +124,36 @@ function townNPCsAct(ctx) {
   ctx._reservedShopDoors = reservedDoors;
 
   ctx._occ = occ;
+
+  function nearestIncidentThreat(from) {
+    let best = null;
+    let bestD = Infinity;
+    for (const m of npcs) {
+      if (!isTownIncidentCombatant(m)) continue;
+      const d = dist1(from.x, from.y, m.x, m.y);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    return best;
+  }
+
+  function nearestBrawlOpponent(from) {
+    let best = null;
+    let bestD = Infinity;
+    for (const m of npcs) {
+      if (!m || m._dead || !m.isTownIncident || m.incidentRole !== "brawler") continue;
+      if (from._townIncidentId && m._townIncidentId !== from._townIncidentId) continue;
+      if (m.brawlSide === from.brawlSide) continue;
+      const d = dist1(from.x, from.y, m.x, m.y);
+      if (d < bestD) {
+        bestD = d;
+        best = m;
+      }
+    }
+    return best;
+  }
 
   try {
     for (let i = 0; i < npcs.length; i++) {
@@ -490,6 +523,19 @@ function townNPCsAct(ctx) {
     }
 
     if (n.isGuard) {
+      if (liveIncident) {
+        const incidentTarget = nearestIncidentThreat(n);
+        if (incidentTarget) {
+          const dIncident = dist1(n.x, n.y, incidentTarget.x, incidentTarget.y);
+          if (dIncident === 1) {
+            applyHit(ctx, n, incidentTarget, 4, 8);
+            continue;
+          }
+          stepTowards(ctx, occ, n, incidentTarget.x, incidentTarget.y, { urgent: true });
+          continue;
+        }
+      }
+
       if (banditEvent && anyBandit) {
         const target = nearestBandit(ctx, n);
         if (target) {
@@ -657,6 +703,69 @@ function townNPCsAct(ctx) {
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
       }
       continue;
+    }
+
+    if (n.isTownIncident) {
+      if (n.incidentRole === "thief") {
+        const gate = ctx.townExitAt || n._thiefEscape || null;
+        if (gate && n.x === (gate.x | 0) && n.y === (gate.y | 0)) {
+          if (activeIncident && activeIncident.id === n._townIncidentId) activeIncident._pendingEscape = true;
+          n._dead = true;
+          continue;
+        }
+
+        if (dist1(n.x, n.y, player.x, player.y) === 1) {
+          banditAttackPlayer(ctx, n);
+          continue;
+        }
+
+        let adjGuard = null;
+        for (const m of npcs) {
+          if (!m || m._dead || !m.isGuard) continue;
+          if (dist1(n.x, n.y, m.x, m.y) === 1) {
+            adjGuard = m;
+            break;
+          }
+        }
+        if (adjGuard) {
+          applyHit(ctx, n, adjGuard, 2, 5);
+          continue;
+        }
+
+        if (gate) {
+          stepTowards(ctx, occ, n, gate.x, gate.y, { urgent: true, flow: ctx.flowToGate || null });
+        } else {
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1), { urgent: true });
+        }
+        continue;
+      }
+
+      if (n.incidentRole === "brawler") {
+        if (dist1(n.x, n.y, player.x, player.y) === 1) {
+          banditAttackPlayer(ctx, n);
+          continue;
+        }
+
+        let adjTarget = null;
+        for (const m of npcs) {
+          if (!m || m._dead || m === n) continue;
+          if (dist1(n.x, n.y, m.x, m.y) !== 1) continue;
+          if (m.isGuard || (m.isTownIncident && m.incidentRole === "brawler" && m.brawlSide !== n.brawlSide)) {
+            adjTarget = m;
+            break;
+          }
+        }
+        if (adjTarget) {
+          applyHit(ctx, n, adjTarget, 2, 6);
+          continue;
+        }
+
+        const rival = nearestBrawlOpponent(n);
+        if (rival) {
+          stepTowards(ctx, occ, n, rival.x, rival.y, { urgent: true });
+          continue;
+        }
+      }
     }
 
     if (n.isCorpseCleaner && Array.isArray(ctx.corpses) && ctx.corpses.length) {

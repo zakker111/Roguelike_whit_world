@@ -12,6 +12,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { isTownIncidentCombatant, markTownIncidentPlayerIntervened, tickTownIncident } from "../../services/town_incident_service.js";
 import { syncFollowersFromTown } from "../followers_runtime.js";
 import { tickSeppo } from "./seppo_runtime.js";
 import { tickTownFollowers } from "./follower_tick.js";
@@ -183,7 +184,8 @@ export function tryMoveTown(ctx, dx, dy) {
     (ctx._townBanditEvent && ctx._townBanditEvent.active) ||
     (occupant && occupant._banditEvent)
   );
-  if (npcBlocked && isBanditTarget && banditEventActive) {
+  const isIncidentTarget = !!(occupant && isTownIncidentCombatant(occupant) && !occupant._dead);
+  if (npcBlocked && ((isBanditTarget && banditEventActive) || isIncidentTarget)) {
     const C =
       (ctx && ctx.Combat) ||
       getMod(ctx, "Combat") ||
@@ -193,6 +195,9 @@ export function tryMoveTown(ctx, dx, dy) {
       const enemyRef = occupant;
       const oldOnEnemyDied = ctx.onEnemyDied;
       try {
+        if (isIncidentTarget) {
+          markTownIncidentPlayerIntervened(ctx, occupant._townIncidentId);
+        }
         // In town combat, killing a bandit should remove the NPC instead of using DungeonRuntime.killEnemy.
         ctx.onEnemyDied = function (enemy) {
           try {
@@ -242,6 +247,9 @@ export function tryMoveTown(ctx, dx, dy) {
     const dmg = Math.max(1, Math.round(atk * mult));
     const maxHp = typeof occupant.maxHp === "number" ? occupant.maxHp : 20;
     if (typeof occupant.hp !== "number") occupant.hp = maxHp;
+    if (isIncidentTarget) {
+      markTownIncidentPlayerIntervened(ctx, occupant._townIncidentId);
+    }
     occupant.hp -= dmg;
     const label = occupant.name || (occupant.isBandit ? "Bandit" : "target");
     try {
@@ -413,6 +421,10 @@ if (typeof window !== "undefined") {
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "town") return false;
 
+  try {
+    tickTownIncident(ctx);
+  } catch { /* ignore */ }
+
   // Wild Seppo (travelling merchant) arrival/departure
   tickSeppo(ctx);
 
@@ -472,6 +484,10 @@ export function tick(ctx) {
       ctx.corpses = ctx.corpses.slice(-50);
     }
   } catch { /\* ignore \*/ }
+
+  try {
+    tickTownIncident(ctx);
+  } catch { /* ignore */ }
 
   return true;
 }

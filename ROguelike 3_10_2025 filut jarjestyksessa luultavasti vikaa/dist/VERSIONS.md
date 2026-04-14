@@ -2,14 +2,15 @@ v1.50.52 — Branch preview refresh on New_branch_14_4_2026
 
 - Prepared a fresh playable preview for `New_branch_14_4_2026`.
 - Bumped the app version metadata for this branch preview so the deployed build can be distinguished from the previous `v1.50.51` cat/documentation preview.
-- Special town cats were refreshed and documented on this branch:
+- Special town pets were refreshed and documented on this branch:
   - Added Leevi and Alli to the current named-cat set alongside Jekku and Pulla.
-  - Special cats are now driven through the existing world/town home-town flow:
+  - Added Ava as a named special dog using the same designated home-town flow and duplicate guard.
+  - Special pets are now driven through the existing world/town home-town flow:
     - `world/world.js` assigns home-town flags
-    - `worldgen/town/npcs_bootstrap.js` spawns the named cats in their designated towns
-    - `core/town/state.js` preserves pet/special-cat identity on town save/load
-    - `data/entities/npcs.json` now holds the named-cat data list
-  - Added the memorial code comment at the special-cat spawn site in `worldgen/town/npcs_bootstrap.js`.
+    - `worldgen/town/npcs_bootstrap.js` spawns the named pets in their designated towns
+    - `core/town/state.js` preserves pet/special-pet identity on town save/load
+    - `data/entities/npcs.json` now holds the named-pet data lists
+  - Added the memorial code comment at the special-pet spawn site in `worldgen/town/npcs_bootstrap.js`.
 - Documentation refresh:
   - Updated `README.md`, `FEATURES.md`, `TODO.md`, and `VERSIONS.md` to reflect the current special-cat behavior and the planned future pet-slot follow-up.
 - Deployment: https://040covf6mv4j.cosine.page

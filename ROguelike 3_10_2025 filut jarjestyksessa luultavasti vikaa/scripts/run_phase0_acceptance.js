@@ -7,6 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath, URL } from 'node:url';
 
 import { chromium } from 'playwright-chromium';
+import { PHASE0_SCENARIO_IDS } from '../smoketest/scenario_registry.js';
 
 const TIMEOUTS = {
   httpReadyMs: 60000,
@@ -149,27 +150,7 @@ async function withTimeout(work, timeoutMs, label) {
 }
 
 // Phase 0 baseline QA gate: broader scenario set + hard failure on boot-time JS errors.
-const PHASE0_SCENARIOS = [
-  'world',
-  'town',
-  'town_rumor_status',
-  'dungeon',
-  'region',
-  'encounters',
-  'inventory',
-  'overlays',
-  // GM baseline readiness checks
-  'gm_seed_reset',
-  'gm_boredom_interest',
-  'gm_bridge_faction_travel',
-  'gm_bridge_markers',
-  'quest_board_gm_markers',
-  'quest_board_thread_status',
-  'caravan_thread_status',
-  'gm_panel_smoke',
-  'gm_bottle_map',
-  'gm_survey_cache'
-].join(',');
+const PHASE0_SCENARIOS = PHASE0_SCENARIO_IDS.join(',');
 
 function parseSeriesRuns(rawValue) {
   const n = Number(rawValue);

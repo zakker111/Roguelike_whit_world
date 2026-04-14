@@ -370,6 +370,78 @@
               record(true, "Shop UI did not open via bump (no G)");
             }
           } catch (_) {}
+
+          // Move a non-inn keeper away from their shop and verify bumping them no longer opens trade.
+          try {
+            var gctxShop = has(window.GameAPI.getCtx) ? window.GameAPI.getCtx() : null;
+            var shopPanelEl = document.getElementById("shop-panel");
+            var nonInnShop = null;
+            var awayKeeper = null;
+            var allShops2 = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
+            var npcsAll3 = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
+            for (var si2 = 0; si2 < allShops2.length && !awayKeeper; si2++) {
+              var candShop = allShops2[si2];
+              if (!candShop || String(candShop.type || "").toLowerCase() === "inn") continue;
+              for (var ni3 = 0; ni3 < npcsAll3.length; ni3++) {
+                var candNpc = npcsAll3[ni3];
+                if (!candNpc || !(candNpc.isShopkeeper || candNpc._shopRef)) continue;
+                if (candNpc._shopRef === candShop) {
+                  nonInnShop = candShop;
+                  awayKeeper = candNpc;
+                  break;
+                }
+              }
+            }
+            if (gctxShop && awayKeeper && nonInnShop) {
+              var oldPos = { x: awayKeeper.x | 0, y: awayKeeper.y | 0 };
+              var awayTarget = gctxShop.townPlaza || gctxShop.townExitAt || null;
+              var movedAway = false;
+              if (awayTarget) {
+                awayKeeper.x = awayTarget.x | 0;
+                awayKeeper.y = awayTarget.y | 0;
+                try {
+                  var TR2 = window.TownRuntime || null;
+                  if (TR2 && typeof TR2.rebuildOccupancy === "function") TR2.rebuildOccupancy(gctxShop);
+                } catch (_) {}
+                movedAway = (Math.abs(awayKeeper.x - nonInnShop.x) + Math.abs(awayKeeper.y - nonInnShop.y)) > 3;
+              }
+              if (movedAway) {
+                if (TP && typeof TP.teleportTo === "function") {
+                  await TP.teleportTo(Math.max(0, awayKeeper.x - 1), awayKeeper.y, { ensureWalkable: true, fallbackScanRadius: 3 });
+                }
+                await sleep(120);
+                var plAway = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: awayKeeper.x - 1, y: awayKeeper.y };
+                var dxAway = Math.sign(awayKeeper.x - plAway.x);
+                var dyAway = Math.sign(awayKeeper.y - plAway.y);
+                key(dxAway === -1 ? "ArrowLeft" : dxAway === 1 ? "ArrowRight" : (dyAway === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(180);
+                var openedAway = !!(shopPanelEl && shopPanelEl.hidden === false);
+                record(!openedAway, "Shopkeeper away from shop: bump does not open trade");
+                if (openedAway) {
+                  key("Escape");
+                  await sleep(100);
+                }
+                try {
+                  var logEl = document.getElementById("log");
+                  var logText = String((logEl && logEl.textContent) || "");
+                  record(/away from the/i.test(logText), "Shopkeeper away from shop: player gets away-from-shop message");
+                } catch (_) {}
+              } else {
+                recordSkip("Shopkeeper away-from-shop check skipped (no distant anchor)");
+              }
+              awayKeeper.x = oldPos.x;
+              awayKeeper.y = oldPos.y;
+              try {
+                var TR3 = window.TownRuntime || null;
+                if (TR3 && typeof TR3.rebuildOccupancy === "function") TR3.rebuildOccupancy(gctxShop);
+              } catch (_) {}
+            } else {
+              recordSkip("Shopkeeper away-from-shop check skipped (no non-inn keeper found)");
+            }
+          } catch (eAway) {
+            record(false, "Shopkeeper away-from-shop check failed: " + (eAway && eAway.message ? eAway.message : String(eAway)));
+          }
+
           // Optional buy/sell
           var didAny = false;
           if (has(window.GameAPI.shopBuyFirst)) { var okB = !!window.GameAPI.shopBuyFirst(); record(okB, "Shop buy (first item)"); didAny = true; }

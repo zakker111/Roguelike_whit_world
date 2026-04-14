@@ -1,3 +1,36 @@
+import { SMOKE_SCENARIOS_BY_ID, resolveScenarioByPath } from "/smoketest/scenario_registry.js";
+import { parseParams } from "/smoketest/runner/config.js";
+import {
+  key,
+  sleep,
+  makeBudget,
+  withTimeout,
+  ensureAllModalsClosed,
+  openGodPanel,
+  waitUntilTrue,
+  waitUntilGameReady,
+  waitUntilScenariosReady,
+  waitUntilRunnerReady,
+  waitUntilGameDataReady,
+  settleFrames,
+  waitForModeStable
+} from "/smoketest/runner/runtime_waits.js";
+import {
+  filterRunStepsForDisplay,
+  buildScenarioOutcomes,
+  buildFlakeSummaries,
+  buildAggregatedStepsForDisplay,
+  summarizeStepPerf,
+  buildPerfWarnings,
+  buildSeriesSummaryHtml,
+  buildDiagnostics,
+  buildScenarioPassCountsObject,
+  buildActionsSummary,
+  buildScenariosSummary,
+  buildAllStepStats,
+  buildAggregatedExportReport
+} from "/smoketest/runner/reporting_helpers.js";
+
 (function () {
   // Orchestrator runner: compact scenario pipeline; now default unless ?legacy=1 is present.
   window.SmokeTest = window.SmokeTest || {};
@@ -7,140 +40,6 @@
         perfBudget: { turnMs: 6.0, drawMs: 12.0 }
       };
       const RUNNER_VERSION = "1.9.0";
-
-  function parseParams() {
-    try {
-      const u = new URL(window.location.href);
-      const p = (name, def) => u.searchParams.get(name) || def;
-
-      // Convenience selectors (avoid copying long scenario lists).
-      // gmphase6=1 maps to the GM v0.3 pipeline doc Phase-6 acceptance set.
-      const gmPhase6 = (p("gmphase6", "0") === "1");
-
-      // Support both legacy "smoke" and new "scenarios" params
-      const legacySel = (p("smoke", "") || "").trim();
-
-      let sel = legacySel
-        ? legacySel
-        : p("scenarios", "world,region,encounters,dungeon,dungeon_stairs_transitions,inventory,combat,town,overlays,determinism");
-
-      if (gmPhase6) {
-        sel = "gm_seed_reset,gm_boredom_interest,gm_bridge_faction_travel,gm_bridge_markers,gm_bottle_map,gm_survey_cache";
-      }
-
-      return {
-        smoketest: p("smoketest", "0") === "1",
-        dev: p("dev", "0") === "1",
-        smokecount: Number(p("smokecount", "1")) || 1,
-        legacy: p("legacy", "0") === "1",
-        // Optional: disable orchestrator auto-run so headless harnesses can call runSeries() explicitly.
-        autorun: p("autorun", "1") !== "0",
-        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
-        // New: skip scenarios after they have passed a given number of runs (0 = disabled)
-        skipokafter: Number(p("skipokafter", "0")) || 0,
-        // Control dungeon persistence scenario frequency: "once" (default), "always", or "never"
-        persistence: (p("persistence", "once") || "once").toLowerCase(),
-        // Optional base seed override; if provided, seeds are derived deterministically per run
-        seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })(),
-        // Abort current run as soon as an immobile condition is detected in any scenario (default: disabled)
-        abortonimmobile: (p("abortonimmobile", "0") === "1"),
-        // Guard against a scenario promise hanging forever inside runSeries().
-        scenariotimeoutms: Math.max(5000, Number(p("scenariotimeoutms", "45000")) || 45000)
-      };
-    } catch (_) {
-      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
-    }
-  }
-
-  function key(code) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom && typeof window.SmokeTest.Helpers.Dom.key === "function") {
-        return window.SmokeTest.Helpers.Dom.key(code);
-      }
-      const ev = new KeyboardEvent("keydown", { key: code, code, bubbles: true });
-      try { window.dispatchEvent(ev); } catch (_) {}
-      try { document.dispatchEvent(ev); } catch (_) {}
-      return true;
-    } catch (_) { return false; }
-  }
-  function sleep(ms) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom && typeof window.SmokeTest.Helpers.Dom.sleep === "function") {
-        return window.SmokeTest.Helpers.Dom.sleep(ms);
-      }
-    } catch (_) {}
-    return new Promise(r => setTimeout(r, Math.max(0, ms | 0)));
-  }
-  function makeBudget(ms) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Budget && typeof window.SmokeTest.Helpers.Budget.makeBudget === "function") {
-        return window.SmokeTest.Helpers.Budget.makeBudget(ms);
-      }
-    } catch (_) {}
-    const start = Date.now(); const dl = start + Math.max(0, ms | 0);
-    return { exceeded: () => Date.now() > dl, remain: () => Math.max(0, dl - Date.now()) };
-  }
-
-  function withTimeout(work, timeoutMs, label) {
-    const ms = Math.max(1, timeoutMs | 0);
-    let timer = null;
-
-    return new Promise((resolve, reject) => {
-      timer = setTimeout(() => {
-        const err = new Error((label || "Operation") + " timed out after " + ms + "ms");
-        err.code = "SMOKE_TIMEOUT";
-        reject(err);
-      }, ms);
-
-      Promise.resolve()
-        .then(() => work())
-        .then(
-          (value) => {
-            try { clearTimeout(timer); } catch (_) {}
-            resolve(value);
-          },
-          (err) => {
-            try { clearTimeout(timer); } catch (_) {}
-            reject(err);
-          }
-        );
-    });
-  }
-
-  // Optional: close any modals that could obstruct movement
-  async function ensureAllModalsClosed(times) {
-    try {
-      const n = Math.max(1, times | 0);
-      for (let i = 0; i < n; i++) {
-        key("Escape"); await sleep(80);
-        try {
-          const UIO = window.UIOrchestration;
-          if (UIO && typeof UIO.hideLoot === "function") UIO.hideLoot({});
-          if (UIO && typeof UIO.hideInventory === "function") UIO.hideInventory({});
-          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod({});
-          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop({});
-          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke({});
-          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm({});
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
-
-  // Ensure the GOD panel is visible so logs render into its output area
-  function openGodPanel() {
-    try {
-      const UIO = window.UIOrchestration;
-      if (UIO && typeof UIO.showGod === "function") {
-        UIO.showGod({});
-        return true;
-      }
-    } catch (_) {}
-    try {
-      const btn = document.getElementById("god-open-btn");
-      if (btn) { btn.click(); return true; }
-    } catch (_) {}
-    return false;
-  }
 
   function detectCaps() {
     try {
@@ -171,230 +70,12 @@
     } catch (_) {}
   }
 
-  // Wait helpers: prefer Dom.waitUntilTrue if available, else fallback
-  async function waitUntilTrue(fn, timeoutMs, intervalMs) {
-    try {
-      var D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
-      if (D && typeof D.waitUntilTrue === "function") {
-        return await D.waitUntilTrue(fn, timeoutMs, intervalMs);
-      }
-    } catch (_) {}
-    var deadline = Date.now() + Math.max(0, (timeoutMs | 0) || 0);
-    var interval = Math.max(1, (intervalMs | 0) || 50);
-    while (Date.now() < deadline) {
-      try { if (fn()) return true; } catch (_) {}
-      await sleep(interval);
-    }
-    try { return !!fn(); } catch (_) { return false; }
-  }
-
-  function isGameReady() {
-    try {
-      var G = window.GameAPI || {};
-      if (typeof G.getMode === "function") {
-        var m = G.getMode();
-        if (m === "world" || m === "dungeon" || m === "town") return true;
-      }
-      // Fallback: player exists with coordinates
-      if (typeof G.getPlayer === "function") {
-        var p = G.getPlayer();
-        if (p && typeof p.x === "number" && typeof p.y === "number") return true;
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  async function waitUntilGameReady(timeoutMs) {
-    return await waitUntilTrue(() => isGameReady(), Math.max(500, timeoutMs | 0), 80);
-  }
-
-  // New: wait until scenarios have been defined (avoid "Scenario 'X' not available" due to load race)
-  async function waitUntilScenariosReady(timeoutMs) {
-    const ok = await waitUntilTrue(() => {
-      try {
-        const S = window.SmokeTest && window.SmokeTest.Scenarios;
-        if (!S) return false;
-        // Require at least a couple of core scenarios to be present
-        const hasAny =
-          (S.World && typeof S.World.run === "function") ||
-          (S.Dungeon && typeof S.Dungeon.run === "function") ||
-          (S.Inventory && typeof S.Inventory.run === "function") ||
-          (S.Combat && typeof S.Combat.run === "function");
-        return !!hasAny;
-      } catch (_) { return false; }
-    }, Math.max(600, timeoutMs | 0), 60);
-    return ok;
-  }
-
-  // Comprehensive runner readiness check: game, scenarios, UI, and canvas
-  function isRunnerReady() {
-    try {
-      const G = window.GameAPI || {};
-      // Mode or player coordinate availability
-      let modeOK = false;
-      try {
-        if (typeof G.getMode === "function") {
-          const m = G.getMode();
-          modeOK = (m === "world" || m === "dungeon" || m === "town");
-        }
-      } catch (_) {}
-      let playerOK = false;
-      try {
-        if (typeof G.getPlayer === "function") {
-          const p = G.getPlayer();
-          playerOK = !!(p && typeof p.x === "number" && typeof p.y === "number");
-        }
-      } catch (_) {}
-      const baseOK = (modeOK || playerOK);
-
-      // Scenarios present (same as waitUntilScenariosReady)
-      const scenariosOK = (() => {
-        try {
-          const S = window.SmokeTest && window.SmokeTest.Scenarios;
-          if (!S) return false;
-          return !!(
-            (S.World && typeof S.World.run === "function") ||
-            (S.Dungeon && typeof S.Dungeon.run === "function") ||
-            (S.Inventory && typeof S.Inventory.run === "function") ||
-            (S.Combat && typeof S.Combat.run === "function")
-          );
-        } catch (_) { return false; }
-      })();
-
-      // UI baseline: able to close GOD or at least find the open button
-      const uiOK = (() => {
-        try {
-          if (window.UIOrchestration && typeof window.UIOrchestration.hideGod === "function") return true;
-          const gob = document.getElementById("god-open-btn");
-          return !!gob;
-        } catch (_) { return false; }
-      })();
-
-      // Canvas present
-      const canvasOK = (() => {
-        try { return !!document.getElementById("game"); } catch (_) { return false; }
-      })();
-
-      return baseOK && scenariosOK && uiOK && canvasOK;
-    } catch (_) { return false; }
-  }
-
-  async function waitUntilRunnerReady(timeoutMs) {
-    const to = Math.max(600, timeoutMs | 0);
-    return await waitUntilTrue(() => isRunnerReady(), to, 80);
-  }
-
-  // Runner-level data readiness: wait for GameData.ready to settle (when present)
-  async function waitUntilGameDataReady(timeoutMs) {
-    try {
-      const GD = (typeof window !== "undefined") ? window.GameData : null;
-      if (!GD || !GD.ready || typeof GD.ready.then !== "function") return true;
-
-      let settled = false;
-      try {
-        GD.ready.then(
-          () => { settled = true; },
-          () => { settled = true; }
-        );
-      } catch (_) {
-        settled = true;
-      }
-
-      const ok = await waitUntilTrue(() => settled, Math.max(250, timeoutMs | 0), 80);
-      return !!ok;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  async function settleFrames(count) {
-    const n = Math.max(1, count | 0);
-    for (let i = 0; i < n; i++) {
-      await new Promise(r => {
-        let done = false;
-        const finish = () => { if (!done) { done = true; r(); } };
-        const t = setTimeout(finish, 50);
-        try {
-          if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-            window.requestAnimationFrame(() => { try { clearTimeout(t); } catch (_) {} finish(); });
-          }
-        } catch (_) {}
-      });
-    }
-  }
-
-  async function waitForModeStable(targetMode, timeoutMs) {
-    try {
-      const G = window.GameAPI || {};
-      const ok = await waitUntilTrue(() => {
-        try {
-          if (typeof G.getMode === "function" && G.getMode() !== targetMode) return false;
-          if (typeof G.getPlayer === "function") {
-            const p = G.getPlayer();
-            if (!p || typeof p.x !== "number" || typeof p.y !== "number") return false;
-          }
-          if (targetMode === "world" && typeof G.getWorld === "function") {
-            const w = G.getWorld();
-            if (!w || !Array.isArray(w.map) || !w.map.length) return false;
-          }
-          if (targetMode !== "world" && typeof G.getCtx === "function") {
-            const ctx = G.getCtx();
-            const map = (ctx && typeof ctx.getMap === "function") ? ctx.getMap() : (ctx ? ctx.map : null);
-            if (!Array.isArray(map) || !map.length) return false;
-          }
-          return true;
-        } catch (_) {
-          return false;
-        }
-      }, Math.max(250, timeoutMs | 0), 80);
-      if (ok) await settleFrames(2);
-      return !!ok;
-    } catch (_) {
-      return false;
-    }
-  }
-
   function resolveScenarioFn(name) {
     try {
       const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : null;
       if (!S) return null;
-      if (name === "world") return S.World && S.World.run;
-      if (name === "region") return S.Region && S.Region.run;
-      if (name === "dungeon") return S.Dungeon && S.Dungeon.run;
-      if (name === "inventory") return S.Inventory && S.Inventory.run;
-      if (name === "combat") return S.Combat && S.Combat.run;
-      if (name === "dungeon_persistence") return S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run;
-      if (name === "dungeon_stairs_transitions") return S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run;
-      if (name === "town") return S.Town && S.Town.run;
-      if (name === "town_rumor_status") return S.town_rumor_status && S.town_rumor_status.run;
-      if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
-      if (name === "harbor_fast_travel") return S.HarborFastTravel && S.HarborFastTravel.run;
-      if (name === "overlays") return S.Overlays && S.Overlays.run;
-      if (name === "ui_layout") return S.UILayout && S.UILayout.run;
-      if (name === "determinism") return S.Determinism && S.Determinism.run;
-      if (name === "encounters") return (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run);
-      if (name === "api") return S.API && S.API.run;
-      if (name === "town_flows") return S.Town && S.Town.Flows && S.Town.Flows.run;
-      if (name === "skeleton_key_chest") return S.skeleton_key_chest && S.skeleton_key_chest.run;
-      if (name === "gm_mechanic_hints") return S.GMMechanicHints && S.GMMechanicHints.run;
-      if (name === "gm_intent_decisions") return S.GMIntentDecisions && S.GMIntentDecisions.run;
-      if (name === "gm_seed_reset") return S.gm_seed_reset && S.gm_seed_reset.run;
-      if (name === "gm_boredom_interest") return S.gm_boredom_interest && S.gm_boredom_interest.run;
-      if (name === "gm_boredom_milestones") return S.gm_boredom_milestones && S.gm_boredom_milestones.run;
-      if (name === "gm_bridge_markers") return S.gm_bridge_markers && S.gm_bridge_markers.run;
-      if (name === "gm_bridge_faction_travel") return S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run;
-      if (name === "gm_bottle_map") return S.gm_bottle_map && S.gm_bottle_map.run;
-      if (name === "gm_bottle_map_fishing_pity") return S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run;
-      if (name === "gm_survey_cache") return S.gm_survey_cache && S.gm_survey_cache.run;
-      if (name === "gm_survey_cache_spawn_gate") return S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run;
-      if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
-      if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
-      if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
-      if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
-      if (name === "quest_board_thread_status") return S.quest_board_thread_status && S.quest_board_thread_status.run;
-      if (name === "caravan_thread_status") return S.caravan_thread_status && S.caravan_thread_status.run;
-      if (name === "gm_panel_smoke") return S.gm_panel_smoke && S.gm_panel_smoke.run;
-      if (name === "logging_filters") return S.logging_filters && S.logging_filters.run;
+      const meta = name ? SMOKE_SCENARIOS_BY_ID[name] : null;
+      if (meta && meta.resolver) return resolveScenarioByPath(S, meta.resolver);
     } catch (_) {}
     return null;
   }
@@ -1900,35 +1581,7 @@
       let effectiveFailedSteps = [];
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        // Suppress known failure counterparts if their success occurred within this run
-        const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-        const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
-        // Detect combat success variants within this run
-        const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
-          (s.scenario && s.scenario === "combat") ||
-          /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
-        ));
-        const shouldSuppressMsg = (msg) => {
-          const t = String(msg || "");
-          // Hide town failure counterparts if any town entry succeeded in this run
-          if (sawTownOkRun) {
-            if (/town entry not achieved/i.test(t)) return true;
-            if (/town overlays skipped/i.test(t)) return true;
-            if (/town diagnostics skipped/i.test(t)) return true;
-            if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
-          if (sawDungeonOkRun) {
-            if (/dungeon entry failed/i.test(t)) return true;
-            if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide combat skip noise if we saw any combat success in this run
-          if (sawCombatOkRun) {
-            if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
-          }
-          return false;
-        };
-        const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
+        const filteredSteps = filterRunStepsForDisplay(steps);
         const passed = filteredSteps.filter(s => s.ok && !s.skipped);
         const skipped = filteredSteps.filter(s => s.skipped);
         const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
@@ -2558,95 +2211,20 @@
         };
       })
       .filter(run => !run.ok);
-    const scenarioOutcomes = (() => {
-      const out = {};
-      try {
-        for (const res of all) {
-          if (!res || !Array.isArray(res.scenarioResults)) continue;
-          for (const sr of res.scenarioResults) {
-            if (!sr || !sr.name) continue;
-            const name = String(sr.name);
-            if (!out[name]) {
-              out[name] = {
-                runs: 0,
-                passRuns: 0,
-                failRuns: 0,
-                rawPassRuns: 0,
-                rawFailRuns: 0,
-                heuristicPassRuns: 0,
-                skippedStableRuns: 0,
-                skippedMissingRuns: 0,
-                hardFailMessages: []
-              };
-            }
-            const cur = out[name];
-            cur.runs += 1;
-            if (sr.skippedStable) {
-              cur.skippedStableRuns += 1;
-              continue;
-            }
-            if (sr.skippedMissing) {
-              cur.skippedMissingRuns += 1;
-              continue;
-            }
-            if (sr.rawPassed) cur.rawPassRuns += 1;
-            else cur.rawFailRuns += 1;
-            if (sr.passed) cur.passRuns += 1;
-            else cur.failRuns += 1;
-            if (sr.normalizedByHeuristic) cur.heuristicPassRuns += 1;
-            const msgs = Array.isArray(sr.hardFailMessages) ? sr.hardFailMessages : [];
-            for (const msg of msgs) {
-              if (cur.hardFailMessages.indexOf(msg) === -1) cur.hardFailMessages.push(msg);
-            }
-          }
-          Object.keys(out).forEach((name) => {
-            const cur = out[name];
-            if (!cur) return;
-            cur.executedRuns = Math.max(0, (cur.runs | 0) - (cur.skippedStableRuns | 0) - (cur.skippedMissingRuns | 0));
-          });
-        }
-      } catch (_) {}
-      return out;
-    })();
-    const normalizedFlakeScenarios = Object.entries(scenarioOutcomes)
-      .filter(([, outcome]) => outcome && outcome.passRuns > 0 && outcome.failRuns > 0)
-      .map(([name, outcome]) => ({ name, ...outcome }));
-    const rawFlakeScenarios = Object.entries(scenarioOutcomes)
-      .filter(([, outcome]) => outcome && outcome.rawPassRuns > 0 && outcome.rawFailRuns > 0)
-      .map(([name, outcome]) => ({ name, ...outcome }));
-    const flakeScenarios = rawFlakeScenarios;
-    const flake = flakeScenarios.length > 0;
+    const scenarioOutcomes = buildScenarioOutcomes(all);
+    const {
+      normalizedFlakeScenarios,
+      rawFlakeScenarios,
+      flakeScenarios,
+      flake
+    } = buildFlakeSummaries(scenarioOutcomes);
     const seriesOk = hardFailRuns.length === 0 && !flake;
 
     // Summary via reporting module and full aggregated report
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
-      // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
-      let aggregatedSteps = Array.from(agg.values()).map(v => {
-        return { ok: !!v.ok, msg: v.msg, skipped: (!v.ok && !!v.skippedAny) };
-      });
-      // Coalesce known categories: if town/dungeon/combat succeeded anywhere, hide their failure counterparts
-      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-      const sawDungeonOkAgg = aggregatedSteps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
-      const sawCombatOkAgg = aggregatedSteps.some(s => s.ok && (/moved and attempted attacks|killed enemy|attacked enemy|combat effects:/i.test(String(s.msg || ""))));
-      aggregatedSteps = aggregatedSteps.filter(s => {
-        const t = String(s.msg || "");
-        if (sawTownOkAgg) {
-          if (/town entry not achieved/i.test(t)) return false;
-          if (/town overlays skipped/i.test(t)) return false;
-          if (/town diagnostics skipped/i.test(t)) return false;
-          if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return false;
-        }
-        if (sawDungeonOkAgg) {
-          if (/dungeon entry failed/i.test(t)) return false;
-          if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return false;
-        }
-        if (sawCombatOkAgg) {
-          if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return false;
-        }
-        return true;
-      });
+      let aggregatedSteps = buildAggregatedStepsForDisplay(Array.from(agg.values()));
 
       const failedAgg = aggregatedSteps.filter(s => !s.ok && !s.skipped);
       const passedAgg = aggregatedSteps.filter(s => s.ok && !s.skipped);
@@ -2677,39 +2255,21 @@
           })
         : [headerHtmlAgg, keyChecklistAgg, issuesHtmlAgg, passedHtmlAgg, skippedHtmlAgg, detailsHtmlAgg].join("");
 
-      // Compute per-step PERF averages for a more representative summary
-      let stepAvgTurn = 0, stepAvgDraw = 0;
-      try {
-        const allSteps = [];
-        for (const res of all) {
-          if (res && Array.isArray(res.steps)) {
-            for (const s of res.steps) { if (s && s.perf) allSteps.push(s.perf); }
-          }
-        }
-        if (allSteps.length) {
-          let sumT = 0, sumD = 0;
-          for (const p of allSteps) { sumT += Number(p.turn || 0); sumD += Number(p.draw || 0); }
-          stepAvgTurn = sumT / allSteps.length;
-          stepAvgDraw = sumD / allSteps.length;
-        }
-      } catch (_) {}
-
-      const perfWarnings = [];
-      try {
-        if (stepAvgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg per-step turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
-        if (stepAvgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg per-step draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
-      } catch (_) {}
-
-      const failColorSum = fail ? '#ef4444' : '#86efac';
-      const flakeColor = flake ? '#f59e0b' : '#86efac';
-      const normalizedFlakeColor = normalizedFlakeScenarios.length ? '#f59e0b' : '#86efac';
-      const summary = [
-        `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
-        `<div>Series status: <span style="color:${seriesOk ? '#86efac' : '#ef4444'};">${seriesOk ? 'PASS' : 'FAIL'}</span>  •  Raw flaky scenarios: <span style="color:${flakeColor};">${flakeScenarios.length}</span>  •  Normalized flaky scenarios: <span style="color:${normalizedFlakeColor};">${normalizedFlakeScenarios.length}</span></div>`,
-        `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
-        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-      ].join("");
+      const { stepAvgTurn, stepAvgDraw } = summarizeStepPerf(all);
+      const perfWarnings = buildPerfWarnings(stepAvgTurn, stepAvgDraw, CONFIG.perfBudget);
+      const summary = buildSeriesSummaryHtml({
+        runs: n,
+        pass,
+        fail,
+        skippedRuns,
+        skippedAggCount: skippedAgg.length,
+        seriesOk,
+        flakeScenarios,
+        normalizedFlakeScenarios,
+        stepAvgTurn,
+        stepAvgDraw,
+        perfWarnings
+      });
 
       // Append final aggregated report (keep per-run sections visible)
       try {
@@ -2739,161 +2299,47 @@
               aggregatedKeyChecklist = R.buildKeyChecklistObjectFromSteps(aggregatedSteps);
             }
           } catch (_) {}
-          const diagnostics = (() => {
-            try {
-              const imm = aggregatedSteps.filter(s => !s.ok && !s.skipped && /immobile/i.test(String(s.msg || ""))).length;
-              const dead = aggregatedSteps.filter(s => !s.ok && !s.skipped && /(death|dead|game over)/i.test(String(s.msg || ""))).length;
-              return { immobileFailures: imm, deathFailures: dead };
-            } catch (_) { return { immobileFailures: 0, deathFailures: 0 }; }
-          })();
-          const scenarioPassCountsObj = (() => {
-            const obj = {};
-            try {
-              scenarioPassCounts.forEach((v, k) => { obj[k] = v | 0; });
-            } catch (_) {}
-            return obj;
-          })();
-          const actionsSummary = (() => {
-            const sum = {};
-            try {
-              for (const res of all) {
-                if (!res || !res.trace || !Array.isArray(res.trace.actions)) continue;
-                for (const act of res.trace.actions) {
-                  const t = String((act && act.type) || "");
-                  if (!t) continue;
-                  if (!sum[t]) sum[t] = { count: 0, success: 0 };
-                  sum[t].count += 1;
-                  if (act && act.success) sum[t].success += 1;
-                }
-              }
-            } catch (_) {}
-            return sum;
-          })();
-          // Scenario timing summary across runs
-          const scenariosSummary = (() => {
-            const m = {};
-            try {
-              for (const res of all) {
-                if (!res || !res.trace || !Array.isArray(res.trace.scenarioTraces)) continue;
-                // Build pass map for this run
-                const passMap = {};
-                try {
-                  if (Array.isArray(res.scenarioResults)) {
-                    for (const sr of res.scenarioResults) {
-                      if (sr && sr.name) passMap[sr.name] = !!sr.passed;
-                    }
-                  }
-                } catch (_) {}
-                for (const st of res.trace.scenarioTraces) {
-                  if (!st || !st.name) continue;
-                  const name = st.name;
-                  const dur = Math.max(0, st.durationMs | 0);
-                  const prev = m[name] || { runs: 0, passed: 0, sumDurationMs: 0, minDurationMs: null, maxDurationMs: null };
-                  prev.runs += 1;
-                  if (passMap[name]) prev.passed += 1;
-                  prev.sumDurationMs += dur;
-                  prev.minDurationMs = (prev.minDurationMs == null) ? dur : Math.min(prev.minDurationMs, dur);
-                  prev.maxDurationMs = (prev.maxDurationMs == null) ? dur : Math.max(prev.maxDurationMs, dur);
-                  m[name] = prev;
-                }
-              }
-              // finalize averages
-              Object.keys(m).forEach(k => {
-                const v = m[k];
-                v.avgDurationMs = v.runs ? (v.sumDurationMs / v.runs) : 0;
-                delete v.sumDurationMs;
-              });
-            } catch (_) {}
-            return m;
-          })();
-          // Step-level tile/modal/perf stats across the entire series
-          const allSteps = [];
-          try { for (const res of all) { if (res && Array.isArray(res.steps)) allSteps.push.apply(allSteps, res.steps); } } catch (_) {}
-          const stepTileStats = (() => {
-            const out = { TOWN: 0, DUNGEON: 0, walkable: 0, blocked: 0, unknown: 0 };
-            try {
-              for (const s of allSteps) {
-                const t = String((s && s.tile) || "(unknown)");
-                if (t === "TOWN") out.TOWN += 1;
-                else if (t === "DUNGEON") out.DUNGEON += 1;
-                else if (t === "walkable") out.walkable += 1;
-                else if (t === "blocked") out.blocked += 1;
-                else out.unknown += 1;
-              }
-            } catch (_) {}
-            return out;
-          })();
-          const stepModalStats = (() => {
-            const out = { samples: 0, god: 0, inventory: 0, loot: 0, shop: 0, smoke: 0 };
-            try {
-              for (const s of allSteps) {
-                if (!s || !s.modals) continue;
-                out.samples += 1;
-                if (s.modals.god === true) out.god += 1;
-                if (s.modals.inventory === true) out.inventory += 1;
-                if (s.modals.loot === true) out.loot += 1;
-                if (s.modals.shop === true) out.shop += 1;
-                if (s.modals.smoke === true) out.smoke += 1;
-              }
-            } catch (_) {}
-            return out;
-          })();
-          const stepPerfStats = (() => {
-            const out = { count: 0, avgTurnMs: 0, avgDrawMs: 0, minTurnMs: null, maxTurnMs: null, minDrawMs: null, maxDrawMs: null };
-            try {
-              let sumTurn = 0, sumDraw = 0;
-              for (const s of allSteps) {
-                if (!s || !s.perf) continue;
-                const t = Number(s.perf.turn || 0);
-                const d = Number(s.perf.draw || 0);
-                sumTurn += t;
-                sumDraw += d;
-                out.count += 1;
-                out.minTurnMs = (out.minTurnMs == null) ? t : Math.min(out.minTurnMs, t);
-                out.maxTurnMs = (out.maxTurnMs == null) ? t : Math.max(out.maxTurnMs, t);
-                out.minDrawMs = (out.minDrawMs == null) ? d : Math.min(out.minDrawMs, d);
-                out.maxDrawMs = (out.maxDrawMs == null) ? d : Math.max(out.maxDrawMs, d);
-              }
-              out.avgTurnMs = out.count ? (sumTurn / out.count) : 0;
-              out.avgDrawMs = out.count ? (sumDraw / out.count) : 0;
-            } catch (_) {}
-            return out;
-          })();
-
-          const rep = {
+          const diagnostics = buildDiagnostics(aggregatedSteps);
+          const scenarioPassCountsObj = buildScenarioPassCountsObject(scenarioPassCounts);
+          const actionsSummary = buildActionsSummary(all);
+          const scenariosSummary = buildScenariosSummary(all);
+          const {
+            stepTileStats,
+            stepModalStats,
+            stepPerfStats
+          } = buildAllStepStats(all);
+          const {
+            rep,
+            summaryText
+          } = buildAggregatedExportReport({
             runnerVersion: RUNNER_VERSION,
             runs: n,
-            pass, fail,
+            pass,
+            fail,
             seriesOk,
             flake,
             flakeScenarios,
             normalizedFlakeScenarios,
             scenarioOutcomes,
             hardFailRuns,
-            skipped: skippedRuns,
-            avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
-            avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
-            // Per-step averages across all steps in all runs (more representative)
-            stepAvgTurnMs: Number(stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn),
-            stepAvgDrawMs: Number(stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw),
-            results: all,
+            skippedRuns,
+            avgTurn,
+            avgDraw,
+            stepAvgTurn,
+            stepAvgDraw,
+            allResults: all,
             aggregatedSteps,
-            seeds: usedSeedList,
+            usedSeedList,
             params,
-            keyChecklist: aggregatedKeyChecklist,
+            aggregatedKeyChecklist,
             diagnostics,
-            scenarioPassCounts: scenarioPassCountsObj,
+            scenarioPassCountsObj,
             actionsSummary,
             scenariosSummary,
             stepTileStats,
             stepModalStats,
             stepPerfStats
-          };
-          const summaryText = [
-            `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
-            `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}  Skipped: ${rep.skipped}`,
-            `Avg PERF (per-step): turn ${rep.stepAvgTurnMs} ms, draw ${rep.stepAvgDrawMs} ms`
-          ].join("\n");
+          });
           const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
           E.attachButtons(rep, summaryText, checklistText);
         }
