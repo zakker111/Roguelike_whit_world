@@ -12,7 +12,7 @@ v1.50.52 — Branch preview refresh on New_branch_14_4_2026
   - Added the memorial code comment at the special-cat spawn site in `worldgen/town/npcs_bootstrap.js`.
 - Documentation refresh:
   - Updated `README.md`, `FEATURES.md`, `TODO.md`, and `VERSIONS.md` to reflect the current special-cat behavior and the planned future pet-slot follow-up.
-- Deployment: https://12j0erhd6lhf.cosine.page
+- Deployment: https://040covf6mv4j.cosine.page
 
 v1.50.50 — Overworld FOV guard cache fix
 
