@@ -76,6 +76,20 @@
     "Pumpkin",
     "Neko"
   ],
+  "specialCats": [
+    {
+      "name": "Alli",
+      "lines": [
+        "Meow."
+      ]
+    },
+    {
+      "name": "Pulla",
+      "lines": [
+        "Meow."
+      ]
+    }
+  ],
   "petDogs": [
     "Dog",
     "Rover",

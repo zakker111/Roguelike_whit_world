@@ -113,6 +113,62 @@ function pickHarborHome(ctx, harborBuildings, fallbackSpot) {
   }
 }
 
+function getRunSeed(ctx) {
+  try {
+    if (ctx && typeof ctx.seed === "number" && Number.isFinite(ctx.seed)) return ctx.seed >>> 0;
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
+      const s = Number(window.RNG.getSeed());
+      if (Number.isFinite(s)) return s >>> 0;
+    }
+  } catch (_) {}
+  try {
+    if (typeof localStorage !== "undefined") {
+      const s = Number(localStorage.getItem("SEED"));
+      if (Number.isFinite(s)) return s >>> 0;
+    }
+  } catch (_) {}
+  return 0;
+}
+
+function hash32(value) {
+  let h = 2166136261 >>> 0;
+  const str = String(value || "");
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function getSpecialCatTownKey(ctx) {
+  try {
+    const towns = Array.isArray(ctx && ctx.world && ctx.world.towns) ? ctx.world.towns : [];
+    if (!towns.length) return null;
+    const seededTowns = towns
+      .filter(t => t && typeof t.x === "number" && typeof t.y === "number")
+      .slice()
+      .sort((a, b) => ((a.x | 0) - (b.x | 0)) || ((a.y | 0) - (b.y | 0)));
+    if (!seededTowns.length) return null;
+    const seed = getRunSeed(ctx);
+    const idx = hash32(`special-cat-town:${seed}`) % seededTowns.length;
+    const town = seededTowns[idx];
+    return town ? `${town.x | 0},${town.y | 0}` : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function isCurrentSpecialCatTown(ctx) {
+  try {
+    const pos = ctx && ctx.worldReturnPos;
+    if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") return false;
+    const currentKey = `${pos.x | 0},${pos.y | 0}`;
+    return currentKey === getSpecialCatTownKey(ctx);
+  } catch (_) {
+    return false;
+  }
+}
+
 // --- Main population entry point ---
 
 function populateTown(ctx) {
@@ -551,6 +607,13 @@ function populateTown(ctx) {
       ND && Array.isArray(ND.petDogs) && ND.petDogs.length
         ? ND.petDogs
         : ["Dog", "Rover", "Buddy"];
+    const specialCats =
+      ND && Array.isArray(ND.specialCats) && ND.specialCats.length
+        ? ND.specialCats
+        : [
+            { name: "Alli", lines: ["Meow."] },
+            { name: "Pulla", lines: ["Meow."] },
+          ];
     function placeFree() {
       for (let t = 0; t < 200; t++) {
         const x = randInt(ctx, 2, ctx.map[0].length - 3);
@@ -559,7 +622,28 @@ function populateTown(ctx) {
       }
       return null;
     }
-    for (let i = 0; i < maxCats; i++) {
+
+    let catsPlaced = 0;
+    if (isCurrentSpecialCatTown(ctx)) {
+      for (const cat of specialCats) {
+        if (!cat || !cat.name || catsPlaced >= maxCats) break;
+        if (ctx.npcs.some(n => n && String(n.name || "") === String(cat.name))) continue;
+        const spot = placeFree();
+        if (!spot) break;
+        ctx.npcs.push({
+          x: spot.x,
+          y: spot.y,
+          name: String(cat.name),
+          lines: Array.isArray(cat.lines) && cat.lines.length ? cat.lines.slice(0) : ["Meow."],
+          isPet: true,
+          isSpecialTownCat: true,
+          kind: "cat",
+        });
+        catsPlaced++;
+      }
+    }
+
+    for (let i = catsPlaced; i < maxCats; i++) {
       const spot = placeFree();
       if (!spot) break;
       ctx.npcs.push({
