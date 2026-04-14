@@ -321,17 +321,26 @@ export function generate(ctx, opts = {}) {
     }
   );
 
-  // Choose one town to be Jekku's home (only once per world) and one for Pulla
-if (towns.length) {
-  const jekkuIndex = (rng() * towns.length) | 0;
-  towns[jekkuIndex].jekkuHome = true;
-
-  let pullaIndex = (rng() * towns.length) | 0;
-  if (towns.length > 1 && pullaIndex === jekkuIndex) {
-    pullaIndex = (pullaIndex + 1) % towns.length;
+  if (towns.length) {
+    const specialCatHomes = [
+      { flag: "jekkuHome" },
+      { flag: "leeviHome" },
+      { flag: "alliHome" },
+      { flag: "pullaHome" },
+    ];
+    const used = new Set();
+    for (const spec of specialCatHomes) {
+      let idx = (rng() * towns.length) | 0;
+      if (towns.length > used.size) {
+        let guard = 0;
+        while (used.has(idx) && guard++ < towns.length * 2) {
+          idx = (idx + 1) % towns.length;
+        }
+      }
+      used.add(idx);
+      towns[idx][spec.flag] = true;
+    }
   }
-  towns[pullaIndex].pullaHome = true;
-}
 
   // Helper: pick dungeon size with probabilities influenced by terrain
   function pickDungeonSizeFor(tile) {
