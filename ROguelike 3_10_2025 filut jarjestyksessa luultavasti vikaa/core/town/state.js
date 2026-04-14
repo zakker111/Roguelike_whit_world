@@ -152,7 +152,26 @@ function cloneForStorage(st) {
           isShopkeeper: !!n.isShopkeeper,
           isPet: !!n.isPet,
           isSpecialTownCat: !!n.isSpecialTownCat,
+          isGuard: !!n.isGuard,
+          guard: !!n.guard,
+          guardType: n.guardType,
+          isBandit: !!n.isBandit,
+          hostile: !!n.hostile,
           kind: n.kind,
+          faction: n.faction,
+          type: n.type,
+          level: n.level,
+          atk: n.atk,
+          hp: n.hp,
+          maxHp: n.maxHp,
+          _guardPost: n._guardPost ? { x: n._guardPost.x, y: n._guardPost.y } : undefined,
+          isTownIncident: !!n.isTownIncident,
+          incidentRole: n.incidentRole,
+          incidentFaction: n.incidentFaction,
+          incidentType: n.incidentType,
+          _townIncidentId: n._townIncidentId,
+          brawlSide: n.brawlSide,
+          _incidentEscaped: !!n._incidentEscaped,
           greeter: !!n.greeter,
           isSeppo: !!n.isSeppo,
           seppo: !!n.seppo
@@ -189,7 +208,8 @@ function cloneForStorage(st) {
     // Persist roads mask when present (for consistent rendering on revisit)
     townRoads: Array.isArray(st.townRoads) ? st.townRoads : null,
     townName: st.townName || null,
-    townSize: st.townSize || null
+    townSize: st.townSize || null,
+    townIncident: st.townIncident || null
   };
   return out;
 }
@@ -224,7 +244,18 @@ export function save(ctx) {
     // Persist roads mask for rendering on reload
     townRoads: Array.isArray(ctx.townRoads) ? ctx.townRoads : null,
     townName: ctx.townName || null,
-    townSize: ctx.townSize || null
+    townSize: ctx.townSize || null,
+    townIncident: (function () {
+      try {
+        if (!ctx || !ctx.worldReturnPos || !Array.isArray(ctx.world?.towns)) return null;
+        const wx = ctx.worldReturnPos.x | 0;
+        const wy = ctx.worldReturnPos.y | 0;
+        const rec = ctx.world.towns.find(t => t && (t.x | 0) === wx && (t.y | 0) === wy) || null;
+        return rec && rec.gmIncident ? JSON.parse(JSON.stringify(rec.gmIncident)) : null;
+      } catch (_) {
+        return null;
+      }
+    })()
   };
 
   const cloned = cloneForStorage(snapshot);
@@ -355,6 +386,21 @@ function applyState(ctx, st, x, y) {
   ctx.townExitAt = st.townExitAt || null;
   ctx.townName = st.townName || ctx.townName || null;
   ctx.townSize = st.townSize || ctx.townSize || null;
+
+  try {
+    if (Array.isArray(ctx.world?.towns) && typeof x === "number" && typeof y === "number") {
+      const rec = ctx.world.towns.find(t => t && (t.x | 0) === (x | 0) && (t.y | 0) === (y | 0)) || null;
+      if (rec) {
+        if (st.townIncident) {
+          rec.gmIncident = st.townIncident;
+          const hasLiveActors = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.isTownIncident && n._townIncidentId === rec.gmIncident.id);
+          rec.gmIncident.spawnedActors = !!hasLiveActors;
+        } else {
+          delete rec.gmIncident;
+        }
+      }
+    }
+  } catch (_) {}
 
   // Ensure we can return to the same overworld tile on exit
   ctx.worldReturnPos = { x, y };

@@ -153,6 +153,7 @@ const PHASE0_SCENARIOS = [
   'world',
   'town',
   'town_rumor_status',
+  'gm_town_incidents',
   'dungeon',
   'region',
   'encounters',
