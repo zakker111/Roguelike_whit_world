@@ -1,42 +1,156 @@
 {
   "scenarios": [
-    { "id": "world", "label": "World" },
-    { "id": "region", "label": "Region Map" },
-    { "id": "inventory", "label": "Inventory" },
-    { "id": "dungeon", "label": "Dungeon" },
-    { "id": "combat", "label": "Combat" },
-    { "id": "dungeon_persistence", "label": "Dungeon Persistence" },
-    { "id": "dungeon_stairs_transitions", "label": "Dungeon Stairs Transitions" },
-    { "id": "town", "label": "Town" },
-    { "id": "town_rumor_status", "label": "Town rumor status" },
-    { "id": "town_diagnostics", "label": "Town Diagnostics" },
-    { "id": "harbor_fast_travel", "label": "Harbor fast travel" },
-    { "id": "overlays", "label": "Overlays" },
-    { "id": "ui_layout", "label": "UI Layout (Canvas Stability)" },
-    { "id": "determinism", "label": "Determinism" },
-    { "id": "encounters", "label": "Encounters" },
-    { "id": "api", "label": "API" },
-    { "id": "town_flows", "label": "Town Flows" },
-    { "id": "skeleton_key_chest", "label": "Skeleton Key + Locked Chest" },
-    { "id": "gm_mechanic_hints", "label": "GM: Mechanic hints (unused only)" },
-    { "id": "gm_intent_decisions", "label": "GM: Intent decisions (entrance + mechanic hint)" },
-    { "id": "gm_seed_reset", "label": "GM: Seed reset (apply seed clears GM state)" },
-    { "id": "gm_boredom_interest", "label": "GM: Boredom interest weighting (Phase 3)" },
-    { "id": "gm_boredom_milestones", "label": "GM: Boredom relief on milestones (town/dungeon/ruins/encounter)" },
-    { "id": "gm_bridge_markers", "label": "GMBridge + Markers" },
-    { "id": "quest_board_gm_markers", "label": "Quest Board: GM Markers" },
-    { "id": "quest_board_thread_status", "label": "Quest Board: Bandit thread status" },
-    { "id": "caravan_thread_status", "label": "Quest Board: Missing Caravan thread status" },
-    { "id": "gm_panel_smoke", "label": "GM Panel (Smoke)" },
-    { "id": "gm_bridge_faction_travel", "label": "GMBridge: Faction travel (guard fine confirm)" },
-    { "id": "gm_bottle_map", "label": "GM: Bottle Map" },
-    { "id": "gm_bottle_map_fishing_pity", "label": "GM: Bottle Map (fishing pity)" },
-    { "id": "gm_survey_cache", "label": "GM: Survey Cache" },
-    { "id": "gm_survey_cache_spawn_gate", "label": "GM: Survey Cache (spawn gate)" },
-    { "id": "gm_disable_switch", "label": "GM: Disable switch (gm.enabled=false)" },
-    { "id": "gm_rng_persistence", "label": "GM: RNG persistence (soft reload continuity)" },
-    { "id": "gm_scheduler_arbitration", "label": "GM: Scheduler arbitration (RNG-free)" },
-    { "id": "gm_town_incidents", "label": "GM: Town incidents" },
-    { "id": "logging_filters", "label": "Logging: filters + LOG_LEVEL=all" }
+    {
+      "id": "world",
+      "label": "World"
+    },
+    {
+      "id": "region",
+      "label": "Region Map"
+    },
+    {
+      "id": "inventory",
+      "label": "Inventory"
+    },
+    {
+      "id": "dungeon",
+      "label": "Dungeon"
+    },
+    {
+      "id": "combat",
+      "label": "Combat"
+    },
+    {
+      "id": "dungeon_persistence",
+      "label": "Dungeon Persistence"
+    },
+    {
+      "id": "dungeon_stairs_transitions",
+      "label": "Dungeon Stairs Transitions"
+    },
+    {
+      "id": "town",
+      "label": "Town"
+    },
+    {
+      "id": "town_rumor_status",
+      "label": "Town rumor status"
+    },
+    {
+      "id": "town_diagnostics",
+      "label": "Town Diagnostics"
+    },
+    {
+      "id": "harbor_fast_travel",
+      "label": "Harbor fast travel"
+    },
+    {
+      "id": "overlays",
+      "label": "Overlays"
+    },
+    {
+      "id": "ui_layout",
+      "label": "UI Layout (Canvas Stability)"
+    },
+    {
+      "id": "determinism",
+      "label": "Determinism"
+    },
+    {
+      "id": "encounters",
+      "label": "Encounters"
+    },
+    {
+      "id": "api",
+      "label": "API"
+    },
+    {
+      "id": "town_flows",
+      "label": "Town Flows"
+    },
+    {
+      "id": "skeleton_key_chest",
+      "label": "Skeleton Key + Locked Chest"
+    },
+    {
+      "id": "gm_mechanic_hints",
+      "label": "GM: Mechanic hints (unused only)"
+    },
+    {
+      "id": "gm_intent_decisions",
+      "label": "GM: Intent decisions (entrance + mechanic hint)"
+    },
+    {
+      "id": "gm_seed_reset",
+      "label": "GM: Seed reset (apply seed clears GM state)"
+    },
+    {
+      "id": "gm_boredom_interest",
+      "label": "GM: Boredom interest weighting (Phase 3)"
+    },
+    {
+      "id": "gm_boredom_milestones",
+      "label": "GM: Boredom relief on milestones (town/dungeon/ruins/encounter)"
+    },
+    {
+      "id": "gm_bridge_markers",
+      "label": "GMBridge + Markers"
+    },
+    {
+      "id": "quest_board_gm_markers",
+      "label": "Quest Board: GM Markers"
+    },
+    {
+      "id": "quest_board_thread_status",
+      "label": "Quest Board: Bandit thread status"
+    },
+    {
+      "id": "caravan_thread_status",
+      "label": "Quest Board: Missing Caravan thread status"
+    },
+    {
+      "id": "gm_panel_smoke",
+      "label": "GM Panel (Smoke)"
+    },
+    {
+      "id": "gm_bridge_faction_travel",
+      "label": "GMBridge: Faction travel (guard fine confirm)"
+    },
+    {
+      "id": "gm_bottle_map",
+      "label": "GM: Bottle Map"
+    },
+    {
+      "id": "gm_bottle_map_fishing_pity",
+      "label": "GM: Bottle Map (fishing pity)"
+    },
+    {
+      "id": "gm_survey_cache",
+      "label": "GM: Survey Cache"
+    },
+    {
+      "id": "gm_survey_cache_spawn_gate",
+      "label": "GM: Survey Cache (spawn gate)"
+    },
+    {
+      "id": "gm_disable_switch",
+      "label": "GM: Disable switch (gm.enabled=false)"
+    },
+    {
+      "id": "gm_rng_persistence",
+      "label": "GM: RNG persistence (soft reload continuity)"
+    },
+    {
+      "id": "gm_scheduler_arbitration",
+      "label": "GM: Scheduler arbitration (RNG-free)"
+    },
+    {
+      "id": "gm_town_incidents",
+      "label": "GM: Town incidents"
+    },
+    {
+      "id": "logging_filters",
+      "label": "Logging: filters + LOG_LEVEL=all"
+    }
   ]
 }

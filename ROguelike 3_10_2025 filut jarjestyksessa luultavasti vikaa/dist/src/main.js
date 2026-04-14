@@ -96,6 +96,17 @@ document.addEventListener('DOMContentLoaded', function () {
       // import.meta.glob is undefined; the try/catch keeps that mode working.
       let smokeModules = null;
       try { smokeModules = import.meta.glob('/smoketest/**/*.js'); } catch (_) { smokeModules = null; }
+      let smokeScenarioImports = [];
+      try {
+        const registryMod = (smokeModules && smokeModules['/smoketest/scenario_registry.js'])
+          ? await smokeModules['/smoketest/scenario_registry.js']()
+          : await import('/smoketest/scenario_registry.js');
+        smokeScenarioImports = Array.isArray(registryMod && registryMod.SMOKE_SCENARIO_IMPORTS)
+          ? registryMod.SMOKE_SCENARIO_IMPORTS
+          : [];
+      } catch (_) {
+        smokeScenarioImports = [];
+      }
 
       const legacy = params.get('legacy') === '1';
       const injectList = [
@@ -118,44 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/runner/init.js',
         '/smoketest/runner/banner.js',
         // Scenarios (load all before orchestrator to ensure availability)
-        '/smoketest/scenarios/dungeon.js',
-        '/smoketest/scenarios/town.js',
-        '/smoketest/scenarios/inventory.js',
-        '/smoketest/scenarios/combat.js',
-        '/smoketest/scenarios/overlays.js',
-        '/smoketest/scenarios/ui_layout.js',
-        '/smoketest/scenarios/world.js',
-        '/smoketest/scenarios/region.js',
-        '/smoketest/scenarios/determinism.js',
-        '/smoketest/scenarios/town_flows.js',
-        '/smoketest/scenarios/harbor_fast_travel.js',
-        '/smoketest/scenarios/skeleton_key_chest.js',
-        '/smoketest/scenarios/dungeon_persistence.js',
-        '/smoketest/scenarios/dungeon_stairs_transitions.js',
-        '/smoketest/scenarios/town_diagnostics.js',
-        '/smoketest/scenarios/town_rumor_status.js',
-        '/smoketest/scenarios/gm_town_incidents.js',
-        '/smoketest/scenarios/api.js',
-        '/smoketest/scenarios/encounters.js',
-        '/smoketest/scenarios/gm_mechanic_hints.js',
-        '/smoketest/scenarios/gm_intent_decisions.js',
-        '/smoketest/scenarios/gm_seed_reset.js',
-        '/smoketest/scenarios/gm_boredom_interest.js',
-        '/smoketest/scenarios/gm_boredom_milestones.js',
-        '/smoketest/scenarios/gm_disable_switch.js',
-        '/smoketest/scenarios/gm_bridge_markers.js',
-        '/smoketest/scenarios/gm_bridge_faction_travel.js',
-        '/smoketest/scenarios/gm_bottle_map.js',
-        '/smoketest/scenarios/gm_bottle_map_fishing_pity.js',
-        '/smoketest/scenarios/gm_survey_cache.js',
-        '/smoketest/scenarios/gm_survey_cache_spawn_gate.js',
-        '/smoketest/scenarios/gm_rng_persistence.js',
-        '/smoketest/scenarios/gm_scheduler_arbitration.js',
-        '/smoketest/scenarios/quest_board_gm_markers.js',
-        '/smoketest/scenarios/quest_board_thread_status.js',
-        '/smoketest/scenarios/caravan_thread_status.js',
-        '/smoketest/scenarios/gm_panel_smoke.js',
-        '/smoketest/scenarios/logging_filters.js',
+        ...smokeScenarioImports,
         // Orchestrator (default) - load last so scenarios are ready
         '/smoketest/runner/runner.js'
       ];

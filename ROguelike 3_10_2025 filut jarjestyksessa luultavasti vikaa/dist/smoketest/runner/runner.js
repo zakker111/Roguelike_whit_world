@@ -358,44 +358,8 @@
     try {
       const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : null;
       if (!S) return null;
-      if (name === "world") return S.World && S.World.run;
-      if (name === "region") return S.Region && S.Region.run;
-      if (name === "dungeon") return S.Dungeon && S.Dungeon.run;
-      if (name === "inventory") return S.Inventory && S.Inventory.run;
-      if (name === "combat") return S.Combat && S.Combat.run;
-      if (name === "dungeon_persistence") return S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run;
-      if (name === "dungeon_stairs_transitions") return S.Dungeon && S.Dungeon.StairsTransitions && S.Dungeon.StairsTransitions.run;
-      if (name === "town") return S.Town && S.Town.run;
-      if (name === "town_rumor_status") return S.town_rumor_status && S.town_rumor_status.run;
-      if (name === "town_diagnostics") return S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run;
-      if (name === "harbor_fast_travel") return S.HarborFastTravel && S.HarborFastTravel.run;
-      if (name === "overlays") return S.Overlays && S.Overlays.run;
-      if (name === "ui_layout") return S.UILayout && S.UILayout.run;
-      if (name === "determinism") return S.Determinism && S.Determinism.run;
-      if (name === "encounters") return (S.encounters && S.encounters.run) || (S.Encounters && S.Encounters.run);
-      if (name === "api") return S.API && S.API.run;
-      if (name === "town_flows") return S.Town && S.Town.Flows && S.Town.Flows.run;
-      if (name === "skeleton_key_chest") return S.skeleton_key_chest && S.skeleton_key_chest.run;
-      if (name === "gm_mechanic_hints") return S.GMMechanicHints && S.GMMechanicHints.run;
-      if (name === "gm_intent_decisions") return S.GMIntentDecisions && S.GMIntentDecisions.run;
-      if (name === "gm_seed_reset") return S.gm_seed_reset && S.gm_seed_reset.run;
-      if (name === "gm_boredom_interest") return S.gm_boredom_interest && S.gm_boredom_interest.run;
-      if (name === "gm_boredom_milestones") return S.gm_boredom_milestones && S.gm_boredom_milestones.run;
-      if (name === "gm_bridge_markers") return S.gm_bridge_markers && S.gm_bridge_markers.run;
-      if (name === "gm_bridge_faction_travel") return S.gm_bridge_faction_travel && S.gm_bridge_faction_travel.run;
-      if (name === "gm_bottle_map") return S.gm_bottle_map && S.gm_bottle_map.run;
-      if (name === "gm_bottle_map_fishing_pity") return S.gm_bottle_map_fishing_pity && S.gm_bottle_map_fishing_pity.run;
-      if (name === "gm_survey_cache") return S.gm_survey_cache && S.gm_survey_cache.run;
-      if (name === "gm_survey_cache_spawn_gate") return S.gm_survey_cache_spawn_gate && S.gm_survey_cache_spawn_gate.run;
-      if (name === "gm_disable_switch") return S.gm_disable_switch && S.gm_disable_switch.run;
-      if (name === "gm_rng_persistence") return S.gm_rng_persistence && S.gm_rng_persistence.run;
-      if (name === "gm_scheduler_arbitration") return S.gm_scheduler_arbitration && S.gm_scheduler_arbitration.run;
-      if (name === "gm_town_incidents") return S.gm_town_incidents && S.gm_town_incidents.run;
-      if (name === "quest_board_gm_markers") return S.quest_board_gm_markers && S.quest_board_gm_markers.run;
-      if (name === "quest_board_thread_status") return S.quest_board_thread_status && S.quest_board_thread_status.run;
-      if (name === "caravan_thread_status") return S.caravan_thread_status && S.caravan_thread_status.run;
-      if (name === "gm_panel_smoke") return S.gm_panel_smoke && S.gm_panel_smoke.run;
-      if (name === "logging_filters") return S.logging_filters && S.logging_filters.run;
+      const meta = name ? SMOKE_SCENARIOS_BY_ID[name] : null;
+      if (meta && meta.resolver) return resolveScenarioByPath(S, meta.resolver);
     } catch (_) {}
     return null;
   }
@@ -2955,3 +2919,4 @@
     }
   } catch (_) {}
 })();
+import { SMOKE_SCENARIOS_BY_ID, resolveScenarioByPath } from "/smoketest/scenario_registry.js";
