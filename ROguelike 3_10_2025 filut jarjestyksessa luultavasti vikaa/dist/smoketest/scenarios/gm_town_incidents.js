@@ -51,6 +51,21 @@
 
     try {
       try { if (ctx && typeof ctx.ensureTownOnce === "function") await ctx.ensureTownOnce(); } catch (_) {}
+      try {
+        const mode0 = has(G.getMode) ? G.getMode() : null;
+        if (mode0 !== "town" && has(G.forceWorld)) {
+          G.forceWorld();
+          await sleep(180);
+        }
+      } catch (_) {}
+      try {
+        const mode1 = has(G.getMode) ? G.getMode() : null;
+        if (mode1 !== "town" && has(G.gotoNearestTown)) {
+          await G.gotoNearestTown();
+          await sleep(220);
+        }
+      } catch (_) {}
+      try { if (ctx && typeof ctx.ensureTownOnce === "function" && (!has(G.getMode) || G.getMode() !== "town")) await ctx.ensureTownOnce(); } catch (_) {}
       gctx = G.getCtx();
       const mode = has(G.getMode) ? G.getMode() : (gctx && gctx.mode ? String(gctx.mode) : "");
       if (mode !== "town") {

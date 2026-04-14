@@ -37,6 +37,10 @@
       "label": "Town rumor status"
     },
     {
+      "id": "town_thief_chase",
+      "label": "Town thief chase"
+    },
+    {
       "id": "town_diagnostics",
       "label": "Town Diagnostics"
     },

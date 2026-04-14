@@ -8,6 +8,7 @@ export const SMOKE_SCENARIOS = [
   { id: "dungeon_stairs_transitions", label: "Dungeon Stairs Transitions", importPath: "/smoketest/scenarios/dungeon_stairs_transitions.js", resolver: "Dungeon.StairsTransitions.run", phase0: false },
   { id: "town", label: "Town", importPath: "/smoketest/scenarios/town.js", resolver: "Town.run", phase0: true },
   { id: "town_rumor_status", label: "Town rumor status", importPath: "/smoketest/scenarios/town_rumor_status.js", resolver: "town_rumor_status.run", phase0: true },
+  { id: "town_thief_chase", label: "Town thief chase", importPath: "/smoketest/scenarios/town_thief_chase.js", resolver: "town_thief_chase.run", phase0: false },
   { id: "town_diagnostics", label: "Town Diagnostics", importPath: "/smoketest/scenarios/town_diagnostics.js", resolver: "Town.Diagnostics.run", phase0: false },
   { id: "harbor_fast_travel", label: "Harbor fast travel", importPath: "/smoketest/scenarios/harbor_fast_travel.js", resolver: "HarborFastTravel.run", phase0: false },
   { id: "overlays", label: "Overlays", importPath: "/smoketest/scenarios/overlays.js", resolver: "Overlays.run", phase0: true },
