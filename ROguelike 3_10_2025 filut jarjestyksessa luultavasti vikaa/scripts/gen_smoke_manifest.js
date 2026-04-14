@@ -15,7 +15,12 @@ function main() {
       .filter((e) => e.isFile() && path.extname(e.name).toLowerCase() === ".js")
       .map((e) => path.basename(e.name, ".js"))
   );
-  const scenarios = SMOKE_SCENARIOS.map(({ id, label }) => ({ id, label }));
+  const scenarios = SMOKE_SCENARIOS.map(({ id, label, phase0, group }) => ({
+    id,
+    label,
+    phase0: !!phase0,
+    group: group || "misc",
+  }));
   const missingFiles = SMOKE_SCENARIOS
     .filter(({ id }) => !fileSet.has(id))
     .map(({ id }) => id);
