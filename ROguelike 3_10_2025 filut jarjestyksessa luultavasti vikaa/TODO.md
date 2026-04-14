@@ -20,6 +20,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
 - [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
 - [x] Logging convention documented (`docs/phase_workflow.md`)
+- [x] Special town cats expanded and documented: Jekku, Leevi, Alli, and Pulla now have designated home-town support, spawn through the world/town bootstrap flow, and preserve pet identity in town saves (`world/world.js`, `worldgen/town/npcs_bootstrap.js`, `core/town/state.js`, `data/entities/npcs.json`)
 
 ## Near-term engineering plan (small slices)
 
@@ -309,6 +310,10 @@ Known issues / deferred (post-merge):
       - Allow the player to fish when standing next to harbor water tiles (HARBOR_WATER) in port towns.
       - Use a simple interaction (e.g., G on a dock/edge tile) to start fishing with time-cost, RNG-based catches (fish items, junk, or nothing).
       - Integrate caught fish into town shops, cooking/food systems, or quests once those systems exist.
+- [ ] Pet slot / special-cat companion follow-up
+  - Future idea only; do not ship as a simple flavor change.
+  - Add a real pet slot system so special cats like Jekku, Leevi, Alli, and Pulla could eventually become unique followers or companion pets.
+  - This needs more work first: follower rules, UI/inventory slots, pathing/party limits, save data, and interaction design all need to be planned before implementation.
 - [ ] Mouse-hover enemy inspect system tied to Perception skill
   - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
   - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
