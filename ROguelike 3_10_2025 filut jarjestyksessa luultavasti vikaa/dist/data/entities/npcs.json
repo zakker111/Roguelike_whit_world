@@ -102,6 +102,14 @@
       ]
     }
   ],
+  "specialDogs": [
+    {
+      "name": "Ava",
+      "lines": [
+        "Woof."
+      ]
+    }
+  ],
   "petDogs": [
     "Dog",
     "Rover",
