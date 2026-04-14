@@ -290,6 +290,10 @@ This file should describe the **current state**, not the future; update it whene
   - Tavern/inn staff (barkeepers, innkeepers).
   - Guards and special roles (e.g., corpse cleaners).
   - Pets and minor flavor NPCs.
+  - Named special cats:
+    - Jekku, Leevi, Alli, and Pulla can each be assigned a home town during world generation.
+    - When their town is entered, they spawn near the plaza as simple named flavor pets.
+    - Current scope is intentionally small: they only keep their names and say “Meow.” for now.
 - Daily schedules:
   - Residents:
     - Morning/evening/night: at or near home.

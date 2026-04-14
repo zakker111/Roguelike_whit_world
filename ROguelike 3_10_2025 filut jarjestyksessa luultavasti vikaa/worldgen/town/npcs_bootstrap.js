@@ -195,7 +195,7 @@ export function enforceGateNPCLimit(ctx, limit = 1, radius = 2) {
 /**
  * Populate town NPCs after layout:
  * - Delegates to TownAI.populateTown when available.
- * - Adds special cats (Jekku, Pulla) for their home towns.
+ * - Adds special cats (Jekku, Leevi, Alli, Pulla) for their home towns.
  * - Spawns roaming villagers and guards around the plaza.
  */
 export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOWNCFG, info, rng) {
@@ -218,16 +218,24 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
     }
   } catch (_) {}
 
-  // One special cat: Jekku (spawn in the designated town only)
-  // Another special cat: Pulla (same behavior, different name, spawns in its designated town)
   (function placeSpecialCats() {
     try {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
       const townInfo = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t.x === wx && t.y === wy) : null;
       if (!townInfo) return;
+      const GD = getGameData(ctx);
+      const ND = (GD && GD.npcs) ? GD.npcs : null;
+      const specialCats = (ND && Array.isArray(ND.specialCats) && ND.specialCats.length)
+        ? ND.specialCats
+        : [
+            { name: "Jekku", lines: ["Meow."] },
+            { name: "Leevi", lines: ["Meow."] },
+            { name: "Alli", lines: ["Meow."] },
+            { name: "Pulla", lines: ["Meow."] },
+          ];
 
-      function spawnCatOnce(nameCheck, displayName) {
+      function spawnCatOnce(nameCheck, displayName, lines) {
         // Avoid duplicate by name if already present
         if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === nameCheck)) return;
         // Prefer a free floor near the plaza
@@ -256,14 +264,24 @@ export function populateTownNpcs(ctx, W, H, gate, plaza, townSize, townKind, TOW
           }
         }
         if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
-        ctx.npcs.push({ x: pos.x, y: pos.y, name: displayName, kind: "cat", lines: ["Meow.", "Purr."], pet: true });
+        // in memory of my loved pets they live always in my hearth
+        ctx.npcs.push({
+          x: pos.x,
+          y: pos.y,
+          name: displayName,
+          kind: "cat",
+          lines: Array.isArray(lines) && lines.length ? lines.slice(0) : ["Meow."],
+          pet: true,
+          isPet: true,
+          isSpecialTownCat: true
+        });
       }
 
-      if (townInfo.jekkuHome) {
-        spawnCatOnce("jekku", "Jekku");
-      }
-      if (townInfo.pullaHome) {
-        spawnCatOnce("pulla", "Pulla");
+      for (const cat of specialCats) {
+        if (!cat || !cat.name) continue;
+        const homeFlag = `${String(cat.name).toLowerCase()}Home`;
+        if (!townInfo[homeFlag]) continue;
+        spawnCatOnce(String(cat.name).toLowerCase(), String(cat.name), cat.lines);
       }
     } catch (_) {}
   })();

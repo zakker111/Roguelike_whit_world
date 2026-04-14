@@ -150,6 +150,9 @@ function cloneForStorage(st) {
           name: n.name,
           lines: Array.isArray(n.lines) ? n.lines.slice(0) : undefined,
           isShopkeeper: !!n.isShopkeeper,
+          isPet: !!n.isPet,
+          isSpecialTownCat: !!n.isSpecialTownCat,
+          kind: n.kind,
           greeter: !!n.greeter,
           isSeppo: !!n.isSeppo,
           seppo: !!n.seppo

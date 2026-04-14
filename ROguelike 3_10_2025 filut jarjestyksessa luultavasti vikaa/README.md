@@ -91,6 +91,10 @@ Towns and Wild Seppo
 - Town guards and barracks:
   - Towns spawn a small number of guard NPCs (blue-tinted “n” glyphs) who patrol around the gate, plaza, and roads instead of wandering randomly.
   - Many towns also place a Guard Barracks prefab near the plaza/gate; some guards sleep in barracks beds at night while others stay on duty.
+- Special town cats:
+  - The world can designate home towns for named cats: Jekku, Leevi, Alli, and Pulla.
+  - When you enter one of their home towns, that cat appears near the plaza as a simple flavor NPC for now.
+  - Current behavior is intentionally minimal: they keep their special names and say “Meow.”
 - Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)
@@ -168,7 +172,7 @@ Key features at a glance
   - Followers can be hired rarely at inns for gold, travel with you into dungeons, encounters, Region Map, and towns, and can die permanently.
   - Each follower has their own inventory, equipment, injuries/scars, and XP/level progression; they gain experience only when they land killing blows.
   - Simple follow/wait modes and a party summary in the Character Sheet (“Party: N/3 followers”), plus follower inspect panels for gear/injury management.
-- Towns with shops and NPCs; Seppo spawns at most once at a time.
+- Towns with shops, NPCs, and occasional named special cats; Seppo spawns at most once at a time.
 - Lighting from props:
   - Town: lamps and fireplaces emit light at night/dawn/dusk; small warm glow overlay.
   - Dungeon: wall torches spawn sparsely on walls, always emit light; subtle glow overlay.

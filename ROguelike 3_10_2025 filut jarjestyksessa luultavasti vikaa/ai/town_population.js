@@ -559,6 +559,7 @@ function populateTown(ctx) {
       }
       return null;
     }
+
     for (let i = 0; i < maxCats; i++) {
       const spot = placeFree();
       if (!spot) break;
