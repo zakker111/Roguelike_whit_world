@@ -26,8 +26,10 @@ What gets injected (in order) when `?smoketest=1`
   - `smoketest/reporting/render.js` — pure HTML renderers (header, checklist, details)
   - `smoketest/reporting/export.js` — export buttons (Report JSON, Summary TXT, Checklist TXT)
 - Runner helpers:
+  - `smoketest/runner/config.js` — URL param parsing and runner config defaults
   - `smoketest/runner/init.js` — console/error capture hooks
   - `smoketest/runner/banner.js` — banner/status/log/panel delegation
+  - `smoketest/runner/runtime_waits.js` — runner input, modal-close, timeout, and readiness helpers
 - Orchestrator:
   - `smoketest/runner/runner.js` — default scenario pipeline and runSeries()
 - Scenarios:

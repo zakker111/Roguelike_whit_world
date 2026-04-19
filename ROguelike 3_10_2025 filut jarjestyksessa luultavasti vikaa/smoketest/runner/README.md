@@ -8,6 +8,21 @@ Files
 - banner.js — handles the floating UI banner and GOD panel status injection.
 - smoketest_runner.js — legacy thin shim that delegates to the orchestrator (`SmokeTest.Run.run` / `runSeries`). No inline scenario logic.
 
+UI notes
+- The in-game smoke picker is driven by:
+  - `smoketest/scenario_registry.js`
+  - generated `smoketest/scenarios.json`
+  - `ui/components/smoke_modal.js`
+- The picker now supports:
+  - filter by name/id/group
+  - quick-select for Phase 0 scenarios
+  - compact scrollable cards so action buttons remain visible on smaller screens
+- Scenario metadata exposed to the picker currently includes:
+  - `id`
+  - `label`
+  - `phase0`
+  - explicit `group`
+
 Notes
 - With `?smoketest=1` and without `&legacy=1`, runner.js auto‑runs the orchestrator after readiness:
   - waitUntilRunnerReady(timeout) verifies mode/player, scenarios loaded, UI baseline (GOD control), and canvas present.
@@ -25,6 +40,17 @@ Notes
   - `&abortonimmobile=1` — abort current run on immobile detection; otherwise records and continues.
   - `&dev=1` — enable DEV logs.
   - `&legacy=1` — load legacy shim; orchestrator does not auto‑run.
+
+Scenario authoring
+- Add new scenario files under `smoketest/scenarios/`.
+- Register them in `smoketest/scenario_registry.js`.
+- Regenerate the manifest with:
+
+```bash
+node scripts/gen_smoke_manifest.js
+```
+
+- The picker and build both rely on the shared registry/manifest path now; do not add smoke scenarios only in one place.
 
 Updates (Oct 2025)
 - Underfoot multi-container loot consolidation (entities/loot.js):

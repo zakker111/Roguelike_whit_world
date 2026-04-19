@@ -11,6 +11,8 @@ Key modules
 - messages.js — logging and contextual messages.
 - flavor_service.js — flavor strings and narrative snippets.
 - quest_service.js — basic quest board and hooks.
+- town_flavor_service.js — current town-status summary and rumor selection for the HUD.
+- town_incident_service.js — town-local live incident lifecycle (rumored/live/resolved/escaped) used by GM-authored town trouble.
 - stats_service.js — stat-related helpers and shared calculations.
 - combat_service.js — combat balance helpers (damage curves, etc.) driven by data/balance/combat.json.
 - weather_service.js — non-gameplay visual weather state machine (clear/cloudy/foggy/light/heavy rain) driven by data/config/weather.json; feeds overlays and HUD weather labels.
@@ -18,3 +20,4 @@ Key modules
 Notes
 - Services are pure modules; integration occurs via core runtimes and UIBridge.
 - Wild Seppo merchant appearances are coordinated via time_service and town runtime.
+- Prefer putting reusable rules here before adding more orchestration logic to large runtime files.

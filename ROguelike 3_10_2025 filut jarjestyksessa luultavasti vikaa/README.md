@@ -91,10 +91,10 @@ Towns and Wild Seppo
 - Town guards and barracks:
   - Towns spawn a small number of guard NPCs (blue-tinted “n” glyphs) who patrol around the gate, plaza, and roads instead of wandering randomly.
   - Many towns also place a Guard Barracks prefab near the plaza/gate; some guards sleep in barracks beds at night while others stay on duty.
-- Special town cats:
-  - The world can designate home towns for named cats: Jekku, Leevi, Alli, and Pulla.
-  - When you enter one of their home towns, that cat appears near the plaza as a simple flavor NPC for now.
-  - Current behavior is intentionally minimal: they keep their special names and say “Meow.”
+- Special town pets:
+  - The world can designate home towns for named cats Jekku, Leevi, Alli, and Pulla, plus the named dog Ava.
+  - When you enter one of their home towns, that pet appears near the plaza as a simple flavor NPC for now.
+  - Current behavior is intentionally minimal: the special cats say “Meow.” and Ava says “Woof.”
 - Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)
@@ -135,10 +135,21 @@ Smoketest (optional)
 - Scenario filter: &scenarios=world,dungeon,inventory,combat,town,overlays,determinism (legacy style &smoke= also supported).
 - Multiple runs: &smokecount=N.
 - Legacy thin shim: &legacy=1 (orchestrator skips auto‑run; shim delegates to orchestrator).
+- In-game smoke picker:
+  - GOD -> Smoke opens a compact scenario picker with filter, Phase 0 quick-select, Select All, and Clear actions.
+  - The picker now stays on screen more reliably on smaller displays by using a scrollable scenario grid and sticky action buttons.
 - The GOD panel shows:
   - Step Details (OK/FAIL/SKIP)
   - Key Checklist (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks)
   - Full JSON report with download buttons (JSON/TXT)
+
+Authoring / extension docs
+- Start here if you want to add content under the current skeleton:
+  - `docs/data_driven_authoring.md`
+- Useful references:
+  - `smoketest/runner/README.md` — runner behavior and smoke workflow
+  - `services/README.md` — shared service responsibilities
+  - `docs/phase_workflow.md` — how to ship safe slices end to end
 
 Local dev server
 - To serve JSON reliably (instead of file://), use the included static server:

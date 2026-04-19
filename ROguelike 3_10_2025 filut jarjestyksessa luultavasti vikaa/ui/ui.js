@@ -138,6 +138,10 @@ export const UI = {
     this.els.smokeRunBtn = document.getElementById("smoke-run-btn");
     this.els.smokeCancelBtn = document.getElementById("smoke-cancel-btn");
     this.els.smokeCount = document.getElementById("smoke-count");
+    this.els.smokeSearch = document.getElementById("smoke-search");
+    this.els.smokeSelectAllBtn = document.getElementById("smoke-select-all-btn");
+    this.els.smokeSelectPhase0Btn = document.getElementById("smoke-select-phase0-btn");
+    this.els.smokeClearBtn = document.getElementById("smoke-clear-btn");
     
 
     
@@ -173,11 +177,13 @@ export const UI = {
     // Smoke config buttons
     if (this.els.smokeRunBtn) {
       this.els.smokeRunBtn.addEventListener("click", () => {
-        // Collect selected scenarios
-        const boxes = (this.els.smokeList ? Array.from(this.els.smokeList.querySelectorAll("input.smoke-sel")) : []);
-        const sel = boxes.filter(b => b.checked).map(b => b.value);
-        // Fallback: all scenarios if none selected
-        const scenarios = sel.length ? sel : ["world","region","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const sel = (SmokeModal && typeof SmokeModal.getSelectedScenarioIds === "function")
+          ? SmokeModal.getSelectedScenarioIds()
+          : [];
+        const fallback = Array.isArray(this._smokeManifestCache) && this._smokeManifestCache.length
+          ? this._smokeManifestCache.filter((s) => s && s.phase0).map((s) => s.id)
+          : ["world","region","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const scenarios = sel.length ? sel : fallback;
         // Runs
         const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
         const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
@@ -228,6 +234,32 @@ export const UI = {
     if (this.els.smokeCancelBtn) {
       this.els.smokeCancelBtn.addEventListener("click", () => {
         try { this.hideSmoke(); } catch (_) {}
+      });
+    }
+    if (this.els.smokeSearch) {
+      this.els.smokeSearch.addEventListener("input", () => {
+        try { this.renderSmokeOptions(); } catch (_) {}
+      });
+    }
+    if (this.els.smokeSelectAllBtn) {
+      this.els.smokeSelectAllBtn.addEventListener("click", () => {
+        try {
+          const arr = Array.isArray(this._smokeManifestCache) ? this._smokeManifestCache : [];
+          SmokeModal.setSelectedScenarioIds(arr.map((s) => s.id));
+        } catch (_) {}
+      });
+    }
+    if (this.els.smokeSelectPhase0Btn) {
+      this.els.smokeSelectPhase0Btn.addEventListener("click", () => {
+        try {
+          const arr = Array.isArray(this._smokeManifestCache) ? this._smokeManifestCache : [];
+          SmokeModal.setSelectedScenarioIds(arr.filter((s) => s && s.phase0).map((s) => s.id));
+        } catch (_) {}
+      });
+    }
+    if (this.els.smokeClearBtn) {
+      this.els.smokeClearBtn.addEventListener("click", () => {
+        try { SmokeModal.setSelectedScenarioIds([]); } catch (_) {}
       });
     }
 
@@ -694,67 +726,47 @@ export const UI = {
   // Build or refresh the Smoke scenarios checkbox list
   renderSmokeOptions() {
     try {
-      const container = this.els.smokeList || document.getElementById("smoke-scenarios");
-      if (!container) return;
-
-      // Capture existing selection (if re-rendering)
-      const prev = new Set();
-      try {
-        const existing = Array.from(container.querySelectorAll("input.smoke-sel"));
-        existing.forEach((inp) => {
-          if (inp.checked && inp.value) prev.add(inp.value);
-        });
-      } catch (_) {}
-
-      // Default list (fallback)
-      let scenarios = [
-        { id: "world", label: "World" },
-        { id: "region", label: "Region Map" },
-        { id: "inventory", label: "Inventory" },
-        { id: "dungeon", label: "Dungeon" },
-        { id: "combat", label: "Combat" },
-        { id: "dungeon_persistence", label: "Dungeon Persistence" },
-        { id: "town", label: "Town" },
-        { id: "town_diagnostics", label: "Town Diagnostics" },
-        { id: "overlays", label: "Overlays" },
-        { id: "determinism", label: "Determinism" },
-        { id: "encounters", label: "Encounters" },
-        { id: "api", label: "API" },
-        { id: "town_flows", label: "Town Flows" },
+      const prev = (SmokeModal && typeof SmokeModal.getSelectedScenarioIds === "function")
+        ? SmokeModal.getSelectedScenarioIds()
+        : [];
+      const filterText = (SmokeModal && typeof SmokeModal.getFilterText === "function")
+        ? SmokeModal.getFilterText()
+        : "";
+      const fallback = [
+        { id: "world", label: "World", phase0: true, group: "world" },
+        { id: "region", label: "Region Map", phase0: true, group: "world" },
+        { id: "inventory", label: "Inventory", phase0: true, group: "core" },
+        { id: "dungeon", label: "Dungeon", phase0: true, group: "dungeon" },
+        { id: "combat", label: "Combat", phase0: false, group: "core" },
+        { id: "dungeon_persistence", label: "Dungeon Persistence", phase0: false, group: "dungeon" },
+        { id: "town", label: "Town", phase0: true, group: "town" },
+        { id: "town_diagnostics", label: "Town Diagnostics", phase0: false, group: "town" },
+        { id: "overlays", label: "Overlays", phase0: true, group: "world" },
+        { id: "determinism", label: "Determinism", phase0: false, group: "core" },
+        { id: "encounters", label: "Encounters", phase0: true, group: "world" },
+        { id: "api", label: "API", phase0: false, group: "core" },
+        { id: "town_flows", label: "Town Flows", phase0: false, group: "town" },
       ];
-
-      // Try to load manifest if present
       const apply = (arr) => {
-        // Render checkboxes
-        const html = arr.map((s) => {
-          const id = (s && s.id) ? s.id : "";
-          if (!id) return "";
-          const checked = prev.has(id) ? " checked" : "";
-          const title = s.label || id;
-          return `
-            <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
-              <input type="checkbox" class="smoke-sel" value="${id}"${checked} />
-              <span style="color:#cbd5e1; font-size:13px;">${title}</span>
-            </label>
-          `;
-        }).join("");
-        container.innerHTML = html;
+        this._smokeManifestCache = Array.isArray(arr) && arr.length ? arr : fallback;
+        try {
+          SmokeModal.renderOptions(this._smokeManifestCache, { selectedIds: prev, filterText });
+        } catch (_) {}
       };
-
+      if (Array.isArray(this._smokeManifestCache) && this._smokeManifestCache.length) {
+        apply(this._smokeManifestCache);
+        return;
+      }
       try {
         fetch("/smoketest/scenarios.json", { cache: "no-cache" })
           .then((r) => r.ok ? r.json() : null)
           .then((j) => {
             const arr = (j && Array.isArray(j.scenarios)) ? j.scenarios : null;
-            if (arr && arr.length) {
-              apply(arr);
-            } else {
-              apply(scenarios);
-            }
+            apply(arr || fallback);
           })
-          .catch(() => apply(scenarios));
+          .catch(() => apply(fallback));
       } catch (_) {
-        apply(scenarios);
+        apply(fallback);
       }
     } catch (_) {}
   },

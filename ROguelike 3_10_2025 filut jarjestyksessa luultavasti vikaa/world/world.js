@@ -327,6 +327,7 @@ export function generate(ctx, opts = {}) {
       { flag: "leeviHome" },
       { flag: "alliHome" },
       { flag: "pullaHome" },
+      { flag: "avaHome" },
     ];
     const used = new Set();
     for (const spec of specialCatHomes) {

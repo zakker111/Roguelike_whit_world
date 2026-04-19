@@ -13,6 +13,10 @@ This file collects planned features, ideas, and technical cleanups that were pre
 
 ## Recently completed (this session)
 
+- [x] Smoke picker compacted and moved further toward metadata-driven rendering: shared manifest now includes `phase0`/`group`, picker supports filter + quick-select actions, and rendering lives in `ui/components/smoke_modal.js` instead of only `ui/ui.js`
+- [x] Smoke docs and extension guidance improved: added `docs/data_driven_authoring.md`, updated runner/docs catalog/README pointers
+- [x] Dedicated town thief-chase smoketest added and registered (`smoketest/scenarios/town_thief_chase.js`)
+- [x] Shopkeepers no longer open trade while away from their own non-inn shop location (`core/town/talk.js`, `smoketest/scenarios/town_diagnostics.js`)
 - [x] GM panel smoketest scenario exists and is included in Phase 0 acceptance (`gm_panel_smoke`)
 - [x] Quest board GM markers smoketest exists and is included in Phase 0 acceptance (`quest_board_gm_markers`)
 - [x] Missing Caravan town thread shipped end-to-end: quest template, town-situation copy, rumors, and dedicated smoke coverage (`data/quests/quests.json`, `services/quest_service.js`, `smoketest/scenarios/caravan_thread_status.js`)
@@ -20,7 +24,7 @@ This file collects planned features, ideas, and technical cleanups that were pre
 - [x] Encounter trace/debug logs now use `"notice"` so they are filtered at the default log level (`services/encounter_service.js`)
 - [x] Encounter preview confirm text uses `let` (no `var`) so `lint:strict` remains warning-free (`services/encounter_service.js`)
 - [x] Logging convention documented (`docs/phase_workflow.md`)
-- [x] Special town cats expanded and documented: Jekku, Leevi, Alli, and Pulla now have designated home-town support, spawn through the world/town bootstrap flow, and preserve pet identity in town saves (`world/world.js`, `worldgen/town/npcs_bootstrap.js`, `core/town/state.js`, `data/entities/npcs.json`)
+- [x] Special town pets expanded and documented: Jekku, Leevi, Alli, Pulla, and Ava now have designated home-town support, spawn through the world/town bootstrap flow, and preserve pet identity in town saves (`world/world.js`, `worldgen/town/npcs_bootstrap.js`, `core/town/state.js`, `data/entities/npcs.json`)
 
 ## Near-term engineering plan (small slices)
 

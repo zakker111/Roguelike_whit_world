@@ -66,13 +66,12 @@ export function getEntranceIntentImpl(ctx, gm, mode, helpers) {
   const profile = buildProfile(gm);
   const moodLabel = gm.mood && typeof gm.mood.primary === "string" ? gm.mood.primary : "neutral";
   const boredomLevel = profile.boredomLevel;
+  const stats = ensureStats(gm);
+  const modeEntries = stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : {};
+  const entriesForMode = modeEntries[modeKey] != null ? (modeEntries[modeKey] | 0) : 0;
 
   // Rarity gating for town/tavern entries.
   try {
-    const stats = ensureStats(gm);
-    const modeEntries = stats.modeEntries && typeof stats.modeEntries === "object" ? stats.modeEntries : {};
-    const entriesForMode = modeEntries[modeKey] != null ? (modeEntries[modeKey] | 0) : 0;
-
     if ((modeKey === "town" || modeKey === "tavern") && entriesForMode > 1) {
       const ENTRY_PERIOD = 4; // 1st, 5th, 9th, ...
       if ((entriesForMode - 1) % ENTRY_PERIOD !== 0) {
@@ -102,9 +101,47 @@ export function getEntranceIntentImpl(ctx, gm, mode, helpers) {
     }
   }
 
+  let townTroubleTopic = null;
+  if ((modeKey === "town" || modeKey === "tavern") && boredomLevel > 0.35) {
+    if (!gm.storyFlags || typeof gm.storyFlags !== "object") gm.storyFlags = {};
+    const lastTownIncidentTurn = typeof gm.storyFlags.lastTownIncidentTurn === "number"
+      ? (gm.storyFlags.lastTownIncidentTurn | 0)
+      : -9999;
+    const lastTownIncidentTownKey = typeof gm.storyFlags.lastTownIncidentTownKey === "string"
+      ? gm.storyFlags.lastTownIncidentTownKey
+      : "";
+    const INCIDENT_COOLDOWN_TURNS = 180;
+    let currentTownKey = "";
+    try {
+      if (ctx && ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+        currentTownKey = `${ctx.worldReturnPos.x | 0},${ctx.worldReturnPos.y | 0}`;
+      }
+    } catch (_) {}
+    const sameTownRepeatCooldown = 360;
+    const blockedSameTown = !!currentTownKey
+      && currentTownKey === lastTownIncidentTownKey
+      && (turn - lastTownIncidentTurn) < sameTownRepeatCooldown;
+    if ((turn - lastTownIncidentTurn) >= INCIDENT_COOLDOWN_TURNS && !blockedSameTown) {
+      const hasInn = !!(ctx && ctx.tavern && ctx.tavern.building);
+      const hasMarket = !!(ctx && (ctx.townPlaza || (Array.isArray(ctx.shops) && ctx.shops.length)));
+      if (hasInn && (((entriesForMode | 0) % 8) === 1 || !hasMarket)) {
+        townTroubleTopic = "town_trouble:inn_brawl";
+      } else if (hasMarket) {
+        townTroubleTopic = "town_trouble:thief_chase";
+      }
+    }
+  }
+
   let intent = { kind: "none" };
 
-  if ((moodLabel === "stern" || moodLabel === "restless" || moodLabel === "bored") && boredomLevel > 0.5) {
+  if (townTroubleTopic) {
+    intent = {
+      kind: "flavor",
+      topic: townTroubleTopic,
+      strength: "medium",
+      mode: modeKey,
+    };
+  } else if ((moodLabel === "stern" || moodLabel === "restless" || moodLabel === "bored") && boredomLevel > 0.5) {
     const fam = Array.isArray(profile.topFamilies) && profile.topFamilies.length ? profile.topFamilies[0] : null;
     if (fam && fam.key) {
       intent = {

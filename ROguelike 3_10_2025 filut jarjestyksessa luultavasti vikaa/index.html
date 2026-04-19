@@ -325,23 +325,32 @@
   </div>
 
   <!-- Smoke Test Configuration Panel -->
-  <div id="smoke-panel" class="inv-panel" hidden>
+  <div id="smoke-panel" class="inv-panel smoke-panel" hidden>
     <div class="inv-title">Smoke Test Configuration</div>
-    <div class="help" style="font-size:12px; color:#8a98b0; margin-bottom:8px;">
-      Select scenarios to run and the number of iterations. Press Run to start.
-    </div>
-    <div class="inv-subtitle">Scenarios</div>
-    <div id="smoke-scenarios" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:12px;">
-      <!-- checkboxes inserted by UI.renderSmokeOptions() -->
-    </div>
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
-      <label for="smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
-      <input id="smoke-count" type="number" min="1" max="20" step="1" value="1" style="width:80px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
-    </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-      <button id="smoke-run-btn" class="btn">Run</button>
-      <button id="smoke-run-linear-btn" class="btn" title="Run all scenarios in a fixed linear order">Run Linear All</button>
-      <button id="smoke-cancel-btn" class="btn">Cancel</button>
+    <div class="smoke-panel-body">
+      <div class="help">
+        Compact picker for smoke scenarios. Filter by name/group, select a subset, then run it for the chosen number of iterations.
+      </div>
+      <div class="smoke-toolbar">
+        <input id="smoke-search" class="smoke-search" type="search" placeholder="Filter scenarios (name, id, group, phase0)" />
+        <label for="smoke-count" class="smoke-inline-label">Runs:</label>
+        <input id="smoke-count" class="smoke-count-input" type="number" min="1" max="20" step="1" value="1" />
+      </div>
+      <div class="smoke-toolbar">
+        <button id="smoke-select-phase0-btn" class="btn" type="button">Select Phase 0</button>
+        <button id="smoke-select-all-btn" class="btn" type="button">Select All</button>
+        <button id="smoke-clear-btn" class="btn" type="button">Clear</button>
+        <span id="smoke-selection-summary" class="smoke-summary">Loading scenarios…</span>
+      </div>
+      <div class="inv-subtitle">Scenarios</div>
+      <div id="smoke-scenarios" class="smoke-scenarios">
+        <!-- scenario cards inserted by UI.renderSmokeOptions() -->
+      </div>
+      <div class="smoke-actions">
+        <button id="smoke-run-btn" class="btn" type="button">Run Selected</button>
+        <button id="smoke-run-linear-btn" class="btn" type="button" title="Run a fixed linear baseline order">Run Linear All</button>
+        <button id="smoke-cancel-btn" class="btn" type="button">Cancel</button>
+      </div>
     </div>
     <div class="loot-hint">Press Esc to close</div>
   </div>
