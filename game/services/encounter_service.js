@@ -24,8 +24,26 @@ const STATE = {
   nightRaidCooldownUntilTurn: 0,
 };
 
-// Read encounter rate from global/localStorage; 0..100, default 50
+// Read encounter rate from global/localStorage; 0..100, default 50.
+// One-shot migration: clears stale legacy localStorage values (<= 5) that came
+// from an earlier broken config default, so the new config default takes effect.
+function migrateStaleEncounterRate() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (localStorage.getItem("ENCOUNTER_RATE_MIGRATED_V2") === "1") return;
+    const raw = localStorage.getItem("ENCOUNTER_RATE");
+    if (raw != null) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v <= 5) {
+        localStorage.removeItem("ENCOUNTER_RATE");
+      }
+    }
+    localStorage.setItem("ENCOUNTER_RATE_MIGRATED_V2", "1");
+  } catch (_) {}
+}
+
 function getEncounterRate() {
+  migrateStaleEncounterRate();
   try {
     if (typeof window !== "undefined" && typeof window.ENCOUNTER_RATE === "number") {
       const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE) || 0)));
