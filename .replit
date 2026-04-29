@@ -22,13 +22,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd 'ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa' && npm run dev -- --host 0.0.0.0 --port 5000"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd game && npm run dev -- --host 0.0.0.0 --port 5000"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
@@ -36,5 +36,5 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "static"
-build = ["sh", "-c", "cd 'ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa' && npm install && npm run build"]
-publicDir = "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/dist"
+build = ["sh", "-c", "cd game && npm install && npm run build"]
+publicDir = "game/dist"

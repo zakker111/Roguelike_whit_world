@@ -4,7 +4,7 @@ A browser-based roguelike game (vanilla JavaScript + Vite). Imported from GitHub
 
 ## Project Layout
 
-The actual project lives inside the directory `ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/` (note: the folder name contains spaces).
+The actual project lives inside the directory `game/`.
 
 Key folders inside the main project directory:
 - `index.html` – game entry point
@@ -21,11 +21,11 @@ Key folders inside the main project directory:
 
 ## Replit Setup
 
-- Workflow `Start application` runs `npm run dev -- --host 0.0.0.0 --port 5000` inside the project directory.
+- Workflow `Start application` runs `cd game && npm run dev -- --host 0.0.0.0 --port 5000`.
 - `vite.config.js` is configured to bind `0.0.0.0:5000`, allow all hosts (required for the Replit iframe proxy), and disable HMR (the page's CSP forbids the dev WebSocket).
 - Deployment is configured as a static site:
-  - Build: `npm install && npm run build` inside the project directory
-  - Public dir: `ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/dist`
+  - Build: `cd game && npm install && npm run build`
+  - Public dir: `game/dist`
 
 ## Useful Commands (run from the project directory)
 
