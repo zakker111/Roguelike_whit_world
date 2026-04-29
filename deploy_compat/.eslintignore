@@ -1,9 +1,0 @@
-# Ignore static assets and data registries
-ui/**/*.css
-**/*.json
-
-# Ignore build or vendor outputs if any
-dist/
-build/
-node_modules/
-

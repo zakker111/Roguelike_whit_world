@@ -4,7 +4,7 @@ A browser-based roguelike game (vanilla JavaScript + Vite). Imported from GitHub
 
 ## Project Layout
 
-The actual project lives inside the directory `ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/` (note: the folder name contains spaces). A second directory, `deploy_compat/`, is an older deploy-friendly copy and is not used by the active workflow.
+The actual project lives inside the directory `ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa/` (note: the folder name contains spaces).
 
 Key folders inside the main project directory:
 - `index.html` – game entry point
