@@ -142,6 +142,10 @@ export const UI = {
     this.els.smokeSelectAllBtn = document.getElementById("smoke-select-all-btn");
     this.els.smokeSelectPhase0Btn = document.getElementById("smoke-select-phase0-btn");
     this.els.smokeClearBtn = document.getElementById("smoke-clear-btn");
+
+    // Make absolutely sure the Smoke Test Configuration modal is hidden at boot.
+    // It must only open via the GOD panel (or explicit user action), never on load.
+    try { SmokeModal.hide(); } catch (_) {}
     
 
     
