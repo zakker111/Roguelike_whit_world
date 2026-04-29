@@ -42,14 +42,7 @@ function clamp(v, lo, hi) {
 }
 
 // Deterministic local PRNG
-function mulberry32(a) {
-  return function () {
-    let t = (a += 0x6D2B79F5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// mulberry32 imported from utils/rng.js
 
 function seedFromCtx(ctx) {
   let s = 0x12345678 >>> 0;

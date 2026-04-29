@@ -10,6 +10,7 @@
  * - Runtime changes (corpses/decals/enemies) should be persisted via DungeonState.
  */
 import { attachGlobal } from "../utils/global.js";
+import { mulberry32 } from "../utils/rng.js";
 
 function mix32(a) {
   a = (a ^ 61) ^ (a >>> 16);
@@ -31,16 +32,7 @@ function deriveDungeonSeed(rootSeed, x, y, level, sizeStr) {
   s = mix32(s ^ (sizeCode(sizeStr) >>> 0));
   return s >>> 0;
 }
-// Local seeded PRNG (Mulberry32) to avoid RNGFallback
-function mulberry32(seed) {
-  let t = (seed >>> 0);
-  return function () {
-    t = (t + 0x6D2B79F5) >>> 0;
-    let r = Math.imul(t ^ (t >>> 15), t | 1);
-    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// mulberry32 is imported from utils/rng.js (single shared source of truth).
 
 export function generateLevel(ctx, depth) {
   const { ROWS, COLS, MAP_ROWS, MAP_COLS, TILES, player } = ctx;
