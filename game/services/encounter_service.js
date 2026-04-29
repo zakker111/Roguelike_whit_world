@@ -218,11 +218,14 @@ function tryEnter(ctx, tmpl, biome, difficulty) {
 
 export function maybeTryEncounter(ctx) {
   try {
+    // TEMP DIAG: always log entry conditions so we can find out why encounters aren't firing
+    try { console.warn("[ENC-DIAG] maybeTryEncounter called", { mode: ctx && ctx.mode, hasWorld: !!(ctx && ctx.world), hasMap: !!(ctx && ctx.world && ctx.world.map) }); } catch (_) {}
     if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
 
     const wx = ctx.player.x | 0, wy = ctx.player.y | 0;
     const moved = (STATE.lastWorldX !== wx) || (STATE.lastWorldY !== wy);
     STATE.lastWorldX = wx; STATE.lastWorldY = wy;
+    try { console.warn("[ENC-DIAG] move check", { wx, wy, moved, cooldownMoves: STATE.cooldownMoves, movesSinceLast: STATE.movesSinceLast }); } catch (_) {}
     if (!moved) return false; // only roll on movement steps
 
     // Arm-on-next-move debug trigger from GOD panel
@@ -267,6 +270,7 @@ export function maybeTryEncounter(ctx) {
     // Base chance and pity scaled by GOD panel Encounter Rate (0..100).
     // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
     const rate = getEncounterRate();
+    try { console.warn("[ENC-DIAG] rate", { rate, lsRaw: (typeof localStorage !== "undefined" ? localStorage.getItem("ENCOUNTER_RATE") : null), lsMigrated: (typeof localStorage !== "undefined" ? localStorage.getItem("ENCOUNTER_RATE_MIGRATED_V2") : null), winRate: (typeof window !== "undefined" ? window.ENCOUNTER_RATE : null) }); } catch (_) {}
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
     const scale = rate / 50; // 0..2
     const baseP0 = 0.03; // baseline 3%
@@ -300,6 +304,7 @@ export function maybeTryEncounter(ctx) {
       const roll = (typeof rng === "function") ? rng() : 0.5;
       return roll < chance;
     })();
+    try { console.warn("[ENC-DIAG] roll", { chance, willEncounter }); } catch (_) {}
     if (!willEncounter) {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
@@ -438,13 +443,14 @@ export function maybeTryEncounter(ctx) {
     // Prompt the user via UIOrchestration; cancel if confirm UI is unavailable
     try {
       const UIO = getUIOrchestration(ctx);
+      try { console.warn("[ENC-DIAG] about to show confirm", { hasUIO: !!UIO, hasShowConfirm: !!(UIO && typeof UIO.showConfirm === "function"), tmplId: tmpl && tmpl.id, text }); } catch (_) {}
       if (UIO && typeof UIO.showConfirm === "function") {
         UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
       } else {
         // No confirm UI available; cancel by default
         cancel();
       }
-    } catch (_) { cancel(); }
+    } catch (e) { try { console.warn("[ENC-DIAG] confirm threw", e && e.message); } catch (_) {} cancel(); }
     return true;
   } catch (e) {
     if (e && e._earlyExit) return true;
