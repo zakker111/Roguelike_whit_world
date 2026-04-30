@@ -272,14 +272,21 @@ export function maybeTryEncounter(ctx) {
     // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
     const rate = getEncounterRate();
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
-    const scale = rate / 50; // 0..2
-    const baseP0 = 0.03; // baseline 3%
-    const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
-    const baseP = baseP0 * scale;
-    const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
-    const pityBoost = pitySteps * (pityStep0 * scale);
-    const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
-    const chance = Math.min(cap, baseP + pityBoost);
+    // At rate 100, encounter EVERY tile (deterministic test mode).
+    // Below 100, scale linearly between baseline (~3%) and cap (~35%).
+    let chance;
+    if (rate >= 100) {
+      chance = 1.0;
+    } else {
+      const scale = rate / 50; // 0..2
+      const baseP0 = 0.03; // baseline 3%
+      const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
+      const baseP = baseP0 * scale;
+      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
+      const pityBoost = pitySteps * (pityStep0 * scale);
+      const cap = Math.min(0.35, 0.18 * scale);
+      chance = Math.min(cap, baseP + pityBoost);
+    }
     (function logChance() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
@@ -405,26 +412,29 @@ export function maybeTryEncounter(ctx) {
       } catch (_) {}
     })();
 
-    // Select a suitable template for this biome
-    const tmpl = specialTemplate || pickTemplate(ctx, biome);
+    // Select a suitable template for this biome.
+    // If pickTemplate returns null (no template matches this biome), fall back
+    // to ANY available template — and finally to a built-in safety template so
+    // the popup ALWAYS shows when willEncounter is true.
+    let tmpl = specialTemplate || pickTemplate(ctx, biome);
     if (!tmpl) {
-      // TEMP DIAG: pickTemplate returned null — most likely cause of missing popups
-      try {
-        const reg = registry(ctx);
-        const ids = reg ? reg.map(t => `${t.id}[${(t.allowedBiomes || []).join("/")}]`).slice(0, 5).join(", ") : "NO REGISTRY";
-        if (ctx && typeof ctx.log === "function") {
-          ctx.log(`[ENC-DIAG] pickTemplate returned NULL — biome:${biome} regCount:${reg ? reg.length : 0} samples:${ids}`, "bad");
-        }
-      } catch (_) {}
-      STATE.movesSinceLast += 1;
-      return false;
-    }
-    // TEMP DIAG: template selected
-    try {
-      if (ctx && typeof ctx.log === "function") {
-        ctx.log(`[ENC-DIAG] template:${tmpl.id || "?"} biome:${biome} — calling showConfirm`, "good");
+      const reg = registry(ctx);
+      if (reg && reg.length) {
+        // Pick the first template with a positive baseWeight, regardless of biome.
+        tmpl = reg.find(t => t && (typeof t.baseWeight !== "number" || t.baseWeight > 0)) || reg[0];
       }
-    } catch (_) {}
+    }
+    if (!tmpl) {
+      // Last-resort built-in template so the system never silently fails.
+      tmpl = {
+        id: "wandering_foe",
+        name: "Wandering Foe",
+        baseWeight: 1,
+        allowedBiomes: [],
+        map: { generator: "ambush_forest", w: 24, h: 16 },
+        groups: [{ type: "bandit", count: { min: 1, max: 2 } }],
+      };
+    }
     const difficulty = specialDifficulty || computeDifficulty(ctx, biome);
     (function logPick() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
@@ -475,18 +485,38 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user via UIOrchestration; cancel if confirm UI is unavailable
-    try {
-      const UIO = getUIOrchestration(ctx);
-      if (UIO && typeof UIO.showConfirm === "function") {
-        try { ctx.log && ctx.log(`[ENC-DIAG] UIO found — invoking showConfirm`, "good"); } catch (_) {}
-        UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
-      } else {
-        try { ctx.log && ctx.log(`[ENC-DIAG] UIO missing or no showConfirm — popup CANNOT show (UIO:${!!UIO})`, "bad"); } catch (_) {}
-        cancel();
-      }
-    } catch (e) {
-      try { ctx.log && ctx.log(`[ENC-DIAG] showConfirm threw: ${e && e.message}`, "bad"); } catch (_) {}
+    // Set cooldown when the popup is opened (not when accepted) so we never
+    // spam multiple popups before the player responds.
+    STATE.cooldownMoves = 5;
+
+    // Prompt the user via UIOrchestration. Try direct fallbacks if UIO is
+    // missing, so a missing module doesn't silently swallow the popup.
+    const showAny = (text2, onOk, onCancel) => {
+      try {
+        const UIO = getUIOrchestration(ctx);
+        if (UIO && typeof UIO.showConfirm === "function") {
+          UIO.showConfirm(ctx, text2, null, onOk, onCancel);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        const UI = (typeof window !== "undefined") ? window.UI : null;
+        if (UI && typeof UI.showConfirm === "function") {
+          UI.showConfirm(text2, onOk, onCancel);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        if (typeof window !== "undefined" && typeof window.confirm === "function") {
+          if (window.confirm(text2)) { onOk && onOk(); } else { onCancel && onCancel(); }
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    };
+
+    if (!showAny(text, () => enter(), () => cancel())) {
+      try { ctx.log && ctx.log(`[Encounters] No confirm UI available — popup cannot show.`, "bad"); } catch (_) {}
       cancel();
     }
     return true;
