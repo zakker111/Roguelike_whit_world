@@ -329,6 +329,13 @@ export function maybeTryEncounter(ctx) {
       return false;
     }
 
+    // TEMP DIAG: roll succeeded — confirm we get past pickTemplate / showConfirm
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log(`[ENC-DIAG] roll PASSED — biome:${biome} attempting template pick…`, "good");
+      }
+    } catch (_) {}
+
     // Special picks may request a specific template but still go through the confirm UI.
     let specialTemplate = null;
     let specialDifficulty = null;
@@ -400,7 +407,24 @@ export function maybeTryEncounter(ctx) {
 
     // Select a suitable template for this biome
     const tmpl = specialTemplate || pickTemplate(ctx, biome);
-    if (!tmpl) { STATE.movesSinceLast += 1; return false; }
+    if (!tmpl) {
+      // TEMP DIAG: pickTemplate returned null — most likely cause of missing popups
+      try {
+        const reg = registry(ctx);
+        const ids = reg ? reg.map(t => `${t.id}[${(t.allowedBiomes || []).join("/")}]`).slice(0, 5).join(", ") : "NO REGISTRY";
+        if (ctx && typeof ctx.log === "function") {
+          ctx.log(`[ENC-DIAG] pickTemplate returned NULL — biome:${biome} regCount:${reg ? reg.length : 0} samples:${ids}`, "bad");
+        }
+      } catch (_) {}
+      STATE.movesSinceLast += 1;
+      return false;
+    }
+    // TEMP DIAG: template selected
+    try {
+      if (ctx && typeof ctx.log === "function") {
+        ctx.log(`[ENC-DIAG] template:${tmpl.id || "?"} biome:${biome} — calling showConfirm`, "good");
+      }
+    } catch (_) {}
     const difficulty = specialDifficulty || computeDifficulty(ctx, biome);
     (function logPick() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
@@ -455,12 +479,16 @@ export function maybeTryEncounter(ctx) {
     try {
       const UIO = getUIOrchestration(ctx);
       if (UIO && typeof UIO.showConfirm === "function") {
+        try { ctx.log && ctx.log(`[ENC-DIAG] UIO found — invoking showConfirm`, "good"); } catch (_) {}
         UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
       } else {
-        // No confirm UI available; cancel by default
+        try { ctx.log && ctx.log(`[ENC-DIAG] UIO missing or no showConfirm — popup CANNOT show (UIO:${!!UIO})`, "bad"); } catch (_) {}
         cancel();
       }
-    } catch (_) { cancel(); }
+    } catch (e) {
+      try { ctx.log && ctx.log(`[ENC-DIAG] showConfirm threw: ${e && e.message}`, "bad"); } catch (_) {}
+      cancel();
+    }
     return true;
   } catch (e) {
     if (e && e._earlyExit) return true;
