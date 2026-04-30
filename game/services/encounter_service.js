@@ -15,6 +15,10 @@
  */
 import { getGameData, getRNGUtils, getMod, getUIOrchestration } from "../utils/access.js";
 
+// Module load marker (v3 = Math.random fallback fix). Helps confirm the
+// browser is actually running the latest code and not a stale cached copy.
+try { if (typeof window !== "undefined") console.warn("[EncounterService] loaded v3 (Math.random fallback active)"); } catch (_) {}
+
 const STATE = {
   lastWorldX: null,
   lastWorldY: null,
@@ -300,6 +304,18 @@ export function maybeTryEncounter(ctx) {
       const roll = (typeof rng === "function") ? rng() : Math.random();
       return roll < chance;
     })();
+    // Lightweight in-game heartbeat: every 10 attempted rolls, log a one-line
+    // status to the activity log so the player can confirm the encounter system
+    // is alive and see the current chance. Removable once verified.
+    STATE._diagAttempts = (STATE._diagAttempts || 0) + 1;
+    if ((STATE._diagAttempts % 10) === 0) {
+      try {
+        if (ctx && typeof ctx.log === "function") {
+          ctx.log(`[Encounters] alive — attempts:${STATE._diagAttempts} chance:${(chance * 100).toFixed(1)}% rate:${rate}`, "notice");
+        }
+      } catch (_) {}
+    }
+
     if (!willEncounter) {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
