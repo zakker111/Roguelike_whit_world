@@ -17,7 +17,6 @@ import { getGameData, getRNGUtils, getMod, getUIOrchestration } from "../utils/a
 
 // Module load marker (v3 = Math.random fallback fix). Helps confirm the
 // browser is actually running the latest code and not a stale cached copy.
-try { if (typeof window !== "undefined") console.warn("[EncounterService] loaded v3 (Math.random fallback active)"); } catch (_) {}
 
 const STATE = {
   lastWorldX: null,
@@ -273,18 +272,20 @@ export function maybeTryEncounter(ctx) {
     const rate = getEncounterRate();
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
     // At rate 100, encounter EVERY tile (deterministic test mode).
-    // Below 100, scale linearly between baseline (~3%) and cap (~35%).
+    // At rate 50 (default), target ~1 encounter every 20-40 overworld tiles.
     let chance;
     if (rate >= 100) {
       chance = 1.0;
     } else {
-      const scale = rate / 50; // 0..2
-      const baseP0 = 0.03; // baseline 3%
-      const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
-      const baseP = baseP0 * scale;
-      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
-      const pityBoost = pitySteps * (pityStep0 * scale);
-      const cap = Math.min(0.35, 0.18 * scale);
+      const scale = rate / 50; // 0..2 (rate 50 -> 1.0)
+      // Base 2.5% per tile at rate 50 -> expected ~40 tiles between encounters.
+      const baseP = 0.025 * scale;
+      // Pity ramps gently after 18 quiet moves: +0.4% per 5 extra moves.
+      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 5));
+      const pityBoost = pitySteps * 0.004 * scale;
+      // Cap at 6% per tile at rate 50, scaling to 12% at rate 100 -> guarantees an
+      // encounter within ~50 tiles even on cold streaks.
+      const cap = Math.min(0.30, 0.06 * scale);
       chance = Math.min(cap, baseP + pityBoost);
     }
     (function logChance() {
@@ -311,18 +312,6 @@ export function maybeTryEncounter(ctx) {
       const roll = (typeof rng === "function") ? rng() : Math.random();
       return roll < chance;
     })();
-    // Lightweight in-game heartbeat: every 10 attempted rolls, log a one-line
-    // status to the activity log so the player can confirm the encounter system
-    // is alive and see the current chance. Removable once verified.
-    STATE._diagAttempts = (STATE._diagAttempts || 0) + 1;
-    if ((STATE._diagAttempts % 10) === 0) {
-      try {
-        if (ctx && typeof ctx.log === "function") {
-          ctx.log(`[Encounters] alive — attempts:${STATE._diagAttempts} chance:${(chance * 100).toFixed(1)}% rate:${rate}`, "notice");
-        }
-      } catch (_) {}
-    }
-
     if (!willEncounter) {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
@@ -335,13 +324,6 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
       return false;
     }
-
-    // TEMP DIAG: roll succeeded — confirm we get past pickTemplate / showConfirm
-    try {
-      if (ctx && typeof ctx.log === "function") {
-        ctx.log(`[ENC-DIAG] roll PASSED — biome:${biome} attempting template pick…`, "good");
-      }
-    } catch (_) {}
 
     // Special picks may request a specific template but still go through the confirm UI.
     let specialTemplate = null;
@@ -516,7 +498,6 @@ export function maybeTryEncounter(ctx) {
     };
 
     if (!showAny(text, () => enter(), () => cancel())) {
-      try { ctx.log && ctx.log(`[Encounters] No confirm UI available — popup cannot show.`, "bad"); } catch (_) {}
       cancel();
     }
     return true;
