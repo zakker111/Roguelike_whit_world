@@ -142,6 +142,10 @@ export const UI = {
     this.els.smokeSelectAllBtn = document.getElementById("smoke-select-all-btn");
     this.els.smokeSelectPhase0Btn = document.getElementById("smoke-select-phase0-btn");
     this.els.smokeClearBtn = document.getElementById("smoke-clear-btn");
+
+    // Make absolutely sure the Smoke Test Configuration modal is hidden at boot.
+    // It must only open via the GOD panel (or explicit user action), never on load.
+    try { SmokeModal.hide(); } catch (_) {}
     
 
     
@@ -555,6 +559,20 @@ export const UI = {
   // --- Encounter rate controls (0..100) ---
   getEncounterRateState() {
     // Default 50 means baseline frequency; &lt;50 fewer, &gt;50 more
+    // One-shot migration: clear stale legacy localStorage values (<= 5) once,
+    // so the JSON config default takes over for users who never touched the slider.
+    try {
+      if (typeof localStorage !== "undefined" && localStorage.getItem("ENCOUNTER_RATE_MIGRATED_V2") !== "1") {
+        const oldRaw = localStorage.getItem("ENCOUNTER_RATE");
+        if (oldRaw != null) {
+          const ov = Number(oldRaw);
+          if (Number.isFinite(ov) && ov <= 5) {
+            localStorage.removeItem("ENCOUNTER_RATE");
+          }
+        }
+        localStorage.setItem("ENCOUNTER_RATE_MIGRATED_V2", "1");
+      }
+    } catch (_) {}
     try {
       if (typeof window.ENCOUNTER_RATE === "number" && Number.isFinite(window.ENCOUNTER_RATE)) {
         const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE))));

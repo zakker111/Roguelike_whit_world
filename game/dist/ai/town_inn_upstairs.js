@@ -10,6 +10,7 @@
  */
 
 import { getRNGUtils } from "../utils/access.js";
+import { manhattan } from "../utils/utils.js";
 
 // Local RNG helper (mirrors rngFor in town_ai.js)
 function rngFor(ctx) {
@@ -24,9 +25,7 @@ function rngFor(ctx) {
   return () => 0.5;
 }
 
-function manhattan(ax, ay, bx, by) {
-  return Math.abs(ax - bx) + Math.abs(ay - by);
-}
+// manhattan imported from utils/utils.js
 
 // Only these props block movement upstairs: table, shelf, counter.
 function propBlocks(type) {
