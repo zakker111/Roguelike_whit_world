@@ -1,4 +1,8 @@
 # BUGS
+- [FIXED] Overworld encounters never triggered (no popups when walking the world):
+  - Root cause: `services/encounter_service.js` rolled encounters with a fallback `roll = 0.5` whenever no RNG was available. Since `RNGUtils` is never registered on `window` and `ctx.rng` is not assigned anywhere, the fallback hit on every step. The encounter chance is capped at ~0.36, so `0.5 < 0.36` was always false and no encounter ever fired.
+  - Fix: fallback now uses `Math.random()` when neither `RNGUtils.chance` nor `ctx.rng` is available, so rolls actually vary per step. Determinism is preserved when an RNG is wired in; only the previously-broken fallback path changed.
+  - Also restored the `encounterRateDefault` to 50 in `data/config/config.json` and added a one-shot localStorage migration that clears any stale legacy value (≤5) once.
 - Deployment: `src/main.js` (and other modules) use absolute ESM imports like `/core/...`; hosting under a subpath (e.g. `https://example.com/game/`) will 404 unless you rewrite requests/configure base path or convert imports to relative.
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls

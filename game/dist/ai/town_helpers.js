@@ -8,14 +8,13 @@
  */
 
 import { getRNGUtils } from "../utils/access.js";
+import { manhattan } from "../utils/utils.js";
 
 function randInt(ctx, a, b) {
   return Math.floor(ctx.rng() * (b - a + 1)) + a;
 }
 
-function manhattan(ax, ay, bx, by) {
-  return Math.abs(ax - bx) + Math.abs(ay - by);
-}
+// manhattan imported from utils/utils.js
 
 // Seeded RNG helper: prefers RNGUtils.getRng(ctx.rng), falls back to ctx.rng; deterministic when unavailable
 function rngFor(ctx) {
