@@ -1,49 +1,21 @@
 /**
- * RNG Utils
- * Unify RNG selection and helpers across modules.
+ * Shared deterministic PRNG helpers.
  *
- * Exports (ESM + window.RNGUtils):
- * - getRng(preferred?)            // returns an rng() function; uses preferred if provided
- * - int(min, max, rngFn?)         // integer in [min, max]
- * - float(min, max, decimals?, rngFn?) // float with rounding
- * - chance(p, rngFn?)             // boolean with probability p
+ * Exports:
+ * - mulberry32(seed): returns a function () => float in [0, 1).
+ *
+ * Notes:
+ * - Identical algorithm previously copy-pasted across dungeon/world/gm/ui modules.
+ *   Keep this single source of truth so determinism stays consistent.
  */
-export function getRng(preferred) {
-  if (typeof preferred === "function") return preferred;
-  try {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
-      // Ensure RNG is initialized (seeded) if possible
-      try {
-        if (typeof window.RNG.getSeed !== "function" || window.RNG.getSeed() == null) {
-          if (typeof window.RNG.autoInit === "function") window.RNG.autoInit();
-        }
-      } catch (_) {}
-      return window.RNG.rng;
-    }
-  } catch (_) {}
-  // Deterministic fallback: constant function avoids non-determinism
-  return () => 0.5;
-}
 
-export function int(min, max, rngFn) {
-  const r = getRng(rngFn);
-  const lo = Math.min(min | 0, max | 0);
-  const hi = Math.max(min | 0, max | 0);
-  return Math.floor(r() * (hi - lo + 1)) + lo;
+export function mulberry32(seed) {
+  let a = (seed >>> 0);
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
-
-export function float(min, max, decimals = 1, rngFn) {
-  const r = getRng(rngFn);
-  const v = min + r() * (max - min);
-  const p = Math.pow(10, decimals);
-  return Math.round(v * p) / p;
-}
-
-export function chance(p, rngFn) {
-  const r = getRng(rngFn);
-  return r() < p;
-}
-
-import { attachGlobal } from "./global.js";
-// Back-compat: attach to window via helper
-attachGlobal("RNGUtils", { getRng, int, float, chance });

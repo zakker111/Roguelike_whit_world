@@ -1,0 +1,58 @@
+[Encounters] alive — attempts:430 chance:18.0% rate:50
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=39.6ms details
+[Encounters] alive — attempts:420 chance:18.0% rate:50
+[Encounters] alive — attempts:410 chance:18.0% rate:50
+[Encounters] alive — attempts:400 chance:18.0% rate:50
+[Encounters] alive — attempts:390 chance:18.0% rate:50
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=42.9ms details
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[Encounters] alive — attempts:380 chance:18.0% rate:50
+[Encounters] alive — attempts:370 chance:18.0% rate:50
+[RenderOverworld] base chunks built=1 visible=2 evicted=0 dt=13.4ms details
+[Encounters] alive — attempts:360 chance:18.0% rate:50
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=40.9ms details
+[Encounters] alive — attempts:350 chance:18.0% rate:50
+[RenderOverworld] base chunks built=1 visible=2 evicted=0 dt=16.6ms details
+[Encounters] alive — attempts:340 chance:18.0% rate:50
+[Encounters] alive — attempts:330 chance:18.0% rate:50
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=28.9ms details
+[Encounters] alive — attempts:320 chance:18.0% rate:50
+[Encounters] alive — attempts:310 chance:18.0% rate:50
+[Encounters] alive — attempts:300 chance:18.0% rate:50
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=39.6ms details
+[Encounters] alive — attempts:290 chance:18.0% rate:50
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[Encounters] alive — attempts:280 chance:18.0% rate:50
+[RenderOverworld] base chunks built=2 visible=2 evicted=0 dt=48.8ms details
+[StateSync] total=34.9ms local=0.0ms refresh=34.9ms mode=world details
+[GameState] refresh total=34.9ms camera=0.0ms fov=34.7ms ui=0.2ms draw=0.0ms mode=world details
+[WorldGen] expandMap side=bottom size=120x240 dt=83.8ms details
+[WorldGen] Expanded bottom details
+[Encounters] alive — attempts:270 chance:18.0% rate:50
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=41.5ms details
+[Encounters] alive — attempts:260 chance:18.0% rate:50
+[Encounters] alive — attempts:250 chance:18.0% rate:50
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[Encounters] alive — attempts:240 chance:35.0% rate:100
+[Encounters] alive — attempts:230 chance:35.0% rate:100
+[RenderOverworld] base chunks built=2 visible=4 evicted=0 dt=22.2ms details
+[Encounters] alive — attempts:220 chance:35.0% rate:100
+[RenderOverworld] base chunks built=1 visible=2 evicted=0 dt=7.2ms details
+[RenderOverworld] base chunks built=1 visible=1 evicted=0 dt=14.3ms details
+[Encounters] alive — attempts:210 chance:33.6% rate:100
+[StateSync] total=35.0ms local=0.0ms refresh=35.0ms mode=world details
+[GameState] refresh total=35.0ms camera=0.1ms fov=34.8ms ui=0.0ms draw=0.1ms mode=world details
+[WorldGen] expandMap side=bottom size=120x208 dt=71.7ms details
+[WorldGen] Expanded bottom details
+You notice signs of wildlife nearby. Press G to open the Region Map.
+[Encounters] alive — attempts:200 chance:32.4% rate:100
+[Encounters] alive — attempts:190 chance:31.2% rate:100
+[RenderOverworld] base chunks built=1 visible=2 evicted=0 dt=7.1ms details
+[RenderOverworld] base chunks built=1 visible=1 evicted=0 dt=14.8ms details
+[Encounters] alive — attempts:180 chance:30.0% rate:100
+[StateSync] total=37.5ms local=0.0ms refresh=37.5ms mode=world details
+[GameState] refresh total=37.4ms camera=0.1ms fov=37.2ms ui=0.1ms draw=0.0ms mode=world details
+[WorldGen] expandMap side=bottom size=120x176 dt=49.7ms details
+[WorldGen] Expanded bottom details
