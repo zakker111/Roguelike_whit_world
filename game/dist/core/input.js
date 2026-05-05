@@ -153,6 +153,13 @@ export function init(handlers) {
     // Do not process gameplay input here while it is open or movement keys can leak
     // through before the modal's listener gets a chance to consume them.
     if (_handlers.isLockpickOpen && _handlers.isLockpickOpen()) {
+      e.preventDefault();
+      try {
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        else e.stopPropagation();
+      } catch (_) {
+        try { e.stopPropagation(); } catch (_) {}
+      }
       return;
     }
 
