@@ -1,3 +1,17 @@
+v1.50.54 — Trader variety and interaction polish release
+
+- Released the current gameplay polish batch as a distinct version:
+  - empty new-game inventory and 0 starting gold
+  - encounter cadence soft guarantee at 50%
+  - stronger dungeon/encounter enemies
+  - town/castle HUD status strip hidden
+  - rumors moved to log-only output
+  - Region Map ruins corpse/chest wording fix
+  - follower HP display rounding
+  - lockpicking modal input gating
+  - shop-type-specific trader/shopkeeper names and dialogue
+- Updated `README.md`, `TODO.md`, and generated `dist/` artifacts for the release.
+
 v1.50.53 — Clean start economy and rumor log cleanup
 
 - New games now start with an empty inventory and 0 gold:
@@ -5,6 +19,7 @@ v1.50.53 — Clean start economy and rumor log cleanup
   - Resetting to a new game uses the same empty-inventory baseline.
 - Default overworld encounter rate remains 50%, with a soft guarantee: after cooldown, the chance hard-ramps after 20 quiet overworld moves and forces an encounter by about 30 successful movement tiles.
 - Encounter cadence now resets when the prompt appears, so declining/avoiding an encounter does not retrigger another prompt after only the short popup cooldown.
+- Ambient random encounter prompts are suppressed while the smoketest runner is active so broad navigation smoke tests are not interrupted by travel popups.
 - Dungeon and encounter enemies are tougher by default:
   - Enemy HP baseline increased by 25%.
   - Enemy attack baseline increased by 15%.

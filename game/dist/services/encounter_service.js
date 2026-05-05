@@ -233,6 +233,9 @@ function tryEnter(ctx, tmpl, biome, difficulty) {
 export function maybeTryEncounter(ctx) {
   try {
     if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+    try {
+      if (typeof window !== "undefined" && window.SmokeTest && window.SmokeTest.Runner) return false;
+    } catch (_) {}
 
     const wx = ctx.player.x | 0, wy = ctx.player.y | 0;
     const moved = (STATE.lastWorldX !== wx) || (STATE.lastWorldY !== wy);
