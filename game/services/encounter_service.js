@@ -27,7 +27,7 @@ const STATE = {
   nightRaidCooldownUntilTurn: 0,
 };
 
-// Read encounter rate from global/localStorage; 0..100, default 65.
+// Read encounter rate from global/localStorage; 0..100, default 80.
 // One-shot migration: clears stale legacy localStorage values (<= 5) that came
 // from an earlier broken config default, so the new config default takes effect.
 function migrateStaleEncounterRate() {
@@ -62,7 +62,7 @@ function getEncounterRate() {
   } catch (_) {}
   const cfgDefault = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev && typeof window.GameData.config.dev.encounterRateDefault === "number")
     ? Math.max(0, Math.min(100, Math.round(Number(window.GameData.config.dev.encounterRateDefault) || 0)))
-    : 65;
+    : 80;
   return cfgDefault;
 }
 
