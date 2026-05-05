@@ -485,11 +485,11 @@ export function maybeTryEncounter(ctx) {
     };
     const cancel = () => {
       try { ctx.log && ctx.log("You avoid the danger.", "info"); } catch (_) {}
-      STATE.movesSinceLast += 1;
     };
 
     // Set cooldown when the popup is opened (not when accepted) so we never
     // spam multiple popups before the player responds.
+    STATE.movesSinceLast = 0;
     STATE.cooldownMoves = 5;
 
     // Prompt the user via UIOrchestration. Try direct fallbacks if UIO is
