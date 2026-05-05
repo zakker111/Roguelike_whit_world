@@ -4,6 +4,7 @@ v1.50.53 — Clean start economy and rumor log cleanup
   - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
   - Resetting to a new game uses the same empty-inventory baseline.
 - Default overworld encounter rate remains 50%, with a soft guarantee: after cooldown, the chance hard-ramps after 20 quiet overworld moves and forces an encounter by about 30 successful movement tiles.
+- Encounter cadence now resets when the prompt appears, so declining/avoiding an encounter does not retrigger another prompt after only the short popup cooldown.
 - Dungeon and encounter enemies are tougher by default:
   - Enemy HP baseline increased by 25%.
   - Enemy attack baseline increased by 15%.
