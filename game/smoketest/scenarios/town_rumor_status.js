@@ -103,14 +103,9 @@
       });
 
       await updateUI();
-      await waitUntil(() => {
-        const el = getStatusEl();
-        return !!(el && el.hidden === false && /Town of|Harbor town of|Castle of/.test(String(el.textContent || "")));
-      }, 2500, 80);
-
-      const offerText = String((getStatusEl() && getStatusEl().textContent) || "");
-      record(/Districts:/.test(offerText), "Town rumor status: district header renders");
-      record(!/Rumor:/.test(offerText), "Town rumor status: HUD omits rumor text");
+      const statusEl = getStatusEl();
+      const offerText = String((statusEl && statusEl.textContent) || "");
+      record(!!(statusEl && statusEl.hidden === true && !offerText), "Town rumor status: HUD status strip remains hidden");
       await waitUntil(() => /farm is being harassed|Farmers east of town are still under pressure|nearby farm/i.test(readRumorLog()), 2500, 80);
       record(/farm is being harassed|Farmers east of town are still under pressure|nearby farm/i.test(readRumorLog()), "Town rumor status: offer rumor logs");
 

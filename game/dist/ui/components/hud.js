@@ -13,7 +13,6 @@ let _townEl = null;
 let _lastHpText = "";
 let _lastFloorText = "";
 let _lastHudWeatherLabel = "";
-let _lastTownText = "";
 let _lastTownRumorLogKey = "";
 
 function byId(id) {
@@ -153,28 +152,15 @@ export function update(player, floor, time, perf, perfOn, weather, ctx) {
   }
 
   if (townEl) {
-    let townText = "";
-    let visible = false;
     try {
       const mode = String((ctx && ctx.mode) || "");
       if (mode === "town") {
         const summary = getTownStatusSummary(ctx);
-        if (summary) {
-          const districts = Array.isArray(summary.districts) ? summary.districts.join(" • ") : "";
-          logTownRumor(ctx, summary);
-          townText = `${summary.title || "Town"}${districts ? ` | Districts: ${districts}` : ""}`;
-          visible = !!townText;
-        }
+        if (summary) logTownRumor(ctx, summary);
       }
     } catch (_) {}
-    townEl.hidden = !visible;
-    if (visible && townText !== _lastTownText) {
-      townEl.textContent = townText;
-      _lastTownText = townText;
-    } else if (!visible && _lastTownText) {
-      townEl.textContent = "";
-      _lastTownText = "";
-    }
+    townEl.hidden = true;
+    townEl.textContent = "";
   }
 }
 

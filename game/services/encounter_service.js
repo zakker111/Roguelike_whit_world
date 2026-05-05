@@ -273,21 +273,21 @@ export function maybeTryEncounter(ctx) {
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
     // At rate 100, encounter EVERY tile (deterministic test mode).
     // At rate 50 (default), target frequent travel pressure without changing
-    // the slider value: roughly one encounter every 20-35 overworld movement tiles.
+    // the slider value: roughly one encounter every 20-30 overworld movement tiles.
     let chance;
     if (rate >= 100) {
       chance = 1.0;
     } else {
       const scale = rate / 50; // 0..2 (rate 50 -> 1.0)
-      // Base 4.5% per movement tile at rate 50. With the 10-move
+      // Base 5.5% per movement tile at rate 50. With the 10-move
       // post-encounter cooldown, this makes overworld travel produce more
       // encounters while still avoiding back-to-back spam.
-      const baseP = 0.045 * scale;
-      // Pity ramps after 14 quiet moves so long travel streaks fill in faster.
-      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 14) / 4));
-      const pityBoost = pitySteps * 0.01 * scale;
-      // Cap at 14% per tile at rate 50, scaling to 28% at rate 100.
-      const cap = Math.min(0.35, 0.14 * scale);
+      const baseP = 0.055 * scale;
+      // Pity ramps after 10 quiet moves so long travel streaks fill in faster.
+      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 10) / 4));
+      const pityBoost = pitySteps * 0.012 * scale;
+      // Cap at 18% per tile at rate 50, scaling to 36% at rate 100.
+      const cap = Math.min(0.40, 0.18 * scale);
       chance = Math.min(cap, baseP + pityBoost);
     }
     (function logChance() {
