@@ -27,7 +27,7 @@ const STATE = {
   nightRaidCooldownUntilTurn: 0,
 };
 
-// Read encounter rate from global/localStorage; 0..100, default 80.
+// Read encounter rate from global/localStorage; 0..100, default 50.
 // One-shot migration: clears stale legacy localStorage values (<= 5) that came
 // from an earlier broken config default, so the new config default takes effect.
 function migrateStaleEncounterRate() {
@@ -62,7 +62,7 @@ function getEncounterRate() {
   } catch (_) {}
   const cfgDefault = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev && typeof window.GameData.config.dev.encounterRateDefault === "number")
     ? Math.max(0, Math.min(100, Math.round(Number(window.GameData.config.dev.encounterRateDefault) || 0)))
-    : 80;
+    : 50;
   return cfgDefault;
 }
 
@@ -278,14 +278,14 @@ export function maybeTryEncounter(ctx) {
       chance = 1.0;
     } else {
       const scale = rate / 50; // 0..2 (rate 50 -> 1.0)
-      // Base 2.5% per tile at rate 50 -> expected ~40 tiles between encounters.
-      const baseP = 0.025 * scale;
-      // Pity ramps gently after 18 quiet moves: +0.4% per 5 extra moves.
-      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 5));
-      const pityBoost = pitySteps * 0.004 * scale;
-      // Cap at 6% per tile at rate 50, scaling to 12% at rate 100 -> guarantees an
-      // encounter within ~50 tiles even on cold streaks.
-      const cap = Math.min(0.30, 0.06 * scale);
+      // Base 3% per movement tile at rate 50. With the 10-move post-encounter
+      // cooldown this targets roughly one overworld encounter every 30-50 tiles.
+      const baseP = 0.03 * scale;
+      // Pity ramps after 20 quiet moves so long travel streaks feel less empty.
+      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 20) / 5));
+      const pityBoost = pitySteps * 0.006 * scale;
+      // Cap at 8% per tile at rate 50, scaling to 16% at rate 100.
+      const cap = Math.min(0.30, 0.08 * scale);
       chance = Math.min(cap, baseP + pityBoost);
     }
     (function logChance() {
