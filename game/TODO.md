@@ -416,6 +416,60 @@ Known issues / deferred (post-merge):
     - Resolving harbor rumors can improve harbor trade.
     - Failed harbor events can make sea travel riskier or pricier for a while.
 
+- [ ] **GOD Encounter Editor: JSON-authored encounter builder**
+  - Build an in-game encounter editor accessible through the GOD panel, similar in spirit to the existing prefab/sandbox tools.
+  - Purpose:
+    - Let us click/build encounter maps and export valid JSON that can be pasted into `data/encounters/encounters.json`.
+    - Any exported encounter should load through the same runtime path as normal encounters.
+  - GOD panel integration:
+    - Add a GOD → Tools / Encounter Editor button.
+    - Editor opens as a full-screen or large modal tool, not a normal gameplay modal.
+    - Include buttons:
+      - New Encounter
+      - Load Existing JSON
+      - Validate
+      - Test Encounter
+      - Copy JSON
+      - Download JSON
+  - Editor map tools:
+    - Paint floor/wall/water/road/ruin/harbor-like tiles where supported by encounter generators.
+    - Place player spawn.
+    - Place exit tile(s).
+    - Place enemies by group/faction/type/count.
+    - Place neutral NPCs/merchants.
+    - Place props: chests, corpses, crates, campfires, caravan wagons, boats, signs, captives.
+    - Place objective markers (rescue, loot, survive, defeat leader, investigate corpse, recover cargo).
+    - Configure biome restrictions and time-of-day restrictions.
+  - Encounter metadata fields:
+    - `id`, `name`, `description`
+    - `allowedBiomes`
+    - `baseWeight`
+    - `map` dimensions/generator
+    - `groups`
+    - `props`
+    - `merchant`
+    - `objective`
+    - `rewards`
+    - `rumorId` / `questTemplateId` hooks for future rumor-driven encounters
+  - JSON validation:
+    - Validate required fields before export.
+    - Warn when enemy ids, prop types, objective ids, or item ids do not exist in loaded GameData.
+    - Validate that player spawn and exit are reachable.
+    - Validate that at least one enemy/objective/merchant/prop makes the encounter meaningful.
+  - Test flow:
+    - “Test Encounter” starts the edited encounter immediately from GOD without writing to disk.
+    - Test mode should use the same `EncounterRuntime.enter(ctx, { template })` path as real gameplay.
+    - Exiting test returns to previous mode/world position safely.
+  - Acceptance:
+    - A generated JSON template can be copied into `data/encounters/encounters.json`, rebuilt, and used by normal random encounters or quest/GM hooks.
+    - The editor can create the planned rumor encounters:
+      - missing caravan wreck
+      - bandits near farm
+      - harbor missing boat
+      - smuggler pier
+      - storm wreck
+    - The editor should not introduce a separate encounter format.
+
 - [ ] District themes (market / residential / temple) and signage
 - [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - [ ] World generation: support larger lakes and inland water bodies
