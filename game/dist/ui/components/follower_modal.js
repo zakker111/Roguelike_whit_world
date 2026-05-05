@@ -71,6 +71,12 @@ function esc(str) {
   return String(str);
 }
 
+function fmtHp(value) {
+  if (typeof value !== "number") return "";
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded | 0) : rounded.toFixed(1);
+}
+
 function buildContent(ctx, view) {
   const v = view || {};
   const name = esc(v.name || "Follower");
@@ -82,7 +88,7 @@ function buildContent(ctx, view) {
   const level = v.level != null ? (v.level | 0) : 1;
   const hp = typeof v.hp === "number" ? v.hp : null;
   const maxHp = typeof v.maxHp === "number" ? v.maxHp : null;
-  const hpStr = (hp != null && maxHp != null) ? `HP ${hp}/${maxHp}` : "";
+  const hpStr = (hp != null && maxHp != null) ? `HP ${fmtHp(hp)}/${fmtHp(maxHp)}` : "";
   const atk = typeof v.atk === "number" ? v.atk : null;
   const defVal = typeof v.def === "number" ? v.def : null;
   const xp = typeof v.xp === "number" ? v.xp : null;

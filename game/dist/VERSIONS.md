@@ -8,6 +8,8 @@ v1.50.53 — Clean start economy and rumor log cleanup
   - Enemy HP baseline increased by 25%.
   - Enemy attack baseline increased by 15%.
   - Encounter difficulty scaling now ramps HP/attack more sharply at higher difficulty.
+- Region Map / ruins looting now prefers corpse wording when a corpse and chest overlap on the same tile.
+- Follower inspect HP is rounded for display, avoiding long floating-point values.
 - Town/castle status now keeps the HUD panel focused on place identity and districts only.
 - Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
 - Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
