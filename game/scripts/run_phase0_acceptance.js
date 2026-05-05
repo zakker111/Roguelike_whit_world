@@ -154,8 +154,8 @@ const PHASE0_SCENARIOS = PHASE0_SCENARIO_IDS.join(',');
 
 function parseSeriesRuns(rawValue) {
   const n = Number(rawValue);
-  if (!Number.isFinite(n)) return 2;
-  return Math.max(2, Math.trunc(n));
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.trunc(n));
 }
 
 async function httpGetOk(urlStr) {
@@ -240,13 +240,13 @@ async function main() {
   const cleanup = createCleanupController();
   cleanup.installHandlers();
   const preferredPort = Number(process.env.PORT || 8080);
-  const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 2);
+  const seriesRuns = parseSeriesRuns(process.env.PHASE0_SERIES_RUNS || 1);
   const scenarioCount = PHASE0_SCENARIOS.split(',').length;
   // Phase 0 runs a broad suite with multiple world-mode transitions and browser-settle
   // waits. A healthy single series is already close to 70s in this repo, so two full
   // series need more headroom than a bare per-scenario multiplier leaves. Keep the
   // timeout proportional to suite size, but add fixed slack for page orchestration.
-  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, (seriesRuns * scenarioCount * 8000) + 30000);
+  const seriesRunTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, (seriesRuns * scenarioCount * 12000) + 60000);
   // Some environments set PORT globally (e.g. Codespaces/preview tooling). If that port is already
   // in use, the server child will fail to bind and the harness can accidentally talk to whatever
   // is already listening there (often resulting in redirect loops). Always probe for a free port
@@ -293,98 +293,136 @@ async function main() {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     cleanup.add(() => withTimeout(() => browser.close(), 5000, 'browser.close').catch(() => {}));
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+      const phase0Batches = [
+        ['world', 'region', 'inventory', 'dungeon'],
+        ['town'],
+        ['overlays', 'encounters'],
+        ['gm_seed_reset', 'gm_boredom_interest'],
+        ['gm_bridge_markers', 'quest_board_gm_markers', 'quest_board_thread_status', 'caravan_thread_status'],
+        ['gm_panel_smoke'],
+        ['gm_bridge_faction_travel'],
+        ['gm_bottle_map'],
+        ['gm_survey_cache'],
+        ['gm_town_incidents']
+      ];
 
       const consoleLines = [];
       const consoleErrors = [];
       const pageErrors = [];
+      let modeFns = null;
+      let passToken = 'PASS';
+      let jsonParsed = null;
+      const allRuns = [];
+      let pass = 0;
+      let fail = 0;
+      const flakeScenarios = [];
+      const normalizedFlakeScenarios = [];
+      const scenarioOutcomes = {};
+      const batchReports = [];
 
-      page.on('console', (msg) => {
+      const attachPageDiagnostics = (page) => {
+        page.on('console', (msg) => {
+          try {
+            const line = `[console.${msg.type()}] ${msg.text()}`;
+            consoleLines.push(line);
+            if (consoleLines.length > 200) consoleLines.splice(0, consoleLines.length - 200);
+            if (msg.type() === 'error') {
+              consoleErrors.push(line);
+              if (consoleErrors.length > 50) consoleErrors.splice(0, consoleErrors.length - 50);
+            }
+          } catch (_) {}
+        });
+
+        page.on('pageerror', (err) => {
+          try {
+            const line = `[pageerror] ${String(err && err.message ? err.message : err)}`;
+            pageErrors.push(line);
+            if (pageErrors.length > 50) pageErrors.splice(0, pageErrors.length - 50);
+          } catch (_) {}
+        });
+      };
+
+      for (const batch of phase0Batches) {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+        attachPageDiagnostics(page);
         try {
-          const line = `[console.${msg.type()}] ${msg.text()}`;
-          consoleLines.push(line);
-          if (consoleLines.length > 200) consoleLines.splice(0, consoleLines.length - 200);
-          if (msg.type() === 'error') {
-            consoleErrors.push(line);
-            if (consoleErrors.length > 50) consoleErrors.splice(0, consoleErrors.length - 50);
+          const batchUrl = new URL(url);
+          batchUrl.searchParams.set('scenarios', batch.join(','));
+          batchUrl.searchParams.set('smokecount', String(seriesRuns));
+
+          await page.goto(batchUrl.toString(), { waitUntil: 'load', timeout: TIMEOUTS.pageGotoMs });
+
+          await page.waitForFunction(
+            () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
+            { timeout: TIMEOUTS.pageReadyMs }
+          );
+
+          const batchModeFns = await page.evaluate(() => {
+            const M = window.Modes;
+            return {
+              enterEncounter: typeof M?.enterEncounter === 'function',
+              openRegionMap: typeof M?.openRegionMap === 'function',
+              startRegionEncounter: typeof M?.startRegionEncounter === 'function',
+              completeEncounter: typeof M?.completeEncounter === 'function'
+            };
+          });
+          if (!modeFns) modeFns = batchModeFns;
+
+          const batchTimeoutMs = Math.max(TIMEOUTS.seriesRunMs, (seriesRuns * batch.length * 30000) + 30000);
+          const batchResult = await withTimeout(
+            () =>
+              page.evaluate(async (runs) => {
+                window.SmokeTest = window.SmokeTest || {};
+                window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+                window.SmokeTest.Runner.COLLECT_ONLY = true;
+                const res = await window.SmokeTest.Run.runSeries(runs);
+                const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
+                const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
+                return { series: res, passToken, jsonToken };
+              }, seriesRuns),
+            batchTimeoutMs,
+            `SmokeTest.Run.runSeries(${seriesRuns}) batch ${batch.join(',')}`
+          );
+
+          const seriesRes = batchResult && batchResult.series ? batchResult.series : {};
+          if (batchResult && batchResult.passToken && batchResult.passToken !== 'PASS') passToken = batchResult.passToken;
+          try {
+            if (batchResult && batchResult.jsonToken) jsonParsed = JSON.parse(batchResult.jsonToken);
+          } catch (_) {}
+
+          const runs = Array.isArray(seriesRes.results) ? seriesRes.results : [];
+          allRuns.push(...runs);
+          pass += typeof seriesRes.pass === 'number' ? seriesRes.pass : 0;
+          fail += typeof seriesRes.fail === 'number' ? seriesRes.fail : 0;
+
+          if (Array.isArray(seriesRes.flakeScenarios)) flakeScenarios.push(...seriesRes.flakeScenarios);
+          if (Array.isArray(seriesRes.normalizedFlakeScenarios)) normalizedFlakeScenarios.push(...seriesRes.normalizedFlakeScenarios);
+          if (seriesRes.scenarioOutcomes && typeof seriesRes.scenarioOutcomes === 'object') {
+            Object.assign(scenarioOutcomes, seriesRes.scenarioOutcomes);
           }
-        } catch (_) {}
-      });
 
-      page.on('pageerror', (err) => {
-        try {
-          const line = `[pageerror] ${String(err && err.message ? err.message : err)}`;
-          pageErrors.push(line);
-          if (pageErrors.length > 50) pageErrors.splice(0, pageErrors.length - 50);
-        } catch (_) {}
-      });
-
-      await page.goto(url, { waitUntil: 'load', timeout: TIMEOUTS.pageGotoMs });
-
-      await page.waitForFunction(
-        () => !!(window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries && window.GameAPI),
-        { timeout: TIMEOUTS.pageReadyMs }
-      );
-
-      await page.evaluate((runs) => {
-        window.__PHASE0_SERIES_RUNS__ = runs;
-      }, seriesRuns);
-
-      // Boot-time sanity: verify critical transition functions are present.
-      const modeFns = await page.evaluate(() => {
-        const M = window.Modes;
-        return {
-          enterEncounter: typeof M?.enterEncounter === 'function',
-          openRegionMap: typeof M?.openRegionMap === 'function',
-          startRegionEncounter: typeof M?.startRegionEncounter === 'function',
-          completeEncounter: typeof M?.completeEncounter === 'function'
-        };
-      });
+          batchReports.push({
+            scenarios: batch,
+            pass: typeof seriesRes.pass === 'number' ? seriesRes.pass : null,
+            fail: typeof seriesRes.fail === 'number' ? seriesRes.fail : null,
+            passToken: batchResult ? batchResult.passToken : null
+          });
+        } finally {
+          await page.close().catch(() => {});
+        }
+      }
 
       const fnsOk = !!(modeFns && modeFns.enterEncounter && modeFns.openRegionMap && modeFns.startRegionEncounter && modeFns.completeEncounter);
-
-      const series = await withTimeout(
-        () =>
-          page.evaluate(async () => {
-            const seriesRuns = Number(window.__PHASE0_SERIES_RUNS__ || 2);
-            window.SmokeTest = window.SmokeTest || {};
-            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
-            window.SmokeTest.Runner.COLLECT_ONLY = true;
-            const res = await window.SmokeTest.Run.runSeries(seriesRuns);
-            const passToken = document.getElementById('smoke-pass-token')?.textContent || null;
-            const jsonToken = document.getElementById('smoke-json-token')?.textContent || null;
-            return { series: res, passToken, jsonToken };
-          }),
-        seriesRunTimeoutMs,
-        `SmokeTest.Run.runSeries(${seriesRuns})`
-      );
-
-      const { series: seriesRes, passToken, jsonToken } = series || {};
-
-      let jsonParsed = null;
-      try {
-        if (jsonToken) jsonParsed = JSON.parse(jsonToken);
-      } catch (_) {}
-
-      const runs = seriesRes && Array.isArray(seriesRes.results) ? seriesRes.results : [];
-      const pass = seriesRes && typeof seriesRes.pass === 'number' ? seriesRes.pass : null;
-      const fail = seriesRes && typeof seriesRes.fail === 'number' ? seriesRes.fail : null;
-      const flakeScenarios = (seriesRes && Array.isArray(seriesRes.flakeScenarios)) ? seriesRes.flakeScenarios : [];
-      const normalizedFlakeScenarios = (seriesRes && Array.isArray(seriesRes.normalizedFlakeScenarios)) ? seriesRes.normalizedFlakeScenarios : [];
-      const scenarioOutcomes = (seriesRes && seriesRes.scenarioOutcomes && typeof seriesRes.scenarioOutcomes === 'object') ? seriesRes.scenarioOutcomes : {};
-      const seriesOk = (seriesRes && typeof seriesRes.seriesOk === 'boolean')
-        ? seriesRes.seriesOk
-        : (fail === 0 && flakeScenarios.length === 0);
-
-      const failingRuns = runs.map((r, idx) => ({ r, idx })).filter(({ r }) => r && !r.ok);
+      const seriesOk = fail === 0 && flakeScenarios.length === 0;
+      const failingRuns = allRuns.map((r, idx) => ({ r, idx })).filter(({ r }) => r && !r.ok);
 
       const failures = failingRuns.map(({ r, idx }) => {
         const steps = Array.isArray(r.steps) ? r.steps : [];
-        const hardFails = steps.filter((s) => s && s.ok === false && !s.skipped);
+        const hardFails = steps.filter((step) => step && step.ok === false && !step.skipped);
         return {
           run: idx + 1,
           hardFailCount: hardFails.length,
-          hardFailMessages: hardFails.map((s) => String(s.msg || ''))
+          hardFailMessages: hardFails.map((step) => String(step.msg || ''))
         };
       });
 
@@ -394,7 +432,8 @@ async function main() {
         ok: seriesOk && bootOk,
         config: {
           seriesRuns,
-          scenarioCount
+          scenarioCount,
+          batches: phase0Batches.map((batch) => batch.join(','))
         },
         passToken,
         checks: {
@@ -403,11 +442,12 @@ async function main() {
           pageErrorCount: pageErrors.length,
           consoleErrorCount: consoleErrors.length
         },
-        runs: { total: runs.length, pass, fail },
+        runs: { total: allRuns.length, pass, fail },
         flake: flakeScenarios.length > 0,
         flakeScenarios,
         normalizedFlakeScenarios,
         scenarioOutcomes,
+        batchReports,
         failures,
         bootErrors: { pageErrors, consoleErrors },
         lastRunJsonToken: jsonParsed

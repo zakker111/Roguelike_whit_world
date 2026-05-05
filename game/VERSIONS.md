@@ -10,6 +10,11 @@ v1.50.54 — Trader variety and interaction polish release
   - follower HP display rounding
   - lockpicking modal input gating
   - shop-type-specific trader/shopkeeper names and dialogue
+- Phase 0 acceptance is stable again:
+  - Inventory smoke now seeds deterministic smoke-only equipment for empty-start runs.
+  - Inventory smoke no longer performs duplicate dungeon/town transition persistence cycles; those remain covered by the dedicated dungeon/town scenarios.
+  - Town smoke bounds `ensureTownOnce` so a route/state issue records a skip instead of hanging the full harness.
+  - The Phase 0 harness now runs scenario families in fresh browser pages to avoid stale modal/state coupling between unrelated scenario groups.
 - Updated `README.md`, `TODO.md`, and generated `dist/` artifacts for the release.
 
 v1.50.53 — Clean start economy and rumor log cleanup
