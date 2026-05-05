@@ -14,6 +14,7 @@ let _lastHpText = "";
 let _lastFloorText = "";
 let _lastHudWeatherLabel = "";
 let _lastTownText = "";
+let _lastTownRumorLogKey = "";
 
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
@@ -23,6 +24,27 @@ export function init() {
   _hpEl = byId("health");
   _floorEl = byId("floor");
   _townEl = byId("town-status");
+}
+
+function logTownRumor(ctx, summary) {
+  try {
+    const rumor = summary && summary.primaryRumor ? summary.primaryRumor : null;
+    const text = rumor && rumor.text ? String(rumor.text).trim() : "";
+    if (!text || String(rumor.source || "") === "district") return;
+
+    const townKey = ctx && ctx.worldReturnPos
+      ? `${ctx.worldReturnPos.x | 0},${ctx.worldReturnPos.y | 0}`
+      : String((summary && summary.name) || "");
+    const key = `${townKey}:${String(rumor.source || "")}:${String(rumor.stage || rumor.status || "")}:${text}`;
+    if (key === _lastTownRumorLogKey) return;
+    _lastTownRumorLogKey = key;
+
+    if (ctx && typeof ctx.log === "function") {
+      ctx.log(`Rumor: ${text}`, "flavor", { category: "Town", source: String(rumor.source || ""), stage: String(rumor.stage || rumor.status || "") });
+    } else if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log(`Rumor: ${text}`, "flavor", { category: "Town", source: String(rumor.source || ""), stage: String(rumor.stage || rumor.status || "") });
+    }
+  } catch (_) {}
 }
 
 export function update(player, floor, time, perf, perfOn, weather, ctx) {
@@ -139,8 +161,8 @@ export function update(player, floor, time, perf, perfOn, weather, ctx) {
         const summary = getTownStatusSummary(ctx);
         if (summary) {
           const districts = Array.isArray(summary.districts) ? summary.districts.join(" • ") : "";
-          const rumor = summary.primaryRumor && summary.primaryRumor.text ? String(summary.primaryRumor.text) : "";
-          townText = `${summary.title || "Town"}${districts ? ` | Districts: ${districts}` : ""}${rumor ? ` | Rumor: ${rumor}` : ""}`;
+          logTownRumor(ctx, summary);
+          townText = `${summary.title || "Town"}${districts ? ` | Districts: ${districts}` : ""}`;
           visible = !!townText;
         }
       }

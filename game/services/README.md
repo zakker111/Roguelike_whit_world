@@ -11,7 +11,7 @@ Key modules
 - messages.js — logging and contextual messages.
 - flavor_service.js — flavor strings and narrative snippets.
 - quest_service.js — basic quest board and hooks.
-- town_flavor_service.js — current town-status summary and rumor selection for the HUD.
+- town_flavor_service.js — current town-status summary and rumor selection for log output.
 - town_incident_service.js — town-local live incident lifecycle (rumored/live/resolved/escaped) used by GM-authored town trouble.
 - stats_service.js — stat-related helpers and shared calculations.
 - combat_service.js — combat balance helpers (damage curves, etc.) driven by data/balance/combat.json.
