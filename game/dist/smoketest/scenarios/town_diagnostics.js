@@ -191,7 +191,10 @@
         }
 
         // Shopkeeper bump-buy (NPC adjacent to a shop) — teleport near keeper first, then route adj and bump
-        if (shops && shops.length && npcs && npcs.length && has(window.GameAPI.getGold)) {
+        if (shops && shops.length && npcs && npcs.length && has(window.GameAPI.getGold) && has(window.GameAPI.addGold)) {
+          try {
+            if (window.GameAPI.getGold() < 250) window.GameAPI.addGold(250);
+          } catch (_) {}
           var targetNPC = null;
           for (var i = 0; i < npcs.length && !targetNPC; i++) {
             var n = npcs[i];

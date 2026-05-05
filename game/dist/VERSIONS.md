@@ -1,3 +1,12 @@
+v1.50.53 — Clean start economy and rumor log cleanup
+
+- New games now start with an empty inventory and 0 gold:
+  - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
+  - Resetting to a new game uses the same empty-inventory baseline.
+- Town/castle status now keeps the HUD panel focused on place identity and districts only.
+- Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
+- Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
+
 v1.50.52 — Branch preview refresh on New_branch_14_4_2026
 
 - Prepared a fresh playable preview for `New_branch_14_4_2026`.
