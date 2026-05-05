@@ -12,6 +12,7 @@ v1.50.53 — Clean start economy and rumor log cleanup
 - Region Map / ruins looting now prefers corpse wording when a corpse and chest overlap on the same tile.
 - Follower inspect HP is rounded for display, avoiding long floating-point values.
 - Lockpicking now fully blocks gameplay keyboard input while the modal is open, preventing arrow/numpad movement leaks during the puzzle.
+- Town traders and shopkeepers now use shop-type-specific names and dialogue for more NPC variety.
 - Town/castle HUD status lines such as `Town of ... | Districts: ...` are now hidden; town rumors remain in the normal log only.
 - Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
 - Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
