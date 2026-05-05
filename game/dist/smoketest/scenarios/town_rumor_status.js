@@ -1,8 +1,8 @@
 (function () {
   // SmokeTest Scenario: Town rumor/status HUD
   // Validates:
-  // - Town HUD line renders district header + rumor in town mode.
-  // - bandits_farm state changes alter the visible rumor text.
+  // - Town HUD line renders district header in town mode.
+  // - bandits_farm state changes alter the logged rumor text.
 
   window.SmokeTest = window.SmokeTest || {};
   window.SmokeTest.Scenarios = window.SmokeTest.Scenarios || {};
@@ -39,6 +39,16 @@
 
     const getStatusEl = () => {
       try { return document.getElementById("town-status"); } catch (_) { return null; }
+    };
+
+    const readRumorLog = () => {
+      try {
+        const L = (typeof window !== "undefined") ? window.Logger : null;
+        const hist = L && typeof L.getHistory === "function" ? L.getHistory() : [];
+        return hist.map(e => String(e && e.msg || "")).join("\n");
+      } catch (_) {
+        return "";
+      }
     };
 
     const updateUI = async () => {
@@ -100,7 +110,9 @@
 
       const offerText = String((getStatusEl() && getStatusEl().textContent) || "");
       record(/Districts:/.test(offerText), "Town rumor status: district header renders");
-      record(/farm is being harassed|Farmers east of town are still under pressure|nearby farm/i.test(offerText), "Town rumor status: offer rumor renders");
+      record(!/Rumor:/.test(offerText), "Town rumor status: HUD omits rumor text");
+      await waitUntil(() => /farm is being harassed|Farmers east of town are still under pressure|nearby farm/i.test(readRumorLog()), 2500, 80);
+      record(/farm is being harassed|Farmers east of town are still under pressure|nearby farm/i.test(readRumorLog()), "Town rumor status: offer rumor logs");
 
       town.quests.available = [];
       town.quests.completed.push({
@@ -113,12 +125,10 @@
 
       await updateUI();
       await waitUntil(() => {
-        const text = String((getStatusEl() && getStatusEl().textContent) || "");
-        return /road is clear|traders have started using the road again|worst of the trouble has passed/i.test(text);
+        return /road is clear|traders have started using the road again|worst of the trouble has passed/i.test(readRumorLog());
       }, 2500, 80);
 
-      const resolvedText = String((getStatusEl() && getStatusEl().textContent) || "");
-      record(/traders have started using the road again|road is clear|worst of the trouble has passed/i.test(resolvedText), "Town rumor status: resolved aftermath renders");
+      record(/traders have started using the road again|road is clear|worst of the trouble has passed/i.test(readRumorLog()), "Town rumor status: resolved aftermath logs");
       return true;
     } catch (e) {
       record(false, "Town rumor status scenario failed: " + (e && e.message ? e.message : String(e)));

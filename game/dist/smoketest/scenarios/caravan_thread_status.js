@@ -2,7 +2,7 @@
   // SmokeTest Scenario: Missing Caravan thread status
   // Validates:
   // - Missing Caravan surfaces a town-situation banner on the Quest Board.
-  // - The town HUD rumor line tracks offer -> active -> resolved states.
+  // - The town rumor log tracks offer -> active -> resolved states.
 
   window.SmokeTest = window.SmokeTest || {};
   window.SmokeTest.Scenarios = window.SmokeTest.Scenarios || {};
@@ -55,10 +55,6 @@
       try { return document.getElementById("questboard-town-situation"); } catch (_) { return null; }
     };
 
-    const getTownStatusNode = function () {
-      try { return document.getElementById("town-status"); } catch (_) { return null; }
-    };
-
     const readStoryStage = function () {
       try {
         const el = getStoryNode();
@@ -68,10 +64,11 @@
       }
     };
 
-    const readTownStatus = function () {
+    const readRumorLog = function () {
       try {
-        const el = getTownStatusNode();
-        return el ? String(el.textContent || "") : "";
+        const L = (typeof window !== "undefined") ? window.Logger : null;
+        const hist = L && typeof L.getHistory === "function" ? L.getHistory() : [];
+        return hist.map(e => String(e && e.msg || "")).join("\n");
       } catch (_) {
         return "";
       }
@@ -126,7 +123,8 @@
       await waitUntil(() => !!getStoryNode(), 2500, 80);
 
       record(readStoryStage() === "offer", "Missing Caravan thread: offer banner renders");
-      record(/caravan failed to arrive|missing caravan/i.test(readTownStatus()), "Missing Caravan thread: town rumor shows offer state");
+      await waitUntil(() => /caravan failed to arrive|missing caravan/i.test(readRumorLog()), 2500, 80);
+      record(/caravan failed to arrive|missing caravan/i.test(readRumorLog()), "Missing Caravan thread: town rumor logs offer state");
 
       const accepted = !!QS.accept(gctx, "missing_caravan");
       record(accepted, "Missing Caravan thread: accepted missing_caravan");
@@ -137,7 +135,8 @@
       QB.open(gctx);
       await waitUntil(() => readStoryStage() === "active", 2500, 80);
       record(readStoryStage() === "active", "Missing Caravan thread: active banner renders");
-      record(/missing caravan has everyone watching the road|waiting to hear whether anyone made it back/i.test(readTownStatus()), "Missing Caravan thread: town rumor shows active state");
+      await waitUntil(() => /missing caravan has everyone watching the road|waiting to hear whether anyone made it back/i.test(readRumorLog()), 2500, 80);
+      record(/missing caravan has everyone watching the road|waiting to hear whether anyone made it back/i.test(readRumorLog()), "Missing Caravan thread: town rumor logs active state");
 
       const active = (town.quests.active || []).find(q => q && q.templateId === "missing_caravan");
       if (!active) {
@@ -164,7 +163,8 @@
       QB.open(gctx);
       await waitUntil(() => readStoryStage() === "resolved", 2500, 80);
       record(readStoryStage() === "resolved", "Missing Caravan thread: resolved aftermath banner renders");
-      record(/caravan road is moving again|trade might recover/i.test(readTownStatus()), "Missing Caravan thread: town rumor shows resolved aftermath");
+      await waitUntil(() => /caravan road is moving again|trade might recover/i.test(readRumorLog()), 2500, 80);
+      record(/caravan road is moving again|trade might recover/i.test(readRumorLog()), "Missing Caravan thread: town rumor logs resolved aftermath");
 
       return true;
     } catch (e) {
