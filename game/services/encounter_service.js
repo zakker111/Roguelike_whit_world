@@ -27,6 +27,17 @@ const STATE = {
   nightRaidCooldownUntilTurn: 0,
 };
 
+function encounterCadenceForRate(rate) {
+  const r = Math.max(0, Math.min(100, Math.round(Number(rate) || 0)));
+  if (r >= 100) return { rampStart: 0, forceAfter: 1 };
+  if (r <= 0) return { rampStart: Infinity, forceAfter: Infinity };
+
+  const t = r / 50;
+  const rampStart = Math.max(8, Math.round(30 - 10 * t));
+  const forceAfter = Math.max(rampStart + 4, Math.round(45 - 15 * t));
+  return { rampStart, forceAfter };
+}
+
 // Read encounter rate from global/localStorage; 0..100, default 50.
 // One-shot migration: clears stale legacy localStorage values (<= 5) that came
 // from an earlier broken config default, so the new config default takes effect.
@@ -268,13 +279,14 @@ export function maybeTryEncounter(ctx) {
     const biome = biomeFromTile(tile);
 
     // Base chance and pity scaled by GOD panel Encounter Rate (0..100).
-    // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
+    // rate 50 -> baseline with a soft guarantee; 0 -> no encounters; 100 -> every tile.
     const rate = getEncounterRate();
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
     // At rate 100, encounter EVERY tile (deterministic test mode).
-    // At rate 50 (default), target frequent travel pressure without changing
-    // the slider value: roughly one encounter every 20-30 overworld movement tiles.
+    // At rate 50 (default), begin hard-ramping after 20 quiet moves and force
+    // by 30 successful overworld movement tiles, after cooldown has elapsed.
     let chance;
+    const cadence = encounterCadenceForRate(rate);
     if (rate >= 100) {
       chance = 1.0;
     } else {
@@ -289,13 +301,20 @@ export function maybeTryEncounter(ctx) {
       // Cap at 18% per tile at rate 50, scaling to 36% at rate 100.
       const cap = Math.min(0.40, 0.18 * scale);
       chance = Math.min(cap, baseP + pityBoost);
+      if (STATE.movesSinceLast >= cadence.forceAfter) {
+        chance = 1.0;
+      } else if (STATE.movesSinceLast >= cadence.rampStart) {
+        const rampSpan = Math.max(1, cadence.forceAfter - cadence.rampStart);
+        const rampT = (STATE.movesSinceLast - cadence.rampStart + 1) / rampSpan;
+        chance = Math.max(chance, Math.min(0.95, 0.25 + rampT * 0.70));
+      }
     }
     (function logChance() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] chance computed", "notice", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
+            window.Logger.log("[Encounter] chance computed", "notice", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast, cadence });
           }
         } catch (_) {}
       }
