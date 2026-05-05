@@ -51,7 +51,7 @@ Overworld and exploration (infinite world)
 
 Encounters
 - While traveling on the overworld, you may be prompted with a random encounter. Accept to enter a small tactical map themed by the current biome.
-- Default encounter rate is 5% (tunable via the GOD panel “Encounter rate” slider; persists).
+- Default encounter rate is 65% (tunable via the GOD panel “Encounter rate” slider; persists).
 - Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
 - Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
 - Merchants: some encounters feature a wandering merchant. Bumping into the merchant opens the Shop UI; premium stock is available.
