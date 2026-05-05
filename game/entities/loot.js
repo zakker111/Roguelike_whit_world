@@ -498,12 +498,14 @@ export function lootHere(ctx) {
   const containers = here.filter(c => Array.isArray(c.loot) && c.loot.length > 0);
   if (containers.length === 0) {
     here.forEach(c => c.looted = true);
+    const preferCorpseWording = !!(ctx && ctx._preferCorpseLootWording);
     const chests = here.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
     const corpsesCount = here.length - chests;
-    if (chests > 0 && corpsesCount === 0) {
+    if (!preferCorpseWording && chests > 0 && corpsesCount === 0) {
       ctx.log(chests === 1 ? "You search the chest but find nothing." : "You search the chests but find nothing.");
-    } else if (corpsesCount > 0 && chests === 0) {
-      ctx.log(corpsesCount === 1 ? "You search the corpse but find nothing." : "You search the corpses but find nothing.");
+    } else if (preferCorpseWording || (corpsesCount > 0 && chests === 0)) {
+      const n = Math.max(1, corpsesCount || here.length);
+      ctx.log(n === 1 ? "You search the corpse but find nothing." : "You search the corpses but find nothing.");
     } else {
       ctx.log("You search the area but find nothing.");
     }
@@ -521,7 +523,10 @@ export function lootHere(ctx) {
     return;
   }
 
-  const chestContainers = containers.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
+  const preferCorpseWording = !!(ctx && ctx._preferCorpseLootWording);
+  const chestContainers = preferCorpseWording
+    ? 0
+    : containers.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
   const corpseContainers = containers.length - chestContainers;
 
   // Only use chest-specific wording when the underfoot loot is chest-only.

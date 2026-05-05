@@ -26,6 +26,16 @@
       }
     };
 
+    const getLogText = () => {
+      try {
+        const L = (typeof window !== "undefined") ? window.Logger : null;
+        const hist = L && typeof L.getHistory === "function" ? L.getHistory() : [];
+        return hist.map(e => String(e && e.msg || "")).join("\n");
+      } catch (_) {
+        return "";
+      }
+    };
+
     const updateUI = async (gctx) => {
       try {
         if (has(G.updateUI)) G.updateUI();
@@ -97,7 +107,9 @@
       const firstTopic = hasInn ? "town_trouble:inn_brawl" : "town_trouble:thief_chase";
       const firstIncident = TIS.maybeArmTownIncidentFromGM(gctx, { kind: "flavor", topic: firstTopic });
       record(!!(firstIncident && firstIncident.status === "rumored"), "GM town incidents: rumor state arms from GM flavor topic");
-      record(/Rumor:/.test(getStatusText()) && /inn|market square|thief|guards|fight/i.test(getStatusText()), "GM town incidents: HUD rumor reflects rumored incident");
+      await updateUI(gctx);
+      record(!/Rumor:/.test(getStatusText()), "GM town incidents: HUD omits rumor text");
+      record(/Rumor:/.test(getLogText()) && /inn|market square|thief|guards|fight/i.test(getLogText()), "GM town incidents: log reflects rumored incident");
 
       TIS.tickTownIncident(gctx);
       await updateUI(gctx);
@@ -117,7 +129,7 @@
       record(!!(escalatedIncident && escalatedIncident.status === "live"), "GM town incidents: rumor escalates into a live incident");
       const liveActorsAfterEscalation = Array.isArray(gctx.npcs) ? gctx.npcs.filter(n => n && n.isTownIncident && n._townIncidentId === firstIncident.id) : [];
       record(liveActorsAfterEscalation.length > 0, "GM town incidents: live actors materialize in town");
-      record(/Rumor:/.test(getStatusText()) && /inn|thief|market square|guards/i.test(getStatusText()), "GM town incidents: HUD rumor reflects active incident");
+      record(/Rumor:/.test(getLogText()) && /inn|thief|market square|guards/i.test(getLogText()), "GM town incidents: log reflects active incident");
 
       TIS.resolveTownIncident(gctx, "resolved");
       await updateUI(gctx);

@@ -38,7 +38,13 @@
     "Smith",
     "Armorer",
     "Apothecary",
-    "Innkeeper"
+    "Innkeeper",
+    "Peddler",
+    "Quartermaster",
+    "Market hand",
+    "Road merchant",
+    "Provisioner",
+    "Curio seller"
   ],
   "shopkeeperLines": [
     "We open on schedule.",
@@ -46,8 +52,139 @@
     "Back soon.",
     "Best prices in town!",
     "Everything is freshly stocked.",
-    "Open by dawn, closed by dusk."
+    "Open by dawn, closed by dusk.",
+    "If the roads stay safe, prices stay fair.",
+    "Coin first, stories after.",
+    "I know good stock when I see it.",
+    "Travelers bring the strangest things to market."
   ],
+  "shopkeeperProfiles": {
+    "trader": {
+      "names": [
+        "Road trader",
+        "Pack merchant",
+        "Market trader",
+        "Curio dealer",
+        "Traveling peddler",
+        "Provisioner",
+        "Scrap buyer",
+        "Route broker"
+      ],
+      "lines": [
+        "Road dust on every crate, friend.",
+        "I buy oddities if the price is right.",
+        "Caravans come late these days.",
+        "Tools, trinkets, and things with stories.",
+        "If you found it outside the walls, I might know someone who wants it."
+      ]
+    },
+    "blacksmith": {
+      "names": [
+        "Forgekeeper",
+        "Hammer smith",
+        "Blade smith",
+        "Anvil master",
+        "Coal-handed smith"
+      ],
+      "lines": [
+        "Mind the sparks.",
+        "A dull blade is a debt waiting to be paid.",
+        "Iron speaks when you hit it right.",
+        "Bring me metal and coin, and I will make both useful."
+      ]
+    },
+    "armorer": {
+      "names": [
+        "Shieldwright",
+        "Plate fitter",
+        "Armor keeper",
+        "Mail smith",
+        "Guard outfitter"
+      ],
+      "lines": [
+        "Good armor is cheaper than a funeral.",
+        "Try the straps before you trust the steel.",
+        "A shield saves what pride loses.",
+        "If it does not fit, it will fail you."
+      ]
+    },
+    "apothecary": {
+      "names": [
+        "Herbalist",
+        "Potion brewer",
+        "Root seller",
+        "Remedy keeper",
+        "Glass-bottle apothecary"
+      ],
+      "lines": [
+        "Do not mix the red one with the blue one.",
+        "Fresh herbs, clean bottles, careful hands.",
+        "Pain is honest. Infection lies.",
+        "A bitter draught is still better than bleeding out."
+      ]
+    },
+    "inn": {
+      "names": [
+        "Innkeeper",
+        "Tavern host",
+        "Alewife",
+        "Room keeper",
+        "Hearth host"
+      ],
+      "lines": [
+        "Beds upstairs if you can pay.",
+        "Keep your boots off the tables.",
+        "Warm food, warmer rumors.",
+        "If trouble starts, take it outside."
+      ]
+    },
+    "carpenter": {
+      "names": [
+        "Carpenter",
+        "Woodwright",
+        "Sawyer",
+        "Joiner",
+        "Timber seller"
+      ],
+      "lines": [
+        "Straight boards are rarer than honest maps.",
+        "Good wood sings under a sharp plane.",
+        "I can fix a door faster than guards can break one.",
+        "Mind the splinters."
+      ]
+    },
+    "bakery": {
+      "names": [
+        "Baker",
+        "Oven keeper",
+        "Pastry cook",
+        "Bread seller",
+        "Flour-dusted baker"
+      ],
+      "lines": [
+        "Fresh bread before noon, crumbs after.",
+        "Eat before you bleed.",
+        "The sweet buns go first.",
+        "A warm loaf can quiet a cold morning."
+      ]
+    },
+    "caravan": {
+      "names": [
+        "Caravan master",
+        "Wagon boss",
+        "Road factor",
+        "Caravan quartermaster",
+        "Trail merchant"
+      ],
+      "lines": [
+        "Fresh goods from the road.",
+        "We stay only while the caravan is in town.",
+        "Have a look before we move on.",
+        "If the road closes, so does my purse.",
+        "Buy now. The wheels turn again soon."
+      ]
+    }
+  },
   "harborWorkerNames": [
     "Dockworker",
     "Sailor",

@@ -51,7 +51,7 @@ Overworld and exploration (infinite world)
 
 Encounters
 - While traveling on the overworld, you may be prompted with a random encounter. Accept to enter a small tactical map themed by the current biome.
-- Default encounter rate is 5% (tunable via the GOD panel “Encounter rate” slider; persists).
+- Default encounter rate is 50% (tunable via the GOD panel “Encounter rate” slider; persists), tuned to hard-ramp after 20 quiet overworld moves and force an encounter by about 30 successful movement tiles after cooldown.
 - Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
 - Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
 - Merchants: some encounters feature a wandering merchant. Bumping into the merchant opens the Shop UI; premium stock is available.
@@ -83,6 +83,9 @@ Towns and Wild Seppo
   - When a caravan is parked on a town or castle tile on the overworld, entering that settlement spawns a Caravan master merchant and caravan camp (stall/cart, crates/barrels, sign) near the plaza or town center.
   - Caravan shops use shop type "caravan" and always have at least a small fallback inventory (potions, rations, water, basic materials), even if no JSON shop pools are configured.
   - When the caravan moves on in the overworld, the caravan camp is cleaned up on the next town entry so towns only show caravan merchants while a caravan is actually present.
+- Shopkeeper variety:
+  - Shopkeeper names and dialogue are data-driven by shop type in `data/entities/npcs.json`.
+  - Traders, blacksmiths, armorers, apothecaries, innkeepers, carpenters, bakers, and caravan merchants use different name pools and flavor lines.
 - Town chests and lockpicking:
   - Some town chests are locked and open via a lockpicking mini‑game instead of simple G-to-loot.
   - You must carry a lockpick or fine lockpick tool; attempts wear the tool down and can eventually break it.
@@ -100,6 +103,7 @@ Towns and Wild Seppo
 Region Map (local tactical overlay)
 - Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled. Movement respects region tile walkability: you cannot step onto WATER/RIVER/MOUNTAIN or non-walkable RUIN_WALL tiles. Region Map consults the “region” tileset in tiles.json first, then falls back to overworld rules when deciding walkability and LOS.
 - Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel. In ruins, corpses/chests also log detailed cause-of-death flavor (who/what killed them, wound, weapon/likely cause) before the loot or “nothing” lines.
+  - If a corpse and chest overlap in ruins, corpse wording is preferred when the player is looting the corpse context.
 - Neutral animals (deer/fox/boar) are rare:
   - At most one spawns in sufficiently wild areas; many tiles have none.
   - If animals were seen here previously, future visits re‑spawn only with a low chance (seeded).

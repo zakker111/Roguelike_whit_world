@@ -28,17 +28,7 @@ export const defaults = {
   level: 1,
   xp: 0,
   xpNext: 20,
-  inventory: [
-    { kind: "gold", amount: 100, name: "gold" },
-    { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" },
-    // Starter tools for early testing — traders will sell these later.
-    { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
-    { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 },
-    // Starter torch: partially worn so players see decay/breakage; 70% used.
-    { kind: "equip", slot: "hand", name: "torch", atk: 0.6, tier: 1, decay: 70 },
-    // Temporary: Seppo's True Blade for testing; cursed and cannot be unequipped until destroyed.
-    { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk: 3.8, tier: 3, twoHanded: true, decay: 35 }
-  ],
+  inventory: [],
   equipment: { ...DEFAULT_EQUIPMENT },
   // Followers / party allies start empty by default; acquisition happens in-game
   // (e.g., via inn hiring or scripted events) instead of a baked-in starter ally.
@@ -277,25 +267,6 @@ export function createInitial() {
     followers: clone(defaults.followers) || [],
   });
 
-  // Ensure the player starts with a basic stick in inventory (avoid duplicates if already present).
-  try {
-    const hasStick = Array.isArray(p.inventory) && p.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
-    if (!hasStick) {
-      let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
-        stick = window.Items.createByKey("stick", 1);
-      }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
-        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
-      }
-      if (!stick) {
-        stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
-      }
-      try { stick.decay = 99; } catch (_) {}
-      p.inventory.push(stick);
-    }
-  } catch (_) {}
-
   return p;
 }
 
@@ -489,24 +460,6 @@ export function resetFromDefaults(player) {
     player[k] = Array.isArray(fresh[k]) ? fresh[k].slice() :
                 (fresh[k] && typeof fresh[k] === "object" ? JSON.parse(JSON.stringify(fresh[k])) : fresh[k]);
   }
-  // Ensure starter stick is present on new game (avoid duplicates)
-  try {
-    const hasStick = Array.isArray(player.inventory) && player.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
-    if (!hasStick) {
-      let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
-        stick = window.Items.createByKey("stick", 1);
-      }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
-        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
-      }
-      if (!stick) {
-        stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
-      }
-      try { stick.decay = 99; } catch (_) {}
-      player.inventory.push(stick);
-    }
-  } catch (_) {}
   forceUpdate(player);
   return player;
 }

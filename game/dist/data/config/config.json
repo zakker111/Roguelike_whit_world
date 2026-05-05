@@ -27,7 +27,7 @@
   "dev": {
     "injectBadJson": false,
     "godDefaultTypes": ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"],
-    "encounterRateDefault": 5,
+    "encounterRateDefault": 50,
     "alwaysCritDefault": false,
     "critPartDefault": ""
   },

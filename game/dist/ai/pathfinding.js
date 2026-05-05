@@ -13,6 +13,8 @@
 //  - Queue drains using the current occupancy Set (occ) captured at request time; since it is shared/mutated
 //    during the tick, queued solves see the latest state when processed.
 
+import { manhattan } from "../utils/utils.js";
+
 function isWalkTown(ctx, x, y) {
   const { map, TILES } = ctx;
   const rows = Array.isArray(map) ? map.length : 0;
@@ -53,7 +55,7 @@ function isOnScreen(ctx, x, y, marginTiles = 2) {
             y >= vp.y0 - marginTiles && y <= vp.y1 + marginTiles);
   } catch (_) { return false; }
 }
-function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
+// manhattan imported from utils/utils.js
 
 // --- Core A* (single solve) ---
 export function computePath(ctx, occ, sx, sy, tx, ty, opts = {}) {

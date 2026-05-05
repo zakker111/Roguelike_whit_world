@@ -98,7 +98,17 @@ export function handleRegionAction(ctx) {
       if (!L || typeof L.lootHere !== "function") {
         throw new Error("Loot.lootHere missing; loot system cannot proceed in Region Map");
       }
-      L.lootHere(ctx);
+      const hadPreferCorpseWording = Object.prototype.hasOwnProperty.call(ctx, "_preferCorpseLootWording");
+      const previousPreferCorpseWording = ctx._preferCorpseLootWording;
+      try {
+        ctx._preferCorpseLootWording = underfoot.some(c => String((c && c.kind) || "").toLowerCase() !== "chest");
+        L.lootHere(ctx);
+      } finally {
+        if (hadPreferCorpseWording) ctx._preferCorpseLootWording = previousPreferCorpseWording;
+        else {
+          try { delete ctx._preferCorpseLootWording; } catch (_) { ctx._preferCorpseLootWording = false; }
+        }
+      }
       // Persist region state immediately so looted containers remain emptied on reopen
       try { saveRegionState(ctx); } catch (_) {}
       return true;

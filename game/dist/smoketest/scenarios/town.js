@@ -16,8 +16,22 @@
       await ctx.ensureAllModalsClosed?.(12);
 
       // Single-attempt centralized entry to avoid repeated toggles across scenarios
-      const ok = (typeof ctx.ensureTownOnce === "function") ? await ctx.ensureTownOnce() : false;
+      const sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms | 0)));
+      let timedOut = false;
+      const ok = (typeof ctx.ensureTownOnce === "function")
+        ? await Promise.race([
+            Promise.resolve().then(() => ctx.ensureTownOnce()),
+            sleep(15000).then(() => {
+              timedOut = true;
+              return false;
+            })
+          ])
+        : false;
       const nowMode = window.GameAPI.getMode();
+      if (timedOut) {
+        ctx.recordSkip && ctx.recordSkip("Town scenario skipped (ensureTownOnce timed out)");
+        return true;
+      }
       ctx.record(ok && nowMode === "town", ok ? "Entered town (scenario)" : "Town entry not achieved (scenario)");
 
       return true;

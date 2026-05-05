@@ -278,6 +278,198 @@ Known issues / deferred (post-merge):
 - [x] Bridge/ford generation across rivers
 - [x] Named towns and persistent inventories/NPCs across visits
 - [x] Shop UI (buy/sell) and currency
+
+## Concrete gameplay roadmap: rumors, GM incidents, and harbor travel
+
+- [ ] **Rumor registry foundation**
+  - Add `data/rumors/rumors.json` plus a small `services/rumor_service.js`.
+  - Move currently hardcoded town-situation rumor copy into data:
+    - `missing_caravan`
+    - `bandits_farm`
+    - `town_trouble:inn_brawl`
+    - `town_trouble:thief_chase`
+  - Each rumor should define:
+    - `id`, `title`, `source`, `priority`
+    - stage copy: `offer`, `active`, `turnin`, `resolved`, `failed`
+    - activation kind: quest, town incident, GM scheduled event, harbor event
+    - consequences: town modifiers, road safety, shop/economy changes, faction reputation
+  - Acceptance:
+    - `RumorService.listCurrent(ctx)` returns current actionable rumors for the town.
+    - Real rumors still log as `Rumor: ...`.
+    - HUD remains clean; no town/castle/district status strip.
+
+- [ ] **Quest Board rumor logbook**
+  - Add a “Rumors” section to the Quest Board instead of showing rumors in the HUD.
+  - Show:
+    - rumor title
+    - town where it was heard
+    - current stage/status
+    - short player-facing hint/CTA
+    - whether it has a marker, quest, town incident, or harbor action
+  - Acceptance:
+    - Missing Caravan and Bandits Farm appear as rumor leads.
+    - Rumors update when accepted, resolved, failed, or expired.
+    - Completed rumors remain visible only for their aftermath window.
+
+- [ ] **Make Missing Caravan fully real**
+  - Current: rumor + quest board + marker + encounter thread.
+  - Add stronger in-world effects:
+    - encounter map has broken wagon/cart props, caravan corpse(s), raiders, and caravan chest
+    - resolved outcome improves merchant confidence / road safety
+    - failed or ignored outcome increases merchant anxiety / road danger
+    - town market flavor changes after outcome
+  - Possible town modifiers:
+    - `merchantConfidence`
+    - `roadSafety`
+    - `caravanTraffic`
+  - Acceptance:
+    - Rumor text always corresponds to an actual marker/event.
+    - Resolving the event changes town/shop/world state, not just text.
+
+- [ ] **Make Bandits Farm fully real**
+  - Current: quest-board thread and marker encounter.
+  - Add consequences:
+    - resolving reduces local road danger
+    - failing or ignoring makes town guards/farmers more anxious
+    - bandit-related rumors can evolve into bandit bounty GM events
+  - Acceptance:
+    - Outcome affects future road/bandit encounter weighting near that town.
+
+- [ ] **Town incident choices: Inn Brawl**
+  - Current: GM can arm an inn-brawl rumor and escalate it into live actors.
+  - Add player choices when the incident becomes live:
+    - Break up the fight
+    - Join the fight
+    - Call guards / back away
+    - Ignore it
+  - Consequences:
+    - break up fight: innkeeper favor, possible discount, small injury risk
+    - join fight: loot/reward chance, guard reputation risk
+    - ignore: inn damage, temporary higher inn prices or reduced service
+  - Acceptance:
+    - Choices are shown through confirm/choice UI.
+    - Declining/ignoring is allowed and not punished with a forced outcome.
+    - GM receives a structured outcome event.
+
+- [ ] **Town incident choices: Thief Chase**
+  - Current: GM can arm a thief-chase rumor and spawn thief + guards.
+  - Add player choices:
+    - Help guards
+    - Stop/trip the thief
+    - Help thief escape
+    - Ignore
+  - Consequences:
+    - help guards: guard trust/reward
+    - help thief: black-market contact / guard distrust
+    - ignore: market loses goods, merchant confidence drops
+  - Acceptance:
+    - Thief outcome changes town state and future rumor text.
+    - Player choice is persisted in the current town record.
+
+- [ ] **GM rumor scheduler**
+  - Let GM schedule rumor leads based on:
+    - boredom level
+    - current town kind (town/castle/harbor)
+    - unresolved rumor/thread count
+    - faction history
+    - recent mechanics used by the player
+  - Rules:
+    - rare and boredom-gated
+    - choices only; no forced “gotcha” events
+    - deterministic GM RNG
+    - persisted in `GM_STATE_V1`
+  - Acceptance:
+    - GM can schedule one rumor lead through the existing scheduler.
+    - `max active quest threads` is enforced, starting with 1.
+
+- [ ] **Harbor rumors and ship ownership**
+  - Extend port towns beyond paid captain passage.
+  - Add harbor-specific rumors:
+    - missing fishing boat
+    - late merchant ship
+    - lights on the water
+    - smugglers near the pier
+    - wreck after a storm
+  - Add player-owned ship progression:
+    - buy a small boat/ship from a harbor captain or shipwright
+    - ship is stored on player/run state (`player.ship` or `world.ship`)
+    - ship can fast-travel between discovered harbor towns
+    - travel consumes time and may trigger sea/shore events
+    - ship can be upgraded later (storage, speed, safer travel)
+  - Initial ship types:
+    - rowboat: cheap, nearby harbor travel only, higher risk
+    - sailboat: expensive, broader harbor network, lower risk
+    - cargo boat: very expensive, storage/trade bonuses
+  - Acceptance:
+    - Player can buy a basic ship in a harbor town.
+    - Owned ship appears as a persistent harbor option.
+    - Player can travel from one discovered harbor town to another without walking the overworld route.
+    - Harbor travel can later feed GM/rumor events.
+
+- [ ] **Harbor trade and consequence hooks**
+  - Use harbor rumors and ship ownership to affect:
+    - shop stock
+    - fish/food prices
+    - caravan/ship arrival flavor
+    - road-vs-sea travel choices
+  - Acceptance:
+    - Resolving harbor rumors can improve harbor trade.
+    - Failed harbor events can make sea travel riskier or pricier for a while.
+
+- [ ] **GOD Encounter Editor: JSON-authored encounter builder**
+  - Build an in-game encounter editor accessible through the GOD panel, similar in spirit to the existing prefab/sandbox tools.
+  - Purpose:
+    - Let us click/build encounter maps and export valid JSON that can be pasted into `data/encounters/encounters.json`.
+    - Any exported encounter should load through the same runtime path as normal encounters.
+  - GOD panel integration:
+    - Add a GOD → Tools / Encounter Editor button.
+    - Editor opens as a full-screen or large modal tool, not a normal gameplay modal.
+    - Include buttons:
+      - New Encounter
+      - Load Existing JSON
+      - Validate
+      - Test Encounter
+      - Copy JSON
+      - Download JSON
+  - Editor map tools:
+    - Paint floor/wall/water/road/ruin/harbor-like tiles where supported by encounter generators.
+    - Place player spawn.
+    - Place exit tile(s).
+    - Place enemies by group/faction/type/count.
+    - Place neutral NPCs/merchants.
+    - Place props: chests, corpses, crates, campfires, caravan wagons, boats, signs, captives.
+    - Place objective markers (rescue, loot, survive, defeat leader, investigate corpse, recover cargo).
+    - Configure biome restrictions and time-of-day restrictions.
+  - Encounter metadata fields:
+    - `id`, `name`, `description`
+    - `allowedBiomes`
+    - `baseWeight`
+    - `map` dimensions/generator
+    - `groups`
+    - `props`
+    - `merchant`
+    - `objective`
+    - `rewards`
+    - `rumorId` / `questTemplateId` hooks for future rumor-driven encounters
+  - JSON validation:
+    - Validate required fields before export.
+    - Warn when enemy ids, prop types, objective ids, or item ids do not exist in loaded GameData.
+    - Validate that player spawn and exit are reachable.
+    - Validate that at least one enemy/objective/merchant/prop makes the encounter meaningful.
+  - Test flow:
+    - “Test Encounter” starts the edited encounter immediately from GOD without writing to disk.
+    - Test mode should use the same `EncounterRuntime.enter(ctx, { template })` path as real gameplay.
+    - Exiting test returns to previous mode/world position safely.
+  - Acceptance:
+    - A generated JSON template can be copied into `data/encounters/encounters.json`, rebuilt, and used by normal random encounters or quest/GM hooks.
+    - The editor can create the planned rumor encounters:
+      - missing caravan wreck
+      - bandits near farm
+      - harbor missing boat
+      - smuggler pier
+      - storm wreck
+    - The editor should not introduce a separate encounter format.
+
 - [ ] District themes (market / residential / temple) and signage
 - [ ] Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - [ ] World generation: support larger lakes and inland water bodies

@@ -129,11 +129,16 @@ function populateTown(ctx) {
     const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length)
       ? ND.shopkeeperNames
       : ["Shopkeeper", "Trader", "Smith"];
-    const caravanLines = [
-      "Fresh goods from the road.",
-      "We stay only while the caravan is in town.",
-      "Have a look before we move on.",
-    ];
+    const keeperProfiles = (ND && ND.shopkeeperProfiles && typeof ND.shopkeeperProfiles === "object")
+      ? ND.shopkeeperProfiles
+      : {};
+    function pickShopkeeperProfile(shopType) {
+      const key = String(shopType || "trader").toLowerCase();
+      const profile = keeperProfiles[key] || null;
+      const names = profile && Array.isArray(profile.names) && profile.names.length ? profile.names : keeperNames;
+      const lines = profile && Array.isArray(profile.lines) && profile.lines.length ? profile.lines : keeperLines;
+      return { names, lines };
+    }
     for (const s of shops) {
       // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
       // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
@@ -181,16 +186,17 @@ function populateTown(ctx) {
       }
 
       const shopBase = s.name ? `${s.name} ` : "";
+      const profile = pickShopkeeperProfile(s.type);
       let keeperName;
       if (isCaravanShop) {
-        keeperName = "Caravan master";
+        keeperName = profile.names[Math.floor(rng() * profile.names.length)] || "Caravan master";
       } else {
         keeperName =
           shopBase
             ? `${shopBase}Keeper`
-            : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+            : (profile.names[Math.floor(rng() * profile.names.length)] || "Shopkeeper");
       }
-      const linesForKeeper = isCaravanShop ? caravanLines : keeperLines;
+      const linesForKeeper = profile.lines;
 
       npcs.push({
         x: spot.x,

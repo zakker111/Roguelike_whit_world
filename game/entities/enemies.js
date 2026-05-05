@@ -13,6 +13,16 @@
  */
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const ENEMY_HP_MULT = 1.25;
+const ENEMY_ATK_MULT = 1.15;
+
+export function scaleHp(value) {
+  return Math.max(1, Math.round(Number(value || 1) * ENEMY_HP_MULT));
+}
+
+export function scaleAtk(value) {
+  return Math.max(0.1, Math.round(Number(value || 1) * ENEMY_ATK_MULT * 10) / 10);
+}
 
 // Enemy type registry populated exclusively from JSON
 export const TYPES = {};
@@ -115,8 +125,8 @@ function applyJsonEnemies(json) {
       _weightByDepth: row.weightByDepth || [],
       // Also keep a public copy for compatibility
       weightByDepth: Array.isArray(row.weightByDepth) ? row.weightByDepth : [],
-      hp(depth) { return linearAt(this._hp, depth, 3); },
-      atk(depth) { return linearAt(this._atk, depth, 1); },
+      hp(depth) { return scaleHp(linearAt(this._hp, depth, 3)); },
+      atk(depth) { return scaleAtk(linearAt(this._atk, depth, 1)); },
       xp(depth)  { return linearAt(this._xp, depth, 5); },
       weight(depth) { return weightFor(this, depth); },
       equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
@@ -286,6 +296,8 @@ if (typeof window !== "undefined") {
     glyphFor,
     equipTierFor,
     equipChanceFor,
+    scaleHp,
+    scaleAtk,
     pickType,
     levelFor,
     damageMultiplier,

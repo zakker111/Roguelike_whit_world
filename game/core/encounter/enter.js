@@ -536,8 +536,8 @@ export function enter(ctx, info) {
         try {
           const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
           e.level = Math.max(1, (e.level | 0) + (d - 1));
-          const hpMult = 1 + 0.25 * (d - 1);
-          const atkMult = 1 + 0.20 * (d - 1);
+          const hpMult = 1 + 0.32 * (d - 1);
+          const atkMult = 1 + 0.25 * (d - 1);
           e.hp = Math.max(1, Math.round(e.hp * hpMult));
           e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
         } catch (_) {}
@@ -699,8 +699,8 @@ export function enter(ctx, info) {
         try {
           const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
           e.level = Math.max(1, (e.level | 0) + (d - 1));
-          const hpMult = 1 + 0.25 * (d - 1);
-          const atkMult = 1 + 0.20 * (d - 1);
+          const hpMult = 1 + 0.32 * (d - 1);
+          const atkMult = 1 + 0.25 * (d - 1);
           e.hp = Math.max(1, Math.round(e.hp * hpMult));
           e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
         } catch (_) {}

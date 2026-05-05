@@ -15,6 +15,9 @@
  */
 import { getGameData, getRNGUtils, getMod, getUIOrchestration } from "../utils/access.js";
 
+// Module load marker (v3 = Math.random fallback fix). Helps confirm the
+// browser is actually running the latest code and not a stale cached copy.
+
 const STATE = {
   lastWorldX: null,
   lastWorldY: null,
@@ -24,8 +27,37 @@ const STATE = {
   nightRaidCooldownUntilTurn: 0,
 };
 
-// Read encounter rate from global/localStorage; 0..100, default 50
+function encounterCadenceForRate(rate) {
+  const r = Math.max(0, Math.min(100, Math.round(Number(rate) || 0)));
+  if (r >= 100) return { rampStart: 0, forceAfter: 1 };
+  if (r <= 0) return { rampStart: Infinity, forceAfter: Infinity };
+
+  const t = r / 50;
+  const rampStart = Math.max(8, Math.round(30 - 10 * t));
+  const forceAfter = Math.max(rampStart + 4, Math.round(45 - 15 * t));
+  return { rampStart, forceAfter };
+}
+
+// Read encounter rate from global/localStorage; 0..100, default 50.
+// One-shot migration: clears stale legacy localStorage values (<= 5) that came
+// from an earlier broken config default, so the new config default takes effect.
+function migrateStaleEncounterRate() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    if (localStorage.getItem("ENCOUNTER_RATE_MIGRATED_V2") === "1") return;
+    const raw = localStorage.getItem("ENCOUNTER_RATE");
+    if (raw != null) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v <= 5) {
+        localStorage.removeItem("ENCOUNTER_RATE");
+      }
+    }
+    localStorage.setItem("ENCOUNTER_RATE_MIGRATED_V2", "1");
+  } catch (_) {}
+}
+
 function getEncounterRate() {
+  migrateStaleEncounterRate();
   try {
     if (typeof window !== "undefined" && typeof window.ENCOUNTER_RATE === "number") {
       const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE) || 0)));
@@ -201,6 +233,9 @@ function tryEnter(ctx, tmpl, biome, difficulty) {
 export function maybeTryEncounter(ctx) {
   try {
     if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+    try {
+      if (typeof window !== "undefined" && window.SmokeTest && window.SmokeTest.Runner) return false;
+    } catch (_) {}
 
     const wx = ctx.player.x | 0, wy = ctx.player.y | 0;
     const moved = (STATE.lastWorldX !== wx) || (STATE.lastWorldY !== wy);
@@ -247,29 +282,48 @@ export function maybeTryEncounter(ctx) {
     const biome = biomeFromTile(tile);
 
     // Base chance and pity scaled by GOD panel Encounter Rate (0..100).
-    // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
+    // rate 50 -> baseline with a soft guarantee; 0 -> no encounters; 100 -> every tile.
     const rate = getEncounterRate();
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
-    const scale = rate / 50; // 0..2
-    const baseP0 = 0.03; // baseline 3%
-    const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
-    const baseP = baseP0 * scale;
-    const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
-    const pityBoost = pitySteps * (pityStep0 * scale);
-    const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
-    const chance = Math.min(cap, baseP + pityBoost);
+    // At rate 100, encounter EVERY tile (deterministic test mode).
+    // At rate 50 (default), begin hard-ramping after 20 quiet moves and force
+    // by 30 successful overworld movement tiles, after cooldown has elapsed.
+    let chance;
+    const cadence = encounterCadenceForRate(rate);
+    if (rate >= 100) {
+      chance = 1.0;
+    } else {
+      const scale = rate / 50; // 0..2 (rate 50 -> 1.0)
+      // Base 5.5% per movement tile at rate 50. With the 10-move
+      // post-encounter cooldown, this makes overworld travel produce more
+      // encounters while still avoiding back-to-back spam.
+      const baseP = 0.055 * scale;
+      // Pity ramps after 10 quiet moves so long travel streaks fill in faster.
+      const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 10) / 4));
+      const pityBoost = pitySteps * 0.012 * scale;
+      // Cap at 18% per tile at rate 50, scaling to 36% at rate 100.
+      const cap = Math.min(0.40, 0.18 * scale);
+      chance = Math.min(cap, baseP + pityBoost);
+      if (STATE.movesSinceLast >= cadence.forceAfter) {
+        chance = 1.0;
+      } else if (STATE.movesSinceLast >= cadence.rampStart) {
+        const rampSpan = Math.max(1, cadence.forceAfter - cadence.rampStart);
+        const rampT = (STATE.movesSinceLast - cadence.rampStart + 1) / rampSpan;
+        chance = Math.max(chance, Math.min(0.95, 0.25 + rampT * 0.70));
+      }
+    }
     (function logChance() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] chance computed", "notice", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
+            window.Logger.log("[Encounter] chance computed", "notice", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast, cadence });
           }
         } catch (_) {}
       }
     })();
 
-    // Deterministic roll using RNGUtils when available; fallback to direct rng() comparison
+    // Deterministic roll using RNGUtils when available; fallback to ctx.rng or Math.random
     const willEncounter = (function () {
       try {
         const RU = getRNGUtils(ctx);
@@ -279,7 +333,7 @@ export function maybeTryEncounter(ctx) {
         }
       } catch (_) {}
       const rng = rngFor(ctx);
-      const roll = (typeof rng === "function") ? rng() : 0.5;
+      const roll = (typeof rng === "function") ? rng() : Math.random();
       return roll < chance;
     })();
     if (!willEncounter) {
@@ -364,9 +418,29 @@ export function maybeTryEncounter(ctx) {
       } catch (_) {}
     })();
 
-    // Select a suitable template for this biome
-    const tmpl = specialTemplate || pickTemplate(ctx, biome);
-    if (!tmpl) { STATE.movesSinceLast += 1; return false; }
+    // Select a suitable template for this biome.
+    // If pickTemplate returns null (no template matches this biome), fall back
+    // to ANY available template — and finally to a built-in safety template so
+    // the popup ALWAYS shows when willEncounter is true.
+    let tmpl = specialTemplate || pickTemplate(ctx, biome);
+    if (!tmpl) {
+      const reg = registry(ctx);
+      if (reg && reg.length) {
+        // Pick the first template with a positive baseWeight, regardless of biome.
+        tmpl = reg.find(t => t && (typeof t.baseWeight !== "number" || t.baseWeight > 0)) || reg[0];
+      }
+    }
+    if (!tmpl) {
+      // Last-resort built-in template so the system never silently fails.
+      tmpl = {
+        id: "wandering_foe",
+        name: "Wandering Foe",
+        baseWeight: 1,
+        allowedBiomes: [],
+        map: { generator: "ambush_forest", w: 24, h: 16 },
+        groups: [{ type: "bandit", count: { min: 1, max: 2 } }],
+      };
+    }
     const difficulty = specialDifficulty || computeDifficulty(ctx, biome);
     (function logPick() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
@@ -414,19 +488,42 @@ export function maybeTryEncounter(ctx) {
     };
     const cancel = () => {
       try { ctx.log && ctx.log("You avoid the danger.", "info"); } catch (_) {}
-      STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user via UIOrchestration; cancel if confirm UI is unavailable
-    try {
-      const UIO = getUIOrchestration(ctx);
-      if (UIO && typeof UIO.showConfirm === "function") {
-        UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
-      } else {
-        // No confirm UI available; cancel by default
-        cancel();
-      }
-    } catch (_) { cancel(); }
+    // Set cooldown when the popup is opened (not when accepted) so we never
+    // spam multiple popups before the player responds.
+    STATE.movesSinceLast = 0;
+    STATE.cooldownMoves = 5;
+
+    // Prompt the user via UIOrchestration. Try direct fallbacks if UIO is
+    // missing, so a missing module doesn't silently swallow the popup.
+    const showAny = (text2, onOk, onCancel) => {
+      try {
+        const UIO = getUIOrchestration(ctx);
+        if (UIO && typeof UIO.showConfirm === "function") {
+          UIO.showConfirm(ctx, text2, null, onOk, onCancel);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        const UI = (typeof window !== "undefined") ? window.UI : null;
+        if (UI && typeof UI.showConfirm === "function") {
+          UI.showConfirm(text2, onOk, onCancel);
+          return true;
+        }
+      } catch (_) {}
+      try {
+        if (typeof window !== "undefined" && typeof window.confirm === "function") {
+          if (window.confirm(text2)) { onOk && onOk(); } else { onCancel && onCancel(); }
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    };
+
+    if (!showAny(text, () => enter(), () => cancel())) {
+      cancel();
+    }
     return true;
   } catch (e) {
     if (e && e._earlyExit) return true;

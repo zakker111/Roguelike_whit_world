@@ -166,7 +166,7 @@ export const GameData = {
     try {
       if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
         window.Logger.log(`[Palette] Apply requested: ${id}`, "notice");
-      } else if (typeof console !== "undefined") {
+      } else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") {
         console.debug("[Palette] Apply requested:", id);
       }
     } catch (_) {}
@@ -207,7 +207,7 @@ export const GameData = {
       try {
         if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
           window.Logger.log(`[Palette] Path resolved: ${path}`, "notice");
-        } else if (typeof console !== "undefined") {
+        } else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") {
           console.debug("[Palette] Path resolved:", path);
         }
       } catch (_) {}
@@ -220,7 +220,7 @@ export const GameData = {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
             window.Logger.log(`[Palette] Loaded ${id} from ${path}`, "notice");
-          } else if (typeof console !== "undefined") {
+          } else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") {
             console.debug("[Palette] Loaded", id, "from", path);
           }
         } catch (_) {}

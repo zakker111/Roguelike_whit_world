@@ -285,6 +285,10 @@ html {
   overflow: hidden;
 }
 
+.smoke-panel[hidden] {
+  display: none;
+}
+
 .smoke-panel-body {
   display: flex;
   flex-direction: column;

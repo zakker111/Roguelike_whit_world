@@ -1,3 +1,42 @@
+v1.50.54 — Trader variety and interaction polish release
+
+- Released the current gameplay polish batch as a distinct version:
+  - empty new-game inventory and 0 starting gold
+  - encounter cadence soft guarantee at 50%
+  - stronger dungeon/encounter enemies
+  - town/castle HUD status strip hidden
+  - rumors moved to log-only output
+  - Region Map ruins corpse/chest wording fix
+  - follower HP display rounding
+  - lockpicking modal input gating
+  - shop-type-specific trader/shopkeeper names and dialogue
+- Phase 0 acceptance is stable again:
+  - Inventory smoke now seeds deterministic smoke-only equipment for empty-start runs.
+  - Inventory smoke no longer performs duplicate dungeon/town transition persistence cycles; those remain covered by the dedicated dungeon/town scenarios.
+  - Town smoke bounds `ensureTownOnce` so a route/state issue records a skip instead of hanging the full harness.
+  - The Phase 0 harness now runs scenario families in fresh browser pages to avoid stale modal/state coupling between unrelated scenario groups.
+- Updated `README.md`, `TODO.md`, and generated `dist/` artifacts for the release.
+
+v1.50.53 — Clean start economy and rumor log cleanup
+
+- New games now start with an empty inventory and 0 gold:
+  - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
+  - Resetting to a new game uses the same empty-inventory baseline.
+- Default overworld encounter rate remains 50%, with a soft guarantee: after cooldown, the chance hard-ramps after 20 quiet overworld moves and forces an encounter by about 30 successful movement tiles.
+- Encounter cadence now resets when the prompt appears, so declining/avoiding an encounter does not retrigger another prompt after only the short popup cooldown.
+- Ambient random encounter prompts are suppressed while the smoketest runner is active so broad navigation smoke tests are not interrupted by travel popups.
+- Dungeon and encounter enemies are tougher by default:
+  - Enemy HP baseline increased by 25%.
+  - Enemy attack baseline increased by 15%.
+  - Encounter difficulty scaling now ramps HP/attack more sharply at higher difficulty.
+- Region Map / ruins looting now prefers corpse wording when a corpse and chest overlap on the same tile.
+- Follower inspect HP is rounded for display, avoiding long floating-point values.
+- Lockpicking now fully blocks gameplay keyboard input while the modal is open, preventing arrow/numpad movement leaks during the puzzle.
+- Town traders and shopkeepers now use shop-type-specific names and dialogue for more NPC variety.
+- Town/castle HUD status lines such as `Town of ... | Districts: ...` are now hidden; town rumors remain in the normal log only.
+- Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
+- Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
+
 v1.50.52 — Branch preview refresh on New_branch_14_4_2026
 
 - Prepared a fresh playable preview for `New_branch_14_4_2026`.
