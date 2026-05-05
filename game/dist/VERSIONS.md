@@ -3,7 +3,7 @@ v1.50.53 — Clean start economy and rumor log cleanup
 - New games now start with an empty inventory and 0 gold:
   - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
   - Resetting to a new game uses the same empty-inventory baseline.
-- Default overworld encounter rate increased from 50% to 65% so moving through the world produces more encounters by default.
+- Default overworld encounter rate increased from 50% to 80% so moving through the world produces more encounters by default.
 - Town/castle status now keeps the HUD panel focused on place identity and districts only.
 - Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
 - Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
