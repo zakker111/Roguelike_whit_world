@@ -323,8 +323,8 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       const diff = pl - eLevel;
       if (diff <= 1) return;
       const boost = Math.min(3, Math.max(1, diff - 1));
-      const hpMult = 1 + 0.20 * boost;
-      const atkMult = 1 + 0.15 * boost;
+      const hpMult = 1 + 0.25 * boost;
+      const atkMult = 1 + 0.18 * boost;
       enemy.level = Math.max(1, eLevel + boost);
       if (typeof enemy.hp === "number") {
         enemy.hp = Math.max(1, Math.round(enemy.hp * hpMult));

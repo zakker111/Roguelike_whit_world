@@ -4,6 +4,10 @@ v1.50.53 — Clean start economy and rumor log cleanup
   - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
   - Resetting to a new game uses the same empty-inventory baseline.
 - Default overworld encounter rate is 50%, with the encounter chance curve retuned so that 50% produces roughly one overworld encounter every 30–50 movement tiles.
+- Dungeon and encounter enemies are tougher by default:
+  - Enemy HP baseline increased by 25%.
+  - Enemy attack baseline increased by 15%.
+  - Encounter difficulty scaling now ramps HP/attack more sharply at higher difficulty.
 - Town/castle status now keeps the HUD panel focused on place identity and districts only.
 - Real town rumors, including missing-caravan and town-incident updates, now appear in the regular game log as `Rumor: ...` instead of being appended to the HUD status line.
 - Updated smoke coverage for town rumors, caravan thread status, and GM town incidents to assert log-based rumor output.
