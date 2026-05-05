@@ -3,7 +3,7 @@ v1.50.53 — Clean start economy and rumor log cleanup
 - New games now start with an empty inventory and 0 gold:
   - Removed the previous debug starter gold, potion, fishing pole, lockpick, torch, Seppo's True Blade, and forced starter stick.
   - Resetting to a new game uses the same empty-inventory baseline.
-- Default overworld encounter rate is 50%, with the encounter chance curve retuned so that 50% produces roughly one overworld encounter every 30–50 movement tiles.
+- Default overworld encounter rate remains 50%, with the encounter chance curve retuned so that 50% produces roughly one overworld encounter every 20–35 movement tiles.
 - Dungeon and encounter enemies are tougher by default:
   - Enemy HP baseline increased by 25%.
   - Enemy attack baseline increased by 15%.
