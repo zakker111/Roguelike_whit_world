@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tiny Roguelike</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Anchor relative URLs to the root -->
+  <base href="/" />
+  <!-- Strict Content Security Policy to prevent third-party analytics/scripts from loading -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' data: blob:;
+    img-src 'self' data: https://fav.farm;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    script-src 'self' 'unsafe-inline' https://cosine.sh;
+    connect-src 'self';
+  ">
+  <!-- App version for storage invalidation on deploy -->
+  <meta name="app-version" content="1.50.54">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="game/ui/style.css">
+  <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
+</head>
+<body>
+  <script>
+    (function() {
+      try {
+        var p = String(location.pathname || '');
+        if (p.indexOf('/index.html/index.html') !== -1) {
+          var url = new URL(location.href);
+          url.pathname = url.pathname.replace('/index.html/index.html', '/index.html');
+          location.replace(url.toString());
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <!-- Clear persisted game state automatically when the deployed version changes.
+       This guarantees a clean state after deploys without affecting same-version reloads. -->
+  <script>
+    (function() {
+      try {
+        var meta = document.querySelector('meta[name="app-version"]');
+        var ver = meta ? String(meta.getAttribute('content') || '') : '';
+        var KEY = 'APP_VERSION';
+        var prev = null;
+        try { prev = localStorage.getItem(KEY); } catch(_) {}
+        if (!prev || prev !== ver) {
+          try {
+            localStorage.removeItem('DUNGEON_STATES_V1');
+            localStorage.removeItem('TOWN_STATES_V1');
+            localStorage.removeItem('REGION_CUTS_V1');
+            localStorage.removeItem('REGION_ANIMALS_V1');
+            localStorage.removeItem('REGION_ANIMALS_V2');
+            localStorage.removeItem('REGION_STATE_V1');
+            localStorage.removeItem('GM_STATE_V1');
+          } catch (_) {}
+          try {
+            window._DUNGEON_STATES_MEM = Object.create(null);
+            window._TOWN_STATES_MEM = Object.create(null);
+          } catch (_) {}
+          try { localStorage.setItem(KEY, ver || 'dev'); } catch(_) {}
+          try { console.log('[BOOT] Cleared persisted game state due to version change ->', ver); } catch(_) {}
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <div class="ui">
+    <div class="title">Tiny Roguelike <span id="app-version" style="font-size:12px; color:#8a98b0; margin-left:8px;"></span></div>
+    <div class="stats">
+      <span id="health">HP: 40</span>
+      <span id="floor">Floor: 1</span>
+      <button id="wait-btn" class="btn" title="Spend one turn doing nothing" style="margin-left:10px; padding:4px 8px; font-size:12px;">Wait</button>
+      <button id="god-open-btn" class="btn" title="Open GOD panel (keyboard: P)" style="margin-left:6px; padding:4px 8px; font-size:12px;">GOD</button>
+      <button id="help-open-btn" class="btn" title="Open Help panel (keyboard: F1)" style="margin-left:6px; padding:4px 8px; font-size:12px;">Help</button>
+      <a href="game/docs/" class="btn" title="Open Docs viewer (palette schema and more)" style="margin-left:6px; padding:4px 8px; font-size:12px;">Docs</a>
+    </div>
+    <div id="town-status" class="town-status" hidden></div>
+  </div>
+  <script>
+    (function () {
+      try {
+        const meta = document.querySelector('meta[name="app-version"]');
+        const ver = meta ? String(meta.getAttribute('content') || '') : '';
+        const el = document.getElementById('app-version');
+        if (el) el.textContent = ver ? ('v' + ver) : '';
+        if (ver) document.title = 'Tiny Roguelike (v' + ver + ')';
+      } catch (_) {}
+    })();
+  </script>
+
+  <canvas id="game" width="960" height="640"></canvas>
+  <div class="log" id="log"></div>
+  <div class="log side" id="log-right"></div>
+  <script>
+    (function () {
+      try {
+        var el = document.getElementById("log-right");
+        if (el && window.LOG_MIRROR === false) {
+          el.style.display = "none";
+        }
+      } catch (_) {}
+    })();
+  </script>
+
+  <div id="loot-panel" class="loot-panel" hidden>
+    <div class="loot-title">Loot acquired</div>
+    <ul id="loot-list"></ul>
+    <div class="loot-hint">Press any key or click to close</div>
+  </div>
+
+  <div id="gameover-panel" class="gameover-panel" hidden>
+    <div class="loot-title">Game Over</div>
+    <div id="gameover-summary" class="gameover-summary"></div>
+    <button id="restart-btn" class="btn">Restart</button>
+    <div class="loot-hint">Press R to restart</div>
+  </div>
+
+  <div id="inv-panel" class="inv-panel" hidden>
+    <div class="inv-title">Inventory &amp; Equipment</div>
+    <div id="inv-stats" class="inv-stats"></div>
+    <div id="equip-slots" class="equip-grid"></div>
+    <div class="inv-subtitle">Inventory</div>
+    <ul id="inv-list" class="inv-list"></ul>
+    <div class="loot-hint">Click an equippable item to equip. Press I or Esc to close.</div>
+  </div>
+
+  <div id="god-panel" class="inv-panel" hidden>
+    <div class="inv-title">GOD Mode</div>
+    <div class="god-section god-row">
+      <button id="god-heal-btn" class="btn">Fully Heal</button>
+      <button id="god-toggle-invincible-btn" class="btn" title="Player cannot die; damage heals back immediately">Invincible: Off</button>
+      <button id="god-spawn-btn" class="btn">Spawn Random Items</button>
+      <button id="god-spawn-enemy-btn" class="btn">Spawn Enemy Nearby</button>
+      <button id="god-spawn-stairs-btn" class="btn">Spawn Stairs Here</button>
+      <button id="god-hire-follower-btn" class="btn" title="Hire a follower from followers.json (ignores normal acquisition flow)">Hire Follower (GOD)</button>
+      <button id="god-enter-sandbox-btn" class="btn" title="Enter a small sandbox dungeon room (no save persistence)">Enter Sandbox (Dungeon Room)</button>
+      <button id="god-newgame-btn" class="btn" title="Start New Game">Start New Game</button>
+    </div>
+    <div class="god-section">
+      <div class="inv-subtitle">Field of View &amp; Encounters</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">FOV:</label>
+        <input id="god-fov" type="range" min="3" max="14" step="1" />
+        <span id="god-fov-value" class="help" style="font-size:12px;"></span>
+      </div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Encounter rate:</label>
+        <input id="god-enc-rate" type="range" min="0" max="100" step="1" />
+        <span id="god-enc-rate-value" class="help" style="font-size:12px;"></span>
+      </div>
+      <div class="god-row" style="margin-bottom:8px;">
+        <label class="help" style="font-size:12px; color:#8a98b0;">Template:</label>
+        <select id="god-enc-select" style="min-width:220px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="">(auto)</option>
+        </select>
+        <button id="god-enc-start-btn" class="btn" title="Start selected encounter immediately (world mode)">Start Now</button>
+        <button id="god-enc-arm-btn" class="btn" title="Trigger selected encounter on next world move">Arm Next Move</button>
+        <button id="god-town-bandits-btn" class="btn" title="Spawn a guards vs bandits battle using the Guards vs Bandits encounter template (world mode)">Bandits at Gate</button>
+      </div>
+    </div>
+    <div class="god-section">
+      <div class="inv-subtitle">Render Overlays</div>
+      <div class="god-row" style="margin-bottom:6px;">
+        <button id="god-toggle-grid-btn" class="btn">Grid: On</button>
+        <button id="god-toggle-town-overlay-btn" class="btn" title="Show occupied houses and NPC targets in town">Overlay: Off</button>
+        <button id="god-toggle-town-paths-btn" class="btn" title="Draw NPC planned paths (town only)">Paths: Off</button>
+        <button id="god-toggle-home-paths-btn" class="btn" title="Draw full home paths in blue (NPCs to their homes/beds)">Home Paths: Off</button>
+        <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
+        <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
+      </div>
+      <div class="inv-subtitle">HUD &amp; Perf</div>
+      <div class="god-row" style="margin-bottom:8px;">
+        <button id="god-toggle-ow-hud-btn" class="btn" title="Show or hide the Overworld HUD (biome + clock)">Overworld HUD: On</button>
+        <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
+        <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
+        <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD">Perf: On</button>
+        <label class="help" style="font-size:12px; color:#8a98b0;">Teleport:</label>
+        <select id="god-teleport-target" style="min-width:130px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+          <option value="tower">Nearest Tower</option>
+          <option value="town">Nearest Town/Castle</option>
+          <option value="harbor">Nearest Harbor Town</option>
+          <option value="dungeon">Nearest Dungeon</option>
+          <option value="mountain_dungeon">Nearest Mountain Dungeon</option>
+          <option value="ruins">Nearest Ruins</option>
+          <option value="castle">Nearest Castle</option>
+        </select>
+        <button id="god-teleport-btn" class="btn" title="Teleport to the selected overworld destination (world mode only)">Teleport</button>
+      </div>
+    </div>
+    <div class="loot-hint">Press Esc to close</div>
+  </div>
+
+  <div id="smoke-panel" class="inv-panel smoke-panel" hidden>
+    <div class="inv-title">Smoke Test Configuration</div>
+    <div class="smoke-panel-body">
+      <div class="help">Compact picker for smoke scenarios. Filter by name/group, select a subset, then run it for the chosen number of iterations.</div>
+      <div class="smoke-toolbar">
+        <input id="smoke-search" class="smoke-search" type="search" placeholder="Filter scenarios (name, id, group, phase0)" />
+        <label for="smoke-count" class="smoke-inline-label">Runs:</label>
+        <input id="smoke-count" class="smoke-count-input" type="number" min="1" max="20" step="1" value="1" />
+      </div>
+      <div class="smoke-toolbar">
+        <button id="smoke-select-phase0-btn" class="btn" type="button">Select Phase 0</button>
+        <button id="smoke-select-all-btn" class="btn" type="button">Select All</button>
+        <button id="smoke-clear-btn" class="btn" type="button">Clear</button>
+        <span id="smoke-selection-summary" class="smoke-summary">Loading scenarios…</span>
+      </div>
+      <div class="inv-subtitle">Scenarios</div>
+      <div id="smoke-scenarios" class="smoke-scenarios"></div>
+      <div class="smoke-actions">
+        <button id="smoke-run-btn" class="btn" type="button">Run Selected</button>
+        <button id="smoke-run-linear-btn" class="btn" type="button" title="Run a fixed linear baseline order">Run Linear All</button>
+        <button id="smoke-cancel-btn" class="btn" type="button">Cancel</button>
+      </div>
+    </div>
+    <div class="loot-hint">Press Esc to close</div>
+  </div>
+
+  <script>
+    (function () {
+      try {
+        const params = new URLSearchParams(location.search);
+        if (params.get("dev") === "1") { window.DEV = true; localStorage.setItem("DEV", "1"); }
+        if (params.get("dev") === "0") { window.DEV = false; localStorage.removeItem("DEV"); }
+        if (localStorage.getItem("DEV") === "1") window.DEV = true;
+        if (params.get("mirror") === "1") { window.LOG_MIRROR = true; localStorage.setItem("LOG_MIRROR", "1"); }
+        if (params.get("mirror") === "0") { window.LOG_MIRROR = false; localStorage.setItem("LOG_MIRROR", "0"); }
+        if (typeof window.LOG_MIRROR === "undefined") {
+          const m = localStorage.getItem("LOG_MIRROR");
+          if (m === "1") window.LOG_MIRROR = true;
+          else if (m === "0") window.LOG_MIRROR = false;
+        }
+      } catch (_) {}
+    })();
+  </script>
+
+  <script type="module" src="game/src/main.js"></script>
+</body>
+</html>
