@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <title>Tiny Roguelike</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Anchor relative URLs to the current directory so the app works both at site root and under a subpath. -->
-  <base href="./" />
+  <!-- Anchor relative URLs to work under both root and /Roguelike_whit_world/game/ subpath -->
+  <base href="/Roguelike_whit_world/game/" />
   <!-- Strict Content Security Policy to prevent third-party analytics/scripts from loading -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self' data: blob:;
@@ -29,7 +29,7 @@
         var p = String(location.pathname || '');
         if (p.indexOf('/index.html/index.html') !== -1) {
           var url = new URL(location.href);
-          url.pathname = '/index.html';
+          url.pathname = url.pathname.replace('/index.html/index.html', '/index.html');
           location.replace(url.toString());
         }
       } catch (_) {}
@@ -210,7 +210,7 @@
     <div class="god-section">
       <div class="inv-subtitle">Town Debug</div>
       <div class="god-row" style="margin-bottom:6px;">
-        <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
+        <button id="god-check-home-btn" class="btn" title="Compute each NPC's full route home and report unreachable cases">Check Home Routes</button>
         <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
         <button id="god-check-signs-btn" class="btn" title="List shop signage and prefab sign intent (outside/inside)">Check Signs</button>
         <button id="god-check-prefabs-btn" class="btn" title="List loaded prefabs and which ones were used in this town">Check Prefabs</button>
@@ -308,7 +308,7 @@
         <button id="god-run-gm-emission-sim-btn" class="btn" title="Run deterministic GM emission simulation scenarios">Run GM Emission Sim</button>
         <button id="god-copy-gm-emission-sim-btn" class="btn" title="Copy the latest GM emission sim report JSON to clipboard">Copy JSON</button>
       </div>
-      <textarea id="god-gm-emission-sim-output" readonly style="width:100%; min-height:180px; padding:6px 8px; background:#0b1120; color:#e5e7eb; border:1px solid #334155; border-radius:6px; font-family:'JetBrains Mono', monospace; font-size:11px;"></textarea>
+      <textarea id="god-gm-emission-sim-output" readonly style="width:100%; min-height:180px; padding:6px 8px; background:#0b1120; color:#e5e7eb; border:1px solid #334155; border-radius:6px; font-size:11px; font-family:monospace;"></textarea>
     </div>
 
     <!-- Smoke Tests -->
