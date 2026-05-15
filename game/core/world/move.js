@@ -66,6 +66,29 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     }
   } catch (_) {}
 
+  // If the target tile has a wandering merchant, offer to trade
+  try {
+    const wanderers = Array.isArray(ctx.world.wanderers) ? ctx.world.wanderers : [];
+    if (wanderers.length) {
+      const wn = wanderers.find(w => w && !w.atTown && (w.x | 0) === wx && (w.y | 0) === wy);
+      if (wn) {
+        const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+        const greeting = (wn.dialogue && wn.dialogue.greeting) || "A merchant offers to trade.";
+        const prompt = greeting + " Trade with " + (wn.name || "the merchant") + "?";
+        const onOk = () => { try { openWandererShop(ctx, wn); } catch (_) {} };
+        const onCancel = () => {
+          try { ctx.log && ctx.log((wn.dialogue && wn.dialogue.farewell) || "You move on.", "info"); } catch (_) {}
+        };
+        if (UIO && typeof UIO.showConfirm === "function") {
+          UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+        } else {
+          onOk();
+        }
+        return true;
+      }
+    }
+  } catch (_) {}
+
   let walkable = true;
   try {
     // Prefer World.isWalkable for compatibility with tiles.json overrides
@@ -251,4 +274,52 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
       ctx.log("You ambush the caravan on the road!", "notice");
     }
   } catch (_) {}
+}
+
+/**
+ * Open a wandering merchant's shop when the player bumps into them on the overworld.
+ * Creates a temporary shop object using the wanderer's shopPool and opens the shop UI.
+ */
+function openWandererShop(ctx, wanderer) {
+  try {
+    // Close any confirm dialog before opening the shop
+    try {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.closeConfirm === "function") {
+        UIO.closeConfirm(ctx);
+      }
+    } catch (_) {}
+
+    const ShopSvc = ctx.ShopService || getMod(ctx, "ShopService") || (typeof window !== "undefined" ? window.ShopService : null);
+
+    // Build a temporary shop record the shop UI can use
+    const shop = {
+      x: wanderer.x | 0,
+      y: wanderer.y | 0,
+      type: wanderer.shopPool || "wandering_merchant",
+      name: wanderer.name || "Traveling Merchant",
+      alwaysOpen: true,
+      isWanderer: true,
+      wandererId: wanderer.id,
+    };
+
+    // Initialize shop state (inventory) using ShopService if available
+    if (ShopSvc && typeof ShopSvc.ensureShopState === "function") {
+      ShopSvc.ensureShopState(ctx, shop);
+    }
+    if (ShopSvc && typeof ShopSvc.restockIfNeeded === "function") {
+      ShopSvc.restockIfNeeded(ctx, shop);
+    }
+
+    // Open the shop overlay via UIOrchestration.showShop
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showShop === "function") {
+      UIO.showShop(ctx, shop);
+    } else {
+      // Fallback: log that we met a merchant
+      if (ctx.log) ctx.log("You meet " + (wanderer.name || "a merchant") + " but can't trade right now.", "info");
+    }
+  } catch (_) {
+    try { if (ctx.log) ctx.log("Failed to open wanderer shop.", "warn"); } catch (_2) {}
+  }
 }

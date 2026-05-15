@@ -77,6 +77,21 @@ export function tick(ctx) {
     towns: Array.isArray(ctx.world.towns) ? ctx.world.towns.length : 0
   });
 
+  // Wandering merchants
+  try {
+    const tw = nowMs();
+    spawnWanderersIfNeeded(ctx);
+    advanceWanderers(ctx);
+    const wandererMs = nowMs() - tw;
+    if (shouldLogWorldPerf(wandererMs)) {
+      try {
+        const LG = (typeof window !== "undefined") ? window.Logger : null;
+        const msg = `[WorldTick] wanderers=${wandererMs.toFixed(1)}ms count=${Array.isArray(ctx.world.wanderers) ? ctx.world.wanderers.length : 0}`;
+        if (LG && typeof LG.log === "function") LG.log(msg, "notice", { category: "WorldTick", perf: "tick" });
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+
   // Future: day/night effects or ambient overlays in world mode
   return true;
 }
@@ -671,6 +686,200 @@ function advanceCaravans(ctx) {
         cv.lastX = cx;
         cv.lastY = cy;
       } catch { /\* ignore \*/ }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wandering merchants
+// ---------------------------------------------------------------------------
+
+function getWandererConfig() {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    if (GD && GD.wanderers && typeof GD.wanderers === "object") return GD.wanderers;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function ensureWandererState(world) {
+  if (!world.wanderers) world.wanderers = [];
+}
+
+function spawnWanderersIfNeeded(ctx) {
+  const world = ctx.world;
+  ensureWandererState(world);
+  const wanderers = world.wanderers;
+  const towns = Array.isArray(world.towns) ? world.towns : [];
+
+  const cfg = getWandererConfig();
+  const merchants = (cfg && Array.isArray(cfg.merchants)) ? cfg.merchants : [];
+  const maxActive = (cfg && typeof cfg.maxActive === "number") ? cfg.maxActive : 3;
+  const minTowns = (cfg && typeof cfg.minTowns === "number") ? cfg.minTowns : 2;
+  const spawnChance = (cfg && typeof cfg.spawnChancePerTick === "number") ? cfg.spawnChancePerTick : 0.008;
+
+  if (towns.length < minTowns) return;
+  if (wanderers.length >= maxActive) return;
+  if (!merchants.length) return;
+
+  const r = worldRng(ctx);
+  if (r() >= spawnChance) return;
+
+  // Pick a merchant archetype weighted by weight field
+  let totalWeight = 0;
+  for (let i = 0; i < merchants.length; i++) {
+    totalWeight += (merchants[i].weight || 1);
+  }
+  let roll = r() * totalWeight;
+  let archetype = merchants[0];
+  for (let i = 0; i < merchants.length; i++) {
+    roll -= (merchants[i].weight || 1);
+    if (roll <= 0) { archetype = merchants[i]; break; }
+  }
+
+  // Pick a spawn town near the player
+  let px = null;
+  let py = null;
+  try {
+    if (ctx.player && ctx.world && typeof ctx.player.x === "number" && typeof ctx.player.y === "number") {
+      px = (ctx.world.originX | 0) + (ctx.player.x | 0);
+      py = (ctx.world.originY | 0) + (ctx.player.y | 0);
+    }
+  } catch { /* ignore */ }
+
+  let bestIdx = -1;
+  let bestDist = Infinity;
+  const attempts = Math.min(8, towns.length);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const idx = (r() * towns.length) | 0;
+    const t = towns[idx];
+    if (!t) continue;
+    if (px == null || py == null) { bestIdx = idx; break; }
+    const dx = (t.x | 0) - px;
+    const dy = (t.y | 0) - py;
+    const dist = Math.abs(dx) + Math.abs(dy);
+    if (dist < bestDist) { bestDist = dist; bestIdx = idx; }
+  }
+  if (bestIdx === -1) return;
+
+  const from = towns[bestIdx];
+  const dest = pickNearestTown(world, from.x | 0, from.y | 0);
+  if (!dest) return;
+
+  const now = getTurn(ctx);
+  wanderers.push({
+    id: `wanderer_${now}_${wanderers.length}`,
+    archetypeId: archetype.id || "traveling_merchant",
+    name: archetype.name || "Traveling Merchant",
+    glyph: archetype.glyph || "M",
+    color: archetype.color || "#FFD700",
+    shopPool: archetype.shopPool || "wandering_merchant",
+    x: from.x | 0,
+    y: from.y | 0,
+    from: { x: from.x | 0, y: from.y | 0 },
+    dest: { x: dest.x | 0, y: dest.y | 0 },
+    atTown: true,
+    dwellUntil: now + ((archetype.dwellTurns && archetype.dwellTurns.min) || 60),
+    townsVisited: 1,
+    maxTownsVisited: archetype.maxTownsVisited || 3,
+    spawnTurn: now,
+    dialogue: archetype.dialogue || {},
+  });
+}
+
+function advanceWanderers(ctx) {
+  const world = ctx.world;
+  ensureWandererState(world);
+  const wanderers = world.wanderers;
+  if (!wanderers.length) return;
+
+  const r = worldRng(ctx);
+  const nowT = getTurn(ctx);
+
+  // Process in reverse so we can splice expired wanderers
+  for (let i = wanderers.length - 1; i >= 0; i--) {
+    const w = wanderers[i];
+    if (!w) { wanderers.splice(i, 1); continue; }
+
+    // Initialize if missing
+    if (typeof w.dwellUntil !== "number") w.dwellUntil = 0;
+    if (typeof w.atTown !== "boolean") w.atTown = false;
+    if (typeof w.townsVisited !== "number") w.townsVisited = 0;
+
+    // If dwelling at a town, wait
+    if (w.atTown && nowT < (w.dwellUntil | 0)) continue;
+
+    // Dwell expired at town: pick next destination or despawn
+    if (w.atTown && nowT >= (w.dwellUntil | 0)) {
+      w.atTown = false;
+      if ((w.townsVisited | 0) >= (w.maxTownsVisited | 0)) {
+        // Reached max towns, despawn
+        wanderers.splice(i, 1);
+        continue;
+      }
+      w.dest = pickNearestTown(world, w.x | 0, w.y | 0) || w.dest;
+    }
+
+    // Validate destination
+    if (!w.dest || typeof w.dest.x !== "number" || typeof w.dest.y !== "number") {
+      const target = pickNearestTown(world, w.x | 0, w.y | 0);
+      if (target) { w.dest = target; } else { continue; }
+    }
+
+    const cx = w.x | 0;
+    const cy = w.y | 0;
+    const tx = w.dest.x | 0;
+    const ty = w.dest.y | 0;
+
+    // Arrived at destination town
+    if (cx === tx && cy === ty && isOnTownTile(world, cx, cy)) {
+      w.atTown = true;
+      w.townsVisited = (w.townsVisited | 0) + 1;
+
+      const cfg = getWandererConfig();
+      const merchants = (cfg && Array.isArray(cfg.merchants)) ? cfg.merchants : [];
+      const arch = merchants.find(m => m.id === w.archetypeId) || {};
+      const dMin = (arch.dwellTurns && arch.dwellTurns.min) || 60;
+      const dMax = (arch.dwellTurns && arch.dwellTurns.max) || 120;
+      w.dwellUntil = nowT + dMin + ((r() * (dMax - dMin + 1)) | 0);
+      continue;
+    }
+
+    // Move toward destination (same algorithm as caravans)
+    const dx = tx - cx;
+    const dy = ty - cy;
+    const stepX = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
+    const stepY = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
+
+    let nx = cx;
+    let ny = cy;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    function tryStep(px, py) {
+      if (px === cx && py === cy) return false;
+      if (!isWalkableWorld(ctx, px, py)) return false;
+      nx = px; ny = py;
+      return true;
+    }
+
+    let moved = false;
+    if (absDx >= absDy) {
+      if (stepX && tryStep(cx + stepX, cy)) moved = true;
+      else if (stepY && tryStep(cx, cy + stepY)) moved = true;
+    } else {
+      if (stepY && tryStep(cx, cy + stepY)) moved = true;
+      else if (stepX && tryStep(cx + stepX, cy)) moved = true;
+    }
+
+    if (!moved && (stepX || stepY)) {
+      if (stepX && tryStep(cx + stepX, cy + (stepY || 0))) moved = true;
+      else if (stepY && tryStep(cx + (stepX || 0), cy + stepY)) moved = true;
+    }
+
+    if (moved) {
+      w.x = nx;
+      w.y = ny;
     }
   }
 }

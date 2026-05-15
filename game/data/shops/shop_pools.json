@@ -208,5 +208,77 @@
         ]
       }
     }
+  },
+  "wandering_merchant": {
+    "categories": {
+      "potions": {
+        "capPerDay": 4,
+        "entries": [
+          { "id": "potion_lesser", "kind": "potion",
+            "phaseWeights": { "morning": 4, "midday": 4, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "potion_strong", "kind": "potion", "minTier": 2,
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          },
+          { "id": "antidote_basic", "kind": "antidote",
+            "phaseWeights": { "morning": 3, "midday": 3, "afternoon": 2, "dusk": 2 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          }
+        ]
+      },
+      "gear": {
+        "capPerDay": 3,
+        "entries": [
+          { "id": "leather_armor", "kind": "armor", "slot": "torso", "tier": 1,
+            "phaseWeights": { "morning": 3, "midday": 2, "afternoon": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "sword_simple", "kind": "weapon", "tier": 1,
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "lockpick_fine", "kind": "tool",
+            "phaseWeights": { "midday": 2, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          }
+        ]
+      },
+      "curiosities": {
+        "capPerDay": 2,
+        "entries": [
+          { "id": "curio_odd_stone", "kind": "curio",
+            "phaseWeights": { "morning": 1, "midday": 2, "afternoon": 2, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          { "id": "fishing_pole", "kind": "tool",
+            "phaseWeights": { "morning": 2, "midday": 2, "afternoon": 1 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  },
+  "wandering_rare": {
+    "categories": {
+      "rare_items": {
+        "capPerDay": 3,
+        "entries": [
+          { "id": "potion_strong", "kind": "potion", "minTier": 2,
+            "phaseWeights": { "morning": 3, "midday": 3, "afternoon": 3, "dusk": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          },
+          { "id": "axe_heavy", "kind": "weapon", "tier": 2,
+            "phaseWeights": { "morning": 2, "midday": 2, "afternoon": 3, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          { "id": "curio_odd_stone", "kind": "curio",
+            "phaseWeights": { "morning": 2, "midday": 2, "afternoon": 3, "dusk": 4 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
   }
 }
