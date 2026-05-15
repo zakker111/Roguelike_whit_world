@@ -67,7 +67,10 @@ const DATA_FILES = {
   // - towers: high-level tower types (floors, difficulty, prefab tags, chest rules, themeId)
   // - towerThemes: enemy/loot themes keyed by themeId
   towers: "data/worldgen/towers.json",
-  towerThemes: "data/worldgen/tower_themes.json"
+  towerThemes: "data/worldgen/tower_themes.json",
+
+  // Wandering merchants / overworld wanderer config
+  wanderers: "data/world/wanderers.json"
 };
 
 function fetchJson(url) {
@@ -157,6 +160,8 @@ export const GameData = {
   
   // New: prefab registry grouped by category
   prefabs: null,
+  // Wandering merchants config
+  wanderers: null,
   ready: null,
 
   // Runtime palette swapper (GOD panel)
@@ -288,7 +293,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, combatBalance, animals, prefabs,
-      overworldGen, weatherConfig, towerPrefabs, towersConfig, towerThemes, followers
+      overworldGen, weatherConfig, towerPrefabs, towersConfig, towerThemes, followers, wanderers
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -324,7 +329,8 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.towerPrefabs).catch(() => null),
       fetchJson(DATA_FILES.towers).catch(() => null),
       fetchJson(DATA_FILES.towerThemes).catch(() => null),
-      fetchJson(DATA_FILES.followers).catch(() => null)
+      fetchJson(DATA_FILES.followers).catch(() => null),
+      fetchJson(DATA_FILES.wanderers).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -380,6 +386,9 @@ GameData.ready = (async function loadAll() {
 
     // Visual weather configuration
     GameData.weatherConfig = (weatherConfig && typeof weatherConfig === "object") ? weatherConfig : null;
+
+    // Wandering merchants / overworld wanderer config
+    GameData.wanderers = (wanderers && typeof wanderers === "object") ? wanderers : null;
 
     // Strict: require combined assets file (tiles + props)
     try {

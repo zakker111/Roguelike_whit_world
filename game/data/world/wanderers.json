@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "spawnChancePerTick": 0.008,
+  "maxActive": 3,
+  "minTowns": 2,
+  "merchants": [
+    {
+      "id": "traveling_merchant",
+      "name": "Traveling Merchant",
+      "glyph": "M",
+      "color": "#FFD700",
+      "speed": 1,
+      "dwellTurns": { "min": 60, "max": 120 },
+      "maxTownsVisited": 3,
+      "shopPool": "wandering_merchant",
+      "weight": 3,
+      "dialogue": {
+        "greeting": "Hail, traveler! I carry wares from distant lands.",
+        "farewell": "Safe travels. I shall be moving on soon."
+      }
+    },
+    {
+      "id": "mysterious_stranger",
+      "name": "Mysterious Stranger",
+      "glyph": "M",
+      "color": "#9370DB",
+      "speed": 1,
+      "dwellTurns": { "min": 30, "max": 60 },
+      "maxTownsVisited": 1,
+      "shopPool": "wandering_rare",
+      "weight": 1,
+      "dialogue": {
+        "greeting": "I have seen things in these lands... things you might want to know about.",
+        "farewell": "We may meet again. Or perhaps not."
+      }
+    }
+  ]
+}
